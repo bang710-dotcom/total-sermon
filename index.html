@@ -21,10 +21,11 @@ html,body{height:100%}
 html{background:var(--bg)}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;font-size:15px;line-height:1.55;touch-action:manipulation}
 #app{max-width:640px;margin:0 auto;padding:calc(10px + env(safe-area-inset-top)) 14px calc(86px + env(safe-area-inset-bottom))}
-header{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 14px}
-header h1{font-size:19px;font-weight:700;letter-spacing:-.3px}
-header h1 span{color:var(--accent2)}
-#syncState{font-size:12px;color:var(--dim)}
+header.mobile{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 14px}
+header.mobile h1{font-size:19px;font-weight:700;letter-spacing:-.3px}
+h1 span{color:var(--accent2)}
+.syncState{font-size:12px;color:var(--dim)}
+.sidebar{display:none}
 .tabbar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;max-width:640px;margin:0 auto;padding-bottom:env(safe-area-inset-bottom);z-index:50}
 .tabbar button{flex:1;background:none;border:none;color:var(--dim);font-size:11.5px;padding:9px 0 7px;cursor:pointer;font-family:inherit}
 .tabbar button .ic{display:block;width:22px;height:22px;margin:0 auto 3px}
@@ -33,22 +34,26 @@ header h1 span{color:var(--accent2)}
 .page.on{display:block;animation:fade .15s ease}
 @keyframes fade{from{opacity:.4}to{opacity:1}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
-input[type=text],input[type=date],input[type=url],textarea,select{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 12px;font-size:15px;font-family:inherit;outline:none}
+input[type=text],input[type=date],input[type=url],input[type=number],textarea,select{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 12px;font-size:15px;font-family:inherit;outline:none}
 input:focus,textarea:focus{border-color:var(--accent)}
 textarea{resize:vertical;min-height:84px}
 label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn{display:inline-block;background:var(--accent);color:#0c1020;border:none;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;width:100%}
 .btn.sub{background:var(--card2);color:var(--text);border:1px solid var(--line);font-weight:500}
+.btn.gold{background:var(--accent2)}
 .btn:active{opacity:.8}
+.btn:disabled{opacity:.45;cursor:default}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 14px;font-size:13.5px;cursor:pointer;user-select:none}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#0c1020;font-weight:700}
 .chip.gold.on{background:var(--accent2);border-color:var(--accent2)}
-.item{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:13px 14px;margin-bottom:10px}
+.item{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:13px 14px;margin-bottom:10px;cursor:pointer}
+.item:hover{border-color:#3a4252}
+.item.sel{border-color:var(--accent)}
 .item .meta{font-size:12px;color:var(--dim);margin-bottom:4px;display:flex;gap:8px;flex-wrap:wrap}
 .item .title{font-weight:700;font-size:15.5px}
 .item .snippet{font-size:13.5px;color:var(--dim);margin-top:5px;word-break:break-word}
-.item .snippet b, .item .title b{color:var(--accent2);font-weight:700}
+.item .snippet b, .item .title b, .fulltext b{color:var(--accent2);font-weight:700}
 .badge{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:700}
 .b-sermon{background:#283250;color:#9eb4ff}.b-idea{background:#3d3322;color:#e8c87a}
 .b-state{background:var(--card2);color:var(--dim);border:1px solid var(--line)}
@@ -59,103 +64,233 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .dupbox .d:first-of-type{border-top:none}
 .okbox{border:1px solid var(--ok);background:#1b2a20;border-radius:10px;padding:9px 12px;margin-top:10px;font-size:13px;color:var(--ok)}
 .row2{display:flex;gap:9px}.row2>*{flex:1}
-.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:#000;color:#fff;border:1px solid var(--line);border-radius:99px;padding:9px 20px;font-size:13.5px;opacity:0;transition:.25s;z-index:99;pointer-events:none;white-space:nowrap}
+.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:#000;color:#fff;border:1px solid var(--line);border-radius:99px;padding:9px 20px;font-size:13.5px;opacity:0;transition:.25s;z-index:120;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 .searchbox{position:sticky;top:0;background:var(--bg);padding:4px 0 10px;z-index:10}
 .cnt{font-size:12.5px;color:var(--dim);margin:2px 2px 10px}
 details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .linkbtn{background:none;border:none;color:var(--accent);font-size:12.5px;cursor:pointer;font-family:inherit;padding:4px 8px 4px 0}
+.fulltext{white-space:pre-wrap;font-size:14px;line-height:1.85;color:var(--text);word-break:break-word}
+.kv{font-size:13.5px;margin:7px 0;display:flex;gap:8px}
+.kv .k{color:var(--dim);flex:0 0 70px}
+.kv .v{white-space:pre-wrap;word-break:break-word}
+#detailPane{display:none}
+.detailClose{display:none}
+.dropzone{border:2px dashed var(--line);border-radius:var(--radius);padding:40px 16px;text-align:center;color:var(--dim);font-size:14.5px;transition:.15s}
+.dropzone.over{border-color:var(--accent);background:#1a2030;color:var(--accent)}
+.imp{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px}
+.imp .row2{margin-top:8px}
+.imp .warn{color:var(--warn);font-size:12.5px;margin-top:6px}
+.imp .fname{font-size:12.5px;color:var(--dim);word-break:break-all}
+.toolrow{display:flex;gap:9px;margin-top:14px}
+.toolrow .btn{width:auto;flex:1}
+.foot{margin-top:auto;padding:10px 12px;font-size:12px;color:var(--dim)}
+
+/* ===================== 데스크탑 모드 ===================== */
+@media (min-width: 900px){
+  body{font-size:14.5px}
+  .tabbar{display:none}
+  header.mobile{display:none}
+  #app{max-width:1500px;display:grid;grid-template-columns:198px minmax(0,1fr);gap:20px;padding:18px 22px 30px}
+  .sidebar{display:flex;flex-direction:column;gap:4px;position:sticky;top:18px;height:calc(100vh - 40px)}
+  .sidebar .logo{font-size:19px;font-weight:800;padding:6px 12px 18px;letter-spacing:-.3px}
+  .sidebar button.nav{display:flex;align-items:center;gap:11px;background:none;border:none;color:var(--dim);font-size:14.5px;padding:11px 12px;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;width:100%}
+  .sidebar button.nav:hover{color:var(--text)}
+  .sidebar button.nav.on{background:var(--card);color:var(--text);font-weight:600}
+  .sidebar button.nav svg{width:18px;height:18px;flex:0 0 18px}
+  .sidebar .syncbtn{margin:0 8px}
+  #page-search.on{display:grid;grid-template-columns:minmax(330px,460px) minmax(0,1fr);gap:20px;align-items:start}
+  #searchLeft{min-width:0}
+  #qResults{max-height:calc(100vh - 170px);overflow:auto;padding-right:4px}
+  #detailPane{display:block;position:sticky;top:18px;max-height:calc(100vh - 40px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;min-height:300px}
+  #page-compose.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
+  #composeMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:4px}
+  #composeMeta label{margin-top:9px}
+  #c_text{min-height:calc(100vh - 150px);font-size:15.5px;line-height:2.0;padding:20px 22px}
+  #page-import{max-width:860px}
+  #page-settings{max-width:680px}
+  #page-inbox{max-width:860px}
+}
+@media (max-width: 899px){
+  .desktop-only{display:none !important}
+  #detailPane.open{display:block;position:fixed;inset:0;z-index:90;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom))}
+  .detailClose{display:block;margin-bottom:12px}
+}
 </style>
 </head>
 <body>
 <div id="app">
-  <header>
-    <h1>Total <span>Sermons</span></h1>
-    <div id="syncState">—</div>
-  </header>
 
-  <!-- ============ 검색 ============ -->
-  <section class="page" id="page-search">
-    <div class="searchbox">
-      <input type="text" id="q" placeholder="제목·본문·예화·원고 통합 검색" autocomplete="off">
-      <div class="chips" style="margin-top:9px">
-        <span class="chip on" data-scope="all">전체</span>
-        <span class="chip" data-scope="sermons">설교</span>
-        <span class="chip" data-scope="ideas">아이디어</span>
-        <span class="chip gold" data-scope="illust">예화만</span>
-      </div>
+  <!-- ============ 사이드바 (데스크탑) ============ -->
+  <aside class="sidebar">
+    <div class="logo">Total <span style="color:var(--accent2)">Sermons</span></div>
+    <button class="nav on" data-page="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
+    <button class="nav" data-page="compose">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>작성</button>
+    <button class="nav" data-page="input">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>빠른 입력</button>
+    <button class="nav" data-page="import">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>가져오기</button>
+    <button class="nav" data-page="inbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>인박스</button>
+    <button class="nav" data-page="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>설정</button>
+    <div class="foot">
+      <div class="syncState" id="syncStateD">—</div>
     </div>
-    <div class="cnt" id="qCnt"></div>
-    <div id="qResults"><div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.<br>데이터는 기기에 저장되어 오프라인에서도 검색됩니다.</div></div>
-  </section>
+  </aside>
 
-  <!-- ============ 입력 ============ -->
-  <section class="page" id="page-input">
-    <div class="card">
-      <div class="chips" id="ideaTypes">
-        <span class="chip gold on" data-v="예화">예화</span>
-        <span class="chip" data-v="주제">주제</span>
-        <span class="chip" data-v="통찰">통찰</span>
-        <span class="chip" data-v="인용">인용</span>
-        <span class="chip" data-v="질문">질문</span>
-      </div>
-      <label>내용 *</label>
-      <textarea id="ideaContent" placeholder="떠오른 생각을 빠르게 적으세요"></textarea>
-      <div id="dupCheck"></div>
-      <details style="margin-top:10px"><summary>상세 정보 (선택)</summary>
-        <label>관련 본문</label><input type="text" id="ideaRef" placeholder="예: 누가복음 15:11-32">
-        <label>출처</label><input type="text" id="ideaSource" placeholder="책 / 기사 / 경험 등">
-        <label>키워드</label><input type="text" id="ideaKw" placeholder="쉼표로 구분">
-      </details>
-      <div style="margin-top:14px"><button class="btn" id="saveIdea">아이디어 저장</button></div>
-    </div>
+  <div id="main">
+    <header class="mobile">
+      <h1>Total <span>Sermons</span></h1>
+      <div class="syncState" id="syncState">—</div>
+    </header>
 
-    <div class="card">
-      <details><summary>＋ 설교 기록 추가</summary>
-        <div class="row2" style="margin-top:6px">
-          <div><label>날짜</label><input type="date" id="smDate"></div>
-          <div><label>예배구분</label><input type="text" id="smService" placeholder="대학부"></div>
+    <!-- ============ 검색 ============ -->
+    <section class="page" id="page-search">
+      <div id="searchLeft">
+        <div class="searchbox">
+          <input type="text" id="q" placeholder="제목·본문·예화·원고 통합 검색" autocomplete="off">
+          <div class="chips" style="margin-top:9px">
+            <span class="chip on" data-scope="all">전체</span>
+            <span class="chip" data-scope="sermons">설교</span>
+            <span class="chip" data-scope="ideas">아이디어</span>
+            <span class="chip gold" data-scope="illust">예화만</span>
+          </div>
         </div>
-        <label>제목</label><input type="text" id="smTitle">
-        <label>본문</label><input type="text" id="smRef" placeholder="로마서 5:1-11">
+        <div class="cnt" id="qCnt"></div>
+        <div id="qResults"><div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.<br>데이터는 기기에 저장되어 오프라인에서도 검색됩니다.</div></div>
+      </div>
+      <div id="detailPane"><div class="empty">왼쪽에서 항목을 선택하면 상세 내용이 표시됩니다.</div></div>
+    </section>
+
+    <!-- ============ 작성 (데스크탑) ============ -->
+    <section class="page" id="page-compose">
+      <div id="composeMeta">
+        <div class="cnt" id="c_editing" style="margin-bottom:8px">새 설교</div>
         <div class="row2">
-          <div><label>시리즈</label><input type="text" id="smSeries"></div>
-          <div><label>상태</label><select id="smState"><option>구상</option><option>연구</option><option>작성중</option><option>완료</option><option>설교함</option></select></div>
+          <div><label>날짜</label><input type="date" id="c_date"></div>
+          <div><label>예배구분</label><input type="text" id="c_service" placeholder="대학부"></div>
         </div>
-        <label>핵심메시지</label><input type="text" id="smMsg">
-        <label>예화</label><input type="text" id="smIllust" placeholder="여러 개면 ; 로 구분">
-        <div style="margin-top:14px"><button class="btn" id="saveSermon">설교 저장</button></div>
-      </details>
-    </div>
-  </section>
+        <label>제목 *</label><input type="text" id="c_title">
+        <label>본문</label><input type="text" id="c_ref" placeholder="로마서 5:1-11">
+        <div class="row2">
+          <div><label>시리즈</label><input type="text" id="c_series"></div>
+          <div><label>순번</label><input type="number" id="c_seriesNo" min="1"></div>
+        </div>
+        <label>상태</label>
+        <select id="c_state"><option>구상</option><option>연구</option><option>작성중</option><option>완료</option><option>설교함</option></select>
+        <label>핵심메시지</label><input type="text" id="c_msg">
+        <label>대지</label><textarea id="c_points" rows="3" placeholder="1. …&#10;2. …"></textarea>
+        <label>예화</label><textarea id="c_illust" rows="2" placeholder="여러 개면 ; 로 구분"></textarea>
+        <div id="c_dupCheck"></div>
+        <label>키워드</label><input type="text" id="c_kw" placeholder="쉼표로 구분">
+        <label>비고</label><input type="text" id="c_note">
+        <div class="toolrow">
+          <button class="btn sub" id="c_new">새 설교</button>
+          <button class="btn" id="c_save">시트에 저장</button>
+        </div>
+        <div class="toolrow">
+          <button class="btn gold" id="c_export">DOCX 내보내기</button>
+        </div>
+        <div class="cnt" id="dirState" style="margin-top:10px"></div>
+        <button class="linkbtn" id="pickDir">저장 폴더 지정/변경</button>
+      </div>
+      <div>
+        <textarea id="c_text" placeholder="여기에 설교 원고를 작성하세요.&#10;&#10;시트에 저장하면 검색에 바로 반영되고, DOCX 내보내기를 누르면 맥의 설교 폴더(연도별)에 워드 파일로 저장됩니다."></textarea>
+        <div class="cnt" id="c_count" style="text-align:right;margin-top:6px"></div>
+      </div>
+    </section>
 
-  <!-- ============ 인박스 ============ -->
-  <section class="page" id="page-inbox">
-    <div class="chips" id="inboxFilter" style="margin-bottom:12px">
-      <span class="chip on" data-v="새것">새것</span>
-      <span class="chip" data-v="검토">검토</span>
-      <span class="chip" data-v="사용됨">사용됨</span>
-      <span class="chip" data-v="보류">보류</span>
-      <span class="chip" data-v="">전체</span>
-    </div>
-    <div id="inboxList"></div>
-  </section>
+    <!-- ============ 입력 (모바일 빠른 입력) ============ -->
+    <section class="page" id="page-input">
+      <div class="card">
+        <div class="chips" id="ideaTypes">
+          <span class="chip gold on" data-v="예화">예화</span>
+          <span class="chip" data-v="주제">주제</span>
+          <span class="chip" data-v="통찰">통찰</span>
+          <span class="chip" data-v="인용">인용</span>
+          <span class="chip" data-v="질문">질문</span>
+        </div>
+        <label>내용 *</label>
+        <textarea id="ideaContent" placeholder="떠오른 생각을 빠르게 적으세요"></textarea>
+        <div id="dupCheck"></div>
+        <details style="margin-top:10px"><summary>상세 정보 (선택)</summary>
+          <label>관련 본문</label><input type="text" id="ideaRef" placeholder="예: 누가복음 15:11-32">
+          <label>출처</label><input type="text" id="ideaSource" placeholder="책 / 기사 / 경험 등">
+          <label>키워드</label><input type="text" id="ideaKw" placeholder="쉼표로 구분">
+        </details>
+        <div style="margin-top:14px"><button class="btn" id="saveIdea">아이디어 저장</button></div>
+      </div>
 
-  <!-- ============ 설정 ============ -->
-  <section class="page" id="page-settings">
-    <div class="card">
-      <label>API URL (Apps Script 배포 주소 /exec)</label>
-      <input type="url" id="setUrl" placeholder="https://script.google.com/macros/s/.../exec">
-      <label>API 토큰</label>
-      <input type="text" id="setToken" placeholder="setToken 실행 시 로그에 표시된 값">
-      <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
-    </div>
-    <div class="card">
-      <button class="btn sub" id="syncBtn">지금 동기화</button>
-      <div class="cnt" id="dataStat" style="margin-top:10px"></div>
-      <div class="cnt" id="queueStat"></div>
-    </div>
-  </section>
+      <div class="card">
+        <details><summary>＋ 설교 기록 추가</summary>
+          <div class="row2" style="margin-top:6px">
+            <div><label>날짜</label><input type="date" id="smDate"></div>
+            <div><label>예배구분</label><input type="text" id="smService" placeholder="대학부"></div>
+          </div>
+          <label>제목</label><input type="text" id="smTitle">
+          <label>본문</label><input type="text" id="smRef" placeholder="로마서 5:1-11">
+          <div class="row2">
+            <div><label>시리즈</label><input type="text" id="smSeries"></div>
+            <div><label>상태</label><select id="smState"><option>구상</option><option>연구</option><option>작성중</option><option>완료</option><option>설교함</option></select></div>
+          </div>
+          <label>핵심메시지</label><input type="text" id="smMsg">
+          <label>예화</label><input type="text" id="smIllust" placeholder="여러 개면 ; 로 구분">
+          <div style="margin-top:14px"><button class="btn" id="saveSermon">설교 저장</button></div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============ 가져오기 (데스크탑) ============ -->
+    <section class="page" id="page-import">
+      <div class="dropzone" id="dropzone">
+        워드(.docx) 파일을 여기에 끌어다 놓으세요<br>
+        <span style="font-size:12.5px">파일명에서 날짜·제목·본문을 자동 인식합니다 · 여러 개 동시 가능</span><br><br>
+        <button class="linkbtn" id="pickFiles" style="font-size:14px">또는 파일 선택…</button>
+        <input type="file" id="fileInput" accept=".docx" multiple style="display:none">
+      </div>
+      <div id="impList" style="margin-top:14px"></div>
+      <div class="toolrow" id="impActions" style="display:none">
+        <button class="btn sub" id="impClear">비우기</button>
+        <button class="btn" id="impRegister">선택한 원고 시트에 등록</button>
+      </div>
+    </section>
+
+    <!-- ============ 인박스 ============ -->
+    <section class="page" id="page-inbox">
+      <div class="chips" id="inboxFilter" style="margin-bottom:12px">
+        <span class="chip on" data-v="새것">새것</span>
+        <span class="chip" data-v="검토">검토</span>
+        <span class="chip" data-v="사용됨">사용됨</span>
+        <span class="chip" data-v="보류">보류</span>
+        <span class="chip" data-v="">전체</span>
+      </div>
+      <div id="inboxList"></div>
+    </section>
+
+    <!-- ============ 설정 ============ -->
+    <section class="page" id="page-settings">
+      <div class="card">
+        <label>API URL (Apps Script 배포 주소 /exec)</label>
+        <input type="url" id="setUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        <label>API 토큰</label>
+        <input type="text" id="setToken" placeholder="setToken 실행 시 로그에 표시된 값">
+        <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
+      </div>
+      <div class="card">
+        <button class="btn sub" id="syncBtn">지금 동기화</button>
+        <div class="cnt" id="dataStat" style="margin-top:10px"></div>
+        <div class="cnt" id="queueStat"></div>
+      </div>
+      <div class="card desktop-only">
+        <label style="margin-top:0">DOCX 저장 폴더 (Chrome 전용)</label>
+        <div class="cnt" id="dirState2"></div>
+        <button class="btn sub" id="pickDir2">폴더 지정/변경</button>
+      </div>
+    </section>
+  </div>
 </div>
 
 <nav class="tabbar">
@@ -173,14 +308,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 <script>
 'use strict';
 /* ===================== 상태 ===================== */
-var LS = {
-  settings: 'tsa.settings', data: 'tsa.data', queue: 'tsa.queue'
-};
+var LS = { settings: 'tsa.settings', data: 'tsa.data', queue: 'tsa.queue' };
 var state = {
   settings: load(LS.settings) || { url: '', token: '' },
-  data: { sermons: [], ideas: [], fetchedAt: null }, /* IndexedDB에서 비동기 로드 */
+  data: { sermons: [], ideas: [], outputs: [], fetchedAt: null }, /* IndexedDB에서 비동기 로드 */
   queue: load(LS.queue) || [],
-  scope: 'all', inboxFilter: '새것', ideaType: '예화'
+  scope: 'all', inboxFilter: '새것', ideaType: '예화',
+  editing: null, lastTerms: [], importRows: []
 };
 function load(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
 function save(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
@@ -208,13 +342,21 @@ function saveData(){ idbSet('data', state.data).catch(function(e){ toast('기기
 function $(s){ return document.querySelector(s); }
 function $$(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-function toast(msg){ var t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2200); }
+function toast(msg){ var t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2400); }
 function debounce(fn, ms){ var h; return function(){ var a = arguments, c = this; clearTimeout(h); h = setTimeout(function(){ fn.apply(c, a); }, ms); }; }
+function isDesktop(){ return window.matchMedia('(min-width: 900px)').matches; }
+var _scripts = {};
+function loadScript(src){
+  if (_scripts[src]) return _scripts[src];
+  _scripts[src] = new Promise(function(res, rej){
+    var s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = function(){ delete _scripts[src]; rej(new Error('라이브러리 로드 실패(인터넷 연결 확인): ' + src)); };
+    document.head.appendChild(s);
+  });
+  return _scripts[src];
+}
 
-/* 한글 검색 정규화 */
 function norm(s){ return String(s || '').toLowerCase().replace(/\s+/g, ''); }
-
-/* 바이그램 Dice 유사도 — 예화 중복 체크 */
 function bigrams(s){
   s = norm(s).replace(/[^가-힣a-z0-9]/g, '');
   var set = {}; var n = 0;
@@ -248,10 +390,11 @@ function apiPost(body){
 }
 
 function sync(){
-  $('#syncState').textContent = '동기화 중…';
+  setSyncState('동기화 중…');
   return flushQueue().then(function(){
     return api({ action: 'list', sheet: 'all' });
   }).then(function(d){
+    d.outputs = d.outputs || [];
     state.data = d; saveData();
     renderSyncState(); renderInbox(); renderStats(); runSearch();
     toast('동기화 완료 (설교 ' + d.sermons.length + ' · 아이디어 ' + d.ideas.length + ')');
@@ -260,7 +403,6 @@ function sync(){
   });
 }
 
-/* 오프라인 큐: 저장 실패 시 보관했다가 다음 동기화 때 전송 */
 function flushQueue(){
   if (!state.queue.length) return Promise.resolve();
   var q = state.queue.slice();
@@ -277,7 +419,7 @@ function flushQueue(){
 
 function submit(body, okMsg){
   return apiPost(body).then(function(id){
-    toast(okMsg + ' (' + (id.ids ? id.ids.length + '건' : id) + ')');
+    toast(okMsg + (id ? ' (' + (id.ids ? id.ids.length + '건' : id.count || id) + ')' : ''));
     sync();
     return id;
   }).catch(function(e){
@@ -313,11 +455,15 @@ function hl(text, terms, clip){
   return out;
 }
 
+function findSermon(id){ return state.data.sermons.filter(function(x){ return x['ID'] === id; })[0]; }
+function findIdea(id){ return state.data.ideas.filter(function(x){ return x['ID'] === id; })[0]; }
+
 function runSearch(){
   var q = $('#q').value.trim();
   var box = $('#qResults'), cnt = $('#qCnt');
   if (!q) { cnt.textContent = ''; box.innerHTML = '<div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.</div>'; return; }
   var terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  state.lastTerms = terms;
   var scope = state.scope;
   var results = [];
 
@@ -325,16 +471,14 @@ function runSearch(){
     state.data.sermons.forEach(function(s){
       var fields = scope === 'illust' ? ['예화'] : SERMON_FIELDS;
       var hayAll = fields.map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
-      var hit = terms.every(function(t){ return hayAll.indexOf(t) >= 0; });
-      if (hit) results.push({ kind: 'sermon', d: s });
+      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'sermon', d: s });
     });
   }
   if (scope === 'all' || scope === 'ideas' || scope === 'illust') {
     state.data.ideas.forEach(function(d){
       if (scope === 'illust' && d['유형'] !== '예화') return;
       var hayAll = IDEA_FIELDS.map(function(f){ return String(d[f] || ''); }).join(' ').toLowerCase();
-      var hit = terms.every(function(t){ return hayAll.indexOf(t) >= 0; });
-      if (hit) results.push({ kind: 'idea', d: d });
+      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'idea', d: d });
     });
   }
 
@@ -349,14 +493,13 @@ function runSearch(){
         if (v && terms.some(function(t){ return v.toLowerCase().indexOf(t) >= 0; }))
           body += '<div class="snippet"><b style="color:var(--dim)">' + f + '</b> ' + hl(v, terms, 90) + '</div>';
       });
-      return '<div class="item"><div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
+      return '<div class="item" data-kind="sermon" data-id="' + esc(s['ID']) + '"><div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
         (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') +
         '<span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
-        '<div class="title">' + hl(s['제목'], terms) + ' <span style="color:var(--dim);font-weight:400;font-size:13px">' + hl(s['본문'], terms) + '</span></div>' + body +
-        (s['원고링크'] ? '<div style="margin-top:6px"><a class="linkbtn" href="' + esc(s['원고링크']) + '" target="_blank">원고 열기 ↗</a></div>' : '') + '</div>';
+        '<div class="title">' + hl(s['제목'], terms) + ' <span style="color:var(--dim);font-weight:400;font-size:13px">' + hl(s['본문'], terms) + '</span></div>' + body + '</div>';
     } else {
       var d = r.d;
-      return '<div class="item"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
+      return '<div class="item" data-kind="idea" data-id="' + esc(d['ID']) + '"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
         (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
         '<div class="snippet" style="color:var(--text)">' + hl(d['내용'], terms, 200) + '</div>' +
         (d['관련본문'] ? '<div class="snippet">' + hl(d['관련본문'], terms) + '</div>' : '') + '</div>';
@@ -364,12 +507,60 @@ function runSearch(){
   }).join('');
 }
 
+/* 결과 클릭 → 상세 */
+$('#qResults').addEventListener('click', function(e){
+  var item = e.target.closest('.item');
+  if (!item || !item.dataset.id) return;
+  $$('#qResults .item').forEach(function(x){ x.classList.remove('sel'); });
+  item.classList.add('sel');
+  openDetail(item.dataset.kind, item.dataset.id);
+});
+
+function openDetail(kind, id){
+  var pane = $('#detailPane');
+  var terms = state.lastTerms || [];
+  var html = '<button class="btn sub detailClose" onclick="closeDetail()">← 목록으로</button>';
+  if (kind === 'sermon') {
+    var s = findSermon(id);
+    if (!s) return;
+    html += '<div class="meta" style="font-size:12.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">' +
+      '<span class="badge b-sermon">' + esc(s['ID']) + '</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span><span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
+      '<h2 style="font-size:19px;margin:2px 0 2px">' + hl(s['제목'], terms) + '</h2>' +
+      '<div style="color:var(--accent2);font-size:14px;margin-bottom:10px">' + esc(s['본문']) + '</div>';
+    [['시리즈', s['시리즈'] + (s['시리즈순번'] ? ' (' + s['시리즈순번'] + '회)' : '')], ['핵심메시지', s['핵심메시지']], ['대지', s['대지']], ['예화', s['예화']], ['키워드', s['키워드']], ['비고', s['비고']]].forEach(function(kv){
+      if (kv[1] && kv[1].trim && kv[1].trim()) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>';
+    });
+    if (s['원고링크']) html += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:13.5px" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
+    html += '<div class="toolrow desktop-only">' +
+      '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">작성 화면에서 편집</button>' +
+      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
+    var txt = String(s['원고텍스트'] || '');
+    html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">' +
+      (txt ? '<div class="fulltext">' + hl(txt, terms) + '</div>' : '<div class="empty">저장된 원고 텍스트가 없습니다.</div>');
+  } else {
+    var d = findIdea(id);
+    if (!d) return;
+    html += '<div class="meta" style="font-size:12.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+      '<span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['ID']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
+      (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
+      '<div class="fulltext">' + hl(d['내용'], terms) + '</div>';
+    [['출처', d['출처']], ['관련본문', d['관련본문']], ['키워드', d['키워드']]].forEach(function(kv){
+      if (kv[1]) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + esc(kv[1]) + '</span></div>';
+    });
+    html += '<div style="margin-top:10px">' +
+      ['검토','사용됨','보류','새것'].filter(function(st){ return st !== d['상태']; }).map(function(st){
+        return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + st + '\');openDetail(\'idea\',\'' + d['ID'] + '\')">' + st + '으로</button>';
+      }).join('') + '</div>';
+  }
+  pane.innerHTML = html;
+  pane.classList.add('open');
+  if (isDesktop()) pane.scrollTop = 0;
+}
+window.openDetail = openDetail;
+window.closeDetail = function(){ $('#detailPane').classList.remove('open'); };
+
 /* ===================== 예화 중복 체크 ===================== */
-function checkDup(){
-  var type = state.ideaType;
-  var text = $('#ideaContent').value.trim();
-  var box = $('#dupCheck');
-  if (type !== '예화' || text.length < 8) { box.innerHTML = ''; return; }
+function dupCandidates(text){
   var cands = [];
   state.data.sermons.forEach(function(s){
     String(s['예화'] || '').split(';').forEach(function(part){
@@ -384,12 +575,24 @@ function checkDup(){
     var sim = similarity(text, d['내용']);
     if (sim >= 0.22) cands.push({ sim: sim, label: '인박스 ' + d['ID'] + ' (' + d['상태'] + (d['사용설교ID'] ? ' · ' + d['사용설교ID'] + '에 사용' : '') + ')', text: d['내용'] });
   });
-  if (!cands.length) { box.innerHTML = '<div class="okbox">✓ 비슷한 예화 기록이 없습니다.</div>'; return; }
   cands.sort(function(a, b){ return b.sim - a.sim; });
+  return cands;
+}
+function renderDup(box, text, minLen){
+  if (!text || text.length < (minLen || 8)) { box.innerHTML = ''; return; }
+  var cands = dupCandidates(text);
+  if (!cands.length) { box.innerHTML = '<div class="okbox">✓ 비슷한 예화 기록이 없습니다.</div>'; return; }
   box.innerHTML = '<div class="dupbox"><h4>⚠ 비슷한 예화가 ' + cands.length + '건 있습니다</h4>' +
     cands.slice(0, 5).map(function(c){
       return '<div class="d"><b>' + Math.round(c.sim * 100) + '%</b> · ' + esc(c.label) + '<br><span style="color:var(--dim)">' + esc(c.text.length > 80 ? c.text.substr(0, 80) + '…' : c.text) + '</span></div>';
     }).join('') + '</div>';
+}
+function checkDup(){
+  if (state.ideaType !== '예화') { $('#dupCheck').innerHTML = ''; return; }
+  renderDup($('#dupCheck'), $('#ideaContent').value.trim());
+}
+function checkDupCompose(){
+  renderDup($('#c_dupCheck'), $('#c_illust').value.trim().split(';')[0].trim());
 }
 
 /* ===================== 인박스 ===================== */
@@ -400,7 +603,7 @@ function renderInbox(){
   var box = $('#inboxList');
   if (!list.length) { box.innerHTML = '<div class="empty">해당 항목이 없습니다.</div>'; return; }
   box.innerHTML = list.map(function(d){
-    return '<div class="item"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
+    return '<div class="item" style="cursor:default"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
       (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
       '<div class="snippet" style="color:var(--text)">' + esc(d['내용']) + '</div>' +
       (d['관련본문'] ? '<div class="snippet">' + esc(d['관련본문']) + '</div>' : '') +
@@ -411,18 +614,289 @@ function renderInbox(){
   }).join('');
 }
 window.setIdeaState = function(id, st){
-  var d = state.data.ideas.filter(function(x){ return x['ID'] === id; })[0];
+  var d = findIdea(id);
   if (!d) return;
   var payload = { action: 'update', sheet: 'ideas', data: { ID: id, '상태': st } };
   if (st === '사용됨') {
     var sid = prompt('사용된 설교 ID를 입력하세요 (예: S0012, 모르면 비워두세요)', d['사용설교ID'] || '');
-    if (sid != null && sid.trim()) payload.data['사용설교ID'] = sid.trim();
+    if (sid != null && sid.trim()) { payload.data['사용설교ID'] = sid.trim(); d['사용설교ID'] = sid.trim(); }
   }
   d['상태'] = st; saveData(); renderInbox();
   submit(payload, '상태 변경');
 };
 
-/* ===================== 저장 동작 ===================== */
+/* ===================== 작성 (데스크탑 에디터) ===================== */
+var C_FIELDS = { '날짜':'c_date','예배구분':'c_service','제목':'c_title','본문':'c_ref','시리즈':'c_series','시리즈순번':'c_seriesNo','상태':'c_state','핵심메시지':'c_msg','대지':'c_points','예화':'c_illust','키워드':'c_kw','비고':'c_note','원고텍스트':'c_text' };
+
+function updateComposeBadge(){
+  var el = $('#c_editing');
+  if (state.editing) {
+    var s = findSermon(state.editing);
+    el.innerHTML = '수정 중: <b style="color:var(--accent)">' + esc(state.editing) + '</b> ' + esc(s ? s['제목'] : '');
+  } else {
+    el.textContent = '새 설교';
+  }
+}
+function clearCompose(){
+  state.editing = null;
+  Object.keys(C_FIELDS).forEach(function(k){ $('#' + C_FIELDS[k]).value = ''; });
+  $('#c_date').value = new Date().toISOString().slice(0, 10);
+  $('#c_state').value = '구상';
+  $('#c_dupCheck').innerHTML = '';
+  updateComposeBadge(); updateCount();
+}
+window.editSermon = function(id){
+  var s = findSermon(id);
+  if (!s) return;
+  state.editing = id;
+  Object.keys(C_FIELDS).forEach(function(k){ $('#' + C_FIELDS[k]).value = s[k] || ''; });
+  updateComposeBadge(); updateCount();
+  showPage('compose');
+};
+function collectCompose(){
+  var data = {};
+  Object.keys(C_FIELDS).forEach(function(k){ data[k] = $('#' + C_FIELDS[k]).value.trim(); });
+  return data;
+}
+$('#c_new').addEventListener('click', function(){
+  if ($('#c_text').value.trim() && !confirm('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
+  clearCompose();
+});
+$('#c_save').addEventListener('click', function(){
+  var data = collectCompose();
+  if (!data['제목']) { toast('제목을 입력해 주세요.'); return; }
+  if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
+  var body;
+  if (state.editing) {
+    data.ID = state.editing;
+    body = { action: 'update', sheet: 'sermons', data: data };
+  } else {
+    body = { action: 'add', sheet: 'sermons', data: data };
+  }
+  submit(body, state.editing ? '수정 저장 완료' : '시트 저장 완료').then(function(id){
+    if (id && typeof id === 'string' && !state.editing) { state.editing = id; updateComposeBadge(); }
+  });
+});
+$('#c_text').addEventListener('input', debounce(updateCount, 200));
+function updateCount(){
+  var n = $('#c_text').value.length;
+  $('#c_count').textContent = n ? n.toLocaleString() + '자' : '';
+}
+$('#c_illust').addEventListener('input', debounce(checkDupCompose, 400));
+
+/* ===================== DOCX 내보내기 ===================== */
+var dirHandle = null;
+function dirStateText(){
+  return dirHandle ? '저장 폴더: ' + dirHandle.name + ' (연도 폴더에 자동 저장)' :
+    (window.showDirectoryPicker ? '저장 폴더 미지정 — 지정 전에는 다운로드 폴더로 저장됩니다.' : '이 브라우저는 폴더 직접 저장을 지원하지 않아 다운로드로 저장됩니다. (Chrome 권장)');
+}
+function renderDirState(){
+  $('#dirState').textContent = dirStateText();
+  $('#dirState2').textContent = dirStateText();
+}
+function pickDir(){
+  if (!window.showDirectoryPicker) { toast('Chrome에서만 폴더 지정이 가능합니다.'); return; }
+  window.showDirectoryPicker({ mode: 'readwrite' }).then(function(h){
+    dirHandle = h;
+    idbSet('dir', h).catch(function(){});
+    renderDirState(); toast('저장 폴더 지정: ' + h.name);
+  }).catch(function(){});
+}
+$('#pickDir').addEventListener('click', pickDir);
+$('#pickDir2').addEventListener('click', pickDir);
+
+function ensureDocxLib(){
+  return loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js').then(function(){ return window.docx; });
+}
+/* 기존 원고 서식: 은 돋움 12pt, 줄간격 480(2줄), 제목·본문 굵게 */
+function buildDocx(D, meta, bodyText){
+  var FONT = { ascii: '은 돋움', eastAsia: '은 돋움', hAnsi: '은 돋움' };
+  function para(text, bold){
+    return new D.Paragraph({ spacing: { line: 480 }, children: [new D.TextRun({ text: text, bold: !!bold })] });
+  }
+  var children = [];
+  var titleLine = (meta['시리즈'] ? meta['시리즈'] + (meta['시리즈순번'] ? meta['시리즈순번'] : '') + ' - ' : '') + (meta['제목'] || '');
+  if (titleLine) children.push(para(titleLine, true));
+  if (meta['본문']) children.push(para(meta['본문'], true));
+  children.push(para('', false));
+  String(bodyText || '').split('\n').forEach(function(line){ children.push(para(line, false)); });
+  return new D.Document({
+    styles: { default: { document: { run: { font: FONT, size: 24 } } } },
+    sections: [{ children: children }]
+  });
+}
+function docxFileName(meta){
+  var ymd = (meta['날짜'] || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  var name = ymd + ' ' + (meta['예배구분'] ? meta['예배구분'] + '_' : '') + (meta['제목'] || '무제') +
+    (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
+  return name.replace(/[\\/:*?"<>|]/g, '_') + '.docx';
+}
+function saveDocxBlob(blob, fname, dateStr){
+  if (dirHandle) {
+    var year = (dateStr || '').slice(0, 4) || String(new Date().getFullYear());
+    return dirHandle.queryPermission({ mode: 'readwrite' }).then(function(p){
+      if (p === 'granted') return 'granted';
+      return dirHandle.requestPermission({ mode: 'readwrite' });
+    }).then(function(p){
+      if (p !== 'granted') throw new Error('폴더 접근 권한이 거부되었습니다.');
+      return dirHandle.getDirectoryHandle(year + '년', { create: true });
+    }).then(function(yd){
+      return yd.getFileHandle(fname, { create: true });
+    }).then(function(fh){
+      return fh.createWritable();
+    }).then(function(w){
+      return w.write(blob).then(function(){ return w.close(); });
+    }).then(function(){
+      toast('저장 완료: ' + dirHandle.name + '/' + (dateStr || '').slice(0, 4) + '년/' + fname);
+    });
+  }
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  toast('다운로드 폴더에 저장: ' + fname);
+  return Promise.resolve();
+}
+function exportDocx(meta, bodyText){
+  if (!meta['제목'] && !bodyText) { toast('내보낼 내용이 없습니다.'); return; }
+  ensureDocxLib().then(function(D){
+    return D.Packer.toBlob(buildDocx(D, meta, bodyText)).then(function(blob){
+      return saveDocxBlob(blob, docxFileName(meta), meta['날짜']);
+    });
+  }).catch(function(e){ toast('내보내기 실패: ' + e.message); });
+}
+$('#c_export').addEventListener('click', function(){
+  var data = collectCompose();
+  exportDocx(data, data['원고텍스트']);
+});
+window.exportSermonDocx = function(id){
+  var s = findSermon(id);
+  if (s) exportDocx(s, s['원고텍스트']);
+};
+
+/* ===================== DOCX 가져오기 ===================== */
+var BOOKS = '창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록|창|출|레|민|신|수|삿|룻|삼상|삼하|왕상|왕하|대상|대하|스|느|에|욥|시|잠|전|아|사|렘|애|겔|단|호|욜|암|옵|욘|미|나|합|습|학|슥|말|마|막|눅|요|행|롬|고전|고후|갈|엡|빌|골|살전|살후|딤전|딤후|딛|몬|히|약|벧전|벧후|요일|요이|요삼|유|계';
+var REF_TEXT_RE = new RegExp('(' + BOOKS + ')\\s*(\\d+)\\s*[:장]\\s*(\\d+)(?:\\s*[-~]\\s*(\\d+))?');
+var REF_FILE_RE = new RegExp('(' + BOOKS + ')\\s*(\\d+)[\\s_:](\\d+)(?:\\s*[-~]\\s*(\\d+))?');
+
+function fmtRef(m){ return m[1] + ' ' + m[2] + ':' + m[3] + (m[4] ? '-' + m[4] : ''); }
+
+function parseFileDate(name, fallbackYear){
+  var pats = [
+    { re: /(20\d{2})[-._년\s]*(\d{1,2})[-._월\s]*(\d{1,2})일?/, two: false },
+    { re: /(20\d{2})(\d{2})(\d{2})/, two: false },
+    { re: /(?:^|\D)(\d{2})(\d{2})(\d{2})(?!\d)/, two: true },
+    { re: /(\d{2})[-._년\s](\d{1,2})[-._월\s](\d{1,2})일?/, two: true }
+  ];
+  for (var i = 0; i < pats.length; i++) {
+    var m = name.match(pats[i].re);
+    if (!m) continue;
+    var y = pats[i].two ? 2000 + parseInt(m[1], 10) : parseInt(m[1], 10);
+    var mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+    if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && y >= 2000 && y <= 2100) {
+      return { date: y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2), rest: (name.slice(0, m.index) + ' ' + name.slice(m.index + m[0].length)).trim() };
+    }
+  }
+  var mm = name.match(/^(\d{2})(\d{2})[\s_\-.]/);
+  if (mm && fallbackYear) {
+    var mo2 = parseInt(mm[1], 10), d2 = parseInt(mm[2], 10);
+    if (mo2 >= 1 && mo2 <= 12 && d2 >= 1 && d2 <= 31)
+      return { date: fallbackYear + '-' + mm[1] + '-' + mm[2], rest: name.slice(mm[0].length).trim() };
+  }
+  return { date: '', rest: name };
+}
+function cleanTitle(name){
+  name = name.replace(/\.(docx?|DOCX?)$/, '').replace(/(설교문?|원고|최종|수정\d*|final|v\d+)/g, '');
+  return name.replace(/[\s_\-.]+/g, ' ').trim() || '(제목 미상)';
+}
+function docxXmlToText(xml){
+  var paras = [];
+  var re = /<w:p[ >][\s\S]*?<\/w:p>/g, m;
+  while ((m = re.exec(xml))) {
+    var ts = m[0].match(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g) || [];
+    var line = ts.map(function(t){ return t.replace(/^<w:t(?:\s[^>]*)?>/, '').replace(/<\/w:t>$/, ''); }).join('');
+    line = line.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&').trim();
+    if (line) paras.push(line);
+  }
+  return paras.join('\n');
+}
+function handleImportFiles(files){
+  var list = Array.prototype.slice.call(files).filter(function(f){ return /\.docx$/i.test(f.name) && !/^~\$/.test(f.name); });
+  if (!list.length) { toast('docx 파일이 없습니다.'); return; }
+  loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js').then(function(){
+    var chain = Promise.resolve();
+    list.forEach(function(f){
+      chain = chain.then(function(){
+        return f.arrayBuffer().then(function(buf){ return window.JSZip.loadAsync(buf); }).then(function(zip){
+          var doc = zip.file('word/document.xml');
+          if (!doc) throw new Error('문서 본문을 찾을 수 없습니다');
+          return doc.async('string');
+        }).then(function(xml){
+          var text = docxXmlToText(xml);
+          var fy = new Date(f.lastModified).getFullYear();
+          var pd = parseFileDate(f.name, fy);
+          var tm = text.slice(0, 600).match(REF_TEXT_RE);
+          var fm = f.name.match(REF_FILE_RE);
+          /* 파일명 '대학부_제목' 패턴에서 예배구분 추출 */
+          var service = '';
+          var rest = pd.rest;
+          var sm = rest.match(/^([가-힣A-Za-z0-9]{2,8})_/);
+          if (sm) { service = sm[1]; rest = rest.slice(sm[0].length); }
+          state.importRows.push({
+            use: true, fname: f.name,
+            '날짜': pd.date, '예배구분': service, '제목': cleanTitle(rest),
+            '본문': tm ? fmtRef(tm) : (fm ? fmtRef(fm) : ''),
+            '상태': '설교함', '원고텍스트': text
+          });
+        }).catch(function(e){
+          state.importRows.push({ use: false, fname: f.name, error: String(e.message || e) });
+        });
+      });
+    });
+    return chain;
+  }).then(renderImport).catch(function(e){ toast(e.message); });
+}
+function renderImport(){
+  var box = $('#impList');
+  $('#impActions').style.display = state.importRows.length ? 'flex' : 'none';
+  box.innerHTML = state.importRows.map(function(r, i){
+    if (r.error) return '<div class="imp"><div class="fname">' + esc(r.fname) + '</div><div class="warn">읽기 실패: ' + esc(r.error) + '</div></div>';
+    var dup = state.data.sermons.some(function(s){
+      return (s['비고'] || '').indexOf(r.fname) >= 0 || (s['날짜'] === r['날짜'] && s['제목'] === r['제목']);
+    });
+    return '<div class="imp">' +
+      '<label style="margin:0;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)"><input type="checkbox" style="width:auto" ' + (r.use ? 'checked' : '') + ' onchange="state.importRows[' + i + '].use=this.checked"> <span class="fname">' + esc(r.fname) + ' · ' + r['원고텍스트'].length.toLocaleString() + '자</span></label>' +
+      (dup ? '<div class="warn">⚠ 같은 날짜·제목 또는 같은 원본의 설교가 이미 시트에 있습니다.</div>' : '') +
+      '<div class="row2"><div><label>날짜</label><input type="date" value="' + esc(r['날짜']) + '" onchange="state.importRows[' + i + '][\'날짜\']=this.value"></div>' +
+      '<div><label>예배구분</label><input type="text" value="' + esc(r['예배구분']) + '" onchange="state.importRows[' + i + '][\'예배구분\']=this.value"></div></div>' +
+      '<div class="row2"><div><label>제목</label><input type="text" value="' + esc(r['제목']) + '" onchange="state.importRows[' + i + '][\'제목\']=this.value"></div>' +
+      '<div><label>본문</label><input type="text" value="' + esc(r['본문']) + '" onchange="state.importRows[' + i + '][\'본문\']=this.value"></div></div>' +
+      '</div>';
+  }).join('');
+}
+var dz = $('#dropzone');
+['dragenter', 'dragover'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add('over'); }); });
+['dragleave', 'drop'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove('over'); }); });
+dz.addEventListener('drop', function(e){ handleImportFiles(e.dataTransfer.files); });
+$('#pickFiles').addEventListener('click', function(){ $('#fileInput').click(); });
+$('#fileInput').addEventListener('change', function(){ handleImportFiles(this.files); this.value = ''; });
+$('#impClear').addEventListener('click', function(){ state.importRows = []; renderImport(); });
+$('#impRegister').addEventListener('click', function(){
+  var rows = state.importRows.filter(function(r){ return r.use && !r.error; }).map(function(r){
+    return { '날짜': r['날짜'], '예배구분': r['예배구분'], '제목': r['제목'], '본문': r['본문'],
+      '상태': r['상태'], '원고텍스트': r['원고텍스트'].slice(0, 45000), '비고': '원본: ' + r.fname };
+  });
+  if (!rows.length) { toast('등록할 항목이 없습니다.'); return; }
+  $('#impRegister').disabled = true;
+  apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: rows }).then(function(res){
+    toast(res.count + '건 등록 완료');
+    state.importRows = []; renderImport();
+    return sync();
+  }).catch(function(e){ toast('등록 실패: ' + e.message); }).then(function(){ $('#impRegister').disabled = false; });
+});
+
+/* ===================== 저장 동작 (모바일 빠른 입력) ===================== */
 $('#saveIdea').addEventListener('click', function(){
   var content = $('#ideaContent').value.trim();
   if (!content) { toast('내용을 입력해 주세요.'); return; }
@@ -456,16 +930,19 @@ $('#saveSettings').addEventListener('click', function(){
 });
 $('#syncBtn').addEventListener('click', sync);
 
-/* ===================== 탭/칩 ===================== */
-$$('.tabbar button').forEach(function(b){
-  b.addEventListener('click', function(){
-    $$('.tabbar button').forEach(function(x){ x.classList.remove('on'); });
-    b.classList.add('on');
-    $$('.page').forEach(function(p){ p.classList.remove('on'); });
-    $('#page-' + b.dataset.page).classList.add('on');
-    if (b.dataset.page === 'search') $('#q').focus();
-    if (b.dataset.page === 'input') $('#ideaContent').focus();
-  });
+/* ===================== 페이지 전환 ===================== */
+function showPage(name){
+  $$('.page').forEach(function(p){ p.classList.remove('on'); });
+  var pg = $('#page-' + name);
+  if (pg) pg.classList.add('on');
+  $$('.tabbar button').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
+  $$('.sidebar .nav').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
+  if (name === 'search') $('#q').focus();
+  if (name === 'input') $('#ideaContent').focus();
+}
+window.showPage = showPage;
+$$('.tabbar button, .sidebar .nav').forEach(function(b){
+  b.addEventListener('click', function(){ showPage(b.dataset.page); });
 });
 $$('#page-search .chip').forEach(function(c){
   c.addEventListener('click', function(){
@@ -499,9 +976,13 @@ document.addEventListener('touchend', function(e){
 }, { passive: false });
 
 /* ===================== 렌더 보조 ===================== */
+function setSyncState(txt){
+  $('#syncState').textContent = txt;
+  $('#syncStateD').textContent = txt;
+}
 function renderSyncState(){
   var f = state.data.fetchedAt;
-  $('#syncState').textContent = f ? '동기화: ' + f : '미동기화';
+  setSyncState(f ? '동기화: ' + f : '미동기화');
 }
 function renderStats(){
   $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건';
@@ -514,16 +995,16 @@ function renderStats(){
   $('#setToken').value = state.settings.token || '';
   $('#page-search').classList.add('on');
   $('#smDate').value = new Date().toISOString().slice(0, 10);
-  renderSyncState(); renderInbox(); renderStats();
+  $('#c_date').value = new Date().toISOString().slice(0, 10);
+  renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
   idbGet('data').then(function(d){
-    if (d) { state.data = d; return; }
-    /* 구버전(localStorage) 데이터가 있으면 IndexedDB로 이전 */
+    if (d) { d.outputs = d.outputs || []; state.data = d; return; }
     var old = load(LS.data);
-    if (old) { state.data = old; localStorage.removeItem(LS.data); return idbSet('data', old); }
+    if (old) { old.outputs = old.outputs || []; state.data = old; localStorage.removeItem(LS.data); return idbSet('data', old); }
   }).catch(function(){}).then(function(){
     renderSyncState(); renderInbox(); renderStats(); runSearch();
-    /* 30분 이상 지났으면 자동 동기화 */
     var f = state.data.fetchedAt ? new Date(state.data.fetchedAt.replace(' ', 'T')) : null;
     if (state.settings.url && (!f || Date.now() - f.getTime() > 30 * 60 * 1000)) sync();
   });
