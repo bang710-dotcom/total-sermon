@@ -244,7 +244,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
           <button class="btn sub mini" data-req="리더스앱업로드">리더스앱 업로드용</button>
         </div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
-        <button class="linkbtn" id="pickDir">저장 폴더 지정/변경</button>
+        <button class="linkbtn" id="pickDir">DOCX 저장 폴더 지정</button>
+        <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
         <button class="linkbtn" id="checkInbox">요청함 상태 확인</button>
       </div>
       <div id="editorPane"></div>
@@ -338,9 +339,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <div class="cnt" id="queueStat"></div>
       </div>
       <div class="card desktop-only">
-        <label style="margin-top:0">DOCX 저장 폴더 (Chrome 전용)</label>
+        <label style="margin-top:0">폴더 연결 (Chrome 전용)</label>
         <div class="cnt" id="dirState2"></div>
-        <button class="btn sub" id="pickDir2">폴더 지정/변경</button>
+        <div class="row2" style="margin-top:8px">
+          <button class="btn sub" id="pickDir2">DOCX 저장 폴더</button>
+          <button class="btn sub" id="pickX2">클로드 연동 폴더</button>
+        </div>
+        <div class="cnt" style="margin-top:8px">DOCX 저장 폴더는 아이클라우드 설교 폴더, 클로드 연동 폴더는 코워크 작업 폴더(예: Developer/claude-exchange)를 지정하세요.</div>
       </div>
     </section>
   </div>
@@ -919,25 +924,31 @@ $('#c_save').addEventListener('click', function(){
 });
 
 /* ===================== DOCX 내보내기 ===================== */
-var dirHandle = null;
+var dirHandle = null;  /* DOCX 저장 (아이클라우드 설교 폴더) */
+var xHandle = null;    /* 클로드 연동: 요청함·결과함 (코워크 작업 폴더) */
 function dirStateText(){
-  return dirHandle ? '저장 폴더: ' + dirHandle.name + ' (연도 폴더에 자동 저장)' :
-    (window.showDirectoryPicker ? '저장 폴더 미지정 — 지정 전에는 다운로드 폴더로 저장됩니다.' : '이 브라우저는 폴더 직접 저장을 지원하지 않아 다운로드로 저장됩니다. (Chrome 권장)');
+  if (!window.showDirectoryPicker) return '이 브라우저는 폴더 연결을 지원하지 않습니다. DOCX는 다운로드로 저장됩니다. (Chrome 권장)';
+  return 'DOCX 저장: ' + (dirHandle ? dirHandle.name : '미지정(다운로드 폴더 사용)') +
+    ' · 클로드 연동: ' + (xHandle ? xHandle.name : '미지정');
 }
 function renderDirState(){
   $('#dirState').textContent = dirStateText();
   $('#dirState2').textContent = dirStateText();
 }
-function pickDir(){
+function pickFolder(key, label, assign){
   if (!window.showDirectoryPicker) { toast('Chrome에서만 폴더 지정이 가능합니다.'); return; }
   window.showDirectoryPicker({ mode: 'readwrite' }).then(function(h){
-    dirHandle = h;
-    idbSet('dir', h).catch(function(){});
-    renderDirState(); toast('저장 폴더 지정: ' + h.name);
+    assign(h);
+    idbSet(key, h).catch(function(){});
+    renderDirState(); toast(label + ' 지정: ' + h.name);
   }).catch(function(){});
 }
+function pickDir(){ pickFolder('dir', 'DOCX 저장 폴더', function(h){ dirHandle = h; }); }
+function pickX(){ pickFolder('dirx', '클로드 연동 폴더', function(h){ xHandle = h; }); }
 $('#pickDir').addEventListener('click', pickDir);
 $('#pickDir2').addEventListener('click', pickDir);
+$('#pickX').addEventListener('click', pickX);
+$('#pickX2').addEventListener('click', pickX);
 
 function ensureDocxLib(){
   return loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js').then(function(){ return window.docx; });
@@ -1063,23 +1074,24 @@ function saveDocxBlob(blob, fname, dateStr){
 var REQ_TYPES = ['이미지프롬프트', '카드원고', 'LTC교재', '리더스앱업로드'];
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
 
-function dirPerm(){
-  if (!dirHandle) return Promise.reject(new Error('저장 폴더를 먼저 지정해 주세요 (작성 탭 하단).'));
-  return dirHandle.queryPermission({ mode: 'readwrite' }).then(function(p){
+function permFor(h, guide){
+  if (!h) return Promise.reject(new Error(guide));
+  return h.queryPermission({ mode: 'readwrite' }).then(function(p){
     if (p === 'granted') return 'granted';
-    return dirHandle.requestPermission({ mode: 'readwrite' });
+    return h.requestPermission({ mode: 'readwrite' });
   }).then(function(p){
     if (p !== 'granted') throw new Error('폴더 접근 권한이 거부되었습니다.');
   });
 }
+function xPerm(){ return permFor(xHandle, '클로드 연동 폴더를 먼저 지정해 주세요 (작성 탭 하단 또는 설정).'); }
 function writeRequestFile(type, meta){
   var d = new Date();
   function p2(n){ return ('0' + n).slice(-2); }
   var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes());
   var fname = '요청_' + (meta['ID'] || '신규') + '_' + type + '_' + stamp + '.json';
   var payload = { '요청유형': type, '상태': '대기', '요청일시': d.toISOString().slice(0, 16).replace('T', ' '), '설교': meta };
-  dirPerm().then(function(){
-    return dirHandle.getDirectoryHandle('_claude_요청함', { create: true });
+  xPerm().then(function(){
+    return xHandle.getDirectoryHandle('_claude_요청함', { create: true });
   }).then(function(dir){
     return dir.getFileHandle(fname, { create: true });
   }).then(function(fh){
@@ -1106,10 +1118,10 @@ $$('#composeMeta [data-req]').forEach(function(b){
 /* 완료된 요청 → 산출물 시트 자동 기록 (Cowork가 상태를 '완료'로 바꿔두면 다음 확인 때 반영) */
 async function scanRequests(quiet){
   try {
-    if (!dirHandle) { if (!quiet) toast('저장 폴더가 지정되지 않았습니다.'); return; }
-    if (await dirHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') { if (!quiet) toast('폴더 권한이 필요합니다. 요청 버튼을 한 번 눌러 권한을 허용해 주세요.'); return; }
+    if (!xHandle) { if (!quiet) toast('클로드 연동 폴더가 지정되지 않았습니다.'); return; }
+    if (await xHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') { if (!quiet) toast('폴더 권한이 필요합니다. 요청 버튼을 한 번 눌러 권한을 허용해 주세요.'); return; }
     var dir;
-    try { dir = await dirHandle.getDirectoryHandle('_claude_요청함'); }
+    try { dir = await xHandle.getDirectoryHandle('_claude_요청함'); }
     catch (e) { if (!quiet) toast('아직 요청함이 없습니다.'); return; }
     var done = 0, waiting = 0, working = 0;
     for await (var entry of dir.values()) {
@@ -1155,16 +1167,16 @@ $('#checkInbox').addEventListener('click', function(){ scanRequests(false); });
 function handleIdeaImages(files){
   var imgs = Array.prototype.slice.call(files).filter(function(f){ return /^image\//.test(f.type); });
   if (!imgs.length) { toast('이미지 파일이 아닙니다.'); return; }
-  if (!window.showDirectoryPicker || !dirHandle) {
-    toast('이미지 인식은 폴더가 지정된 데스크탑 Chrome에서 가능합니다. 휴대폰에서는 Cowork 채팅으로 이미지를 보내주세요.');
+  if (!window.showDirectoryPicker || !xHandle) {
+    toast('이미지 인식은 클로드 연동 폴더가 지정된 데스크탑 Chrome에서 가능합니다. 휴대폰에서는 Cowork 채팅으로 이미지를 보내주세요.');
     return;
   }
   var d = new Date();
   function p2(n){ return ('0' + n).slice(-2); }
   var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds());
   var names = [];
-  dirPerm().then(function(){
-    return dirHandle.getDirectoryHandle('_claude_요청함', { create: true });
+  xPerm().then(function(){
+    return xHandle.getDirectoryHandle('_claude_요청함', { create: true });
   }).then(function(req){
     return req.getDirectoryHandle('이미지', { create: true }).then(function(imgDir){
       var chain = Promise.resolve();
@@ -1470,7 +1482,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v12';
+var APP_VER = 'v13';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -1496,7 +1508,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
-  idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); scanRequests(true); } }).catch(function(){});
+  idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
+  idbGet('dirx').then(function(h){ if (h) { xHandle = h; renderDirState(); scanRequests(true); } }).catch(function(){});
   idbGet('data').then(function(d){
     if (d) { d.outputs = d.outputs || []; state.data = d; return; }
     var old = load(LS.data);
