@@ -217,6 +217,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
             <span class="chip" data-scope="sermons">설교</span>
             <span class="chip" data-scope="ideas">아이디어</span>
             <span class="chip gold" data-scope="illust">예화만</span>
+            <span class="chip" data-scope="topics">주제어</span>
+            <span class="chip" data-scope="devon">묵상노트</span>
           </div>
         </div>
         <div class="cnt" id="qCnt"></div>
@@ -598,8 +600,9 @@ function runSearch(){
   /* #으로 시작하는 단어는 주제어(키워드) 전용 검색 */
   var tagTerms = rawTerms.filter(function(t){ return t.charAt(0) === '#' && t.length > 1; }).map(function(t){ return t.slice(1); });
   var terms = rawTerms.filter(function(t){ return t.charAt(0) !== '#'; });
-  state.lastTerms = terms.concat(tagTerms);
   var scope = state.scope;
+  if (scope === 'topics') { tagTerms = tagTerms.concat(terms); terms = []; } /* 주제어 탭: 모든 단어를 키워드 검색으로 */
+  state.lastTerms = terms.concat(tagTerms);
   var results = [];
   function tagHit(kwStr){
     if (!tagTerms.length) return true;
@@ -607,22 +610,32 @@ function runSearch(){
     return tagTerms.every(function(tt){ return kws.some(function(k){ return k.indexOf(tt) >= 0; }); });
   }
 
-  if (scope === 'all' || scope === 'sermons' || scope === 'illust') {
+  if (scope === 'all' || scope === 'sermons' || scope === 'illust' || scope === 'topics') {
     state.data.sermons.forEach(function(s){
       if (!tagHit(s['키워드'])) return;
       var fields = scope === 'illust' ? ['예화'] : SERMON_FIELDS;
       var hayAll = fields.map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
-      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'sermon', d: s });
+      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'sermon', d: s, dt: String(s['날짜'] || '') });
     });
   }
-  if (scope === 'all' || scope === 'ideas' || scope === 'illust') {
+  if (scope === 'all' || scope === 'ideas' || scope === 'illust' || scope === 'topics') {
     state.data.ideas.forEach(function(d){
       if (scope === 'illust' && d['유형'] !== '예화') return;
       if (!tagHit(d['키워드'])) return;
       var hayAll = IDEA_FIELDS.map(function(f){ return String(d[f] || ''); }).join(' ').toLowerCase();
-      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'idea', d: d });
+      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'idea', d: d, dt: String(d['등록일'] || '').slice(0, 10) });
     });
   }
+  if (scope === 'all' || scope === 'devon') {
+    var DEVON_FIELDS = ['본문범위','본문개요','본문주제','관찰답','묵상답','적용답','묵상메시지','적용','기도'];
+    (state.data.devonotes || []).forEach(function(n){
+      if (tagTerms.length) return; /* 묵상노트에는 키워드 필드가 없음 */
+      var hayAll = DEVON_FIELDS.map(function(f){ return String(n[f] || ''); }).join(' ').toLowerCase();
+      if (terms.length && terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'devonote', d: n, dt: String(n['날짜'] || '') });
+    });
+  }
+  /* 최신순 정렬 */
+  results.sort(function(a, b){ return a.dt < b.dt ? 1 : a.dt > b.dt ? -1 : 0; });
 
   cnt.textContent = '결과 ' + results.length + '건';
   if (!results.length) { box.innerHTML = '<div class="empty">결과가 없습니다.</div>'; return; }
@@ -639,6 +652,19 @@ function runSearch(){
         (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') +
         '<span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
         '<div class="title">' + hl(s['제목'], terms) + ' <span style="color:var(--dim);font-weight:400;font-size:13px">' + hl(s['본문'], terms) + '</span></div>' + body + '</div>';
+    } else if (r.kind === 'devonote') {
+      var n = r.d;
+      var nb = '';
+      ['본문개요','본문주제','묵상메시지','적용','기도','관찰답','묵상답','적용답'].some(function(f){
+        var v = String(n[f] || '');
+        if (v && terms.some(function(t){ return v.toLowerCase().indexOf(t) >= 0; })) {
+          nb = '<div class="snippet"><b style="color:var(--dim)">' + f + '</b> ' + hl(v, terms, 90) + '</div>';
+          return true;
+        }
+        return false;
+      });
+      return '<div class="item" data-kind="devonote" data-id="' + esc(n['날짜']) + '"><div class="meta"><span class="badge b-state">묵상</span><span>' + esc(n['날짜']) + '</span></div>' +
+        '<div class="title">' + esc(n['본문범위'] || '') + '</div>' + nb + '</div>';
     } else {
       var d = r.d;
       return '<div class="item" data-kind="idea" data-id="' + esc(d['ID']) + '"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
@@ -653,6 +679,7 @@ function runSearch(){
 $('#qResults').addEventListener('click', function(e){
   var item = e.target.closest('.item');
   if (!item || !item.dataset.id) return;
+  if (item.dataset.kind === 'devonote') { devoState.date = item.dataset.id; showPage('devo'); return; }
   $$('#qResults .item').forEach(function(x){ x.classList.remove('sel'); });
   item.classList.add('sel');
   openDetail(item.dataset.kind, item.dataset.id);
@@ -677,7 +704,7 @@ function openDetail(kind, id){
     if (kws.length) html += '<div class="kv"><span class="k">주제어</span><span class="v">' +
       kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>';
     if (String(s['요약본'] || '').trim()) {
-      html += '<details class="sumbox"' + (terms.length && terms.some(function(t){ return String(s['요약본']).toLowerCase().indexOf(t) >= 0; }) ? ' open' : '') + '>' +
+      html += '<details class="sumbox" open>' +
         '<summary>요약본</summary><div class="fulltext" style="margin-top:8px">' + mdLite(hl(s['요약본'], terms)) + '</div></details>';
     }
     if (s['원고링크']) html += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:13.5px" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
@@ -697,8 +724,12 @@ function openDetail(kind, id){
     html += reqBtnRow(['이미지프롬프트', '이미지생성', '카드원고']);
     html += reqBtnRow(['설교요약', 'LTC교재', '리더스앱업로드']);
     var txt = String(s['원고텍스트'] || '');
-    html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">' +
-      (txt ? '<div class="fulltext">' + hl(txt, terms) + '</div>' : '<div class="empty">저장된 원고 텍스트가 없습니다.</div>');
+    var hasSum = !!String(s['요약본'] || '').trim();
+    var txtHit = terms.length && terms.some(function(t){ return txt.toLowerCase().indexOf(t) >= 0; });
+    html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">';
+    if (!txt) html += '<div class="empty">저장된 원고 텍스트가 없습니다.</div>';
+    else if (!hasSum || txtHit) html += '<details class="sumbox" open><summary>원고 전문</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
+    else html += '<details class="sumbox"><summary>원고 전문 펼쳐보기</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
   } else {
     var d = findIdea(id);
     if (!d) return;
@@ -1821,7 +1852,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v24';
+var APP_VER = 'v25';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
