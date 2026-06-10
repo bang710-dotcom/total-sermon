@@ -316,8 +316,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <!-- ============ 가져오기 (데스크탑) ============ -->
     <section class="page" id="page-import">
       <div class="dropzone" id="dropzone">
-        워드(.docx) 파일을 여기에 끌어다 놓으세요<br>
-        <span style="font-size:12.5px">파일명에서 날짜·제목·본문을 자동 인식합니다 · 여러 개 동시 가능</span><br><br>
+        워드(.docx) 파일을 앱 화면 아무 데나 끌어다 놓으세요<br>
+        <span style="font-size:12.5px">파일명에서 날짜·제목·본문을 자동 인식합니다 · 여러 개 동시 가능 · 예화 이미지도 함께 놓으면 알아서 분류</span><br><br>
         <button class="linkbtn" id="pickFiles" style="font-size:14px">또는 파일 선택…</button>
         <input type="file" id="fileInput" accept=".docx" multiple style="display:none">
       </div>
@@ -389,9 +389,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 </div>
 <div id="dragOverlay">
   <div class="dropMsg">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-    <h3>이미지를 여기에 놓으세요</h3>
-    <p>예화 이미지를 글로 정리해 아이디어 인박스에 등록합니다<br>여러 장을 한 번에 놓아도 됩니다</p>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <h3>파일을 여기에 놓으세요</h3>
+    <p>예화 <b style="color:var(--accent)">이미지</b> → 글로 정리해 인박스 등록<br>설교 원고 <b style="color:var(--accent2)">DOCX</b> → 가져오기에서 시트 등록<br>여러 개를 한 번에 놓아도 알아서 분류됩니다</p>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -1313,22 +1313,22 @@ function handleIdeaImages(files){
 $('#imgBtn').addEventListener('click', function(){ $('#ideaImgInput').click(); });
 $('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.files); this.value = ''; });
 
-/* 전체 화면 드롭존: 이미지를 끌고 들어오면 화면을 흐리게 하고 안내 표시.
-   docx 등 이미지가 아닌 파일은 가져오기 화면의 드롭존이 따로 처리 */
+/* 전체 화면 드롭존: 어느 화면이든 파일을 끌어오면 안내 오버레이 표시.
+   놓는 순간 자동 분류 — 이미지 → 예화(인박스), docx → 가져오기 */
 (function(){
   var overlay = $('#dragOverlay');
   var depth = 0;
-  function isImageDrag(e){
+  function isFileDrag(e){
     var items = e.dataTransfer && e.dataTransfer.items;
     if (!items || !items.length) return false;
     for (var i = 0; i < items.length; i++) {
-      if (items[i].kind === 'file' && /^image\//.test(items[i].type)) return true;
+      if (items[i].kind === 'file') return true;
     }
     return false;
   }
   window.addEventListener('dragenter', function(e){
     e.preventDefault();
-    if (isImageDrag(e)) { depth++; overlay.classList.add('on'); }
+    if (isFileDrag(e)) { depth++; overlay.classList.add('on'); }
   });
   window.addEventListener('dragover', function(e){ e.preventDefault(); });
   window.addEventListener('dragleave', function(e){
@@ -1338,11 +1338,14 @@ $('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.
   });
   window.addEventListener('drop', function(e){
     e.preventDefault();
-    var wasImage = overlay.classList.contains('on');
     depth = 0; overlay.classList.remove('on');
-    if (wasImage && e.dataTransfer && e.dataTransfer.files.length) {
-      handleIdeaImages(e.dataTransfer.files);
-    }
+    var files = e.dataTransfer ? Array.prototype.slice.call(e.dataTransfer.files) : [];
+    if (!files.length) return;
+    var imgs = files.filter(function(f){ return /^image\//.test(f.type); });
+    var docs = files.filter(function(f){ return /\.docx$/i.test(f.name) && !/^~\$/.test(f.name); });
+    if (imgs.length) handleIdeaImages(imgs);
+    if (docs.length) { handleImportFiles(docs); showPage('import'); }
+    if (!imgs.length && !docs.length) toast('이미지 또는 워드(.docx) 파일만 받을 수 있습니다.');
   });
 })();
 
@@ -1501,10 +1504,7 @@ function renderImport(){
       '</div>';
   }).join('');
 }
-var dz = $('#dropzone');
-['dragenter', 'dragover'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add('over'); }); });
-['dragleave', 'drop'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove('over'); }); });
-dz.addEventListener('drop', function(e){ handleImportFiles(e.dataTransfer.files); });
+/* 드래그앤드롭은 전역 오버레이가 일괄 처리 (이미지→예화, docx→가져오기) */
 $('#pickFiles').addEventListener('click', function(){ $('#fileInput').click(); });
 $('#fileInput').addEventListener('change', function(){ handleImportFiles(this.files); this.value = ''; });
 $('#impClear').addEventListener('click', function(){ state.importRows = []; renderImport(); });
@@ -1618,7 +1618,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v20';
+var APP_VER = 'v21';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
