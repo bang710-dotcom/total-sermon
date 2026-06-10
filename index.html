@@ -243,6 +243,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <label>클로드 요청 → 요청함에 저장 (Cowork가 처리)</label>
         <div class="toolrow" style="margin-top:4px;flex-wrap:wrap">
           <button class="btn sub mini" data-req="이미지프롬프트"><span>이미지<br>프롬프트</span></button>
+          <button class="btn sub mini" data-req="이미지생성"><span>이미지<br>생성</span></button>
           <button class="btn sub mini" data-req="카드원고"><span>카드원고</span></button>
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
           <button class="btn sub mini" data-req="리더스앱업로드"><span>리더스앱<br>업로드용</span></button>
@@ -1093,9 +1094,9 @@ function saveDocxBlob(blob, fname, dateStr){
   return Promise.resolve();
 }
 /* ===================== 클로드 요청함 ===================== */
-var REQ_TYPES = ['이미지프롬프트', '카드원고', 'LTC교재', '리더스앱업로드'];
-var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
-var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용' };
+var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', 'LTC교재', '리더스앱업로드'];
+var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
+var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용' };
 function doneTypes(sermonId){
   var set = {};
   state.data.outputs.forEach(function(o){
@@ -1571,7 +1572,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v16';
+var APP_VER = 'v17';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
