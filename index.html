@@ -83,6 +83,11 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;max-width:1
 details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .linkbtn{background:none;border:none;color:var(--accent);font-size:12.5px;cursor:pointer;font-family:inherit;padding:4px 8px 4px 0}
 .fulltext{white-space:pre-wrap;font-size:14px;line-height:1.85;color:var(--text);word-break:break-word}
+.kwchip{display:inline-block;margin:0 6px 4px 0;padding:3px 10px;border-radius:14px;border:1px solid var(--accent2);background:transparent;color:var(--accent2);font-size:12.5px;cursor:pointer}
+.kwchip:hover{background:rgba(63,124,192,.14)}
+.sumbox{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:rgba(255,255,255,.02)}
+.sumbox summary{cursor:pointer;font-size:13.5px;font-weight:700;color:var(--accent)}
+.sumbox .fulltext strong{color:var(--accent)}
 .kv{font-size:13.5px;margin:7px 0;display:flex;gap:8px}
 .kv .k{color:var(--dim);flex:0 0 70px}
 .kv .v{white-space:pre-wrap;word-break:break-word}
@@ -263,6 +268,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
           <button class="btn sub mini" data-req="카드원고"><span>카드원고</span></button>
         </div>
         <div class="toolrow" style="margin-top:9px">
+          <button class="btn sub mini" data-req="설교요약"><span>요약본<br>주제어</span></button>
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
           <button class="btn sub mini" data-req="리더스앱업로드"><span>리더스앱<br>업로드용</span></button>
         </div>
@@ -551,7 +557,7 @@ function submit(body, okMsg){
 }
 
 /* ===================== 검색 ===================== */
-var SERMON_FIELDS = ['제목','본문','시리즈','핵심메시지','대지','예화','키워드','원고텍스트','예배구분'];
+var SERMON_FIELDS = ['제목','본문','시리즈','핵심메시지','대지','예화','키워드','원고텍스트','예배구분','요약본'];
 var IDEA_FIELDS = ['내용','출처','관련본문','키워드','유형'];
 
 function hl(text, terms, clip){
@@ -573,6 +579,14 @@ function hl(text, terms, clip){
   return out;
 }
 
+/* 요약본 마크다운 간이 렌더: **굵게** → strong (esc/hl 이후 호출) */
+function mdLite(h){ return String(h || '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
+/* #주제어 칩 클릭 → 태그 검색 */
+window.searchTag = function(tag){
+  showPage('search');
+  $('#q').value = '#' + tag;
+  runSearch();
+};
 function findSermon(id){ return state.data.sermons.filter(function(x){ return x['ID'] === id; })[0]; }
 function findIdea(id){ return state.data.ideas.filter(function(x){ return x['ID'] === id; })[0]; }
 
@@ -580,13 +594,22 @@ function runSearch(){
   var q = $('#q').value.trim();
   var box = $('#qResults'), cnt = $('#qCnt');
   if (!q) { cnt.textContent = ''; box.innerHTML = '<div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.</div>'; return; }
-  var terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-  state.lastTerms = terms;
+  var rawTerms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  /* #으로 시작하는 단어는 주제어(키워드) 전용 검색 */
+  var tagTerms = rawTerms.filter(function(t){ return t.charAt(0) === '#' && t.length > 1; }).map(function(t){ return t.slice(1); });
+  var terms = rawTerms.filter(function(t){ return t.charAt(0) !== '#'; });
+  state.lastTerms = terms.concat(tagTerms);
   var scope = state.scope;
   var results = [];
+  function tagHit(kwStr){
+    if (!tagTerms.length) return true;
+    var kws = String(kwStr || '').toLowerCase().split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); });
+    return tagTerms.every(function(tt){ return kws.some(function(k){ return k.indexOf(tt) >= 0; }); });
+  }
 
   if (scope === 'all' || scope === 'sermons' || scope === 'illust') {
     state.data.sermons.forEach(function(s){
+      if (!tagHit(s['키워드'])) return;
       var fields = scope === 'illust' ? ['예화'] : SERMON_FIELDS;
       var hayAll = fields.map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
       if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'sermon', d: s });
@@ -595,6 +618,7 @@ function runSearch(){
   if (scope === 'all' || scope === 'ideas' || scope === 'illust') {
     state.data.ideas.forEach(function(d){
       if (scope === 'illust' && d['유형'] !== '예화') return;
+      if (!tagHit(d['키워드'])) return;
       var hayAll = IDEA_FIELDS.map(function(f){ return String(d[f] || ''); }).join(' ').toLowerCase();
       if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'idea', d: d });
     });
@@ -606,7 +630,7 @@ function runSearch(){
     if (r.kind === 'sermon') {
       var s = r.d;
       var body = '';
-      ['핵심메시지','예화','원고텍스트'].forEach(function(f){
+      ['핵심메시지','요약본','예화','원고텍스트'].forEach(function(f){
         var v = String(s[f] || '');
         if (v && terms.some(function(t){ return v.toLowerCase().indexOf(t) >= 0; }))
           body += '<div class="snippet"><b style="color:var(--dim)">' + f + '</b> ' + hl(v, terms, 90) + '</div>';
@@ -646,9 +670,16 @@ function openDetail(kind, id){
       '<button class="linkbtn" style="margin-left:auto;color:var(--warn);padding:4px 0" onclick="deleteSermon(\'' + esc(s['ID']) + '\')">설교 삭제</button></div>' +
       '<h2 style="font-size:19px;margin:2px 0 2px">' + hl(s['제목'], terms) + '</h2>' +
       '<div style="color:var(--accent2);font-size:14px;margin-bottom:10px">' + esc(s['본문']) + '</div>';
-    [['시리즈', s['시리즈'] + (s['시리즈순번'] ? ' (' + s['시리즈순번'] + '회)' : '')], ['핵심메시지', s['핵심메시지']], ['대지', s['대지']], ['예화', s['예화']], ['키워드', s['키워드']], ['비고', s['비고']]].forEach(function(kv){
+    [['시리즈', s['시리즈'] + (s['시리즈순번'] ? ' (' + s['시리즈순번'] + '회)' : '')], ['핵심메시지', s['핵심메시지']], ['대지', s['대지']], ['예화', s['예화']], ['비고', s['비고']]].forEach(function(kv){
       if (kv[1] && kv[1].trim && kv[1].trim()) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>';
     });
+    var kws = String(s['키워드'] || '').split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); }).filter(Boolean);
+    if (kws.length) html += '<div class="kv"><span class="k">주제어</span><span class="v">' +
+      kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>';
+    if (String(s['요약본'] || '').trim()) {
+      html += '<details class="sumbox"' + (terms.length && terms.some(function(t){ return String(s['요약본']).toLowerCase().indexOf(t) >= 0; }) ? ' open' : '') + '>' +
+        '<summary>요약본</summary><div class="fulltext" style="margin-top:8px">' + mdLite(hl(s['요약본'], terms)) + '</div></details>';
+    }
     if (s['원고링크']) html += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:13.5px" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
     var done = doneTypes(s['ID']);
     var doneList = REQ_TYPES.filter(function(t){ return done[t]; });
@@ -664,7 +695,7 @@ function openDetail(kind, id){
       }).join('') + '</div>';
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성', '카드원고']);
-    html += reqBtnRow(['LTC교재', '리더스앱업로드']);
+    html += reqBtnRow(['설교요약', 'LTC교재', '리더스앱업로드']);
     var txt = String(s['원고텍스트'] || '');
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">' +
       (txt ? '<div class="fulltext">' + hl(txt, terms) + '</div>' : '<div class="empty">저장된 원고 텍스트가 없습니다.</div>');
@@ -1250,9 +1281,9 @@ $('#devoToday').addEventListener('click', function(){ devoState.date = new Date(
 $('#devoDate').addEventListener('change', function(){ if (this.value) { devoState.date = this.value; renderDevo(); } });
 
 /* ===================== 클로드 요청함 ===================== */
-var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', 'LTC교재', '리더스앱업로드'];
-var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
-var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용' };
+var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드'];
+var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
+var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용' };
 function doneTypes(sermonId){
   var set = {};
   state.data.outputs.forEach(function(o){
@@ -1354,7 +1385,29 @@ async function scanRequests(quiet){
         await w0.close();
         done += items.length;
       }
-      else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && !j['산출물기록']) {
+      else if (j['상태'] === '완료' && j['요청유형'] === '설교요약' && !j['산출물기록']) {
+        /* 요약본·주제어를 설교마스터에 기록하고 산출물에도 남김 */
+        var rs = j['결과요약'] || {};
+        var sid = (j['설교'] || {})['ID'] || '';
+        if (sid && (rs['요약본'] || rs['키워드'])) {
+          var up = { ID: sid };
+          if (rs['요약본']) up['요약본'] = rs['요약본'];
+          if (rs['키워드']) up['키워드'] = rs['키워드'];
+          await apiPost({ action: 'update', sheet: 'sermons', data: up });
+          var loc = findSermon(sid);
+          if (loc) { if (rs['요약본']) loc['요약본'] = rs['요약본']; if (rs['키워드']) loc['키워드'] = rs['키워드']; saveData(); }
+        }
+        await apiPost({ action: 'add', sheet: 'outputs', data: {
+          '설교ID': sid, '유형': '설교요약', '상태': '완료', '링크': '',
+          '비고': '요약본·주제어 → 설교마스터 기록 / 요청: ' + entry.name
+        }});
+        j['산출물기록'] = true;
+        var wS = await entry.createWritable();
+        await wS.write(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' }));
+        await wS.close();
+        done++;
+      }
+      else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && j['요청유형'] !== '설교요약' && !j['산출물기록']) {
         await apiPost({ action: 'add', sheet: 'outputs', data: {
           '설교ID': (j['설교'] || {})['ID'] || '', '유형': j['요청유형'], '상태': '완료',
           '링크': '', '비고': (j['결과파일'] ? '결과: ' + j['결과파일'] + ' / ' : '') + '요청: ' + entry.name
@@ -1768,7 +1821,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v23';
+var APP_VER = 'v24';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
