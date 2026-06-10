@@ -50,8 +50,9 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn.gold{background:var(--accent2)}
 .btn:active{opacity:.8}
 .btn:disabled{opacity:.45;cursor:default}
-.btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 40%;word-break:keep-all;line-height:1.35}
+.btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 40%;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn.mini.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
+.btn.mini .ck{flex:0 0 auto;font-size:14px}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 14px;font-size:13.5px;cursor:pointer;user-select:none}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#0c1020;font-weight:700}
@@ -239,10 +240,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         </div>
         <label>클로드 요청 → 요청함에 저장 (Cowork가 처리)</label>
         <div class="toolrow" style="margin-top:4px;flex-wrap:wrap">
-          <button class="btn sub mini" data-req="이미지프롬프트">이미지<br>프롬프트</button>
-          <button class="btn sub mini" data-req="카드원고">카드원고</button>
-          <button class="btn sub mini" data-req="LTC교재">LTC 교재</button>
-          <button class="btn sub mini" data-req="리더스앱업로드">리더스앱<br>업로드용</button>
+          <button class="btn sub mini" data-req="이미지프롬프트"><span>이미지<br>프롬프트</span></button>
+          <button class="btn sub mini" data-req="카드원고"><span>카드원고</span></button>
+          <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
+          <button class="btn sub mini" data-req="리더스앱업로드"><span>리더스앱<br>업로드용</span></button>
         </div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">DOCX 저장 폴더 지정</button>
@@ -607,7 +608,7 @@ function openDetail(kind, id){
     html += '<div class="toolrow desktop-only" style="flex-wrap:wrap">' +
       REQ_TYPES.map(function(t){
         return '<button class="btn sub mini' + (done[t] ? ' done' : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
-          REQ_BTN[t] + (done[t] ? ' ✓' : '') + '</button>';
+          '<span>' + REQ_BTN[t] + '</span>' + (done[t] ? '<span class="ck">✓</span>' : '') + '</button>';
       }).join('') + '</div>';
     var txt = String(s['원고텍스트'] || '');
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">' +
@@ -1096,7 +1097,7 @@ function refreshReqBtns(){
   $$('#composeMeta [data-req]').forEach(function(b){
     var t = b.dataset.req;
     b.classList.toggle('done', !!done[t]);
-    b.innerHTML = REQ_BTN[t] + (done[t] ? ' ✓' : '');
+    b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (done[t] ? '<span class="ck">✓</span>' : '');
   });
 }
 
@@ -1511,7 +1512,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v14';
+var APP_VER = 'v15';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
