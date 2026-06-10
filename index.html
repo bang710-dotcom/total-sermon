@@ -261,7 +261,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
           <span class="chip" data-v="질문">질문</span>
         </div>
         <label>내용 *</label>
-        <textarea id="ideaContent" placeholder="떠오른 생각을 빠르게 적으세요"></textarea>
+        <textarea id="ideaContent" placeholder="떠오른 생각을 빠르게 적으세요&#10;(이미지를 끌어다 놓으면 클로드가 글로 정리해 등록합니다)"></textarea>
+        <div class="row2" style="margin-top:8px">
+          <button class="btn sub" id="micBtn">음성 입력</button>
+          <button class="btn sub" id="imgBtn">이미지로 입력</button>
+        </div>
+        <input type="file" id="ideaImgInput" accept="image/*" multiple style="display:none">
+        <div class="cnt" id="micState" style="margin:6px 2px 0"></div>
         <div id="dupCheck"></div>
         <details style="margin-top:10px"><summary>상세 정보 (선택)</summary>
           <label>관련 본문</label><input type="text" id="ideaRef" placeholder="예: 누가복음 15:11-32">
@@ -1112,7 +1118,22 @@ async function scanRequests(quiet){
       try { j = JSON.parse(await (await entry.getFile()).text()); } catch (e) { continue; }
       if (j['상태'] === '대기') waiting++;
       else if (j['상태'] === '진행중') working++;
-      else if (j['상태'] === '완료' && !j['산출물기록']) {
+      else if (j['상태'] === '완료' && j['요청유형'] === '예화이미지OCR' && !j['아이디어등록']) {
+        /* 이미지에서 정리된 예화들을 아이디어인박스에 등록 */
+        var items = j['결과아이디어'] || [];
+        for (var k = 0; k < items.length; k++) {
+          await apiPost({ action: 'add', sheet: 'ideas', data: {
+            '유형': '예화', '내용': items[k]['내용'] || '', '출처': items[k]['출처'] || '이미지 스캔',
+            '관련본문': items[k]['관련본문'] || '', '키워드': items[k]['키워드'] || '', '상태': '새것'
+          }});
+        }
+        j['아이디어등록'] = true;
+        var w0 = await entry.createWritable();
+        await w0.write(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' }));
+        await w0.close();
+        done += items.length;
+      }
+      else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && !j['산출물기록']) {
         await apiPost({ action: 'add', sheet: 'outputs', data: {
           '설교ID': (j['설교'] || {})['ID'] || '', '유형': j['요청유형'], '상태': '완료',
           '링크': '', '비고': (j['결과파일'] ? '결과: ' + j['결과파일'] + ' / ' : '') + '요청: ' + entry.name
@@ -1124,11 +1145,96 @@ async function scanRequests(quiet){
         done++;
       }
     }
-    if (done) { toast('완료된 요청 ' + done + '건을 산출물에 기록했습니다.'); sync(); }
+    if (done) { toast('완료된 요청 ' + done + '건을 기록했습니다.'); sync(); }
     else if (!quiet) toast('요청함 — 대기 ' + waiting + '건 · 진행중 ' + working + '건');
   } catch (e) { if (!quiet) toast('요청함 확인 실패: ' + e.message); }
 }
 $('#checkInbox').addEventListener('click', function(){ scanRequests(false); });
+
+/* ----- 예화 이미지 입력: 이미지 → 요청함 → 클로드 OCR → 자동 등록 ----- */
+function handleIdeaImages(files){
+  var imgs = Array.prototype.slice.call(files).filter(function(f){ return /^image\//.test(f.type); });
+  if (!imgs.length) { toast('이미지 파일이 아닙니다.'); return; }
+  if (!window.showDirectoryPicker || !dirHandle) {
+    toast('이미지 인식은 폴더가 지정된 데스크탑 Chrome에서 가능합니다. 휴대폰에서는 Cowork 채팅으로 이미지를 보내주세요.');
+    return;
+  }
+  var d = new Date();
+  function p2(n){ return ('0' + n).slice(-2); }
+  var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds());
+  var names = [];
+  dirPerm().then(function(){
+    return dirHandle.getDirectoryHandle('_claude_요청함', { create: true });
+  }).then(function(req){
+    return req.getDirectoryHandle('이미지', { create: true }).then(function(imgDir){
+      var chain = Promise.resolve();
+      imgs.forEach(function(f, i){
+        var name = stamp + '_' + (i + 1) + '_' + f.name.replace(/[\\/:*?"<>|]/g, '_');
+        names.push(name);
+        chain = chain.then(function(){
+          return imgDir.getFileHandle(name, { create: true });
+        }).then(function(fh){ return fh.createWritable(); })
+          .then(function(w){ return w.write(f).then(function(){ return w.close(); }); });
+      });
+      return chain.then(function(){ return req; });
+    });
+  }).then(function(req){
+    return req.getFileHandle('요청_신규_예화이미지OCR_' + stamp + '.json', { create: true });
+  }).then(function(fh){ return fh.createWritable(); })
+    .then(function(w){
+      var payload = { '요청유형': '예화이미지OCR', '상태': '대기', '요청일시': d.toISOString().slice(0, 16).replace('T', ' '), '이미지': names };
+      return w.write(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })).then(function(){ return w.close(); });
+    }).then(function(){
+      toast('이미지 ' + imgs.length + '장 요청함에 저장 — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
+    }).catch(function(e){ toast('이미지 저장 실패: ' + e.message); });
+}
+$('#imgBtn').addEventListener('click', function(){ $('#ideaImgInput').click(); });
+$('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.files); this.value = ''; });
+(function(){
+  var card = $('#page-input');
+  ['dragenter', 'dragover'].forEach(function(ev){ card.addEventListener(ev, function(e){ e.preventDefault(); }); });
+  card.addEventListener('drop', function(e){
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files.length) handleIdeaImages(e.dataTransfer.files);
+  });
+})();
+
+/* ----- 음성 입력 (브라우저 내장 한국어 받아쓰기) ----- */
+(function(){
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var btn = $('#micBtn'), stateEl = $('#micState');
+  var rec = null, listening = false;
+  if (!SR) {
+    btn.addEventListener('click', function(){ toast('이 브라우저는 음성 인식을 지원하지 않습니다. (Safari·Chrome 최신 버전 권장)'); });
+    return;
+  }
+  btn.addEventListener('click', function(){
+    if (listening) { rec.stop(); return; }
+    rec = new SR();
+    rec.lang = 'ko-KR';
+    rec.continuous = true;
+    rec.interimResults = true;
+    var ta = $('#ideaContent');
+    var base = ta.value;
+    rec.onresult = function(e){
+      var fin = '', interim = '';
+      for (var i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) fin += e.results[i][0].transcript + ' ';
+        else interim += e.results[i][0].transcript;
+      }
+      ta.value = (base + (base && fin ? '\n' : '') + fin + interim).trimStart();
+      checkDup();
+    };
+    rec.onstart = function(){ listening = true; btn.textContent = '듣는 중… (눌러서 종료)'; btn.classList.add('gold'); stateEl.textContent = '말씀하세요 — 한국어 받아쓰기 중'; };
+    rec.onend = function(){ listening = false; btn.textContent = '음성 입력'; btn.classList.remove('gold'); stateEl.textContent = ''; };
+    rec.onerror = function(e){
+      listening = false; btn.textContent = '음성 입력'; btn.classList.remove('gold');
+      stateEl.textContent = '';
+      toast(e.error === 'not-allowed' ? '마이크 권한을 허용해 주세요.' : '음성 인식 오류: ' + e.error);
+    };
+    rec.start();
+  });
+})();
 
 function exportDocxParas(meta, built, namePrefix){
   ensureDocxLib().then(function(D){
@@ -1364,7 +1470,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v11';
+var APP_VER = 'v12';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
