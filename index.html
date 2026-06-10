@@ -901,15 +901,16 @@ $('#pickDir2').addEventListener('click', pickDir);
 function ensureDocxLib(){
   return loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js').then(function(){ return window.docx; });
 }
-/* 원고 스타일별 DOCX 서식 (기존 원고 분석 기반)
-   기본·자유원고: 은 돋움 12pt, 줄간격 2.0(480), 제목·본문·대지 굵게
-   카드원고: 함초롬바탕 14pt, 줄간격 1.5(360), 제목 20pt 「」 형식, 강조 파랑 */
+/* 원고 스타일별 DOCX 서식 — 전체 폰트 함초롬바탕
+   기본·자유원고: 아이패드 13" 화면용 216×290mm, 여백 10mm, 13pt, 줄간격 1.8
+   카드원고: 아이패드 미니 가로화면용 210×310mm, 위·좌우 10mm 아래 12.5mm, 14pt, 줄간격 1.5 */
 var DOCX_STYLES = {
-  '기본원고': { font: '은 돋움', size: 24, line: 480, titleSize: 24 },
-  '자유원고': { font: '은 돋움', size: 24, line: 480, titleSize: 24 },
-  '카드원고': { font: '함초롬바탕', size: 28, line: 360, titleSize: 40 }
+  '기본원고': { font: '함초롬바탕', size: 26, line: 432, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
+  '자유원고': { font: '함초롬바탕', size: 26, line: 432, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
+  '카드원고': { font: '함초롬바탕', size: 28, line: 360, titleSize: 40, page: { w: 210, h: 310, t: 10, b: 12.5, l: 10, r: 10 } }
 };
 var EX_BLUE = '4C94D8';
+function mm2twip(v){ return Math.round(v * 56.6929); }
 
 /* paras: [{text, bold, color, size}] → Document */
 function buildDocxParas(D, paras, st){
@@ -920,9 +921,22 @@ function buildDocxParas(D, paras, st){
       children: [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
     });
   });
+  var pg = st.page;
   return new D.Document({
     styles: { default: { document: { run: { font: FONT, size: st.size } } } },
-    sections: [{ children: children }]
+    sections: [{
+      properties: {
+        page: {
+          size: { width: mm2twip(pg.w), height: mm2twip(pg.h) },
+          margin: {
+            top: mm2twip(pg.t), bottom: mm2twip(pg.b),
+            left: mm2twip(pg.l), right: mm2twip(pg.r),
+            header: 0, footer: 0
+          }
+        }
+      },
+      children: children
+    }]
   });
 }
 
@@ -1238,7 +1252,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v8';
+var APP_VER = 'v9';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
