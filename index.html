@@ -22,6 +22,11 @@ html{background:var(--bg)}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;font-size:15px;line-height:1.55;touch-action:manipulation}
 /* iOS standalone에서 100dvh가 짧게 잡히는 버그 → JS가 측정한 --app-h 사용 (성경앱 검증 패턴) */
 #app{max-width:640px;margin:0 auto;height:100vh;height:var(--app-h,100dvh);display:flex;flex-direction:column}
+/* standalone(홈화면 추가)에서는 window.innerHeight가 홈 인디케이터 안전영역만큼 짧게 잡혀
+   하단에 여백이 보이던 문제 해결: 그만큼 더해 화면 맨 아래까지 채움 (성경앱과 동일) */
+@media all and (display-mode:standalone){
+  #app{height:min(100vh,calc(var(--app-h,100vh) + env(safe-area-inset-bottom)))}
+}
 #main{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(10px + env(safe-area-inset-top)) 14px 24px}
 header.mobile{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 14px}
 header.mobile h1{font-size:19px;font-weight:700;letter-spacing:-.3px}
@@ -115,6 +120,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
   #page-inbox{max-width:860px}
 }
 @media (max-width: 899px){
+  body{overflow:hidden} /* 이중 스크롤·고무줄 현상 방지 (앱 내부 #main만 스크롤) */
   .desktop-only{display:none !important}
   #detailPane.open{display:block;position:fixed;inset:0;z-index:90;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom))}
   .detailClose{display:block;margin-bottom:12px}
