@@ -50,7 +50,7 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn.gold{background:var(--accent2)}
 .btn:active{opacity:.8}
 .btn:disabled{opacity:.45;cursor:default}
-.btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 40%;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 0;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn.mini.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
 .btn.mini .ck{flex:0 0 auto;font-size:14px}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
@@ -241,10 +241,12 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
           <button class="btn gold" id="c_export">DOCX 내보내기</button>
         </div>
         <label>클로드 요청 → 요청함에 저장 (Cowork가 처리)</label>
-        <div class="toolrow" style="margin-top:4px;flex-wrap:wrap">
+        <div class="toolrow" style="margin-top:4px">
           <button class="btn sub mini" data-req="이미지프롬프트"><span>이미지<br>프롬프트</span></button>
           <button class="btn sub mini" data-req="이미지생성"><span>이미지<br>생성</span></button>
           <button class="btn sub mini" data-req="카드원고"><span>카드원고</span></button>
+        </div>
+        <div class="toolrow" style="margin-top:9px">
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
           <button class="btn sub mini" data-req="리더스앱업로드"><span>리더스앱<br>업로드용</span></button>
         </div>
@@ -618,11 +620,14 @@ function openDetail(kind, id){
     html += '<div class="toolrow desktop-only">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">작성 화면에서 편집</button>' +
       '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
-    html += '<div class="toolrow desktop-only" style="flex-wrap:wrap">' +
-      REQ_TYPES.map(function(t){
+    function reqBtnRow(types){
+      return '<div class="toolrow desktop-only">' + types.map(function(t){
         return '<button class="btn sub mini' + (done[t] ? ' done' : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
           '<span>' + REQ_BTN[t] + '</span>' + (done[t] ? '<span class="ck">✓</span>' : '') + '</button>';
       }).join('') + '</div>';
+    }
+    html += reqBtnRow(['이미지프롬프트', '이미지생성', '카드원고']);
+    html += reqBtnRow(['LTC교재', '리더스앱업로드']);
     var txt = String(s['원고텍스트'] || '');
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">' +
       (txt ? '<div class="fulltext">' + hl(txt, terms) + '</div>' : '<div class="empty">저장된 원고 텍스트가 없습니다.</div>');
@@ -1572,7 +1577,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v17';
+var APP_VER = 'v18';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
