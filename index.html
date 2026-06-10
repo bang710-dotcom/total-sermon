@@ -91,6 +91,31 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .imp .fname{font-size:12.5px;color:var(--dim);word-break:break-all}
 .toolrow{display:flex;gap:9px;margin-top:14px}
 .toolrow .btn{width:auto;flex:1}
+/* 대지 동적 목록 (왼쪽) */
+.ptRow{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px}
+.ptRow .ptHead{display:flex;gap:6px;align-items:center}
+.ptRow .ptNo{flex:0 0 22px;text-align:center;font-weight:700;color:var(--accent);font-size:14px}
+.ptRow input{padding:8px 10px;font-size:14px}
+.ptRow .ptBtn{flex:0 0 26px;height:30px;background:var(--card2);border:1px solid var(--line);border-radius:7px;color:var(--dim);cursor:pointer;font-size:13px;padding:0}
+.ptRow .ptBtn:hover{color:var(--text)}
+.ptRow .ptIll{display:flex;gap:6px;align-items:center;margin-top:6px}
+.ptRow .ptIll .exTag{flex:0 0 26px;text-align:center;color:#5b9bd5;font-weight:700;font-size:12.5px}
+/* 구조화 에디터 (오른쪽) */
+#editorPane{display:flex;flex-direction:column;gap:0}
+.edHeader{padding:6px 4px 14px}
+.edTitle{font-size:19px;font-weight:800;line-height:1.4}
+.edRef{color:var(--accent2);font-size:14.5px;margin-top:3px;font-weight:700}
+.edSec{margin-bottom:14px}
+.edLabel{font-size:12px;color:var(--dim);margin:0 0 4px 2px}
+.edPoint{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;background:var(--card)}
+.edPointTitle{font-weight:800;font-size:16px;margin-bottom:8px}
+.edEx{color:#5b9bd5;font-weight:800;font-size:14.5px;margin:8px 0 4px}
+.edAuto{white-space:pre-wrap;font-size:14.5px;line-height:1.8;color:var(--text);padding:4px 2px}
+.edAuto.msg{font-weight:800}
+.edTa{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14.5px;line-height:1.8;font-family:inherit;outline:none;resize:vertical}
+.edTa:focus{border-color:var(--accent)}
+.edFree{min-height:60vh}
+@media (min-width:900px){ .edFree{min-height:calc(100vh - 220px)} }
 .foot{margin-top:auto;padding:10px 12px;font-size:12px;color:var(--dim)}
 
 /* ===================== 데스크탑 모드 ===================== */
@@ -178,7 +203,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <section class="page" id="page-compose">
       <div id="composeMeta">
         <div class="cnt" id="c_editing" style="margin-bottom:8px">새 설교</div>
-        <div class="row2">
+        <label style="margin-top:0">원고 스타일</label>
+        <div class="chips" id="c_style">
+          <span class="chip gold" data-v="카드원고">카드원고</span>
+          <span class="chip on" data-v="기본원고">기본원고</span>
+          <span class="chip" data-v="자유원고">자유원고</span>
+        </div>
+        <div class="row2" style="margin-top:10px">
           <div><label>날짜</label><input type="date" id="c_date"></div>
           <div><label>예배구분</label><input type="text" id="c_service" placeholder="대학부"></div>
         </div>
@@ -191,8 +222,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <label>상태</label>
         <select id="c_state"><option>구상</option><option>연구</option><option>작성중</option><option>완료</option><option>설교함</option></select>
         <label>핵심메시지</label><input type="text" id="c_msg">
-        <label>대지</label><textarea id="c_points" rows="3" placeholder="1. …&#10;2. …"></textarea>
-        <label>예화</label><textarea id="c_illust" rows="2" placeholder="여러 개면 ; 로 구분"></textarea>
+        <label>대지 · 예화 (↑↓로 순서 변경, 번호 자동)</label>
+        <div id="pointList"></div>
+        <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
         <div id="c_dupCheck"></div>
         <label>키워드</label><input type="text" id="c_kw" placeholder="쉼표로 구분">
         <label>비고</label><input type="text" id="c_note">
@@ -206,10 +238,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">저장 폴더 지정/변경</button>
       </div>
-      <div>
-        <textarea id="c_text" placeholder="여기에 설교 원고를 작성하세요.&#10;&#10;시트에 저장하면 검색에 바로 반영되고, DOCX 내보내기를 누르면 맥의 설교 폴더(연도별)에 워드 파일로 저장됩니다."></textarea>
-        <div class="cnt" id="c_count" style="text-align:right;margin-top:6px"></div>
-      </div>
+      <div id="editorPane"></div>
     </section>
 
     <!-- ============ 입력 (모바일 빠른 입력) ============ -->
@@ -600,9 +629,6 @@ function checkDup(){
   if (state.ideaType !== '예화') { $('#dupCheck').innerHTML = ''; return; }
   renderDup($('#dupCheck'), $('#ideaContent').value.trim());
 }
-function checkDupCompose(){
-  renderDup($('#c_dupCheck'), $('#c_illust').value.trim().split(';')[0].trim());
-}
 
 /* ===================== 인박스 ===================== */
 function renderInbox(){
@@ -635,7 +661,11 @@ window.setIdeaState = function(id, st){
 };
 
 /* ===================== 작성 (데스크탑 에디터) ===================== */
-var C_FIELDS = { '날짜':'c_date','예배구분':'c_service','제목':'c_title','본문':'c_ref','시리즈':'c_series','시리즈순번':'c_seriesNo','상태':'c_state','핵심메시지':'c_msg','대지':'c_points','예화':'c_illust','키워드':'c_kw','비고':'c_note','원고텍스트':'c_text' };
+var C_META = { '날짜':'c_date','예배구분':'c_service','제목':'c_title','본문':'c_ref','시리즈':'c_series','시리즈순번':'c_seriesNo','상태':'c_state','핵심메시지':'c_msg','키워드':'c_kw','비고':'c_note' };
+
+function newPoint(){ return { text: '', ill: '', body: '', illBody: '', apply: '' }; }
+function newCompose(){ return { style: '기본원고', intro: '', free: '', concIntro: '말씀을 정리합니다.', concBody: '', points: [newPoint()] }; }
+state.compose = newCompose();
 
 function updateComposeBadge(){
   var el = $('#c_editing');
@@ -646,29 +676,189 @@ function updateComposeBadge(){
     el.textContent = '새 설교';
   }
 }
+function setStyleChips(){
+  $$('#c_style .chip').forEach(function(c){ c.classList.toggle('on', c.dataset.v === state.compose.style); });
+}
+
+/* ----- 왼쪽: 대지·예화 동적 목록 ----- */
+function renderPoints(){
+  var c = state.compose;
+  $('#pointList').innerHTML = c.points.map(function(p, i){
+    return '<div class="ptRow">' +
+      '<div class="ptHead"><span class="ptNo">' + (i + 1) + '.</span>' +
+      '<input type="text" class="ptText" data-i="' + i + '" value="' + esc(p.text) + '" placeholder="대지 내용">' +
+      '<button class="ptBtn" data-act="up" data-i="' + i + '" title="위로">↑</button>' +
+      '<button class="ptBtn" data-act="down" data-i="' + i + '" title="아래로">↓</button>' +
+      '<button class="ptBtn" data-act="del" data-i="' + i + '" title="삭제">✕</button></div>' +
+      '<div class="ptIll"><span class="exTag">ex)</span>' +
+      '<input type="text" class="ptIllT" data-i="' + i + '" value="' + esc(p.ill) + '" placeholder="예화 제목 (선택)"></div>' +
+      '</div>';
+  }).join('');
+}
+$('#pointList').addEventListener('input', function(e){
+  var i = +e.target.dataset.i;
+  var p = state.compose.points[i];
+  if (!p) return;
+  if (e.target.classList.contains('ptText')) { p.text = e.target.value; updateAutoBits(); }
+  if (e.target.classList.contains('ptIllT')) {
+    p.ill = e.target.value; updateAutoBits();
+    renderDup($('#c_dupCheck'), e.target.value.trim(), 6);
+  }
+});
+$('#pointList').addEventListener('click', function(e){
+  var b = e.target.closest('.ptBtn');
+  if (!b) return;
+  var i = +b.dataset.i, pts = state.compose.points;
+  if (b.dataset.act === 'up' && i > 0) { pts.splice(i - 1, 0, pts.splice(i, 1)[0]); }
+  else if (b.dataset.act === 'down' && i < pts.length - 1) { pts.splice(i + 1, 0, pts.splice(i, 1)[0]); }
+  else if (b.dataset.act === 'del') {
+    var p = pts[i];
+    if ((p.text || p.body || p.illBody) && !confirm((i + 1) + '번 대지를 삭제할까요? 해당 작성 내용도 사라집니다.')) return;
+    pts.splice(i, 1);
+    if (!pts.length) pts.push(newPoint());
+  } else return;
+  renderPoints(); renderEditor();
+});
+$('#addPoint').addEventListener('click', function(){
+  state.compose.points.push(newPoint());
+  renderPoints(); renderEditor();
+});
+$$('#c_style .chip').forEach(function(ch){
+  ch.addEventListener('click', function(){
+    state.compose.style = ch.dataset.v;
+    setStyleChips(); renderEditor();
+  });
+});
+
+/* ----- 오른쪽: 구조화 에디터 (왼쪽→오른쪽 단방향 자동 반영) ----- */
+function ta(k, pi, pk, rows, ph, val, cls){
+  return '<textarea class="edTa' + (cls ? ' ' + cls : '') + '" rows="' + rows + '" placeholder="' + esc(ph) + '" ' +
+    (k ? 'data-k="' + k + '"' : 'data-pi="' + pi + '" data-pk="' + pk + '"') + '>' + esc(val) + '</textarea>';
+}
+function renderEditor(){
+  var c = state.compose;
+  var html = '<div class="edHeader"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div></div>';
+  if (c.style === '자유원고') {
+    html += ta('free', 0, '', 4, '여기에 자유롭게 원고를 작성하세요. 워드로 내보낼 때는 기본원고 서식이 적용됩니다.', c.free, 'edFree');
+  } else {
+    html += '<div class="edSec"><div class="edLabel">서론</div>' + ta('intro', 0, '', 5, '서론을 작성하세요', c.intro) + '</div>';
+    c.points.forEach(function(p, i){
+      html += '<div class="edPoint">' +
+        '<div class="edPointTitle" data-h="' + i + '"></div>' +
+        '<div class="edLabel">내용</div>' + ta(null, i, 'body', 5, '대지 내용을 풀어 쓰세요', p.body) +
+        '<div class="edEx" data-x="' + i + '"></div>' +
+        '<div class="edLabel" style="margin-top:8px">예화</div>' + ta(null, i, 'illBody', 4, '예화 세부 내용', p.illBody) +
+        '<div class="edLabel" style="margin-top:8px">적용</div>' + ta(null, i, 'apply', 3, '적용·실천', p.apply) +
+        '</div>';
+    });
+    html += '<div class="edPoint"><div class="edPointTitle">결론</div>' +
+      ta('concIntro', 0, '', 2, '', c.concIntro) +
+      '<div class="edAuto" id="edConcList"></div>' +
+      ta('concBody', 0, '', 4, '결론 내용을 작성하세요', c.concBody) +
+      '<div class="edAuto msg" id="edConcMsg"></div></div>';
+  }
+  $('#editorPane').innerHTML = html;
+  updateAutoBits();
+}
+/* 자동 반영부만 갱신 (작성 중 포커스 유지) */
+function updateAutoBits(){
+  var c = state.compose;
+  var title = $('#c_title').value.trim(), ref = $('#c_ref').value.trim();
+  var series = $('#c_series').value.trim(), no = $('#c_seriesNo').value.trim();
+  var tEl = $('#edTitle'), rEl = $('#edRef');
+  if (tEl) {
+    if (c.style === '카드원고') {
+      tEl.textContent = (series ? series + (no ? ' ' + no : '') + ' - ' : '') + '「' + (title || '제목') + '」';
+    } else {
+      tEl.textContent = (series ? series + (no ? ' ' + no : '') + ' · ' : '') + (title || '제목');
+    }
+    rEl.textContent = ref;
+  }
+  c.points.forEach(function(p, i){
+    var h = $('[data-h="' + i + '"]');
+    if (h) h.textContent = (i + 1) + '. ' + (p.text || '');
+    var x = $('[data-x="' + i + '"]');
+    if (x) { x.textContent = p.ill ? 'ex) ' + p.ill : ''; x.style.display = p.ill ? 'block' : 'none'; }
+  });
+  var cl = $('#edConcList');
+  if (cl) cl.textContent = c.points.filter(function(p){ return p.text.trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n');
+  var cm = $('#edConcMsg');
+  if (cm) cm.textContent = $('#c_msg').value.trim();
+}
+$('#editorPane').addEventListener('input', function(e){
+  var t = e.target;
+  if (!t.classList.contains('edTa')) return;
+  if (t.dataset.k) state.compose[t.dataset.k] = t.value;
+  else if (t.dataset.pi != null) {
+    var p = state.compose.points[+t.dataset.pi];
+    if (p) p[t.dataset.pk] = t.value;
+  }
+});
+['c_title', 'c_ref', 'c_series', 'c_seriesNo', 'c_msg'].forEach(function(id){
+  $('#' + id).addEventListener('input', debounce(updateAutoBits, 150));
+});
+
+/* ----- 원고 조립·저장 ----- */
+function assembleText(){
+  var c = state.compose;
+  if (c.style === '자유원고') return c.free.trim();
+  var L = [];
+  if (c.intro.trim()) { L.push(c.intro.trim()); L.push(''); }
+  c.points.forEach(function(p, i){
+    if (!(p.text.trim() || p.body.trim() || p.ill.trim() || p.illBody.trim() || p.apply.trim())) return;
+    L.push((i + 1) + '. ' + p.text.trim());
+    if (p.body.trim()) L.push(p.body.trim());
+    if (p.ill.trim()) L.push('ex) ' + p.ill.trim());
+    if (p.illBody.trim()) L.push(p.illBody.trim());
+    if (p.apply.trim()) L.push('(적용) ' + p.apply.trim());
+    L.push('');
+  });
+  L.push(c.concIntro.trim() || '말씀을 정리합니다.');
+  c.points.forEach(function(p, i){ if (p.text.trim()) L.push((i + 1) + '. ' + p.text.trim()); });
+  if (c.concBody.trim()) L.push(c.concBody.trim());
+  var msg = $('#c_msg').value.trim();
+  if (msg) L.push(msg);
+  return L.join('\n');
+}
+function collectCompose(){
+  var data = {};
+  Object.keys(C_META).forEach(function(k){ data[k] = $('#' + C_META[k]).value.trim(); });
+  var pts = state.compose.points;
+  data['대지'] = pts.filter(function(p){ return p.text.trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n');
+  data['예화'] = pts.map(function(p){ return p.ill.trim(); }).filter(Boolean).join('; ');
+  data['원고텍스트'] = assembleText();
+  return data;
+}
 function clearCompose(){
   state.editing = null;
-  Object.keys(C_FIELDS).forEach(function(k){ $('#' + C_FIELDS[k]).value = ''; });
+  Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = ''; });
   $('#c_date').value = new Date().toISOString().slice(0, 10);
   $('#c_state').value = '구상';
   $('#c_dupCheck').innerHTML = '';
-  updateComposeBadge(); updateCount();
+  state.compose = newCompose();
+  setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge();
 }
 window.editSermon = function(id){
   var s = findSermon(id);
   if (!s) return;
   state.editing = id;
-  Object.keys(C_FIELDS).forEach(function(k){ $('#' + C_FIELDS[k]).value = s[k] || ''; });
-  updateComposeBadge(); updateCount();
+  Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
+  /* 기존 설교는 자유원고로 불러옴 (저장된 원고는 일반 텍스트) */
+  var c = newCompose();
+  c.style = '자유원고';
+  c.free = s['원고텍스트'] || '';
+  var pts = String(s['대지'] || '').split('\n').map(function(l){ return l.replace(/^\s*\d+\s*[.)]\s*/, '').trim(); }).filter(Boolean);
+  var ills = String(s['예화'] || '').split(';').map(function(x){ return x.trim(); });
+  c.points = pts.length ? pts.map(function(t, i){ var p = newPoint(); p.text = t; p.ill = ills[i] || ''; return p; }) : [newPoint()];
+  if (!pts.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ var p = newPoint(); p.ill = t; return p; });
+  state.compose = c;
+  setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge();
   showPage('compose');
 };
-function collectCompose(){
-  var data = {};
-  Object.keys(C_FIELDS).forEach(function(k){ data[k] = $('#' + C_FIELDS[k]).value.trim(); });
-  return data;
-}
 $('#c_new').addEventListener('click', function(){
-  if ($('#c_text').value.trim() && !confirm('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
+  var c = state.compose;
+  var hasContent = c.free.trim() || c.intro.trim() || c.points.some(function(p){ return p.body.trim() || p.illBody.trim(); });
+  if (hasContent && !confirm('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
   clearCompose();
 });
 $('#c_save').addEventListener('click', function(){
@@ -686,12 +876,6 @@ $('#c_save').addEventListener('click', function(){
     if (id && typeof id === 'string' && !state.editing) { state.editing = id; updateComposeBadge(); }
   });
 });
-$('#c_text').addEventListener('input', debounce(updateCount, 200));
-function updateCount(){
-  var n = $('#c_text').value.length;
-  $('#c_count').textContent = n ? n.toLocaleString() + '자' : '';
-}
-$('#c_illust').addEventListener('input', debounce(checkDupCompose, 400));
 
 /* ===================== DOCX 내보내기 ===================== */
 var dirHandle = null;
@@ -717,22 +901,75 @@ $('#pickDir2').addEventListener('click', pickDir);
 function ensureDocxLib(){
   return loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js').then(function(){ return window.docx; });
 }
-/* 기존 원고 서식: 은 돋움 12pt, 줄간격 480(2줄), 제목·본문 굵게 */
-function buildDocx(D, meta, bodyText){
-  var FONT = { ascii: '은 돋움', eastAsia: '은 돋움', hAnsi: '은 돋움' };
-  function para(text, bold){
-    return new D.Paragraph({ spacing: { line: 480 }, children: [new D.TextRun({ text: text, bold: !!bold })] });
-  }
-  var children = [];
-  var titleLine = (meta['시리즈'] ? meta['시리즈'] + (meta['시리즈순번'] ? meta['시리즈순번'] : '') + ' - ' : '') + (meta['제목'] || '');
-  if (titleLine) children.push(para(titleLine, true));
-  if (meta['본문']) children.push(para(meta['본문'], true));
-  children.push(para('', false));
-  String(bodyText || '').split('\n').forEach(function(line){ children.push(para(line, false)); });
+/* 원고 스타일별 DOCX 서식 (기존 원고 분석 기반)
+   기본·자유원고: 은 돋움 12pt, 줄간격 2.0(480), 제목·본문·대지 굵게
+   카드원고: 함초롬바탕 14pt, 줄간격 1.5(360), 제목 20pt 「」 형식, 강조 파랑 */
+var DOCX_STYLES = {
+  '기본원고': { font: '은 돋움', size: 24, line: 480, titleSize: 24 },
+  '자유원고': { font: '은 돋움', size: 24, line: 480, titleSize: 24 },
+  '카드원고': { font: '함초롬바탕', size: 28, line: 360, titleSize: 40 }
+};
+var EX_BLUE = '4C94D8';
+
+/* paras: [{text, bold, color, size}] → Document */
+function buildDocxParas(D, paras, st){
+  var FONT = { ascii: st.font, eastAsia: st.font, hAnsi: st.font };
+  var children = paras.map(function(p){
+    return new D.Paragraph({
+      spacing: { line: st.line },
+      children: [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
+    });
+  });
   return new D.Document({
-    styles: { default: { document: { run: { font: FONT, size: 24 } } } },
+    styles: { default: { document: { run: { font: FONT, size: st.size } } } },
     sections: [{ children: children }]
   });
+}
+
+/* 메타 + 본문 텍스트(자유·기존 설교)를 문단 배열로 */
+function parasFromText(meta, bodyText, style){
+  var st = DOCX_STYLES[style] || DOCX_STYLES['기본원고'];
+  var paras = [];
+  var series = (meta['시리즈'] || '') + (meta['시리즈순번'] ? ' ' + meta['시리즈순번'] : '');
+  var titleLine = style === '카드원고'
+    ? (series ? series + ' - ' : '') + '「' + (meta['제목'] || '') + '」' + (meta['본문'] ? ' ' + meta['본문'] : '')
+    : (series ? series + ' - ' : '') + (meta['제목'] || '');
+  paras.push({ text: titleLine, bold: true, size: st.titleSize });
+  if (style !== '카드원고' && meta['본문']) paras.push({ text: meta['본문'], bold: true });
+  paras.push({ text: '' });
+  String(bodyText || '').split('\n').forEach(function(line){
+    var l = line.trim();
+    var isHead = /^\d+\s*[.)]\s/.test(l);
+    var isEx = /^ex\)/i.test(l);
+    paras.push({ text: line, bold: isHead || isEx, color: isEx ? EX_BLUE : undefined });
+  });
+  return { paras: paras, st: st };
+}
+
+/* 구조화 작성 내용을 문단 배열로 (대지·ex 굵게, ex 파랑) */
+function parasFromCompose(meta, c){
+  var style = c.style === '자유원고' ? '기본원고' : c.style;
+  if (c.style === '자유원고') return parasFromText(meta, c.free, style);
+  var st = DOCX_STYLES[style];
+  var base = parasFromText(meta, '', style);
+  var paras = base.paras.slice(0, base.paras.length - 0); /* 제목부 + 빈 줄 */
+  function push(t, b, col){ paras.push({ text: t, bold: !!b, color: col }); }
+  if (c.intro.trim()) { c.intro.trim().split('\n').forEach(function(l){ push(l); }); push(''); }
+  c.points.forEach(function(p, i){
+    if (!(p.text.trim() || p.body.trim() || p.ill.trim() || p.illBody.trim() || p.apply.trim())) return;
+    push((i + 1) + '. ' + p.text.trim(), true);
+    if (p.body.trim()) p.body.trim().split('\n').forEach(function(l){ push(l); });
+    if (p.ill.trim()) push('ex) ' + p.ill.trim(), true, EX_BLUE);
+    if (p.illBody.trim()) p.illBody.trim().split('\n').forEach(function(l){ push(l); });
+    if (p.apply.trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l); }); }
+    push('');
+  });
+  push(c.concIntro.trim() || '말씀을 정리합니다.', true);
+  c.points.forEach(function(p, i){ if (p.text.trim()) push((i + 1) + '. ' + p.text.trim(), true); });
+  if (c.concBody.trim()) c.concBody.trim().split('\n').forEach(function(l){ push(l); });
+  var msg = $('#c_msg') ? $('#c_msg').value.trim() : (meta['핵심메시지'] || '');
+  if (msg) push(msg, true);
+  return { paras: paras, st: st };
 }
 function docxFileName(meta){
   var ymd = (meta['날짜'] || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
@@ -767,21 +1004,22 @@ function saveDocxBlob(blob, fname, dateStr){
   toast('다운로드 폴더에 저장: ' + fname);
   return Promise.resolve();
 }
-function exportDocx(meta, bodyText){
-  if (!meta['제목'] && !bodyText) { toast('내보낼 내용이 없습니다.'); return; }
+function exportDocxParas(meta, built, namePrefix){
   ensureDocxLib().then(function(D){
-    return D.Packer.toBlob(buildDocx(D, meta, bodyText)).then(function(blob){
-      return saveDocxBlob(blob, docxFileName(meta), meta['날짜']);
+    return D.Packer.toBlob(buildDocxParas(D, built.paras, built.st)).then(function(blob){
+      return saveDocxBlob(blob, (namePrefix || '') + docxFileName(meta), meta['날짜']);
     });
   }).catch(function(e){ toast('내보내기 실패: ' + e.message); });
 }
 $('#c_export').addEventListener('click', function(){
   var data = collectCompose();
-  exportDocx(data, data['원고텍스트']);
+  if (!data['제목'] && !data['원고텍스트']) { toast('내보낼 내용이 없습니다.'); return; }
+  var prefix = state.compose.style === '카드원고' ? '카드원고_' : '';
+  exportDocxParas(data, parasFromCompose(data, state.compose), prefix);
 });
 window.exportSermonDocx = function(id){
   var s = findSermon(id);
-  if (s) exportDocx(s, s['원고텍스트']);
+  if (s) exportDocxParas(s, parasFromText(s, s['원고텍스트'], '기본원고'));
 };
 
 /* ===================== DOCX 가져오기 ===================== */
@@ -1000,7 +1238,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v7';
+var APP_VER = 'v8';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -1024,6 +1262,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   $('#smDate').value = new Date().toISOString().slice(0, 10);
   $('#c_date').value = new Date().toISOString().slice(0, 10);
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
+  setStyleChips(); renderPoints(); renderEditor();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
   idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
   idbGet('data').then(function(d){
