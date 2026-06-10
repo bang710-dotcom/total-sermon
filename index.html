@@ -994,16 +994,26 @@ function renderSyncState(){
   setSyncState(f ? '동기화: ' + f : '미동기화');
 }
 function renderStats(){
-  $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건';
+  $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건 · 앱 버전 ' + APP_VER;
   $('#queueStat').textContent = state.queue.length ? '전송 대기 중인 입력: ' + state.queue.length + '건' : '';
 }
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-function setAppHeight(){ document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px'); }
-['resize', 'orientationchange', 'pageshow'].forEach(function(ev){ window.addEventListener(ev, setAppHeight); });
-if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
-[120, 400, 1000].forEach(function(t){ setTimeout(setAppHeight, t); }); /* iOS 초기 오보고 대비 */
+var APP_VER = 'v7';
+var _appH = 0;
+function setAppHeight(){
+  var h = window.innerHeight;
+  if (h !== _appH) { _appH = h; document.documentElement.style.setProperty('--app-h', h + 'px'); }
+}
+['resize', 'orientationchange', 'pageshow', 'focus'].forEach(function(ev){ window.addEventListener(ev, setAppHeight); });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', setAppHeight);
+  window.visualViewport.addEventListener('scroll', setAppHeight);
+}
+document.addEventListener('touchstart', setAppHeight, { passive: true });
+/* iOS 초기 오보고 대비: 첫 3초간 250ms 간격으로 재측정 */
+(function(){ var n = 0; var iv = setInterval(function(){ setAppHeight(); if (++n >= 12) clearInterval(iv); }, 250); })();
 
 /* ===================== 시작 ===================== */
 (function init(){
