@@ -1435,8 +1435,11 @@ function parseFileDate(name, fallbackYear){
   }
   return { date: '', rest: name };
 }
+var TAIL_REF_RE = new RegExp('[\\s_\\-]*(' + BOOKS + ')\\s*\\d+(\\s*[장]?[\\s_:.]\\s*\\d+([-~]\\d+)?)*([\\s_]+\\d+)?\\s*$');
 function cleanTitle(name){
-  name = name.replace(/\.(docx?|DOCX?)$/, '').replace(/(설교문?|원고|최종|수정\d*|final|v\d+)/g, '');
+  name = name.replace(/\.(docx?|DOCX?)$/, '');
+  name = name.replace(TAIL_REF_RE, ''); /* 꼬리 성경구절은 제목에서 제외 (본문 칸이 따로 있음) */
+  name = name.replace(/(설교문?|원고|최종|수정\d*|final|v\d+)/g, '');
   return name.replace(/[\s_\-.]+/g, ' ').trim() || '(제목 미상)';
 }
 function docxXmlToText(xml){
@@ -1618,7 +1621,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v21';
+var APP_VER = 'v22';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
