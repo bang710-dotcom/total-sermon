@@ -127,6 +127,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .edTa{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14.5px;line-height:1.8;font-family:inherit;outline:none;resize:vertical}
 .edTa:focus{border-color:var(--accent)}
 .edFree{min-height:60vh}
+.verse{font-size:15px;line-height:1.95;margin-bottom:8px;word-break:keep-all}
+.verse .vn{color:var(--accent2);font-size:11.5px;font-weight:700;margin-right:6px;vertical-align:super}
+.devoQ{font-size:14px;color:var(--accent);font-weight:600;line-height:1.6;margin-bottom:6px}
 @media (min-width:900px){ .edFree{min-height:calc(100vh - 220px)} }
 .foot{margin-top:auto;padding:10px 12px;font-size:12px;color:var(--dim)}
 
@@ -153,6 +156,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
   #composeMeta label{margin-top:9px}
   #c_text{min-height:calc(100vh - 150px);font-size:15.5px;line-height:2.0;padding:20px 22px}
   #page-import{max-width:860px}
+  #devoBody.split{display:grid;grid-template-columns:minmax(340px,1fr) minmax(340px,1fr);gap:20px;align-items:start}
+  #devoScript{position:sticky;top:18px;max-height:calc(100vh - 130px);overflow:auto}
   #page-settings{max-width:680px}
   #page-inbox{max-width:860px}
 }
@@ -174,6 +179,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
     <button class="nav" data-page="compose">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>작성</button>
+    <button class="nav" data-page="devo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
     <button class="nav" data-page="input">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>빠른 입력</button>
     <button class="nav" data-page="import">
@@ -265,6 +272,18 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <button class="linkbtn" id="checkInbox">요청함 상태 확인</button>
       </div>
       <div id="editorPane"></div>
+    </section>
+
+    <!-- ============ 이달의 묵상 ============ -->
+    <section class="page" id="page-devo">
+      <div id="devoHead" class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="ptBtn" id="devoPrev" style="flex:0 0 34px;height:36px">◀</button>
+        <input type="date" id="devoDate" style="width:auto;flex:0 1 170px">
+        <button class="ptBtn" id="devoNext" style="flex:0 0 34px;height:36px">▶</button>
+        <button class="linkbtn" id="devoToday" style="font-size:13.5px">오늘</button>
+        <div id="devoTitle" style="flex:1;min-width:200px;font-weight:700"></div>
+      </div>
+      <div id="devoBody"></div>
     </section>
 
     <!-- ============ 입력 (모바일 빠른 입력) ============ -->
@@ -492,6 +511,8 @@ function sync(){
     return api({ action: 'list', sheet: 'all' });
   }).then(function(d){
     d.outputs = d.outputs || [];
+    d.devo = d.devo || [];
+    d.devonotes = d.devonotes || [];
     state.data = d; saveData();
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns();
     toast('동기화 완료 (설교 ' + d.sermons.length + ' · 아이디어 ' + d.ideas.length + ')');
@@ -1114,6 +1135,120 @@ function saveDocxBlob(blob, fname, dateStr){
   toast('다운로드 폴더에 저장: ' + fname);
   return Promise.resolve();
 }
+/* ===================== 이달의 묵상 ===================== */
+var devoState = { date: new Date().toISOString().slice(0, 10), entry: null, note: {}, bibleCache: {} };
+var DEVO_FIELDS = ['본문개요', '본문주제', '관찰답', '묵상답', '적용답', '묵상메시지', '적용', '기도'];
+
+function bibleIndex(){
+  if (devoState._idx) return Promise.resolve(devoState._idx);
+  return fetch('bible/index.json').then(function(r){ return r.json(); }).then(function(j){ devoState._idx = j; return j; });
+}
+function loadBook(n){
+  if (devoState.bibleCache[n]) return Promise.resolve(devoState.bibleCache[n]);
+  return fetch('bible/b' + ('0' + n).slice(-2) + '.json').then(function(r){ return r.json(); })
+    .then(function(j){ devoState.bibleCache[n] = j; return j; });
+}
+/* "요한복음 1:19-34" / "요한복음 1:43-2:12" / "요한복음 21" 파싱 */
+function parseRange(s){
+  var m = String(s || '').trim().match(/^(.+?)\s+(\d+)(?::(\d+))?(?:\s*[-~]\s*(?:(\d+):)?(\d+))?$/);
+  if (!m) return null;
+  return { book: m[1].trim(), c1: +m[2], v1: m[3] ? +m[3] : 1,
+           c2: m[4] ? +m[4] : +m[2], v2: m[5] ? +m[5] : (m[3] ? (m[4] ? +m[5] : +m[3]) : 999) ,
+           wholeChapter: !m[3] };
+}
+function renderScripture(range){
+  return bibleIndex().then(function(idx){
+    var bk = idx.filter(function(b){ return b.ko === range.book || b.abbr === range.book; })[0];
+    if (!bk) throw new Error('성경을 찾을 수 없습니다: ' + range.book);
+    return loadBook(bk.n).then(function(book){
+      var html = '';
+      for (var c = range.c1; c <= range.c2; c++) {
+        var verses = book.chapters[c - 1] || [];
+        var from = (c === range.c1) ? range.v1 : 1;
+        var to = (c === range.c2) ? (range.wholeChapter ? verses.length : Math.min(range.v2, verses.length)) : verses.length;
+        if (range.c1 !== range.c2) html += '<div class="cnt" style="margin:10px 0 6px">' + c + '장</div>';
+        for (var v = from; v <= to; v++) {
+          html += '<div class="verse"><span class="vn">' + (range.c1 === range.c2 ? v : c + ':' + v) + '</span>' + esc(verses[v - 1] || '') + '</div>';
+        }
+      }
+      return html;
+    });
+  });
+}
+function devoEntryFor(date){
+  return state.data.devo ? state.data.devo.filter(function(d){ return d['날짜'] === date; })[0] : null;
+}
+function devoNoteFor(date){
+  return state.data.devonotes ? state.data.devonotes.filter(function(d){ return d['날짜'] === date; })[0] : null;
+}
+function dta(key, rows, ph, val){
+  return '<textarea class="edTa" rows="' + rows + '" placeholder="' + esc(ph) + '" data-devo="' + key + '">' + esc(val || '') + '</textarea>';
+}
+function renderDevo(){
+  var date = devoState.date;
+  $('#devoDate').value = date;
+  var e = devoEntryFor(date);
+  devoState.entry = e;
+  var note = devoNoteFor(date) || {};
+  devoState.note = note;
+  var body = $('#devoBody');
+  if (!e) {
+    $('#devoTitle').textContent = '';
+    var has = state.data.devo && state.data.devo.length;
+    body.innerHTML = '<div class="empty">' + (has ? '이 날짜에는 묵상 일정이 없습니다 (주일은 쉽니다).' :
+      '등록된 묵상 일정이 없습니다.<br>요청함 상태 확인을 누르거나 동기화해 주세요.') + '</div>';
+    return;
+  }
+  $('#devoTitle').innerHTML = '<span style="color:var(--accent2)">' + esc(e['본문범위']) + '</span> · ' + esc(e['제목']);
+  var saved = note['ID'] ? ' <span class="badge b-state">기록 있음</span>' : '';
+  body.className = 'split';
+  body.innerHTML =
+    '<div class="card" id="devoScript"><div class="cnt">개역개정' + saved + '</div><div id="devoVerses" class="empty">본문 불러오는 중…</div></div>' +
+    '<div>' +
+    '<div class="card"><b>관찰하기</b>' +
+    '<label>본문 개요</label>' + dta('본문개요', 4, '본문의 흐름을 요약해 보세요', note['본문개요']) +
+    '<label>본문 주제</label>' + dta('본문주제', 2, '본문의 중심 주제', note['본문주제']) + '</div>' +
+    '<div class="card"><b>묵상을 돕는 질문</b>' +
+    '<label>관찰 질문</label><div class="devoQ">' + esc(e['관찰질문']) + '</div>' + dta('관찰답', 3, '', note['관찰답']) +
+    '<label>묵상 질문</label><div class="devoQ">' + esc(e['묵상질문']) + '</div>' + dta('묵상답', 3, '', note['묵상답']) +
+    '<label>적용 질문</label><div class="devoQ">' + esc(e['적용질문']) + '</div>' + dta('적용답', 3, '', note['적용답']) + '</div>' +
+    '<div class="card"><b>묵상하기</b><label>오늘 주신 메시지</label>' + dta('묵상메시지', 4, '본문을 통해 들려주시는 메시지', note['묵상메시지']) + '</div>' +
+    '<div class="card"><b>적용하기</b>' + dta('적용', 3, '구체적인 실천', note['적용']) + '</div>' +
+    '<div class="card"><b>오늘의 기도</b>' + dta('기도', 3, '', note['기도']) + '</div>' +
+    '<button class="btn" id="devoSave">묵상 저장</button>' +
+    '</div>';
+  $('#devoSave').addEventListener('click', saveDevoNote);
+  var range = parseRange(e['본문범위']);
+  if (range) {
+    renderScripture(range).then(function(html){ $('#devoVerses').className = ''; $('#devoVerses').innerHTML = html; })
+      .catch(function(err){ $('#devoVerses').textContent = '본문을 불러오지 못했습니다: ' + err.message; });
+  } else {
+    $('#devoVerses').textContent = '본문 범위를 해석하지 못했습니다: ' + e['본문범위'];
+  }
+}
+function saveDevoNote(){
+  var data = { '날짜': devoState.date, '본문범위': devoState.entry ? devoState.entry['본문범위'] : '' };
+  DEVO_FIELDS.forEach(function(k){
+    var el = document.querySelector('[data-devo="' + k + '"]');
+    data[k] = el ? el.value.trim() : '';
+  });
+  var existing = devoNoteFor(devoState.date);
+  var body;
+  if (existing) { data.ID = existing['ID']; body = { action: 'update', sheet: 'devonotes', data: data }; }
+  else body = { action: 'add', sheet: 'devonotes', data: data };
+  submit(body, '묵상 저장 완료');
+}
+function shiftDevoDate(days){
+  var d = new Date(devoState.date + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  devoState.date = d.toISOString().slice(0, 10);
+  renderDevo();
+}
+$('#devoPrev').addEventListener('click', function(){ shiftDevoDate(-1); });
+$('#devoNext').addEventListener('click', function(){ shiftDevoDate(1); });
+$('#devoToday').addEventListener('click', function(){ devoState.date = new Date().toISOString().slice(0, 10); renderDevo(); });
+$('#devoDate').addEventListener('change', function(){ if (this.value) { devoState.date = this.value; renderDevo(); } });
+
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', 'LTC교재', '리더스앱업로드'];
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
@@ -1193,6 +1328,17 @@ async function scanRequests(quiet){
       try { j = JSON.parse(await (await entry.getFile()).text()); } catch (e) { continue; }
       if (j['상태'] === '대기') waiting++;
       else if (j['상태'] === '진행중') working++;
+      else if (j['상태'] === '완료' && j['요청유형'] === '묵상집등록' && !j['시트등록']) {
+        var dl = j['묵상목록'] || [];
+        for (var b = 0; b < dl.length; b += 50) {
+          await apiPost({ action: 'bulkAdd', sheet: 'devo', rows: dl.slice(b, b + 50) });
+        }
+        j['시트등록'] = true;
+        var wD = await entry.createWritable();
+        await wD.write(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' }));
+        await wD.close();
+        done += dl.length;
+      }
       else if (j['상태'] === '완료' && j['요청유형'] === '예화이미지OCR' && !j['아이디어등록']) {
         /* 이미지에서 정리된 예화들을 아이디어인박스에 등록 */
         var items = j['결과아이디어'] || [];
@@ -1208,7 +1354,7 @@ async function scanRequests(quiet){
         await w0.close();
         done += items.length;
       }
-      else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && !j['산출물기록']) {
+      else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && !j['산출물기록']) {
         await apiPost({ action: 'add', sheet: 'outputs', data: {
           '설교ID': (j['설교'] || {})['ID'] || '', '유형': j['요청유형'], '상태': '완료',
           '링크': '', '비고': (j['결과파일'] ? '결과: ' + j['결과파일'] + ' / ' : '') + '요청: ' + entry.name
@@ -1569,6 +1715,7 @@ function showPage(name){
   if (name === 'search') $('#q').focus();
   if (name === 'input') $('#ideaContent').focus();
   if (name === 'outputs') renderOutputs();
+  if (name === 'devo') renderDevo();
 }
 window.showPage = showPage;
 $$('.tabbar button, .sidebar .nav').forEach(function(b){
@@ -1621,7 +1768,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v22';
+var APP_VER = 'v23';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -1650,9 +1797,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
   idbGet('dirx').then(function(h){ if (h) { xHandle = h; renderDirState(); scanRequests(true); } }).catch(function(){});
   idbGet('data').then(function(d){
-    if (d) { d.outputs = d.outputs || []; state.data = d; return; }
+    if (d) { d.outputs = d.outputs || []; d.devo = d.devo || []; d.devonotes = d.devonotes || []; state.data = d; return; }
     var old = load(LS.data);
-    if (old) { old.outputs = old.outputs || []; state.data = old; localStorage.removeItem(LS.data); return idbSet('data', old); }
+    if (old) { old.outputs = old.outputs || []; old.devo = old.devo || []; old.devonotes = old.devonotes || []; state.data = old; localStorage.removeItem(LS.data); return idbSet('data', old); }
   }).catch(function(){}).then(function(){
     renderSyncState(); renderInbox(); renderStats(); runSearch();
     var f = state.data.fetchedAt ? new Date(state.data.fetchedAt.replace(' ', 'T')) : null;
