@@ -50,7 +50,8 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn.gold{background:var(--accent2)}
 .btn:active{opacity:.8}
 .btn:disabled{opacity:.45;cursor:default}
-.btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 40%}
+.btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 40%;word-break:keep-all;line-height:1.35}
+.btn.mini.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 14px;font-size:13.5px;cursor:pointer;user-select:none}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#0c1020;font-weight:700}
@@ -238,10 +239,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         </div>
         <label>클로드 요청 → 요청함에 저장 (Cowork가 처리)</label>
         <div class="toolrow" style="margin-top:4px;flex-wrap:wrap">
-          <button class="btn sub mini" data-req="이미지프롬프트">이미지 프롬프트</button>
+          <button class="btn sub mini" data-req="이미지프롬프트">이미지<br>프롬프트</button>
           <button class="btn sub mini" data-req="카드원고">카드원고</button>
           <button class="btn sub mini" data-req="LTC교재">LTC 교재</button>
-          <button class="btn sub mini" data-req="리더스앱업로드">리더스앱 업로드용</button>
+          <button class="btn sub mini" data-req="리더스앱업로드">리더스앱<br>업로드용</button>
         </div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">DOCX 저장 폴더 지정</button>
@@ -415,6 +416,12 @@ function loadScript(src){
 }
 
 function norm(s){ return String(s || '').toLowerCase().replace(/\s+/g, ''); }
+/* 한국어 조사: 받침 있으면 '으로', 없으면 '로' (예: 검토로, 사용됨으로) */
+function ro(s){
+  var c = s.charCodeAt(s.length - 1);
+  var batchim = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 > 0;
+  return s + (batchim ? '으로' : '로');
+}
 function bigrams(s){
   s = norm(s).replace(/[^가-힣a-z0-9]/g, '');
   var set = {}; var n = 0;
@@ -454,7 +461,7 @@ function sync(){
   }).then(function(d){
     d.outputs = d.outputs || [];
     state.data = d; saveData();
-    renderSyncState(); renderInbox(); renderStats(); runSearch();
+    renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns();
     toast('동기화 완료 (설교 ' + d.sermons.length + ' · 아이디어 ' + d.ideas.length + ')');
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
@@ -590,15 +597,17 @@ function openDetail(kind, id){
       if (kv[1] && kv[1].trim && kv[1].trim()) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>';
     });
     if (s['원고링크']) html += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:13.5px" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
-    var outs = state.data.outputs.filter(function(o){ return o['설교ID'] === s['ID']; });
-    if (outs.length) html += '<div class="kv"><span class="k">산출물</span><span class="v">' +
-      outs.map(function(o){ return esc(o['유형']) + (o['상태'] === '완료' ? ' ✓' : ' (' + esc(o['상태']) + ')'); }).join(' · ') + '</span></div>';
+    var done = doneTypes(s['ID']);
+    var doneList = REQ_TYPES.filter(function(t){ return done[t]; });
+    if (doneList.length) html += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
+      doneList.map(function(t){ return esc(t) + ' ✓'; }).join(' · ') + '</span></div>';
     html += '<div class="toolrow desktop-only">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">작성 화면에서 편집</button>' +
       '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
     html += '<div class="toolrow desktop-only" style="flex-wrap:wrap">' +
       REQ_TYPES.map(function(t){
-        return '<button class="btn sub mini" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' + REQ_LABELS[t] + '</button>';
+        return '<button class="btn sub mini' + (done[t] ? ' done' : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
+          REQ_BTN[t] + (done[t] ? ' ✓' : '') + '</button>';
       }).join('') + '</div>';
     var txt = String(s['원고텍스트'] || '');
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">' +
@@ -615,7 +624,7 @@ function openDetail(kind, id){
     });
     html += '<div style="margin-top:10px">' +
       ['검토','사용됨','보류','새것'].filter(function(st){ return st !== d['상태']; }).map(function(st){
-        return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + st + '\');openDetail(\'idea\',\'' + d['ID'] + '\')">' + st + '으로</button>';
+        return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + st + '\');openDetail(\'idea\',\'' + d['ID'] + '\')">' + ro(st) + '</button>';
       }).join('') + '</div>';
   }
   pane.innerHTML = html;
@@ -690,7 +699,7 @@ function renderInbox(){
       (d['관련본문'] ? '<div class="snippet">' + esc(d['관련본문']) + '</div>' : '') +
       '<div style="margin-top:7px">' +
       ['검토','사용됨','보류','새것'].filter(function(s){ return s !== d['상태']; }).map(function(s){
-        return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + s + '\')">' + s + '으로</button>';
+        return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + s + '\')">' + ro(s) + '</button>';
       }).join('') + '</div></div>';
   }).join('');
 }
@@ -882,7 +891,7 @@ function clearCompose(){
   $('#c_state').value = '구상';
   $('#c_dupCheck').innerHTML = '';
   state.compose = newCompose();
-  setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge();
+  setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
 }
 window.editSermon = function(id){
   var s = findSermon(id);
@@ -898,7 +907,7 @@ window.editSermon = function(id){
   c.points = pts.length ? pts.map(function(t, i){ var p = newPoint(); p.text = t; p.ill = ills[i] || ''; return p; }) : [newPoint()];
   if (!pts.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ var p = newPoint(); p.ill = t; return p; });
   state.compose = c;
-  setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge();
+  setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   showPage('compose');
 };
 $('#c_new').addEventListener('click', function(){
@@ -1073,6 +1082,23 @@ function saveDocxBlob(blob, fname, dateStr){
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '카드원고', 'LTC교재', '리더스앱업로드'];
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
+var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용' };
+function doneTypes(sermonId){
+  var set = {};
+  state.data.outputs.forEach(function(o){
+    if (o['설교ID'] === sermonId && o['상태'] === '완료') set[o['유형']] = true;
+  });
+  return set;
+}
+/* 작성 화면 요청 버튼 색: 수정 중인 설교의 완료 아웃풋은 초록 */
+function refreshReqBtns(){
+  var done = state.editing ? doneTypes(state.editing) : {};
+  $$('#composeMeta [data-req]').forEach(function(b){
+    var t = b.dataset.req;
+    b.classList.toggle('done', !!done[t]);
+    b.innerHTML = REQ_BTN[t] + (done[t] ? ' ✓' : '');
+  });
+}
 
 function permFor(h, guide){
   if (!h) return Promise.reject(new Error(guide));
@@ -1117,6 +1143,8 @@ $$('#composeMeta [data-req]').forEach(function(b){
 
 /* 완료된 요청 → 산출물 시트 자동 기록 (Cowork가 상태를 '완료'로 바꿔두면 다음 확인 때 반영) */
 async function scanRequests(quiet){
+  if (scanRequests._busy) return; /* 자동·수동 확인이 겹쳐 중복 기록되는 것 방지 */
+  scanRequests._busy = true;
   try {
     if (!xHandle) { if (!quiet) toast('클로드 연동 폴더가 지정되지 않았습니다.'); return; }
     if (await xHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') { if (!quiet) toast('폴더 권한이 필요합니다. 요청 버튼을 한 번 눌러 권한을 허용해 주세요.'); return; }
@@ -1160,6 +1188,7 @@ async function scanRequests(quiet){
     if (done) { toast('완료된 요청 ' + done + '건을 기록했습니다.'); sync(); }
     else if (!quiet) toast('요청함 — 대기 ' + waiting + '건 · 진행중 ' + working + '건');
   } catch (e) { if (!quiet) toast('요청함 확인 실패: ' + e.message); }
+  finally { scanRequests._busy = false; }
 }
 $('#checkInbox').addEventListener('click', function(){ scanRequests(false); });
 
@@ -1482,7 +1511,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v13';
+var APP_VER = 'v14';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
