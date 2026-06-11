@@ -1636,10 +1636,10 @@ async function aiSummarize(id, s){
     await apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': j['요약본'], '키워드': j['키워드'] || '' } });
     await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': '', '비고': 'Opus API 직결 생성' } });
     var loc = findSermon(id);
-    if (loc) { loc['요약본'] = j['요약본']; if (j['키워드']) loc['키워드'] = j['키워드']; saveData(); }
-    renderSyncState(); refreshReqBtns();
+    if (loc) { loc['요약본'] = j['요약본']; if (j['키워드']) loc['키워드'] = j['키워드']; }
+    aiMarkDone(id, '설교요약', 'Opus API 직결 생성');
+    renderSyncState();
     toast('요약본·주제어 완료 — 시트에 기록했습니다.');
-    if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
   } catch (e) { renderSyncState(); toast('요약 실패: ' + e.message); }
 }
 
@@ -1671,10 +1671,19 @@ async function aiManuscript(id, meta){
     await saveDocxBlob(blob, docxFileName(meta), meta['날짜']);
     state.compose.free = arr.map(function(p){ return p.x; }).join('\n');
     if (state.compose.style === '자유원고') renderEditor();
-    if (id) await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '원고작성', '상태': '완료', '링크': '', '비고': 'Opus API 직결 — ' + docxFileName(meta) } });
-    renderSyncState(); refreshReqBtns();
+    if (id) {
+      await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '원고작성', '상태': '완료', '링크': '', '비고': 'Opus API 직결 — ' + docxFileName(meta) } });
+      aiMarkDone(id, '원고작성', 'Opus API 직결 — ' + docxFileName(meta));
+    }
+    renderSyncState();
     toast('완성 원고 저장 완료 — 자유원고 칩에서 본문도 볼 수 있습니다.');
   } catch (e) { renderSyncState(); toast('원고 작성 실패: ' + e.message); }
+}
+/* 직결 완료를 로컬 산출물에도 즉시 반영 — 버튼 ✓가 동기화 없이 바로 켜지게 */
+function aiMarkDone(id, type, note){
+  state.data.outputs.push({ ID: '', '설교ID': id, '유형': type, '상태': '완료', '링크': '', '비고': note, '등록일': '', '수정일': '' });
+  saveData(); refreshReqBtns();
+  if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
 }
 var AI_DIRECT = { '설교요약': aiSummarize, '원고작성': aiManuscript };
 
@@ -3085,7 +3094,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v47';
+var APP_VER = 'v48';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
