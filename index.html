@@ -1723,7 +1723,205 @@ function aiMarkDone(id, type, note){
   saveData(); refreshReqBtns();
   if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
 }
-var AI_DIRECT = { '설교요약': aiSummarize, '원고작성': aiManuscript };
+/* ── 2단계 직결: 카드원고 · LTC교재 · 리더스앱TSV ── */
+var P_CARD = [
+'당신은 영락대학부 주일 설교 카드원고(가로버전, 화면 설교용) 집필 비서다. 입력(JSON)의 초고·대지·예화를 완성 카드원고로 발전시킨다.',
+'출력은 반드시 JSON 배열만: [{"t":"trans|quote|ex|head|p","x":"..."}] — 본문 첫 단락부터 끝까지 순서대로(제목 줄은 앱이 만든다).',
+'t 규칙: trans=빨간 전환 바 텍스트("▶ 이미지 #N 전환 ◀" 또는 성경 인용 직전 "▶ 본문 이미지 #N 전환 ◀") / quote=성경 인용(절 단위 전문 개역개정, 같은 절 재인용도 매번 전문, 끝에 (책 장:절)) / ex="ex) 예화 제목" 한 줄 / head=강조·대지 선언·"말씀을 정리합니다" / p=일반 구어체 단락.',
+'전환 바 규칙: 본문 시작에 "▶ 이미지 #2 전환 ◀"(표지가 #1), 각 대지·주요 단락 시작과 결론 앞에 일반 전환 바, 모든 성경 인용 직전에 본문 이미지 바. 번호는 2부터 연속.',
+'집필 원칙: 호칭 "여러분"만, 대지는 ①선언 ②근거 ③"그래서 우리는 ~합시다" 실천 소결론의 3단, 대지 번호 대신 자연스러운 전환문("그래서 첫 번째 메시지"), 짧은 호흡·그림 언어·대조·재정의, "/" 표시 절대 금지, 분량은 25~30분 설교(공백 포함 5,500~7,000자).'].join('\n');
+
+var P_LTC = [
+'당신은 영락대학부 LTC(소그룹 리더 훈련, 토요일) 교재 편집자다. 설교 원고(JSON 입력)를 2페이지 교재 데이터로 변환한다.',
+'출력은 반드시 JSON 객체만: {"sections":[{"title":"...","paras":["..."],"boxes":[{"title":"...","lines":["..."]}],"summary":"...","sharing":"..."}],"gbs":[{"category":"마음 열기","text":"..."},{"category":"말씀 나눔","text":"..."},{"category":"삶의 적용","text":"..."}],"notices":[]}',
+'sections: 설교 대지 수대로 2~3개. title에는 핵심 단어 빈칸을 정답 노출 형태로 포함 — 예: "억울한 말 한 마디로 (낙인)찍히지 않는 공동체" (괄호 안 공백 없이 정답). paras는 그 대지를 교재용으로 요약한 설명 1~2단락(설교 예화·개인 이야기 제외). boxes는 1~2개 — 설교 원고에 없는 주해·역사·성경신학 배경(원어는 box title에만 병기 가능). summary는 핵심 1~2문장. sharing은 구체적 경험을 나누게 하는 실천 질문 1개.',
+'gbs: 마음 열기→말씀 나눔→삶의 적용 3문항 고정, 당일 본문 중심으로 어렵지 않게.',
+'notices: 입력에 공지가 없으면 빈 배열. 텍스트에 탭·줄바꿈 금지(한 항목 = 한 문장).'].join('\n');
+
+var _ltcJson = {};
+function ltcSaturday(iso){
+  var d = new Date(((iso || '').trim() || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+  while (d.getDay() !== 6) d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. 토요일';
+}
+async function scriptureArr(ref){
+  var range = parseRange(String(ref || '').trim());
+  if (!range) throw new Error('본문 범위 해석 실패: ' + ref);
+  var idx = await bibleIndex();
+  var bk = idx.filter(function(b){ return b.ko === range.book || b.abbr === range.book; })[0];
+  if (!bk) throw new Error('성경을 찾을 수 없습니다: ' + range.book);
+  var book = await loadBook(bk.n);
+  var arr = [], first = true;
+  for (var c = range.c1; c <= range.c2; c++) {
+    var verses = book.chapters[c - 1] || [];
+    var from = c === range.c1 ? range.v1 : 1;
+    var to = c === range.c2 ? (range.wholeChapter ? verses.length : Math.min(range.v2, verses.length)) : verses.length;
+    for (var v = from; v <= to; v++) {
+      arr.push({ v: first || v === 1 ? c + ':' + v : String(v), t: verses[v - 1] || '' });
+      first = false;
+    }
+  }
+  return { bk: bk, range: range, arr: arr };
+}
+
+/* 카드원고(가로 310×210) 빌더 — 빨간 전환 바, 하단 페이지 번호 */
+function buildCardDocx(D, meta, items){
+  var FONT = { ascii: '함초롬바탕', eastAsia: '함초롬바탕', hAnsi: '함초롬바탕' };
+  var series = (meta['예배구분'] || '') ;
+  var titleLine = (series ? series + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
+  var children = [new D.Paragraph({ spacing: { line: 360 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 40 })] })];
+  items.forEach(function(it){
+    var x = String(it.x || '');
+    if (it.t === 'trans') {
+      children.push(new D.Paragraph({
+        shading: { type: D.ShadingType.CLEAR, fill: 'EE0000' },
+        alignment: D.AlignmentType.CENTER, spacing: { line: 360, before: 120, after: 120 },
+        children: [new D.TextRun({ text: x, bold: true, color: 'FFFFFF' })]
+      }));
+    } else {
+      var col = it.t === 'quote' ? 'EE0000' : it.t === 'ex' ? '215E99' : undefined;
+      children.push(new D.Paragraph({ spacing: { line: 360 },
+        children: [new D.TextRun({ text: x, bold: it.t !== 'p', color: col })] }));
+    }
+  });
+  function mm(v){ return Math.round(v * 56.6929); }
+  return new D.Document({
+    styles: { default: { document: { run: { font: FONT, size: 28 } } } },
+    sections: [{
+      properties: { page: { size: { width: mm(310), height: mm(210) },
+        margin: { top: mm(10), bottom: mm(12.5), left: mm(10), right: mm(10), header: 0, footer: mm(5) } } },
+      footers: { default: new D.Footer({ children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER,
+        children: [new D.TextRun({ children: [D.PageNumber.CURRENT], size: 20 })] })] }) },
+      children: children
+    }]
+  });
+}
+async function aiCardScript(id, meta){
+  try {
+    if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) { toast('초고나 대지를 먼저 작성해 주세요.'); return; }
+    toast('Opus가 카드원고를 집필합니다 — 수 분 걸릴 수 있습니다');
+    var out = await callClaude(P_CARD, JSON.stringify({
+      '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
+      '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': meta['원고텍스트']
+    }), 14000, aiTick('카드원고'));
+    var arr = aiJson(out);
+    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    var D = await ensureDocxLib();
+    var blob = await D.Packer.toBlob(buildCardDocx(D, meta, arr));
+    await saveDocxBlob(blob, '카드원고_' + docxFileName(meta), meta['날짜']);
+    if (id) {
+      await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '카드원고', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
+      aiMarkDone(id, '카드원고', 'Opus API 직결');
+    }
+    renderSyncState();
+    toast('카드원고 저장 완료 — 페이지 전환 위치는 열어서 다듬어 주세요.');
+  } catch (e) { renderSyncState(); toast('카드원고 실패: ' + e.message); }
+}
+
+/* LTC 교재 데이터 생성 (TSV와 공유) */
+async function aiLtcData(meta){
+  var key = meta['ID'] || meta['제목'] || '';
+  var out = await callClaude(P_LTC, JSON.stringify({
+    '제목': meta['제목'], '본문': meta['본문'], '날짜': meta['날짜'],
+    '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '원고텍스트': meta['원고텍스트']
+  }), 7000, aiTick('LTC 교재'));
+  var j = aiJson(out);
+  if (!j.sections || !j.sections.length || !j.gbs || j.gbs.length !== 3) throw new Error('교재 형식 오류 — 다시 시도해 주세요.');
+  _ltcJson[key] = j;
+  return j;
+}
+async function aiLtc(id, meta){
+  try {
+    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고 텍스트가 필요합니다.'); return; }
+    toast('Opus가 LTC 교재를 만듭니다…');
+    var data = await aiLtcData(meta);
+    var sc = await scriptureArr(meta['본문']);
+    var D = await ensureDocxLib();
+    var F = { ascii: '맑은 고딕', eastAsia: '맑은 고딕', hAnsi: '맑은 고딕' };
+    var ch = [];
+    function P(opts){ ch.push(new D.Paragraph(opts)); }
+    function R(t, o){ o = o || {}; return new D.TextRun({ text: t, bold: o.b, italics: o.i, size: o.s || 21, color: o.c }); }
+    var dateB = ltcSaturday(meta['날짜']);
+    P({ shading: { type: D.ShadingType.CLEAR, fill: '1F3864' }, spacing: { after: 160 }, indent: { left: 240 },
+      children: [R('영락대학부 LTC', { b: 1, c: 'FFFFFF', s: 24 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(dateB, { c: 'FFFFFF', s: 22 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(sc.bk.ko + ' ' + sc.range.c1, { c: 'FFFFFF', s: 22 })] });
+    P({ alignment: D.AlignmentType.CENTER, spacing: { after: 40 }, children: [R('- ' + (meta['본문'] || '') + ' -', { s: 20, c: '555555' })] });
+    P({ alignment: D.AlignmentType.CENTER, spacing: { after: 160 }, children: [R('"' + (meta['제목'] || '') + '"', { b: 1, s: 32 })] });
+    P({ spacing: { after: 160 }, children: [R('오늘 본문을 함께 읽어봅시다. (개역개정)  - ' + (meta['본문'] || '') + ' -', { b: 1 })] });
+    data.sections.forEach(function(sec, i){
+      var blankTitle = String(sec.title || '').replace(/\(([^)]+)\)/g, '(        )');
+      P({ spacing: { before: 160, after: 80 }, border: { bottom: { style: D.BorderStyle.SINGLE, size: 4, color: '888888', space: 2 } },
+        children: [R((i + 1) + '. ' + blankTitle, { b: 1, s: 24 })] });
+      (sec.paras || []).forEach(function(t){ P({ spacing: { after: 120, line: 300 }, indent: { firstLine: 420 }, children: [R(t)] }); });
+      (sec.boxes || []).forEach(function(bx){
+        P({ shading: { type: D.ShadingType.CLEAR, fill: 'E8EEF6' }, spacing: { before: 100, after: 60, line: 280 }, indent: { left: 360 },
+          children: [R('[ ' + bx.title + ' ]', { b: 1, s: 20, c: '1F3864' })] });
+        (bx.lines || []).forEach(function(l, k){
+          P({ shading: { type: D.ShadingType.CLEAR, fill: 'E8EEF6' }, spacing: { after: k === bx.lines.length - 1 ? 120 : 60, line: 280 }, indent: { left: 360 },
+            children: [R(l, { s: 19, c: '222222' })] });
+        });
+      });
+      if (sec.summary) P({ spacing: { after: 80, line: 300 }, indent: { firstLine: 420 }, children: [R(sec.summary)] });
+      if (sec.sharing) P({ spacing: { before: 100, after: 160, line: 300 }, indent: { left: 200 },
+        children: [R('✦ 나눔: ', { b: 1, i: 1, c: '1F3864' }), R(sec.sharing, { i: 1, c: '222222' })] });
+    });
+    P({ spacing: { before: 200, after: 80 }, border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'AAAAAA', space: 6 } },
+      children: [R('● 함께 생각해보기 (GBS 질문)', { b: 1, s: 22 })] });
+    P({ spacing: { after: 100 }, children: [R('※ 아래 질문으로 리더들이 소그룹을 이루어 직접 소그룹 인도를 체험해 봅시다.', { s: 19, c: '555555' })] });
+    data.gbs.forEach(function(q, i){
+      P({ spacing: { after: 60, line: 300 }, children: [R((i + 1) + '. ', { b: 1 }), R('[' + q.category + ']', { b: 1, c: '1F3864' }), R(' ' + q.text)] });
+      P({ spacing: { after: 240 }, children: [R('')] });
+    });
+    P({ spacing: { before: 120, after: 80 }, children: [R('● 공지사항', { b: 1, s: 22 })] });
+    var nts = (data.notices && data.notices.length) ? data.notices : ['공지사항을 입력해 주세요.'];
+    nts.forEach(function(n, i){ P({ spacing: { after: 60 }, children: [R((i + 1) + '. ' + n)] }); });
+    var doc = new D.Document({
+      styles: { default: { document: { run: { font: F, size: 21 } } } },
+      sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 900 } } }, children: ch }]
+    });
+    var blob = await D.Packer.toBlob(doc);
+    await saveDocxBlob(blob, 'LTC교재_' + docxFileName(meta), meta['날짜']);
+    if (id) {
+      await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': 'LTC교재', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
+      aiMarkDone(id, 'LTC교재', 'Opus API 직결');
+    }
+    renderSyncState();
+    toast('LTC 교재 저장 완료 — 2페이지가 넘으면 열어서 압축해 주세요.');
+  } catch (e) { renderSyncState(); toast('LTC 교재 실패: ' + e.message); }
+}
+
+/* 리더스앱 TSV (탭 6개 한 줄, G열 TRUE) */
+async function aiLeadersTsv(id, meta){
+  try {
+    var key = id || meta['제목'] || '';
+    var data = _ltcJson[key];
+    if (!data) { toast('LTC 교재 내용을 먼저 생성합니다…'); data = await aiLtcData(meta); }
+    var sc = await scriptureArr(meta['본문']);
+    var ejson = {
+      sections: data.sections, gbs: data.gbs,
+      notices: (data.notices && data.notices.length) ? data.notices : ['공지사항을 입력해 주세요.'],
+      scripture: sc.arr
+    };
+    var es = JSON.stringify(ejson).replace(/[\t\r\n]+/g, ' ');
+    var refC = sc.bk.abbr + ' ' + sc.range.c1 + ':' + sc.range.v1 +
+      (sc.range.c2 !== sc.range.c1 ? '-' + sc.range.c2 + ':' + sc.range.v2 : (sc.range.v2 !== sc.range.v1 ? '-' + sc.range.v2 : ''));
+    var row = [sc.bk.ko + ' ' + sc.range.c1, ltcSaturday(meta['날짜']), refC, meta['제목'] || '', es, '', 'TRUE'].join('\t');
+    if (row.split('\t').length !== 7 || /[\r\n]/.test(row)) throw new Error('TSV 검증 실패');
+    JSON.parse(es); /* E열 유효성 */
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([row], { type: 'text/plain;charset=utf-8' }));
+    a.download = sc.bk.ko + sc.range.c1 + '_LTC_리더스앱.txt';
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    if (id) {
+      await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '리더스앱업로드', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
+      aiMarkDone(id, '리더스앱업로드', 'Opus API 직결');
+    }
+    renderSyncState();
+    toast('리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.');
+  } catch (e) { renderSyncState(); toast('리더스앱 파일 실패: ' + e.message); }
+}
+
+var AI_DIRECT = { '설교요약': aiSummarize, '원고작성': aiManuscript, '카드원고': aiCardScript, 'LTC교재': aiLtc, '리더스앱업로드': aiLeadersTsv };
 
 async function aiSeriesDevo(m){
   var S = state.series;
