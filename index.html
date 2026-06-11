@@ -1378,9 +1378,9 @@ $('#devoToday').addEventListener('click', function(){ devoState.date = new Date(
 $('#devoDate').addEventListener('change', function(){ if (this.value) { devoState.date = this.value; renderDevo(); } });
 
 /* ===================== 클로드 요청함 ===================== */
-var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드'];
-var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용' };
-var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용' };
+var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
+var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용', '원고작성': '스킬사용 원고요청' };
+var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용', '원고작성': '스킬사용<br>원고요청' };
 function doneTypes(sermonId){
   var set = {};
   state.data.outputs.forEach(function(o){
@@ -2204,6 +2204,39 @@ async function scanRequests(quiet){
         done++;
       }
       /* 시리즈묵상·시리즈설교 완료 파일은 시리즈 계획 탭에서 검토·확정 후 앱이 등록 — 여기서는 손대지 않음 */
+      else if (j['상태'] === '완료' && j['요청유형'] === '원고작성' && !j['산출물기록']) {
+        /* 완성 원고 docx를 결과함 → 아이클라우드 설교 폴더(연도)로 자동 저장 */
+        var rfName = String(j['결과파일'] || '').split(/[,;]/)[0].trim();
+        var savedTo = '';
+        if (dirHandle && rfName) {
+          try {
+            if (await dirHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+              await dirHandle.requestPermission({ mode: 'readwrite' });
+            }
+            if (await dirHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
+              var outD = await xHandle.getDirectoryHandle('_claude_결과함');
+              var srcF = await (await outD.getFileHandle(rfName)).getFile();
+              var yr = String((j['설교'] || {})['날짜'] || '').slice(0, 4) || String(new Date().getFullYear());
+              var ydir = await dirHandle.getDirectoryHandle(yr + '년', { create: true });
+              var wOut = await (await ydir.getFileHandle(rfName, { create: true })).createWritable();
+              await wOut.write(srcF); await wOut.close();
+              savedTo = dirHandle.name + '/' + yr + '년/' + rfName;
+            }
+          } catch (e) {}
+          if (!savedTo) continue; /* 권한·복사 실패 — 다음 확인 때 재시도 */
+        }
+        await apiPost({ action: 'add', sheet: 'outputs', data: {
+          '설교ID': (j['설교'] || {})['ID'] || '', '유형': '원고작성', '상태': '완료', '링크': '',
+          '비고': (savedTo ? '아이클라우드 저장: ' + savedTo + ' / ' : '결과함에서 내려받기 / ') + '요청: ' + entry.name
+        }});
+        j['산출물기록'] = true;
+        if (savedTo) j['아이클라우드저장'] = savedTo;
+        var wR = await entry.createWritable();
+        await wR.write(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' }));
+        await wR.close();
+        done++;
+        if (savedTo) toast('완성 원고 저장: ' + savedTo);
+      }
       else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && j['요청유형'] !== '설교요약' && j['요청유형'] !== '시리즈묵상' && j['요청유형'] !== '시리즈설교' && !j['산출물기록']) {
         await apiPost({ action: 'add', sheet: 'outputs', data: {
           '설교ID': (j['설교'] || {})['ID'] || '', '유형': j['요청유형'], '상태': '완료',
