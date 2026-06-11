@@ -83,6 +83,9 @@ input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;max-width:1
 details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .linkbtn{background:none;border:none;color:var(--accent);font-size:12.5px;cursor:pointer;font-family:inherit;padding:4px 8px 4px 0}
 .fulltext{white-space:pre-wrap;font-size:14px;line-height:1.85;color:var(--text);word-break:break-word}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;margin-right:7px;vertical-align:-2px;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.busy{opacity:.65;pointer-events:none}
 .kwchip{display:inline-block;margin:0 6px 4px 0;padding:3px 10px;border-radius:14px;border:1px solid var(--accent2);background:transparent;color:var(--accent2);font-size:12.5px;cursor:pointer}
 .kwchip:hover{background:rgba(63,124,192,.14)}
 .sumbox{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:rgba(255,255,255,.02)}
@@ -1455,7 +1458,22 @@ async function scanRequests(quiet){
   } catch (e) { if (!quiet) toast('요청함 확인 실패: ' + e.message); }
   finally { scanRequests._busy = false; }
 }
-$('#checkInbox').addEventListener('click', function(){ scanRequests(false); });
+/* 버튼 작동 중 표시: 스피너 + 비활성화 (중복 클릭 방지) */
+function withBusy(btn, label, fn){
+  return async function(){
+    if (btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    var old = btn.innerHTML;
+    btn.innerHTML = '<span class="spin"></span>' + label;
+    btn.classList.add('busy');
+    try { await fn(); } finally {
+      delete btn.dataset.busy;
+      btn.classList.remove('busy');
+      btn.innerHTML = old;
+    }
+  };
+}
+$('#checkInbox').addEventListener('click', withBusy($('#checkInbox'), '확인 중…', function(){ return scanRequests(false); }));
 
 /* ----- 아웃풋(결과함) 보기 ----- */
 var _outFiles = [];
@@ -1500,7 +1518,7 @@ window.dlOutput = function(i){
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
   });
 };
-$('#outRefresh').addEventListener('click', renderOutputs);
+$('#outRefresh').addEventListener('click', withBusy($('#outRefresh'), '새로고침 중…', function(){ return renderOutputs(); }));
 $('#outCheck').addEventListener('click', function(){ scanRequests(false).then ? scanRequests(false) : scanRequests(false); });
 
 /* ----- 예화 이미지 입력: 이미지 → 요청함 → 클로드 OCR → 자동 등록 ----- */
@@ -1852,7 +1870,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v25';
+var APP_VER = 'v26';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
