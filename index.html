@@ -1651,11 +1651,22 @@ var P_DEVO = [
 
 var P_SERMON = [
 '당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON)의 각 주일마다, 직전 월~토 묵상확정 범위에서 다룰 설교 주제 선택지 3~4개를 만든다.',
-'출력은 반드시 JSON 배열만: [{"주일":"YYYY-MM-DD","주간범위":"책 1:1-3:17","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","대지":"1. ...\\n2. ...\\n3. ..."}],"비고":""}]',
+'출력은 반드시 JSON 배열만: [{"주일":"YYYY-MM-DD","주간범위":"책 1:1-3:17","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}],"비고":""}]',
 '선택지 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다. 직전 묵상일이 없는 첫 주일은 시리즈 소개 설교로.',
-'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 표현 — 장황한 설명형 금지, 청중이 물음표를 품게. 본문 표현을 넘는 현대적·비약적 표현 가능하나 메시지는 본문이 명시적으로 지지하는 범위 안에서만. 대지 셋은 같은 방향으로 성큼성큼, 청중의 삶으로 뚫고 들어오는 흐름. 대지는 3개.',
+'핵심메시지=설교 주제 한 문장(명제). 주제근거=이 본문에서 이 주제를 끌어낸 이유 1~2문장(본문의 맥락·정황 근거, 통찰이 드러나게).',
+'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 — 장황한 설명형 금지, 청중이 물음표를 품게. 본문 표현을 넘는 현대적·비약적 표현 가능하나 메시지는 본문이 명시적으로 지지하는 범위 안에서만. 대지 셋은 같은 방향으로 성큼성큼, 청중의 삶으로 뚫고 들어오는 흐름. 대지는 3개.',
+'대지마다: 문=명제 한 문장 / 근거=본문 절을 짚는 주해 근거 한 문장(절 표시 포함) / 적용=청중의 삶의 자리에서 오늘 안에 실행 가능한 구체적 행동·실천 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
 '요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유.'].join('\n');
+
+var P_OCC = [
+'당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON)의 설교일과 설교 상황(대상·시기·목적)에 맞는 설교 개요 선택지 3세트를 만든다.',
+'출력은 반드시 JSON 배열(길이 3)만: [{"제목":"...","본문":"책 1:1-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}]',
+'선택지 3세트는 본문과 접근 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 하고, 상황의 대상·시기·목적에 정확히 맞아야 한다.',
+'핵심메시지=설교 주제 한 문장(명제). 주제근거=이 본문에서 이 주제를 끌어낸 이유 1~2문장(본문의 맥락·정황 근거, 통찰이 드러나게).',
+'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 — 장황한 설명형 금지, 청중이 물음표를 품게. 본문 표현을 넘는 현대적·비약적 표현 가능하나 메시지는 본문이 명시적으로 지지하는 범위 안에서만. 대지 셋은 같은 방향으로 성큼성큼, 청중의 삶으로 뚫고 들어오는 흐름. 대지는 3개.',
+'대지마다: 문=명제 한 문장 / 근거=본문 절을 짚는 주해 근거 한 문장(절 표시 포함) / 적용=청중의 삶의 자리에서 오늘 안에 실행 가능한 구체적 행동·실천 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
+'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).'].join('\n');
 
 /* ── 직결 작업 4종 ── */
 async function aiSummarize(id, s, force){
@@ -2009,7 +2020,7 @@ async function aiSeriesSermon(){
       var opts = w['선택지'] || [];
       return { '주일': w['주일'], '주간범위': w['주간범위'] || '', '비고': w['비고'] || '',
         opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
-        edit: opts.length ? JSON.parse(JSON.stringify(opts[0])) : { '제목': '', '본문': '', '핵심메시지': '', '대지': '' } };
+        edit: optEdit(opts[0]) };
     }) };
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['시리즈설교'] = '';
@@ -2020,6 +2031,119 @@ async function aiSeriesSermon(){
     toast('생성 실패: ' + e.message);
   }
 }
+
+/* ── 대지 직렬화·파싱 (문/근거/적용 한 세트) ── */
+function djSer(dj){
+  if (!Array.isArray(dj)) return String(dj || '');
+  return dj.map(function(d, i){
+    var L = [(i + 1) + '. ' + String(d['문'] || '').trim()];
+    if (d['근거']) L.push('- 근거: ' + String(d['근거']).trim());
+    if (d['적용']) L.push('- 적용: ' + String(d['적용']).trim());
+    return L.join('\n');
+  }).join('\n');
+}
+function djParse(text){
+  var out = [], cur = null;
+  String(text || '').split('\n').forEach(function(raw){
+    var ln = raw.trim();
+    if (!ln) return;
+    var m = ln.match(/^[-•]?\s*(근거|적용)\s*[:：]\s*(.*)$/);
+    if (m && cur) { cur[m[1]] = (cur[m[1]] ? cur[m[1]] + ' ' : '') + m[2]; return; }
+    var n = ln.match(/^\d+\s*[.)]\s*(.*)$/);
+    if (n) { cur = { '문': n[1], '근거': '', '적용': '' }; out.push(cur); return; }
+    if (cur && /^\s/.test(raw)) { cur['근거'] = (cur['근거'] ? cur['근거'] + ' ' : '') + ln; return; }
+    cur = { '문': ln.replace(/^[-•]\s*/, ''), '근거': '', '적용': '' }; out.push(cur);
+  });
+  return out;
+}
+function djHtml(dj){
+  var arr = Array.isArray(dj) ? dj : djParse(dj);
+  return arr.map(function(d, i){
+    return '<div style="margin-top:4px"><b>' + (i + 1) + '. ' + esc(d['문'] || '') + '</b>' +
+      (d['근거'] ? '<div style="color:var(--dim);font-size:12px;margin-left:14px">근거 — ' + esc(d['근거']) + '</div>' : '') +
+      (d['적용'] ? '<div style="color:#8fe6b0;font-size:12px;margin-left:14px">적용 — ' + esc(d['적용']) + '</div>' : '') + '</div>';
+  }).join('');
+}
+function optEdit(o){
+  o = o || {};
+  return { '제목': o['제목'] || '', '본문': o['본문'] || '', '핵심메시지': o['핵심메시지'] || '',
+    '주제근거': o['주제근거'] || '', '대지': djSer(o['대지']) };
+}
+
+/* ── 상황 설교 구상 ── */
+state.occ = { date: '', sit: '', opts: [], at: '' };
+var occSaveSoon = debounce(function(){ idbSet('occDraft', state.occ).catch(function(){}); }, 600);
+
+function renderOccPane(){
+  var box = $('#occPane'), O = state.occ;
+  if (!O.opts.length) { box.innerHTML = '<div class="empty">설교일과 상황을 입력하고 [개요생성]을 눌러 주세요.</div>'; return; }
+  var h = '<div class="card"><b>설교 개요 선택지 3세트</b><div class="cnt" style="margin-top:4px">' +
+    (O.at ? '생성 ' + esc(O.at) + ' · ' : '') + '각 칸은 그 자리에서 바로 수정됩니다. 대지 칸은 「1. 명제 / - 근거: / - 적용:」 줄 형식을 유지해 주세요.</div></div>';
+  h += O.opts.map(function(o, i){
+    return '<div class="edPoint" id="occOpt' + i + '">' +
+      '<div style="display:flex;align-items:center;gap:10px"><b style="font-size:15.5px">선택지 ' + (i + 1) + '</b>' +
+      '<button class="btn" style="margin-left:auto;flex:0 0 auto;width:auto;padding:8px 16px;font-size:13px" onclick="occPick(' + i + ')">이 개요로 설교 작성</button></div>' +
+      '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="occF" data-i="' + i + '" data-f="제목" value="' + esc(o['제목'] || '') + '"></div>' +
+      '<div><label>본문</label><input type="text" class="occF" data-i="' + i + '" data-f="본문" value="' + esc(o['본문'] || '') + '"></div></div>' +
+      '<label>핵심메시지 (주제)</label><input type="text" class="occF" data-i="' + i + '" data-f="핵심메시지" value="' + esc(o['핵심메시지'] || '') + '">' +
+      '<label>주제 근거</label><textarea class="occF edTa" rows="2" data-i="' + i + '" data-f="주제근거">' + esc(o['주제근거'] || '') + '</textarea>' +
+      '<label>대지 3개 — 명제·근거·적용</label><textarea class="occF edTa" rows="10" data-i="' + i + '" data-f="대지">' + esc(o['대지'] || '') + '</textarea></div>';
+  }).join('');
+  h += '<div class="toolrow"><button class="btn sub" id="occRegen">개요 재생성 — 선택지가 모두 마음에 안 들 때</button></div>';
+  box.innerHTML = h;
+}
+
+async function aiOccGen(){
+  var O = state.occ;
+  O.date = $('#occ_date').value;
+  O.sit = $('#occ_sit').value.trim();
+  if (!O.sit) { toast('설교 상황을 입력해 주세요.'); return; }
+  if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
+  var b = $('#occ_gen'), old = b.innerHTML;
+  b.disabled = true; b.innerHTML = '<span class="spin"></span>생성 중…';
+  try {
+    toast('Opus가 상황에 맞는 설교 개요 3세트를 구상합니다 — 1~2분');
+    var out = await callClaude(P_OCC, JSON.stringify({ '설교일': O.date, '설교상황': O.sit }), 9000, aiTick('상황 설교 개요'));
+    var arr = aiJson(out);
+    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+    O.opts = arr.slice(0, 3).map(optEdit);
+    O.at = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    occSaveSoon(); renderOccPane(); renderSyncState();
+    toast('개요 3세트 도착 — 다듬은 뒤 [이 개요로 설교 작성]을 누르세요.');
+  } catch (e) { renderSyncState(); toast('개요 생성 실패: ' + e.message); }
+  finally { b.disabled = false; b.innerHTML = old; }
+}
+
+window.occPick = function(i){
+  var O = state.occ, o = O.opts[i];
+  if (!o) return;
+  clearCompose();
+  if (O.date) $('#c_date').value = O.date;
+  $('#c_title').value = o['제목'] || '';
+  $('#c_ref').value = o['본문'] || '';
+  $('#c_msg').value = o['핵심메시지'] || '';
+  $('#c_note').value = (o['주제근거'] ? '주제 근거: ' + o['주제근거'] + ' / ' : '') + '상황: ' + O.sit.replace(/\s+/g, ' ').slice(0, 120);
+  var dj = djParse(o['대지']);
+  if (dj.length) state.compose.points = dj.map(function(d){
+    var p = newPoint(); p.text = d['문'] || ''; p.body = d['근거'] || ''; p.apply = d['적용'] || ''; return p;
+  });
+  renderPoints(); renderEditor(); updateComposeBadge();
+  showPage('compose');
+  toast('개요를 새설교 작성으로 옮겼습니다 — 대지마다 근거·적용이 초안으로 들어 있습니다.');
+};
+
+$('#occ_gen').addEventListener('click', aiOccGen);
+$('#occPane').addEventListener('click', function(e){
+  if (e.target.closest('#occRegen') && confirm('선택지 3세트를 새로 생성할까요? 현재 선택지는 사라집니다.')) aiOccGen();
+});
+$('#occPane').addEventListener('input', function(e){
+  var t = e.target;
+  if (!t.classList.contains('occF')) return;
+  var o = state.occ.opts[+t.dataset.i];
+  if (o) { o[t.dataset.f] = t.value; occSaveSoon(); }
+});
+$('#occ_date').addEventListener('change', function(){ state.occ.date = this.value; occSaveSoon(); });
+$('#occ_sit').addEventListener('input', function(){ state.occ.sit = this.value; occSaveSoon(); });
 
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
