@@ -1531,6 +1531,200 @@ $('#devoNext').addEventListener('click', function(){ shiftDevoDate(1); });
 $('#devoToday').addEventListener('click', function(){ devoState.date = new Date().toISOString().slice(0, 10); renderDevo(); });
 $('#devoDate').addEventListener('change', function(){ if (this.value) { devoState.date = this.value; renderDevo(); } });
 
+/* ===================== Claude API 직결 (Opus 4.8) =====================
+   키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
+   키가 없으면 기존 요청함 흐름으로 자동 폴백. */
+var AI_MODEL = 'claude-opus-4-8';
+function aiKey(){ return String(state.settings.claudeKey || '').trim(); }
+async function callClaude(system, user, maxTokens, onTick){
+  var key = aiKey();
+  if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
+  var res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens || 8000, stream: true,
+      system: system, messages: [{ role: 'user', content: user }] })
+  });
+  if (!res.ok) {
+    var et = '';
+    try { et = (await res.json()).error.message; } catch (e) { et = 'HTTP ' + res.status; }
+    throw new Error(et);
+  }
+  var reader = res.body.getReader();
+  var dec = new TextDecoder();
+  var buf = '', out = '';
+  while (true) {
+    var r = await reader.read();
+    if (r.done) break;
+    buf += dec.decode(r.value, { stream: true });
+    var lines = buf.split('\n');
+    buf = lines.pop();
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      if (l.indexOf('data:') !== 0) continue;
+      var ev;
+      try { ev = JSON.parse(l.slice(5)); } catch (e) { continue; }
+      if (ev.type === 'content_block_delta' && ev.delta && ev.delta.text) {
+        out += ev.delta.text;
+        if (onTick) onTick(out.length);
+      }
+      if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || '스트림 오류');
+    }
+  }
+  return out;
+}
+function aiJson(text){
+  var m = text.match(/```json\s*([\s\S]*?)```/) || text.match(/```\s*([\s\S]*?)```/);
+  var t = m ? m[1] : text;
+  var a = t.indexOf('['), o = t.indexOf('{');
+  var s = (a >= 0 && (o < 0 || a < o)) ? t.slice(a, t.lastIndexOf(']') + 1) : t.slice(o, t.lastIndexOf('}') + 1);
+  return JSON.parse(s);
+}
+function aiTick(label){
+  return function(n){ setSyncState(label + ' 생성 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자'); };
+}
+
+/* ── 프롬프트 (스킬 핵심 내장) ── */
+var P_SUM = [
+'당신은 영락교회 대학부 설교자의 요약 비서다. 설교 원고 전문을 읽고 사후 회상용 요약본과 주제어 3개를 만든다.',
+'출력은 반드시 JSON 객체 하나만: {"요약본":"...","키워드":"주제어1, 주제어2, 주제어3"}',
+'요약본 형식(마크다운, 제목 줄 없이 **[서론]**부터 시작):',
+'**[서론]** 다음 줄부터 "- " 항목 / **[대지 N] 명제문** 아래 "- 근거 한두 문장", "- ex) **예화 제목** — 한 줄 요지", "- **적용:** 명령형 한 문장" / 마지막 **[결론·적용]**.',
+'원고에 있는 내용만 쓴다. 항목당 한두 문장, 연결어로 흐름을 잇는다. 대지 수는 원고에 충실.',
+'키워드: 1=핵심 주제, 2·3=대지 소주제. 짧은 명사형.'].join('\n');
+
+var P_MS = [
+'당신은 영락교회 대학부 설교자의 원고 집필 비서다. 입력된 초고(JSON)를 강단에서 바로 쓸 완성 설교문으로 발전시킨다.',
+'출력은 반드시 JSON 배열만: [{"t":"p|head|ex|quote","x":"문단 텍스트"}] — 서론부터 결론·축복까지 순서대로.',
+'t 규칙: head=대지 선언("1. ...")·"말씀을 정리합니다."·결론 핵심메시지 / ex="ex) 예화제목" 한 줄 / quote=성경 인용(반드시 절 단위 전문 개역개정, 끝에 (책 장:절) 표기) / p=일반 문단.',
+'집필 원칙: ①초고의 구조(대지 순서·예화 배치)와 핵심메시지를 존중하고 살을 붙인다 ②호칭은 "여러분" ③짧고 강력한 호흡 — 한 문장에 생각 하나, 만연체·문어체 금지 ④빠른 논리 도약과 속도감 ⑤단락마다 상징 어휘 또는 생각이 머무는 명제 문장 하나 ⑥그러나 적용은 오늘 실행 가능한 구체적 행동으로 착지 ⑦"~지요?", "~잖아요"를 "~입니다"와 섞은 구어체 ⑧대조("~가 아닙니다. ~입니다")와 재정의 활용 ⑨결론은 단문 3~4개 + 축복 선언으로 짧게 ⑩"/" 끊어 읽기 표시 절대 금지.',
+'분량: 4,500~6,000자.'].join('\n');
+
+var P_DEVO = [
+'당신은 영락교회 대학부의 묵상집 편집자다. 입력(JSON)의 성경범위 전체를 묵상일 배열(주일 제외, 날짜 고정)에 빠짐없이 배분하고 날마다 질문 3개를 만든다.',
+'출력은 반드시 JSON 배열만, 묵상일과 같은 길이·같은 순서: [{"날짜":"YYYY-MM-DD","본문범위":"책 1:1-9","제목":"...","관찰질문":"...","묵상질문":"...","적용질문":"..."}]',
+'배분 원칙: 단락(페리코페)·장 경계를 존중하고 맥락과 분량을 고려한다. 내용 흐름상 어색한 곳에서 끊지 않는다. 제목은 본문의 핵심을 담은 한 구절형.',
+'질문 정의: 관찰질문=본문을 읽으면 구체적으로 알 수 있는 정보를 묻되 메시지로 이어지게 / 묵상질문=맥락·저자의 기록 의도·등장인물의 정서·사건과 장소의 의미 등 표층 아래를 고민해야 답할 수 있는 질문 / 적용질문=묵상자의 삶의 자리에서 구체적 실천을 촉구.',
+'자체 검증 후 출력: ⑴배열 길이=묵상일 길이 ⑵첫날=범위 시작, 마지막 날=범위의 끝 절까지 정확히 도달 ⑶범위가 빠짐없이 이어지고 겹치지 않음. 요청사항이 있으면 따른다.'].join('\n');
+
+var P_SERMON = [
+'당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON)의 각 주일마다, 직전 월~토 묵상확정 범위에서 다룰 설교 주제 선택지 3~4개를 만든다.',
+'출력은 반드시 JSON 배열만: [{"주일":"YYYY-MM-DD","주간범위":"책 1:1-3:17","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","대지":"1. ...\\n2. ...\\n3. ..."}],"비고":""}]',
+'선택지 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다. 직전 묵상일이 없는 첫 주일은 시리즈 소개 설교로.',
+'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 표현 — 장황한 설명형 금지, 청중이 물음표를 품게. 본문 표현을 넘는 현대적·비약적 표현 가능하나 메시지는 본문이 명시적으로 지지하는 범위 안에서만. 대지 셋은 같은 방향으로 성큼성큼, 청중의 삶으로 뚫고 들어오는 흐름. 대지는 3개.',
+'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
+'요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유.'].join('\n');
+
+/* ── 직결 작업 4종 ── */
+async function aiSummarize(id, s){
+  try {
+    if (!id) { toast('먼저 [시트에 저장]으로 설교를 저장해 주세요.'); return; }
+    var txt = String(s['원고텍스트'] || '').trim();
+    if (!txt) { toast('원고 텍스트가 없어 요약할 수 없습니다.'); return; }
+    if (String(s['요약본'] || '').trim() && !confirm('이미 요약본이 있습니다. 다시 생성할까요?')) return;
+    toast('Opus가 요약본을 생성합니다…');
+    var out = await callClaude(P_SUM,
+      '제목: ' + (s['제목'] || '') + '\n본문: ' + (s['본문'] || '') + '\n예배: ' + (s['예배구분'] || '') + '\n\n[설교 원고 전문]\n' + txt,
+      4000, aiTick('요약본'));
+    var j = aiJson(out);
+    if (!j['요약본']) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+    await apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': j['요약본'], '키워드': j['키워드'] || '' } });
+    await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': '', '비고': 'Opus API 직결 생성' } });
+    var loc = findSermon(id);
+    if (loc) { loc['요약본'] = j['요약본']; if (j['키워드']) loc['키워드'] = j['키워드']; saveData(); }
+    renderSyncState(); refreshReqBtns();
+    toast('요약본·주제어 완료 — 시트에 기록했습니다.');
+    if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
+  } catch (e) { renderSyncState(); toast('요약 실패: ' + e.message); }
+}
+
+async function aiManuscript(id, meta){
+  try {
+    if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) { toast('초고나 대지를 먼저 작성해 주세요.'); return; }
+    toast('Opus가 완성 원고를 집필합니다 — 수 분 걸릴 수 있습니다');
+    var out = await callClaude(P_MS, JSON.stringify({
+      '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
+      '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': meta['원고텍스트']
+    }), 12000, aiTick('완성 원고'));
+    var arr = aiJson(out);
+    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    var st = DOCX_STYLES['기본원고'];
+    var series = (meta['시리즈'] || '') + (meta['시리즈순번'] ? ' ' + meta['시리즈순번'] : '');
+    var paras = [
+      { text: (series ? series + ' - ' : '') + (meta['제목'] || ''), bold: true, size: st.titleSize },
+      { text: meta['본문'] || '', bold: true }, { text: '' }
+    ];
+    arr.forEach(function(p){
+      var x = String(p.x || '');
+      if (p.t === 'head') paras.push({ text: x, bold: true });
+      else if (p.t === 'ex') paras.push({ text: x, bold: true, color: EX_BLUE });
+      else if (p.t === 'quote') paras.push({ text: x, bold: true, color: 'C00000' });
+      else paras.push({ text: x, just: true });
+    });
+    var D = await ensureDocxLib();
+    var blob = await D.Packer.toBlob(buildDocxParas(D, paras, st));
+    await saveDocxBlob(blob, docxFileName(meta), meta['날짜']);
+    state.compose.free = arr.map(function(p){ return p.x; }).join('\n');
+    if (state.compose.style === '자유원고') renderEditor();
+    if (id) await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '원고작성', '상태': '완료', '링크': '', '비고': 'Opus API 직결 — ' + docxFileName(meta) } });
+    renderSyncState(); refreshReqBtns();
+    toast('완성 원고 저장 완료 — 자유원고 칩에서 본문도 볼 수 있습니다.');
+  } catch (e) { renderSyncState(); toast('원고 작성 실패: ' + e.message); }
+}
+var AI_DIRECT = { '설교요약': aiSummarize, '원고작성': aiManuscript };
+
+async function aiSeriesDevo(m){
+  var S = state.series;
+  try {
+    (state.seriesReqs = state.seriesReqs || {})['시리즈묵상'] = '진행중'; spStatus();
+    toast('Opus가 묵상 일정 ' + m['묵상일'].length + '일을 생성합니다 — 1~3분');
+    var out = await callClaude(P_DEVO, JSON.stringify({
+      '성경범위': m['성경범위'], '시리즈명': m['시리즈명'], '요청사항': m['요청사항'], '묵상일': m['묵상일']
+    }), 16000, aiTick('묵상 일정'));
+    var rows = aiJson(out);
+    if (!Array.isArray(rows) || rows.length !== m['묵상일'].length)
+      throw new Error('일수 불일치(' + (rows.length || 0) + '/' + m['묵상일'].length + ') — 한 번 더 시도해 주세요.');
+    S.devo = { rows: rows, m: Date.now() }; S.devoDone = false; S.view = 'devo';
+    state.seriesReqs['시리즈묵상'] = '';
+    saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
+    toast('묵상 일정 ' + rows.length + '일 생성 완료 — 검토 후 확정하세요.');
+  } catch (e) {
+    state.seriesReqs['시리즈묵상'] = ''; spStatus(); renderSyncState();
+    toast('생성 실패: ' + e.message);
+  }
+}
+async function aiSeriesSermon(){
+  var S = state.series;
+  try {
+    (state.seriesReqs = state.seriesReqs || {})['시리즈설교'] = '진행중'; spStatus();
+    toast('Opus가 주일 설교 선택지를 생성합니다 — 1~3분');
+    var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
+    var out = await callClaude(P_SERMON, JSON.stringify({
+      '시리즈명': S.meta['시리즈명'], '요청사항': S.meta['요청사항'], '주일': S.meta['주일'], '묵상확정': rows
+    }), 14000, aiTick('설교 선택지'));
+    var weeks = aiJson(out);
+    if (!Array.isArray(weeks) || !weeks.length) throw new Error('응답 형식 오류');
+    S.sermon = { m: Date.now(), weeks: weeks.map(function(w){
+      var opts = w['선택지'] || [];
+      return { '주일': w['주일'], '주간범위': w['주간범위'] || '', '비고': w['비고'] || '',
+        opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
+        edit: opts.length ? JSON.parse(JSON.stringify(opts[0])) : { '제목': '', '본문': '', '핵심메시지': '', '대지': '' } };
+    }) };
+    S.sermonDone = false; S.view = 'sermon';
+    state.seriesReqs['시리즈설교'] = '';
+    saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
+    toast('주일 설교 선택지 ' + weeks.length + '주 생성 완료 — 선택·수정 후 확정하세요.');
+  } catch (e) {
+    state.seriesReqs['시리즈설교'] = ''; spStatus(); renderSyncState();
+    toast('생성 실패: ' + e.message);
+  }
+}
+
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용', '원고작성': '스킬사용 원고요청' };
@@ -1651,6 +1845,7 @@ async function reqOrDownload(id, type, meta){
       if (!confirm('내려받을 결과 파일을 찾지 못했습니다.\n「' + REQ_LABELS[type] + '」 작업을 다시 요청할까요?')) return;
     }
   }
+  if (aiKey() && AI_DIRECT[type]) { AI_DIRECT[type](id, meta); return; } /* API 직결 */
   writeRequestFile(type, meta);
 }
 window.requestSermonOutput = function(id, type){
@@ -1664,6 +1859,8 @@ $$('#composeMeta [data-req]').forEach(function(b){
     if (state.editing) {
       meta['ID'] = state.editing;
       reqOrDownload(state.editing, b.dataset.req, meta);
+    } else if (aiKey() && AI_DIRECT[b.dataset.req]) {
+      AI_DIRECT[b.dataset.req]('', meta); /* API 직결 (미저장 설교) */
     } else {
       writeRequestFile(b.dataset.req, meta);
     }
@@ -1930,6 +2127,7 @@ $('#sp_reqDevo').addEventListener('click', async function(e){
   }
   else if (st) { toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return; }
   S.meta = m; saveSeries(); spStatus();
+  if (aiKey()) { aiSeriesDevo(m); return; } /* API 직결 */
   spWriteReq('시리즈묵상', { '계획': m }, '묵상 일정 (' + m['시리즈명'] + ')');
 });
 
@@ -1947,6 +2145,7 @@ $('#sp_reqSermon').addEventListener('click', async function(e){
     if (!confirm('요청이 완료로 표시됐지만 결과 데이터(설교선택지)가 비어 있습니다.\n다시 요청할까요?\n(Cowork에 sermon-request-inbox 스킬이 최신인지 확인해 주세요)')) return;
   }
   else if (st) { toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return; }
+  if (aiKey()) { aiSeriesSermon(); return; } /* API 직결 */
   var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
   spWriteReq('시리즈설교', { '계획': S.meta, '묵상확정': rows }, '설교 주제 선택지 (' + S.meta['시리즈명'] + ')');
 });
@@ -2886,7 +3085,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v46';
+var APP_VER = 'v47';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
