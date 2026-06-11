@@ -145,6 +145,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .edSec{margin-bottom:14px}
 .edLabel{font-size:12px;color:var(--dim);margin:0 0 4px 2px}
 .edPoint{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;background:var(--card)}
+.edPoint.spSkip{filter:grayscale(1);opacity:.55;transition:filter .15s,opacity .15s}
 .edPointTitle{font-weight:800;font-size:16px;margin-bottom:8px}
 .edEx{color:#5b9bd5;font-weight:800;font-size:14.5px;margin:8px 0 4px}
 .edAuto{white-space:pre-wrap;font-size:14.5px;line-height:1.8;color:var(--text);padding:4px 2px}
@@ -2008,7 +2009,7 @@ function spSermonHtml(){
       '<div><label>본문</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
       '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
       '<label>대지 (한 줄에 하나)</label><textarea class="spS edTa" rows="3" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>';
-    return '<div class="edPoint" id="spw' + wi + '">' + head + opts + edit + '</div>';
+    return '<div class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '">' + head + opts + edit + '</div>';
   }).join('');
   h += '<div class="toolrow"><button class="btn" id="spSermonConfirm">' + (S.sermonDone ? '수정분 다시 등록 (업서트)' : '설교 계획 확정 → 설교마스터 등록 [구상]') + '</button>' +
     '<button class="btn sub" id="spSermonRedo" style="flex:0 0 auto;width:auto">재작업 요청</button></div>';
@@ -2037,6 +2038,8 @@ $('#seriesPane').addEventListener('change', function(e){
   } else if (t.classList.contains('spUse')) {
     var w2 = state.series.sermon.weeks[+t.dataset.w];
     w2.skip = !t.checked; saveSeries();
+    var sec = $('#spw' + t.dataset.w);
+    if (sec) sec.classList.toggle('spSkip', w2.skip);
   }
 });
 $('#seriesPane').addEventListener('click', async function(e){
@@ -2695,7 +2698,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v42';
+var APP_VER = 'v43';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
