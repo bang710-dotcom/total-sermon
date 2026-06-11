@@ -794,10 +794,9 @@ function openDetail(kind, id){
     html += reqBtnRow(['설교요약', 'LTC교재', '리더스앱업로드']);
     var txt = String(s['원고텍스트'] || '');
     var hasSum = !!String(s['요약본'] || '').trim();
-    var txtHit = terms.length && terms.some(function(t){ return txt.toLowerCase().indexOf(t) >= 0; });
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">';
     if (!txt) html += '<div class="empty">저장된 원고 텍스트가 없습니다.</div>';
-    else if (!hasSum || txtHit) html += '<details class="sumbox" open><summary>원고 전문</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
+    else if (!hasSum) html += '<details class="sumbox" open><summary>원고 전문</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
     else html += '<details class="sumbox"><summary>원고 전문 펼쳐보기</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
   } else {
     var d = findIdea(id);
@@ -3094,7 +3093,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v48';
+var APP_VER = 'v49';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
