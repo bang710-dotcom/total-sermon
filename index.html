@@ -288,7 +288,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
           <button class="btn" id="c_save">시트에 저장</button>
         </div>
         <div class="toolrow">
-          <button class="btn gold" id="c_export">DOCX 내보내기</button>
+          <button class="btn gold" id="c_export">초고 내보내기</button>
+          <button class="btn sub mini" data-req="원고작성" style="flex:0 0 38%"><span>스킬사용<br>원고요청</span></button>
         </div>
         <label>클로드 요청 → 요청함에 저장 (Cowork가 처리)</label>
         <div class="toolrow" style="margin-top:4px">
@@ -1932,8 +1933,8 @@ function spTimelineHtml(){
   return '<div class="tl">' +
     node('① 계획', S.meta ? 'done' : '', "toast('왼쪽 입력칸에서 계획을 수정할 수 있습니다. 수정 후 다시 요청하면 새 초안이 만들어집니다.')") + '<span class="tlarrow">→</span>' +
     node('② 묵상 일정', dSt, "spView('devo')") + '<span class="tlarrow">→</span>' +
-    node('③ 설교 계획', sSt, "spView('sermon')") + '<span class="tlarrow">→</span>' +
-    node('④ 묵상집 PDF', pSt, 'spPdfInfo()') + '</div>';
+    node('③ 묵상집 PDF', pSt, 'spPdfInfo()') + '<span class="tlarrow">→</span>' +
+    node('④ 설교 계획', sSt, "spView('sermon')") + '</div>';
 }
 function renderSeriesPane(){
   var S = state.series, pane = $('#seriesPane');
