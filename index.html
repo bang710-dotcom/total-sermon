@@ -53,6 +53,7 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 0;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn.mini.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
 .btn.mini.req{background:#43320e;border-color:#b8860b;color:#ffc24d}
+.btn.mini.fin{background:#16324a;border-color:#2d6da8;color:#7fc4ff}
 .btn.mini .ck{flex:0 0 auto;font-size:14px}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 14px;font-size:13.5px;cursor:pointer;user-select:none}
@@ -719,12 +720,13 @@ function openDetail(kind, id){
     html += '<div class="toolrow desktop-only">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">작성 화면에서 편집</button>' +
       '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
+    state.detailId = s['ID'];
     var pend = (state.pendingReqs || {})[s['ID']] || {};
     function reqBtnRow(types){
       return '<div class="toolrow desktop-only">' + types.map(function(t){
-        var st = done[t] ? 'done' : (pend[t] ? 'req' : '');
+        var st = done[t] ? 'done' : (pend[t] === '완료' ? 'fin' : pend[t] ? 'req' : '');
         return '<button class="btn sub mini' + (st ? ' ' + st : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
-          '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</button>';
+          '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</button>';
       }).join('') + '</div>';
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성', '카드원고']);
@@ -1334,10 +1336,11 @@ function refreshReqBtns(){
   var pend = state.editing ? ((state.pendingReqs || {})[state.editing] || {}) : {};
   $$('#composeMeta [data-req]').forEach(function(b){
     var t = b.dataset.req;
-    var st = done[t] ? 'done' : (pend[t] ? 'req' : '');
+    var st = done[t] ? 'done' : (pend[t] === '완료' ? 'fin' : pend[t] ? 'req' : '');
     b.classList.toggle('done', st === 'done');
+    b.classList.toggle('fin', st === 'fin');
     b.classList.toggle('req', st === 'req');
-    b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '');
+    b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '');
   });
 }
 
@@ -1368,7 +1371,7 @@ function writeRequestFile(type, meta){
   }).then(function(){
     if (meta['ID']) {
       state.pendingReqs = state.pendingReqs || {};
-      (state.pendingReqs[meta['ID']] = state.pendingReqs[meta['ID']] || {})[type] = true;
+      (state.pendingReqs[meta['ID']] = state.pendingReqs[meta['ID']] || {})[type] = '대기';
       refreshReqBtns();
       if ($('#detailPane').classList.contains('open')) openDetail('sermon', meta['ID']);
     }
@@ -1403,9 +1406,10 @@ async function scanRequests(quiet){
       if (entry.kind !== 'file' || !/\.json$/i.test(entry.name)) continue;
       var j;
       try { j = JSON.parse(await (await entry.getFile()).text()); } catch (e) { continue; }
-      if (j['상태'] === '대기' || j['상태'] === '진행중') {
-        var psid = (j['설교'] || {})['ID'];
-        if (psid) { pend[psid] = pend[psid] || {}; pend[psid][j['요청유형']] = true; }
+      var psid = (j['설교'] || {})['ID'];
+      if (psid && (j['상태'] === '대기' || j['상태'] === '진행중' || j['상태'] === '완료')) {
+        pend[psid] = pend[psid] || {};
+        pend[psid][j['요청유형']] = j['상태'];
       }
       if (j['상태'] === '대기') waiting++;
       else if (j['상태'] === '진행중') working++;
@@ -1439,11 +1443,13 @@ async function scanRequests(quiet){
         /* 요약본·주제어를 설교마스터에 기록하고 산출물에도 남김 */
         var rs = j['결과요약'] || {};
         var sid = (j['설교'] || {})['ID'] || '';
-        if (sid && (rs['요약본'] || rs['키워드'])) {
+        if (sid && (rs['요약본'] || rs['키워드']) && !j['시트기록완료']) {
           var up = { ID: sid };
           if (rs['요약본']) up['요약본'] = rs['요약본'];
           if (rs['키워드']) up['키워드'] = rs['키워드'];
           await apiPost({ action: 'update', sheet: 'sermons', data: up });
+        }
+        if (sid) {
           var loc = findSermon(sid);
           if (loc) { if (rs['요약본']) loc['요약본'] = rs['요약본']; if (rs['키워드']) loc['키워드'] = rs['키워드']; saveData(); }
         }
@@ -1471,6 +1477,7 @@ async function scanRequests(quiet){
     }
     state.pendingReqs = pend;
     refreshReqBtns();
+    if (state.detailId && $('#detailPane').classList.contains('open')) openDetail('sermon', state.detailId);
     if (done) { toast('완료된 요청 ' + done + '건을 기록했습니다.'); sync(); }
     else if (!quiet) toast('요청함 — 대기 ' + waiting + '건 · 진행중 ' + working + '건');
   } catch (e) { if (!quiet) toast('요청함 확인 실패: ' + e.message); }
@@ -1521,15 +1528,19 @@ async function renderOutputs(){
       for await (var e2 of rdir.values()) {
         if (e2.kind !== 'file' || !/\.json$/i.test(e2.name)) continue;
         var j2; try { j2 = JSON.parse(await (await e2.getFile()).text()); } catch (err) { continue; }
-        if (j2['상태'] === '대기' || j2['상태'] === '진행중')
-          pend2.push({ t: j2['요청유형'], st: j2['상태'], title: (j2['설교'] || {})['제목'] || '', m: (await e2.getFile()).lastModified });
+        if (j2['상태'] === '대기' || j2['상태'] === '진행중' || j2['상태'] === '완료')
+          pend2.push({ t: j2['요청유형'], st: j2['상태'], sid: (j2['설교'] || {})['ID'] || '', title: (j2['설교'] || {})['제목'] || '', m: (await e2.getFile()).lastModified });
       }
       pend2.sort(function(a, b){ return b.m - a.m; });
       reqHtml = pend2.map(function(p){
-        return '<div class="item" style="cursor:default;border-left:3px solid #b8860b;background:rgba(184,134,11,.08)">' +
-          '<div class="meta"><span class="badge" style="background:#43320e;color:#ffc24d">▲ 작업대기중</span><span>' + esc(p.t) + '</span>' + (p.st === '진행중' ? '<span class="badge b-state">진행중</span>' : '') + '</div>' +
+        var fin = p.st === '완료';
+        var chk = p.sid ? '<button class="btn sub" style="margin-left:auto;flex:0 0 auto" onclick="showPage(\'search\');openDetail(\'sermon\',\'' + esc(p.sid) + '\')">확인하기</button>' : '';
+        return '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px;border-left:3px solid ' + (fin ? '#2d6da8;background:rgba(45,109,168,.08)' : '#b8860b;background:rgba(184,134,11,.08)') + '">' +
+          '<div style="flex:1 1 auto;min-width:0">' +
+          '<div class="meta"><span class="badge" style="' + (fin ? 'background:#16324a;color:#7fc4ff">✓ 작업완료' : 'background:#43320e;color:#ffc24d">▲ 작업대기중') + '</span><span>' + esc(p.t) + '</span>' + (p.st === '진행중' ? '<span class="badge b-state">진행중</span>' : '') + '</div>' +
           '<div class="title" style="font-size:13.5px">' + esc(p.title) + '</div>' +
-          '<div class="snippet">코워크 창에 "요청함 처리해줘"를 입력해 주세요</div></div>';
+          (fin ? '' : '<div class="snippet">코워크 창에 "요청함 처리해줘"를 입력해 주세요</div>') +
+          '</div>' + chk + '</div>';
       }).join('');
     } catch (e) {}
     if (!items.length && !reqHtml) { box.innerHTML = '<div class="empty">아직 결과 파일이 없습니다.</div>'; return; }
@@ -1907,7 +1918,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v27';
+var APP_VER = 'v28';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -1934,7 +1945,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   setStyleChips(); renderPoints(); renderEditor();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
   idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
-  idbGet('dirx').then(function(h){ if (h) { xHandle = h; renderDirState(); scanRequests(true); } }).catch(function(){});
+  idbGet('dirx').then(function(h){ if (h) { xHandle = h; renderDirState(); scanRequests(true); setInterval(function(){ scanRequests(true); }, 60000); } }).catch(function(){});
   idbGet('data').then(function(d){
     if (d) { d.outputs = d.outputs || []; d.devo = d.devo || []; d.devonotes = d.devonotes || []; state.data = d; return; }
     var old = load(LS.data);
