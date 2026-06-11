@@ -753,6 +753,8 @@ $('#qResults').addEventListener('click', function(e){
 
 function openDetail(kind, id){
   var pane = $('#detailPane');
+  /* 재렌더 시 스크롤 보존 — 같은 설교를 다시 그릴 때는 보던 위치 유지 */
+  var keepScroll = (kind === 'sermon' && state.detailId === id && pane.classList.contains('open')) ? pane.scrollTop : 0;
   var terms = state.lastTerms || [];
   var html = '<button class="btn sub detailClose" onclick="closeDetail()">← 목록으로</button>';
   if (kind === 'sermon') {
@@ -782,10 +784,9 @@ function openDetail(kind, id){
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">새버전으로 수정</button>' +
       '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
     state.detailId = s['ID'];
-    var pend = (state.pendingReqs || {})[s['ID']] || {};
     function reqBtnRow(types){
       return '<div class="toolrow desktop-only">' + types.map(function(t){
-        var st = done[t] ? 'done' : (pend[t] === '완료' ? 'fin' : pend[t] ? 'req' : '');
+        var st = reqBtnSt(s['ID'], t);
         return '<button class="btn sub mini' + (st ? ' ' + st : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
           '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</button>';
       }).join('') + '</div>';
@@ -815,7 +816,12 @@ function openDetail(kind, id){
   }
   pane.innerHTML = html;
   pane.classList.add('open');
-  if (isDesktop()) pane.scrollTop = 0;
+  pane.scrollTop = keepScroll;
+  if (kind === 'sermon' && (!state.assets[id] || Date.now() - state.assets[id].__t > 30000)) {
+    checkAssets(id).then(function(){
+      if (state.detailId === id && pane.classList.contains('open')) openDetail(kind, id);
+    });
+  }
 }
 window.openDetail = openDetail;
 window.closeDetail = function(){ $('#detailPane').classList.remove('open'); };
@@ -1236,6 +1242,7 @@ window.editSermon = function(id){
     toast('요약본을 뼈대로 불러왔습니다 — 풀텍스트는 [자유원고] 또는 결론 아래 [전체 원고 보기]에서.');
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
+  checkAssets(id).then(refreshReqBtns);
   showPage('compose');
 };
 $('#c_new').addEventListener('click', function(){
@@ -1620,12 +1627,12 @@ var P_SERMON = [
 '요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유.'].join('\n');
 
 /* ── 직결 작업 4종 ── */
-async function aiSummarize(id, s){
+async function aiSummarize(id, s, force){
   try {
     if (!id) { toast('먼저 [시트에 저장]으로 설교를 저장해 주세요.'); return; }
     var txt = String(s['원고텍스트'] || '').trim();
     if (!txt) { toast('원고 텍스트가 없어 요약할 수 없습니다.'); return; }
-    if (String(s['요약본'] || '').trim() && !confirm('이미 요약본이 있습니다. 다시 생성할까요?')) return;
+    if (!force && String(s['요약본'] || '').trim() && !confirm('이미 요약본이 있습니다. 다시 생성할까요?')) return;
     toast('Opus가 요약본을 생성합니다…');
     var out = await callClaude(P_SUM,
       '제목: ' + (s['제목'] || '') + '\n본문: ' + (s['본문'] || '') + '\n예배: ' + (s['예배구분'] || '') + '\n\n[설교 원고 전문]\n' + txt,
@@ -1912,6 +1919,15 @@ async function aiLeadersTsv(id, meta){
     a.download = sc.bk.ko + sc.range.c1 + '_LTC_리더스앱.txt';
     a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    try { /* 상태 인식용 보관본 — 아이클라우드 연도 폴더 */
+      if (await dirIf(dirHandle)) {
+        var yr2 = (String(meta['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
+        var yd2 = await dirHandle.getDirectoryHandle(yr2, { create: true });
+        var wT = await (await yd2.getFileHandle('리더스앱_' + docxFileName(meta).replace(/\.docx$/, '.txt'), { create: true })).createWritable();
+        await wT.write(new Blob([row], { type: 'text/plain;charset=utf-8' }));
+        await wT.close();
+      }
+    } catch (e2) {}
     if (id) {
       await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '리더스앱업로드', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
       aiMarkDone(id, '리더스앱업로드', 'Opus API 직결');
@@ -1983,11 +1999,9 @@ function doneTypes(sermonId){
 }
 /* 작성 화면 요청 버튼 색: 수정 중인 설교의 완료 아웃풋은 초록 */
 function refreshReqBtns(){
-  var done = state.editing ? doneTypes(state.editing) : {};
-  var pend = state.editing ? ((state.pendingReqs || {})[state.editing] || {}) : {};
   $$('#composeMeta [data-req]').forEach(function(b){
     var t = b.dataset.req;
-    var st = done[t] ? 'done' : (pend[t] === '완료' ? 'fin' : pend[t] ? 'req' : '');
+    var st = state.editing ? reqBtnSt(state.editing, t) : '';
     b.classList.toggle('done', st === 'done');
     b.classList.toggle('fin', st === 'fin');
     b.classList.toggle('req', st === 'req');
@@ -2072,22 +2086,103 @@ async function dlReqResult(sermonId, type){
     return false;
   } catch (e) { toast('내려받기 실패: ' + e.message); return true; }
 }
-function reqBtnSt(sermonId, type){
-  var done = doneTypes(sermonId);
-  var pend = (state.pendingReqs || {})[sermonId] || {};
-  return done[type] ? 'done' : pend[type] === '완료' ? 'fin' : pend[type] ? 'req' : '';
+/* ── 자산 실존 검사: 시트(요약본) + 아이클라우드 연도폴더 + 결과함 파일을 직접 확인 ── */
+state.assets = {};
+async function dirIf(handle){
+  try { if (handle && await handle.queryPermission({ mode: 'readwrite' }) === 'granted') return true; } catch (e) {}
+  return false;
 }
-/* 완료(✓)면 내려받기, 대기(▲)면 안내, 그 외엔 요청 */
+async function refToken(ref){
+  try {
+    var r = parseRange(String(ref || ''));
+    if (!r) return null;
+    var idx = await bibleIndex();
+    var bk = idx.filter(function(b){ return b.ko === r.book || b.abbr === r.book; })[0];
+    return bk ? { ab: bk.abbr + r.c1 } : null;
+  } catch (e) { return null; }
+}
+async function checkAssets(id){
+  var s = findSermon(id);
+  if (!s) return;
+  var a = { __t: Date.now() };
+  a['설교요약'] = String(s['요약본'] || '').trim() ? { ok: true } : null;
+  var base = docxFileName(s);
+  var baseTxt = base.replace(/\.docx$/, '.txt');
+  var year = (String(s['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
+  var ymd = String(s['날짜'] || '').replace(/-/g, '');
+  if (await dirIf(dirHandle)) {
+    var ydir = null, names = {};
+    try { ydir = await dirHandle.getDirectoryHandle(year); } catch (e) {}
+    if (ydir) { for await (var e of ydir.values()) { if (e.kind === 'file') names[e.name] = true; } }
+    function hit(n){ return names[n] ? { ok: true, hit: { dir: ydir, name: n } } : null; }
+    a['원고작성'] = hit(base);
+    a['카드원고'] = hit('카드원고_' + base);
+    a['LTC교재'] = hit('LTC교재_' + base);
+    a['리더스앱업로드'] = hit('리더스앱_' + baseTxt);
+  } else a.__noDir = true;
+  if (await dirIf(xHandle)) {
+    try {
+      var ex = await xHandle.getDirectoryHandle('_claude_결과함');
+      var tok = await refToken(s['본문']);
+      var ip = null, ig = null;
+      for await (var e2 of ex.values()) {
+        if (e2.kind !== 'file') continue;
+        var n = e2.name;
+        if (!ip && ymd && n.indexOf(ymd) === 0 && n.indexOf('이미지자료') >= 0) ip = { dir: ex, name: n };
+        if (!ig && /백스테이지.*\.zip$/.test(n) && tok && n.indexOf(tok.ab) >= 0) ig = { dir: ex, name: n };
+      }
+      a['이미지프롬프트'] = ip ? { ok: true, hit: ip } : null;
+      a['이미지생성'] = ig ? { ok: true, hit: ig } : null;
+    } catch (e) { a.__noEx = true; }
+  } else a.__noEx = true;
+  state.assets[id] = a;
+}
+function reqBtnSt(sermonId, type){
+  var pend = (state.pendingReqs || {})[sermonId] || {};
+  if (pend[type] === '대기' || pend[type] === '진행중') return 'req';
+  var A = state.assets[sermonId];
+  if (A) {
+    var a = A[type];
+    if (a && a.ok) return 'done';
+    /* 폴더 접근 불가한 유형만 기존 기록으로 폴백 */
+    var fileTypes = { '원고작성': '__noDir', '카드원고': '__noDir', 'LTC교재': '__noDir', '리더스앱업로드': '__noDir', '이미지프롬프트': '__noEx', '이미지생성': '__noEx' };
+    if (fileTypes[type] && A[fileTypes[type]]) return doneTypes(sermonId)[type] ? 'done' : pend[type] === '완료' ? 'fin' : '';
+    return pend[type] === '완료' ? 'fin' : '';
+  }
+  return doneTypes(sermonId)[type] ? 'done' : pend[type] === '완료' ? 'fin' : '';
+}
+/* 완료(✓) 클릭 = 저장된 최신 파일 받기 / 재생성 선택, 대기(▲)=안내, 그 외=생성 */
 async function reqOrDownload(id, type, meta){
   var st = reqBtnSt(id, type);
   if (st === 'req') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
   if (st === 'fin' || st === 'done') {
     if (type === '설교요약') {
-      if (!confirm('요약본·주제어는 설교 상세에 이미 기록되어 있습니다.\n다시 생성을 요청할까요?')) return;
+      if (!confirm('요약본/주제어 작업을 다시 하기 원하시나요?')) return;
+      if (aiKey()) { aiSummarize(id, meta, true); return; }
+      writeRequestFile(type, meta); return;
+    }
+    var a = (state.assets[id] || {})[type];
+    if (a && a.ok && a.hit) {
+      var q = type === '이미지생성'
+        ? '이미 생성된 이미지 세트가 있습니다: ' + a.hit.name
+        : '저장된 파일이 있습니다: ' + a.hit.name;
+      if (confirm(q + '\n\n[확인] 최신 파일 받기 · [취소] 재생성 여부 묻기')) {
+        try {
+          var f = await (await a.hit.dir.getFileHandle(a.hit.name)).getFile();
+          var el = document.createElement('a');
+          el.href = URL.createObjectURL(f);
+          el.download = a.hit.name;
+          el.click();
+          setTimeout(function(){ URL.revokeObjectURL(el.href); }, 4000);
+          toast('받기 시작: ' + a.hit.name + ' (폴더의 최신본)');
+        } catch (e) { toast('파일을 읽지 못했습니다 — 삭제·이동되었을 수 있습니다: ' + e.message); checkAssets(id).then(refreshReqBtns); }
+        return;
+      }
+      if (!confirm('「' + REQ_LABELS[type] + '」를 다시 생성할까요?')) return;
     } else {
       var ok = await dlReqResult(id, type);
       if (ok) return;
-      if (!confirm('내려받을 결과 파일을 찾지 못했습니다.\n「' + REQ_LABELS[type] + '」 작업을 다시 요청할까요?')) return;
+      if (!confirm('내려받을 결과 파일을 찾지 못했습니다.\n「' + REQ_LABELS[type] + '」 작업을 다시 생성할까요?')) return;
     }
   }
   if (aiKey() && AI_DIRECT[type]) { AI_DIRECT[type](id, meta); return; } /* API 직결 */
@@ -2854,6 +2949,11 @@ async function scanRequests(quiet){
       '묵상집PDF': sReq['묵상집PDF'] ? sReq['묵상집PDF'].st : ''
     };
     refreshReqBtns(); refreshSeriesBtns();
+    var cid = state.detailId || state.editing;
+    if (cid) checkAssets(cid).then(function(){
+      refreshReqBtns();
+      if (state.detailId === cid && $('#detailPane').classList.contains('open')) openDetail('sermon', cid);
+    });
     if (state.detailId && $('#detailPane').classList.contains('open')) openDetail('sermon', state.detailId);
     if (done) { toast('완료된 요청 ' + done + '건을 기록했습니다.'); sync(); }
     else if (!quiet) toast('요청함 — 대기 ' + waiting + '건 · 진행중 ' + working + '건');
