@@ -1037,6 +1037,45 @@ function parseFreeToStructure(){
   }
   return true;
 }
+/* 요약본(설교요약 형식) → 구조 뼈대: **[서론]** / **[대지 N] 명제** / - 근거 / - ex) **예화** — 한 줄 / - **적용:** / **[결론·적용]** */
+function parseSummaryToStructure(){
+  var c = state.compose;
+  var sum = String(c.sum || '');
+  if (!sum.trim()) return false;
+  function smd(t){ return String(t || '').replace(/\*\*/g, '').trim(); }
+  var cur = null, intro = [], conc = [], pts = [];
+  sum.replace(/\r/g, '').split('\n').forEach(function(raw){
+    var l = raw.trim();
+    if (!l || /^---/.test(l) || /^##\s/.test(l)) return;
+    var h = l.match(/^\*\*\[(.+?)\]\s*(.*)$/);
+    if (h) {
+      var tag = h[1];
+      if (tag.indexOf('서론') === 0) cur = { k: 'intro' };
+      else if (tag.indexOf('대지') === 0) { var p = newPoint(); p.text = smd(h[2]); pts.push(p); cur = { k: 'pt', p: p }; }
+      else cur = { k: 'conc' };
+      return;
+    }
+    var body = l.replace(/^-\s*/, '');
+    var sm = smd(body);
+    if (!cur || cur.k === 'intro') { if (cur) intro.push(sm); return; }
+    if (cur.k === 'conc') { conc.push(sm); return; }
+    var ex = body.match(/^ex\)\s*(.+)$/i);
+    if (ex && !cur.p.ill) {
+      var seg = ex[1].split(/\s—\s|\s--\s/);
+      cur.p.ill = smd(seg[0]);
+      if (seg.length > 1) cur.p.illBody = smd(seg.slice(1).join(' — '));
+    } else if (/^적용\s*[:：]/.test(sm)) {
+      cur.p.apply = (cur.p.apply ? cur.p.apply + '\n' : '') + sm.replace(/^적용\s*[:：]\s*/, '');
+    } else {
+      cur.p.body = (cur.p.body ? cur.p.body + '\n' : '') + sm;
+    }
+  });
+  if (!pts.length && !intro.length) return false;
+  c.intro = intro.join('\n');
+  if (pts.length) c.points = pts;
+  c.concBody = conc.join('\n');
+  return true;
+}
 $$('#c_style .chip').forEach(function(ch){
   ch.addEventListener('click', function(){
     var from = state.compose.style;
@@ -1044,12 +1083,14 @@ $$('#c_style .chip').forEach(function(ch){
     state.compose.style = to;
     var c = state.compose;
     if (from === '자유원고' && to !== '자유원고') {
-      /* 구조 칸이 비어 있으면 자유원고 내용을 구조로 불러옴 (이전 설교 재편집) */
+      /* 구조 칸이 비어 있으면: ①원고텍스트 구조 파싱 → 안 되면 ②요약본 뼈대 */
       var emptyStruct = !c.intro.trim() && !c.concBody.trim() &&
         c.points.every(function(p){ return !p.body.trim() && !p.illBody.trim() && !p.apply.trim(); });
-      if (emptyStruct && c.free.trim() && parseFreeToStructure()) {
-        renderPoints();
-        toast('자유원고 내용을 구조에 맞춰 불러왔습니다 — 칸별로 확인·수정하세요.');
+      if (emptyStruct) {
+        var note = '';
+        if (c.free.trim() && parseFreeToStructure()) note = '원고 내용을 구조에 맞춰 불러왔습니다 — 칸별로 확인·수정하세요.';
+        else if (parseSummaryToStructure()) note = '요약본을 뼈대로 불러왔습니다 — 결론 아래 [전체 원고 보기]를 참고해 수정본을 만드세요.';
+        if (note) { renderPoints(); toast(note); }
       }
     } else if (to === '자유원고' && from !== '자유원고' && !c.free.trim()) {
       /* 반대 방향: 구조 작성분을 자유원고 텍스트로 */
@@ -1086,6 +1127,10 @@ function renderEditor(){
       '<div class="edAuto" id="edConcList"></div>' +
       ta('concBody', 0, '', 4, '결론 내용을 작성하세요', c.concBody) +
       '<div class="edAuto msg" id="edConcMsg"></div></div>';
+    if (String(c.free || '').trim()) {
+      html += '<details class="sumbox"><summary>전체 원고 보기 (참고용 — 여기서 고쳐도 반영되지 않습니다)</summary>' +
+        '<div class="fulltext" style="margin-top:8px">' + esc(c.free) + '</div></details>';
+    }
   }
   $('#editorPane').innerHTML = html;
   updateAutoBits();
@@ -1161,6 +1206,7 @@ function collectCompose(){
 }
 function clearCompose(){
   state.editing = null;
+  state.versionOf = null;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = ''; });
   $('#c_date').value = new Date().toISOString().slice(0, 10);
   $('#c_state').value = '구상';
@@ -1171,12 +1217,15 @@ function clearCompose(){
 window.editSermon = function(id){
   var s = findSermon(id);
   if (!s) return;
-  state.editing = id;
+  /* 새버전 모드: 불러오기만 — 저장하면 새 설교로 등록 (원본 보존) */
+  state.editing = null;
+  state.versionOf = id;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
   /* 기존 설교는 자유원고로 불러옴 (저장된 원고는 일반 텍스트) */
   var c = newCompose();
   c.style = '자유원고';
   c.free = s['원고텍스트'] || '';
+  c.sum = s['요약본'] || '';
   var pts = String(s['대지'] || '').split('\n').map(function(l){ return l.replace(/^\s*\d+\s*[.)]\s*/, '').trim(); }).filter(Boolean);
   var ills = String(s['예화'] || '').split(';').map(function(x){ return x.trim(); });
   c.points = pts.length ? pts.map(function(t, i){ var p = newPoint(); p.text = t; p.ill = ills[i] || ''; return p; }) : [newPoint()];
@@ -1202,8 +1251,12 @@ $('#c_save').addEventListener('click', function(){
   } else {
     body = { action: 'add', sheet: 'sermons', data: data };
   }
-  submit(body, state.editing ? '수정 저장 완료' : '시트 저장 완료').then(function(id){
-    if (id && typeof id === 'string' && !state.editing) { state.editing = id; updateComposeBadge(); }
+  submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료')).then(function(id){
+    if (id && typeof id === 'string' && !state.editing) {
+      state.editing = id;
+      state.versionOf = null;
+      updateComposeBadge(); refreshReqBtns();
+    }
   });
 });
 
@@ -2823,7 +2876,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v44';
+var APP_VER = 'v45';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
