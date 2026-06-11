@@ -92,7 +92,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .kwchip:hover{background:rgba(63,124,192,.14)}
 .sumbox{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:rgba(255,255,255,.02)}
 .sumbox summary{cursor:pointer;font-size:13.5px;font-weight:700;color:var(--accent)}
-.sumbox .fulltext strong{color:var(--accent)}
+.sumbox .fulltext strong{color:inherit}
+.sumbox .exb{color:#4C94D8;font-weight:700}
 .kv{font-size:13.5px;margin:7px 0;display:flex;gap:8px}
 .kv .k{color:var(--dim);flex:0 0 70px}
 .kv .v{white-space:pre-wrap;word-break:break-word}
@@ -588,6 +589,14 @@ function hl(text, terms, clip){
 
 /* 요약본 마크다운 간이 렌더: **굵게** → strong (esc/hl 이후 호출) */
 function mdLite(h){ return String(h || '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'); }
+/* 요약본 전용: ex)와 예화 제목만 파란 굵게 */
+function mdSum(h){
+  return mdLite(h).split('\n').map(function(line){
+    return line.replace(/^(\s*-\s*)ex\)\s*(<strong>)?/, function(_, d, st){
+      return d + '<span class="exb">ex)</span> ' + (st ? '<strong class="exb">' : '');
+    });
+  }).join('\n');
+}
 /* #주제어 칩 클릭 → 태그 검색 */
 window.searchTag = function(tag){
   showPage('search');
@@ -710,7 +719,7 @@ function openDetail(kind, id){
       kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>';
     if (String(s['요약본'] || '').trim()) {
       html += '<details class="sumbox" open>' +
-        '<summary>요약본</summary><div class="fulltext" style="margin-top:8px">' + mdLite(hl(s['요약본'], terms)) + '</div></details>';
+        '<summary>요약본</summary><div class="fulltext" style="margin-top:8px">' + mdSum(hl(s['요약본'], terms)) + '</div></details>';
     }
     if (s['원고링크']) html += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:13.5px" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
     var done = doneTypes(s['ID']);
@@ -1918,7 +1927,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v29';
+var APP_VER = 'v30';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
