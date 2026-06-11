@@ -177,8 +177,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
   #searchLeft{min-width:0}
   #qResults{max-height:calc(100vh - 170px);overflow:auto;padding-right:4px}
   #detailPane{display:block;position:sticky;top:18px;max-height:calc(100vh - 40px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;min-height:300px}
-  #page-compose.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
-  #composeMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:4px}
+  #page-compose.on,#page-occ.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
+  #composeMeta,#occMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:4px}
+  #occMeta label{margin-top:9px}
+  #occPane{max-height:calc(100vh - 40px);overflow:auto;padding-right:4px}
   #page-series.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
   #seriesMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:4px}
   #seriesMeta label{margin-top:9px}
@@ -209,6 +211,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
     <button class="nav" data-page="compose">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>새설교 작성</button>
+    <button class="nav" data-page="occ">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>상황 설교 구상</button>
     <button class="nav" data-page="devo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
     <button class="nav" data-page="series">
@@ -309,6 +313,19 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <button class="linkbtn" id="checkInbox">요청함 상태 확인</button>
       </div>
       <div id="editorPane"></div>
+    </section>
+
+    <!-- ============ 상황 설교 구상 ============ -->
+    <section class="page" id="page-occ">
+      <div id="occMeta">
+        <div class="cnt" style="margin-bottom:8px">특정 상황(대상·시기·목적)에 맞는 설교 개요를 구상합니다.</div>
+        <label style="margin-top:0">설교일</label><input type="date" id="occ_date">
+        <label>설교 상황 — 대상, 시기, 목적 등</label>
+        <textarea id="occ_sit" rows="8" placeholder="예) 여름 수련회 둘째 날 저녁 집회. 대학 새내기가 절반, 신앙의 첫 결단을 끌어내는 자리. 찬양 후 바로 설교."></textarea>
+        <div class="toolrow"><button class="btn" id="occ_gen">개요생성</button></div>
+        <div class="cnt" style="margin-top:8px">Opus가 본문·주제(근거 포함)·대지 3개(근거·적용 포함) 선택지 3세트를 만듭니다. 세트를 그 자리에서 다듬은 뒤 [이 개요로 설교 작성]을 누르면 새설교 작성으로 넘어갑니다.</div>
+      </div>
+      <div id="occPane"><div class="empty">설교일과 상황을 입력하고 [개요생성]을 눌러 주세요.</div></div>
     </section>
 
     <!-- ============ 이달의 묵상 ============ -->
