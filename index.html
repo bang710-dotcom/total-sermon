@@ -983,11 +983,7 @@ function parseFreeToStructure(){
   var lines = txt.split('\n');
   var headIdx = [];
   lines.forEach(function(l, i){ if (/^\s*\d+\s*[.)]\s/.test(l)) headIdx.push(i); });
-  if (!headIdx.length) {
-    if (txt.indexOf('▶') >= 0) return false; /* 카드원고 형식(전환 바) — 구조 해체 불가 */
-    c.intro = txt.trim();
-    return true;
-  }
+  if (!headIdx.length) return false; /* 번호 대지 없는 텍스트는 구조 해체 불가 — 전체를 서론에 붓지 않는다 */
   var concIdx = -1;
   for (var ci = headIdx[0] + 1; ci < lines.length; ci++) {
     if (lines[ci].indexOf('말씀을 정리') >= 0) { concIdx = ci; break; }
@@ -1088,8 +1084,9 @@ $$('#c_style .chip').forEach(function(ch){
         c.points.every(function(p){ return !p.body.trim() && !p.illBody.trim() && !p.apply.trim(); });
       if (emptyStruct) {
         var note = '';
-        if (c.free.trim() && parseFreeToStructure()) note = '원고 내용을 구조에 맞춰 불러왔습니다 — 칸별로 확인·수정하세요.';
-        else if (parseSummaryToStructure()) note = '요약본을 뼈대로 불러왔습니다 — 결론 아래 [전체 원고 보기]를 참고해 수정본을 만드세요.';
+        /* 요약본 우선(뼈대 활용) → 없으면 앱 작성 초고의 구조 파싱 */
+        if (parseSummaryToStructure()) note = '요약본을 뼈대로 불러왔습니다 — 결론 아래 [전체 원고 보기]를 참고해 수정본을 만드세요.';
+        else if (c.free.trim() && parseFreeToStructure()) note = '원고 내용을 구조에 맞춰 불러왔습니다 — 칸별로 확인·수정하세요.';
         if (note) { renderPoints(); toast(note); }
       }
     } else if (to === '자유원고' && from !== '자유원고' && !c.free.trim()) {
@@ -1231,6 +1228,11 @@ window.editSermon = function(id){
   c.points = pts.length ? pts.map(function(t, i){ var p = newPoint(); p.text = t; p.ill = ills[i] || ''; return p; }) : [newPoint()];
   if (!pts.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ var p = newPoint(); p.ill = t; return p; });
   state.compose = c;
+  /* 요약본이 있으면 곧바로 기본원고 구조(뼈대)로 연다 — 풀텍스트는 [자유원고]·[전체 원고 보기] */
+  if (String(c.sum || '').trim() && parseSummaryToStructure()) {
+    c.style = '기본원고';
+    toast('요약본을 뼈대로 불러왔습니다 — 풀텍스트는 [자유원고] 또는 결론 아래 [전체 원고 보기]에서.');
+  }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   showPage('compose');
 };
@@ -2876,7 +2878,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v45';
+var APP_VER = 'v46';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
