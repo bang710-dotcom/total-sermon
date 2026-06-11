@@ -1678,6 +1678,45 @@ async function aiManuscript(id, meta){
     toast('완성 원고 저장 완료 — 자유원고 칩에서 본문도 볼 수 있습니다.');
   } catch (e) { renderSyncState(); toast('원고 작성 실패: ' + e.message); }
 }
+var P_OCR = '이미지는 설교 예화 자료(책 페이지·메모·캡처)다. 본문을 충실히 옮겨 적되 오탈자만 교정하고 내용은 바꾸지 않는다. 첫 줄에 제목이 있으면 내용 맨 앞에 「제목」 형태로 포함한다. 출처 단서(책·저자·기사)가 보이면 기록한다. 출력은 JSON 객체 하나만: {"내용":"...","출처":"...","키워드":"쉼표, 구분"}';
+async function shrinkImage(file){
+  var url = URL.createObjectURL(file);
+  var img = await new Promise(function(res, rej){
+    var i = new Image();
+    i.onload = function(){ res(i); };
+    i.onerror = function(){ rej(new Error('이미지를 읽지 못했습니다')); };
+    i.src = url;
+  });
+  var MAX = 1568;
+  var sc = Math.min(1, MAX / Math.max(img.width, img.height));
+  var cv = document.createElement('canvas');
+  cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  URL.revokeObjectURL(url);
+  return cv.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+/* 예화 이미지 → Opus 비전 인식 → 아이디어인박스 직접 등록 (휴대폰에서도 작동) */
+async function aiIdeaImages(imgs){
+  var okN = 0;
+  for (var i = 0; i < imgs.length; i++) {
+    try {
+      toast('예화 이미지 인식 중… (' + (i + 1) + '/' + imgs.length + ')');
+      var b64 = await shrinkImage(imgs[i]);
+      var out = await callClaude(P_OCR, [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+        { type: 'text', text: '이 이미지의 예화를 정리해 주세요.' }
+      ], 3000, aiTick('예화 인식'));
+      var j = aiJson(out);
+      if (!j['내용']) throw new Error('형식 오류');
+      await apiPost({ action: 'add', sheet: 'ideas', data: {
+        '유형': '예화', '내용': j['내용'], '출처': j['출처'] || '이미지 스캔',
+        '관련본문': '', '키워드': j['키워드'] || '', '상태': '새것' } });
+      okN++;
+    } catch (e) { toast('이미지 ' + (i + 1) + ' 실패: ' + e.message); }
+  }
+  renderSyncState();
+  if (okN) { toast('예화 ' + okN + '건 인박스 등록 완료'); sync(); }
+}
 /* 직결 완료를 로컬 산출물에도 즉시 반영 — 버튼 ✓가 동기화 없이 바로 켜지게 */
 function aiMarkDone(id, type, note){
   state.data.outputs.push({ ID: '', '설교ID': id, '유형': type, '상태': '완료', '링크': '', '비고': note, '등록일': '', '수정일': '' });
@@ -2747,6 +2786,7 @@ $('#outCheck').addEventListener('click', function(){ scanRequests(false).then ? 
 function handleIdeaImages(files){
   var imgs = Array.prototype.slice.call(files).filter(function(f){ return /^image\//.test(f.type); });
   if (!imgs.length) { toast('이미지 파일이 아닙니다.'); return; }
+  if (aiKey()) { aiIdeaImages(imgs); return; } /* API 직결 — 폴더 없이, 휴대폰에서도 */
   if (!window.showDirectoryPicker || !xHandle) {
     toast('이미지 인식은 클로드 연동 폴더가 지정된 데스크탑 Chrome에서 가능합니다. 휴대폰에서는 Cowork 채팅으로 이미지를 보내주세요.');
     return;
@@ -3093,7 +3133,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v49';
+var APP_VER = 'v50';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
