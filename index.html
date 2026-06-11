@@ -57,8 +57,8 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn.mini .ck{flex:0 0 auto;font-size:14px}
 #seriesMeta .toolrow .btn{display:flex;align-items:center;justify-content:center;gap:7px}
 #seriesMeta .btn .ck{font-size:14px}
-#seriesMeta .btn .inbtn{flex:0 0 auto;margin-left:auto;background:rgba(0,0,0,.28);border:1px solid currentColor;border-radius:8px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer}
-#seriesMeta .btn .inbtn:hover{background:rgba(0,0,0,.45)}
+.btn .inbtn{flex:0 0 auto;margin-left:auto;background:rgba(0,0,0,.28);border:1px solid currentColor;border-radius:8px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.btn .inbtn:hover{background:rgba(0,0,0,.45)}
 /* 시리즈 단계 타임라인 */
 .tl{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:12px}
 .tlnode{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 13px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--dim)}
@@ -1745,8 +1745,42 @@ function spReqPdf(){
   if (!S || !S.devo) { toast('묵상 일정이 먼저 필요합니다.'); return; }
   var p = (state.seriesReqs || {})['묵상집PDF'];
   if (p === '대기' || p === '진행중') { toast('이미 PDF 작업이 요청되어 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
+  if (p === '완료' && !confirm('이미 완성된 묵상집 PDF가 있습니다 (버튼 안 [내려받기]로 받을 수 있습니다).\n수정된 일정으로 다시 요청할까요?')) return;
   if (!S.devoDone && !confirm('묵상 일정이 아직 시트에 확정되지 않았습니다.\n현재 검토본 그대로 PDF를 요청할까요?')) return;
   spWriteReq('묵상집PDF', { '계획': S.meta, '묵상확정': S.devo.rows }, '묵상집 PDF (' + ((S.meta || {})['시리즈명'] || '') + ')');
+}
+/* PDF 결과 내려받기: 완료된 묵상집PDF 요청의 결과파일을 결과함에서 직접 다운로드 */
+async function spPdfDownload(){
+  var S = state.series;
+  try {
+    await xPerm();
+    var dir;
+    try { dir = await xHandle.getDirectoryHandle('_claude_요청함'); }
+    catch (e) { toast('요청함이 없습니다.'); return; }
+    var best = null;
+    for await (var entry of dir.values()) {
+      if (entry.kind !== 'file' || entry.name.indexOf('묵상집PDF') < 0 || !/\.json$/i.test(entry.name)) continue;
+      var f = await entry.getFile();
+      var j; try { j = JSON.parse(await f.text()); } catch (e) { continue; }
+      if (j['상태'] !== '완료') continue;
+      if (S && S.meta && (j['계획'] || {})['시리즈명'] !== S.meta['시리즈명']) continue;
+      if (!best || f.lastModified > best.m) best = { m: f.lastModified, rf: String(j['결과파일'] || '') };
+    }
+    if (!best || !best.rf) { toast('결과 파일 기록을 찾지 못했습니다 — 아웃풋에서 확인해 주세요.'); showPage('outputs'); return; }
+    var out = await xHandle.getDirectoryHandle('_claude_결과함');
+    var n = 0;
+    for await (var e2 of out.values()) {
+      if (e2.kind !== 'file' || best.rf.indexOf(e2.name) < 0) continue;
+      var fl = await e2.getFile();
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(fl);
+      a.download = e2.name;
+      a.click();
+      setTimeout(function(u){ URL.revokeObjectURL(u); }.bind(null, a.href), 4000);
+      n++;
+    }
+    toast(n ? '내려받기 시작 (' + n + '건)' : '결과함에서 파일을 찾지 못했습니다: ' + best.rf);
+  } catch (e) { toast('내려받기 실패: ' + e.message); }
 }
 
 /* 요청함에서 완료된 초안을 불러옴 */
@@ -1871,9 +1905,13 @@ function spDevoHtml(){
         return '<label style="margin:7px 0 3px">' + q[1] + '</label><textarea class="spF edTa" rows="2" data-i="' + i + '" data-f="' + q[0] + '">' + esc(r[q[0]] || '') + '</textarea>';
       }).join('') + '</details></div>';
   }).join('');
+  var pSt = (state.seriesReqs || {})['묵상집PDF'];
+  var pCls = (pSt === '대기' || pSt === '진행중') ? ' req' : pSt === '완료' ? ' fin' : '';
+  var pMark = pCls === ' fin' ? ' <span class="ck">✓</span>' : pCls === ' req' ? ' <span class="ck">▲</span>' : '';
   h += '<div class="toolrow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 다시 등록 (업서트)' : '묵상 일정 확정 → 묵상집 등록') + '</button>' +
     '<button class="btn sub" id="spDevoRedo" style="flex:0 0 auto;width:auto">재작업 요청</button>' +
-    '<button class="btn gold" id="spDevoPdf" style="flex:0 0 auto;width:auto">묵상집 PDF 요청</button></div>';
+    '<button class="btn gold' + pCls + '" id="spDevoPdf" style="flex:0 0 auto;width:auto;display:flex;align-items:center;gap:8px">' +
+    '<span>묵상집 PDF 요청' + pMark + '</span>' + (pCls === ' fin' ? '<span class="inbtn">내려받기</span>' : '') + '</button></div>';
   return h;
 }
 
@@ -1932,7 +1970,11 @@ $('#seriesPane').addEventListener('change', function(e){
 $('#seriesPane').addEventListener('click', async function(e){
   var rd = e.target.closest('#spDevoRedo, #spSermonRedo');
   if (rd) { spRedo(rd.id === 'spDevoRedo' ? '시리즈묵상' : '시리즈설교'); return; }
-  if (e.target.closest('#spDevoPdf')) { spReqPdf(); return; }
+  if (e.target.closest('#spDevoPdf')) {
+    if (e.target.closest('.inbtn')) spPdfDownload();
+    else spReqPdf();
+    return;
+  }
   var b = e.target.closest('#spDevoConfirm, #spSermonConfirm');
   if (!b || b.dataset.busy) return;
   b.dataset.busy = '1';
@@ -2563,7 +2605,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v39';
+var APP_VER = 'v40';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
