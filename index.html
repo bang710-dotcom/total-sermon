@@ -305,6 +305,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">DOCX 저장 폴더 지정</button>
         <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
+        <button class="linkbtn" id="pickLtc">LTC 저장 폴더 지정</button>
         <button class="linkbtn" id="checkInbox">요청함 상태 확인</button>
       </div>
       <div id="editorPane"></div>
@@ -456,6 +457,11 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
           <button class="btn sub" id="pickDir2">DOCX 저장 폴더</button>
           <button class="btn sub" id="pickX2">클로드 연동 폴더</button>
         </div>
+        <div class="row2" style="margin-top:8px">
+          <button class="btn sub" id="pickLtc2">LTC 저장 폴더</button>
+          <span></span>
+        </div>
+        <div class="cnt" style="margin-top:6px">LTC 저장 폴더는 "06 양육훈련 프로그램/LTC"를 지정하세요 — 교재·리더스앱 파일이 본문의 성경 책 폴더(없으면 자동 생성)에 저장됩니다.</div>
         <div class="cnt" style="margin-top:8px">DOCX 저장 폴더는 아이클라우드 설교 폴더, 클로드 연동 폴더는 코워크 작업 폴더(예: Developer/claude-exchange)를 지정하세요.</div>
       </div>
     </section>
@@ -1272,12 +1278,14 @@ $('#c_save').addEventListener('click', function(){
 });
 
 /* ===================== DOCX 내보내기 ===================== */
-var dirHandle = null;  /* DOCX 저장 (아이클라우드 설교 폴더) */
-var xHandle = null;    /* 클로드 연동: 요청함·결과함 (코워크 작업 폴더) */
+var dirHandle = null;  /* DOCX 저장 (아이클라우드 01 Sermons — 설교 원본·카드원고) */
+var xHandle = null;    /* 클로드 연동: 요청함·결과함 (Dropbox) */
+var ltcHandle = null;  /* LTC교재·리더스앱 저장 (06 양육훈련 프로그램/LTC — 책별 폴더) */
 function dirStateText(){
   if (!window.showDirectoryPicker) return '이 브라우저는 폴더 연결을 지원하지 않습니다. DOCX는 다운로드로 저장됩니다. (Chrome 권장)';
   return 'DOCX 저장: ' + (dirHandle ? dirHandle.name : '미지정(다운로드 폴더 사용)') +
-    ' · 클로드 연동: ' + (xHandle ? xHandle.name : '미지정');
+    ' · 클로드 연동: ' + (xHandle ? xHandle.name : '미지정') +
+    ' · LTC: ' + (ltcHandle ? ltcHandle.name : '미지정(설교 폴더 사용)');
 }
 function renderDirState(){
   $('#dirState').textContent = dirStateText();
@@ -1293,10 +1301,13 @@ function pickFolder(key, label, assign){
 }
 function pickDir(){ pickFolder('dir', 'DOCX 저장 폴더', function(h){ dirHandle = h; }); }
 function pickX(){ pickFolder('dirx', '클로드 연동 폴더', function(h){ xHandle = h; }); }
+function pickLtc(){ pickFolder('dirltc', 'LTC 저장 폴더', function(h){ ltcHandle = h; state.assets = {}; }); }
 $('#pickDir').addEventListener('click', pickDir);
 $('#pickDir2').addEventListener('click', pickDir);
 $('#pickX').addEventListener('click', pickX);
 $('#pickX2').addEventListener('click', pickX);
+$('#pickLtc').addEventListener('click', pickLtc);
+$('#pickLtc2').addEventListener('click', pickLtc);
 
 function ensureDocxLib(){
   return loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js').then(function(){ return window.docx; });
@@ -1886,7 +1897,9 @@ async function aiLtc(id, meta){
       sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 900 } } }, children: ch }]
     });
     var blob = await D.Packer.toBlob(doc);
-    await saveDocxBlob(blob, 'LTC교재_' + docxFileName(meta), meta['날짜']);
+    if (!await saveToLtc(blob, 'LTC교재_' + docxFileName(meta), meta['본문'])) {
+      await saveDocxBlob(blob, 'LTC교재_' + docxFileName(meta), meta['날짜']);
+    }
     if (id) {
       await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': 'LTC교재', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
       aiMarkDone(id, 'LTC교재', 'Opus API 직결');
@@ -1919,12 +1932,14 @@ async function aiLeadersTsv(id, meta){
     a.download = sc.bk.ko + sc.range.c1 + '_LTC_리더스앱.txt';
     a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
-    try { /* 상태 인식용 보관본 — 아이클라우드 연도 폴더 */
-      if (await dirIf(dirHandle)) {
+    try { /* 상태 인식용 보관본 — LTC 책 폴더(미지정 시 설교 폴더 연도) */
+      var tname = '리더스앱_' + docxFileName(meta).replace(/\.docx$/, '.txt');
+      var tblob = new Blob([row], { type: 'text/plain;charset=utf-8' });
+      if (!await saveToLtc(tblob, tname, meta['본문']) && await dirIf(dirHandle)) {
         var yr2 = (String(meta['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
         var yd2 = await dirHandle.getDirectoryHandle(yr2, { create: true });
-        var wT = await (await yd2.getFileHandle('리더스앱_' + docxFileName(meta).replace(/\.docx$/, '.txt'), { create: true })).createWritable();
-        await wT.write(new Blob([row], { type: 'text/plain;charset=utf-8' }));
+        var wT = await (await yd2.getFileHandle(tname, { create: true })).createWritable();
+        await wT.write(tblob);
         await wT.close();
       }
     } catch (e2) {}
@@ -2092,13 +2107,34 @@ async function dirIf(handle){
   try { if (handle && await handle.queryPermission({ mode: 'readwrite' }) === 'granted') return true; } catch (e) {}
   return false;
 }
+/* LTC 폴더에서 성경 책 폴더 찾기 — 이름에 책명이 포함된 폴더(예: '고린도전후서'⊃'고린도전서') 우선, 없으면 생성 */
+async function findBookDir(handle, bookKo, create){
+  for await (var e of handle.values()) {
+    if (e.kind === 'directory' && e.name.indexOf(bookKo) >= 0) return e;
+  }
+  return create ? await handle.getDirectoryHandle(bookKo, { create: true }) : null;
+}
+async function saveToLtc(blob, fname, ref){
+  /* LTC 폴더 미지정이면 설교 폴더 연도 방식으로 폴백 */
+  var tok = await refToken(ref);
+  if (!ltcHandle || !tok) return null;
+  if (await ltcHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+    if (await ltcHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') return null;
+  }
+  var bd = await findBookDir(ltcHandle, tok.ko, true);
+  var w = await (await bd.getFileHandle(fname, { create: true })).createWritable();
+  await w.write(blob);
+  await w.close();
+  toast('저장 완료: ' + ltcHandle.name + '/' + bd.name + '/' + fname);
+  return true;
+}
 async function refToken(ref){
   try {
     var r = parseRange(String(ref || ''));
     if (!r) return null;
     var idx = await bibleIndex();
     var bk = idx.filter(function(b){ return b.ko === r.book || b.abbr === r.book; })[0];
-    return bk ? { ab: bk.abbr + r.c1 } : null;
+    return bk ? { ab: bk.abbr + r.c1, ko: bk.ko } : null;
   } catch (e) { return null; }
 }
 async function checkAssets(id){
@@ -2117,9 +2153,21 @@ async function checkAssets(id){
     function hit(n){ return names[n] ? { ok: true, hit: { dir: ydir, name: n } } : null; }
     a['원고작성'] = hit(base);
     a['카드원고'] = hit('카드원고_' + base);
-    a['LTC교재'] = hit('LTC교재_' + base);
-    a['리더스앱업로드'] = hit('리더스앱_' + baseTxt);
+    if (!ltcHandle) { /* LTC 폴더 미지정 — 설교 폴더 연도 방식 폴백 */
+      a['LTC교재'] = hit('LTC교재_' + base);
+      a['리더스앱업로드'] = hit('리더스앱_' + baseTxt);
+    }
   } else a.__noDir = true;
+  if (ltcHandle && await dirIf(ltcHandle)) {
+    try {
+      var tokL = await refToken(s['본문']);
+      var bd = tokL ? await findBookDir(ltcHandle, tokL.ko, false) : null;
+      var namesL = {};
+      if (bd) { for await (var e8 of bd.values()) { if (e8.kind === 'file') namesL[e8.name] = true; } }
+      a['LTC교재'] = namesL['LTC교재_' + base] ? { ok: true, hit: { dir: bd, name: 'LTC교재_' + base } } : null;
+      a['리더스앱업로드'] = namesL['리더스앱_' + baseTxt] ? { ok: true, hit: { dir: bd, name: '리더스앱_' + baseTxt } } : null;
+    } catch (e) {}
+  } else if (ltcHandle) a.__noDir = true;
   if (await dirIf(xHandle)) {
     try {
       var ex = await xHandle.getDirectoryHandle('_claude_결과함');
@@ -3431,7 +3479,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v52';
+var APP_VER = 'v53';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -3466,6 +3514,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     });
   }).catch(function(){});
   idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
+  idbGet('dirltc').then(function(h){ if (h) { ltcHandle = h; renderDirState(); } }).catch(function(){});
   idbGet('dirx').then(function(h){ if (h) { xHandle = h; renderDirState(); scanRequests(true); setInterval(function(){ scanRequests(true); }, 60000); } }).catch(function(){});
   idbGet('data').then(function(d){
     if (d) { d.outputs = d.outputs || []; d.devo = d.devo || []; d.devonotes = d.devonotes || []; state.data = d; return; }
