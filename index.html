@@ -1429,16 +1429,83 @@ function writeRequestFile(type, meta){
     toast('요청함에 저장: ' + REQ_LABELS[type] + ' — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
   }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
 }
+/* 설교 ID+유형의 완료 결과 파일을 결과함에서 직접 내려받기 (성공 시 true) */
+async function dlReqResult(sermonId, type){
+  try {
+    await xPerm();
+    var rf = '';
+    try {
+      var dir = await xHandle.getDirectoryHandle('_claude_요청함');
+      var best = null;
+      for await (var entry of dir.values()) {
+        if (entry.kind !== 'file' || !/\.json$/i.test(entry.name) || entry.name.indexOf('_' + type + '_') < 0) continue;
+        var f = await entry.getFile();
+        var j; try { j = JSON.parse(await f.text()); } catch (e) { continue; }
+        if (j['요청유형'] !== type || j['상태'] !== '완료') continue;
+        if (((j['설교'] || {})['ID'] || '') !== sermonId) continue;
+        if (!best || f.lastModified > best.m) best = { m: f.lastModified, rf: String(j['결과파일'] || '') };
+      }
+      if (best) rf = best.rf;
+    } catch (e) {}
+    if (!rf) {
+      /* 옛 기록: 산출물 시트 비고의 "결과: 파일명" */
+      state.data.outputs.forEach(function(o){
+        if (o['설교ID'] !== sermonId || o['유형'] !== type || o['상태'] !== '완료') return;
+        var mm = String(o['비고'] || '').match(/결과:\s*([^/]+)/);
+        if (mm) rf = mm[1].trim();
+      });
+    }
+    if (!rf) return false;
+    var out = await xHandle.getDirectoryHandle('_claude_결과함');
+    var n = 0;
+    for await (var e2 of out.values()) {
+      if (e2.kind !== 'file' || rf.indexOf(e2.name) < 0) continue;
+      var fl = await e2.getFile();
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(fl);
+      a.download = e2.name;
+      a.click();
+      setTimeout(function(u){ URL.revokeObjectURL(u); }.bind(null, a.href), 4000);
+      n++;
+    }
+    if (n) { toast('내려받기 시작 (' + n + '건)'); return true; }
+    return false;
+  } catch (e) { toast('내려받기 실패: ' + e.message); return true; }
+}
+function reqBtnSt(sermonId, type){
+  var done = doneTypes(sermonId);
+  var pend = (state.pendingReqs || {})[sermonId] || {};
+  return done[type] ? 'done' : pend[type] === '완료' ? 'fin' : pend[type] ? 'req' : '';
+}
+/* 완료(✓)면 내려받기, 대기(▲)면 안내, 그 외엔 요청 */
+async function reqOrDownload(id, type, meta){
+  var st = reqBtnSt(id, type);
+  if (st === 'req') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
+  if (st === 'fin' || st === 'done') {
+    if (type === '설교요약') {
+      if (!confirm('요약본·주제어는 설교 상세에 이미 기록되어 있습니다.\n다시 생성을 요청할까요?')) return;
+    } else {
+      var ok = await dlReqResult(id, type);
+      if (ok) return;
+      if (!confirm('내려받을 결과 파일을 찾지 못했습니다.\n「' + REQ_LABELS[type] + '」 작업을 다시 요청할까요?')) return;
+    }
+  }
+  writeRequestFile(type, meta);
+}
 window.requestSermonOutput = function(id, type){
   var s = findSermon(id);
-  if (s) writeRequestFile(type, s);
+  if (s) reqOrDownload(id, type, s);
 };
 $$('#composeMeta [data-req]').forEach(function(b){
   b.addEventListener('click', function(){
     var meta = collectCompose();
     if (!meta['제목'] && !meta['원고텍스트']) { toast('요청할 내용이 없습니다. 제목이나 원고를 먼저 작성해 주세요.'); return; }
-    if (state.editing) meta['ID'] = state.editing;
-    writeRequestFile(b.dataset.req, meta);
+    if (state.editing) {
+      meta['ID'] = state.editing;
+      reqOrDownload(state.editing, b.dataset.req, meta);
+    } else {
+      writeRequestFile(b.dataset.req, meta);
+    }
   });
 });
 
@@ -2605,7 +2672,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v40';
+var APP_VER = 'v41';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
