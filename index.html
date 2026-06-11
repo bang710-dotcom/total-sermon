@@ -296,6 +296,23 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <button class="ptBtn" id="devoNext" style="flex:0 0 34px;height:36px">▶</button>
         <button class="linkbtn" id="devoToday" style="font-size:13.5px">오늘</button>
         <div id="devoTitle" style="flex:1;min-width:200px;font-weight:700"></div>
+        <button class="linkbtn desktop-only" id="seriesPlanBtn" style="font-size:13.5px;color:var(--accent2)">＋ 시리즈 계획</button>
+      </div>
+      <div class="card desktop-only" id="seriesPlan" style="display:none">
+        <b>시리즈 설교 계획 마법사</b>
+        <div class="cnt" style="margin-top:4px">기간과 성경을 정해 요청하면 클로드가 ①일별 묵상 범위 ②질문지 ③주차별 설교 주제(3대지)를 만들고, 앱이 묵상집·설교마스터([구상])에 자동 등록합니다. 주일은 묵상을 쉬고 설교일이 됩니다.</div>
+        <div class="row2">
+          <div><label>성경 (책 또는 범위) *</label><input type="text" id="sp_book" placeholder="예: 로마서 / 요한복음 13-21장"></div>
+          <div><label>시리즈명</label><input type="text" id="sp_series" placeholder="비우면 성경 이름으로 자동"></div>
+        </div>
+        <div class="row2">
+          <div><label>시작일 *</label><input type="date" id="sp_start"></div>
+          <div><label>종료일 *</label><input type="date" id="sp_end"></div>
+        </div>
+        <label>예배구분</label><input type="text" id="sp_service" value="대학부">
+        <label>요청사항 (선택)</label><textarea id="sp_note" rows="2" placeholder="예: 8월 둘째 주는 수련회 — 그 주일 설교는 제외"></textarea>
+        <div class="cnt" id="sp_preview" style="margin-top:8px"></div>
+        <div style="margin-top:10px"><button class="btn" id="sp_submit">요청함에 계획 요청 저장</button></div>
       </div>
       <div id="devoBody"></div>
     </section>
@@ -1400,6 +1417,64 @@ $$('#composeMeta [data-req]').forEach(function(b){
   });
 });
 
+/* ----- 시리즈 설교 계획 마법사 ----- */
+function spDates(){
+  var s = $('#sp_start').value, e = $('#sp_end').value;
+  if (!s || !e || s > e) return null;
+  var devoDays = [], sundays = [];
+  var d = new Date(s + 'T12:00:00'), end = new Date(e + 'T12:00:00');
+  while (d <= end) {
+    var iso = d.toISOString().slice(0, 10);
+    if (d.getDay() === 0) sundays.push(iso); else devoDays.push(iso);
+    d.setDate(d.getDate() + 1);
+  }
+  return { devoDays: devoDays, sundays: sundays };
+}
+function spPreview(){
+  var r = spDates();
+  $('#sp_preview').textContent = r ? '묵상 ' + r.devoDays.length + '일 (주일 제외) · 주일 설교 ' + r.sundays.length + '회' : '';
+}
+$('#sp_start').addEventListener('change', spPreview);
+$('#sp_end').addEventListener('change', spPreview);
+$('#seriesPlanBtn').addEventListener('click', function(){
+  var el = $('#seriesPlan');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+});
+$('#sp_submit').addEventListener('click', function(){
+  var book = $('#sp_book').value.trim();
+  if (!book) { toast('성경 책(또는 범위)을 입력해 주세요.'); return; }
+  var r = spDates();
+  if (!r) { toast('시작일과 종료일을 확인해 주세요.'); return; }
+  if (!r.devoDays.length) { toast('묵상일이 없습니다. 기간을 확인해 주세요.'); return; }
+  var series = $('#sp_series').value.trim() || book.replace(/\s*\d.*$/, '').trim() || book;
+  var d = new Date();
+  function p2(n){ return ('0' + n).slice(-2); }
+  var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes());
+  var payload = {
+    '요청유형': '시리즈계획', '상태': '대기',
+    '요청일시': d.toISOString().slice(0, 16).replace('T', ' '),
+    '계획': {
+      '시리즈명': series, '성경범위': book,
+      '시작일': $('#sp_start').value, '종료일': $('#sp_end').value,
+      '예배구분': $('#sp_service').value.trim() || '대학부',
+      '요청사항': $('#sp_note').value.trim(),
+      '묵상일': r.devoDays, '주일': r.sundays
+    }
+  };
+  var fname = '요청_신규_시리즈계획_' + stamp + '.json';
+  xPerm().then(function(){
+    return xHandle.getDirectoryHandle('_claude_요청함', { create: true });
+  }).then(function(dir){
+    return dir.getFileHandle(fname, { create: true });
+  }).then(function(fh){
+    return fh.createWritable();
+  }).then(function(w){
+    return w.write(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })).then(function(){ return w.close(); });
+  }).then(function(){
+    toast('요청함에 저장: 시리즈 계획 (' + series + ') — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
+  }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
+});
+
 /* 완료된 요청 → 산출물 시트 자동 기록 (Cowork가 상태를 '완료'로 바꿔두면 다음 확인 때 반영) */
 async function scanRequests(quiet){
   if (scanRequests._busy) return; /* 자동·수동 확인이 겹쳐 중복 기록되는 것 방지 */
@@ -1472,6 +1547,26 @@ async function scanRequests(quiet){
         await wS.close();
         done++;
       }
+      else if (j['상태'] === '완료' && j['요청유형'] === '시리즈계획' && !j['시트등록']) {
+        /* 시리즈 계획: 묵상목록 → 묵상집, 설교목록 → 설교마스터([구상]) */
+        var dvl = j['묵상목록'] || [];
+        for (var b3 = 0; b3 < dvl.length; b3 += 50) {
+          await apiPost({ action: 'bulkAdd', sheet: 'devo', rows: dvl.slice(b3, b3 + 50) });
+        }
+        var sml = j['설교목록'] || [];
+        for (var b4 = 0; b4 < sml.length; b4 += 50) {
+          await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: sml.slice(b4, b4 + 50) });
+        }
+        await apiPost({ action: 'add', sheet: 'outputs', data: {
+          '설교ID': '', '유형': '시리즈계획', '상태': '완료', '링크': '',
+          '비고': ((j['계획'] || {})['시리즈명'] || '') + ' — 묵상 ' + dvl.length + '일 · 설교 ' + sml.length + '회 / 요청: ' + entry.name
+        }});
+        j['시트등록'] = true; j['산출물기록'] = true;
+        var wP = await entry.createWritable();
+        await wP.write(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' }));
+        await wP.close();
+        done += dvl.length + sml.length;
+      }
       else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && j['요청유형'] !== '설교요약' && !j['산출물기록']) {
         await apiPost({ action: 'add', sheet: 'outputs', data: {
           '설교ID': (j['설교'] || {})['ID'] || '', '유형': j['요청유형'], '상태': '완료',
@@ -1538,7 +1633,7 @@ async function renderOutputs(){
         if (e2.kind !== 'file' || !/\.json$/i.test(e2.name)) continue;
         var j2; try { j2 = JSON.parse(await (await e2.getFile()).text()); } catch (err) { continue; }
         if (j2['상태'] === '대기' || j2['상태'] === '진행중' || j2['상태'] === '완료')
-          pend2.push({ t: j2['요청유형'], st: j2['상태'], sid: (j2['설교'] || {})['ID'] || '', title: (j2['설교'] || {})['제목'] || '', m: (await e2.getFile()).lastModified });
+          pend2.push({ t: j2['요청유형'], st: j2['상태'], sid: (j2['설교'] || {})['ID'] || '', title: (j2['설교'] || {})['제목'] || (j2['계획'] || {})['시리즈명'] || '', m: (await e2.getFile()).lastModified });
       }
       pend2.sort(function(a, b){ return b.m - a.m; });
       reqHtml = pend2.map(function(p){
@@ -1927,7 +2022,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v31';
+var APP_VER = 'v32';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
