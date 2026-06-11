@@ -439,6 +439,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <input type="url" id="setUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>API 토큰</label>
         <input type="text" id="setToken" placeholder="setToken 실행 시 로그에 표시된 값">
+        <label>Claude API 키 (선택 — AI 직결 생성)</label>
+        <input type="text" id="setClaude" placeholder="sk-ant-api03-...">
+        <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 4.8, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
       <div class="card">
@@ -1307,10 +1310,15 @@ function mm2twip(v){ return Math.round(v * 56.6929); }
 function buildDocxParas(D, paras, st){
   var FONT = { ascii: st.font, eastAsia: st.font, hAnsi: st.font };
   var children = paras.map(function(p){
-    return new D.Paragraph({
+    var opts = {
       spacing: { line: st.line },
       children: [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
-    });
+    };
+    if (p.just) { /* 완성 원고 본문: 양쪽 정렬 + 첫 줄 들여쓰기 2자 */
+      opts.alignment = D.AlignmentType.JUSTIFIED;
+      opts.indent = { firstLine: 520 };
+    }
+    return new D.Paragraph(opts);
   });
   var pg = st.page;
   return new D.Document({
@@ -2806,7 +2814,7 @@ $('#saveSermon').addEventListener('click', function(){
 });
 
 $('#saveSettings').addEventListener('click', function(){
-  state.settings = { url: $('#setUrl').value.trim(), token: $('#setToken').value.trim() };
+  state.settings = { url: $('#setUrl').value.trim(), token: $('#setToken').value.trim(), claudeKey: $('#setClaude').value.trim() };
   save(LS.settings, state.settings);
   toast('설정 저장됨');
   api({ action: 'ping' }).then(function(){ toast('연결 성공! 동기화를 시작합니다.'); return sync(); })
@@ -2898,6 +2906,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   setAppHeight();
   $('#setUrl').value = state.settings.url || '';
   $('#setToken').value = state.settings.token || '';
+  $('#setClaude').value = state.settings.claudeKey || '';
   $('#page-search').classList.add('on');
   $('#smDate').value = new Date().toISOString().slice(0, 10);
   $('#c_date').value = new Date().toISOString().slice(0, 10);
