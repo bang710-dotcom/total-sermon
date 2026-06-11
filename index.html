@@ -52,6 +52,7 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 0;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn.mini.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
+.btn.mini.req{background:#43320e;border-color:#b8860b;color:#ffc24d}
 .btn.mini .ck{flex:0 0 auto;font-size:14px}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 14px;font-size:13.5px;cursor:pointer;user-select:none}
@@ -718,10 +719,12 @@ function openDetail(kind, id){
     html += '<div class="toolrow desktop-only">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">작성 화면에서 편집</button>' +
       '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
+    var pend = (state.pendingReqs || {})[s['ID']] || {};
     function reqBtnRow(types){
       return '<div class="toolrow desktop-only">' + types.map(function(t){
-        return '<button class="btn sub mini' + (done[t] ? ' done' : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
-          '<span>' + REQ_BTN[t] + '</span>' + (done[t] ? '<span class="ck">✓</span>' : '') + '</button>';
+        var st = done[t] ? 'done' : (pend[t] ? 'req' : '');
+        return '<button class="btn sub mini' + (st ? ' ' + st : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
+          '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</button>';
       }).join('') + '</div>';
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성', '카드원고']);
@@ -1328,10 +1331,13 @@ function doneTypes(sermonId){
 /* 작성 화면 요청 버튼 색: 수정 중인 설교의 완료 아웃풋은 초록 */
 function refreshReqBtns(){
   var done = state.editing ? doneTypes(state.editing) : {};
+  var pend = state.editing ? ((state.pendingReqs || {})[state.editing] || {}) : {};
   $$('#composeMeta [data-req]').forEach(function(b){
     var t = b.dataset.req;
-    b.classList.toggle('done', !!done[t]);
-    b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (done[t] ? '<span class="ck">✓</span>' : '');
+    var st = done[t] ? 'done' : (pend[t] ? 'req' : '');
+    b.classList.toggle('done', st === 'done');
+    b.classList.toggle('req', st === 'req');
+    b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '');
   });
 }
 
@@ -1360,6 +1366,12 @@ function writeRequestFile(type, meta){
   }).then(function(w){
     return w.write(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })).then(function(){ return w.close(); });
   }).then(function(){
+    if (meta['ID']) {
+      state.pendingReqs = state.pendingReqs || {};
+      (state.pendingReqs[meta['ID']] = state.pendingReqs[meta['ID']] || {})[type] = true;
+      refreshReqBtns();
+      if ($('#detailPane').classList.contains('open')) openDetail('sermon', meta['ID']);
+    }
     toast('요청함에 저장: ' + REQ_LABELS[type] + ' — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
   }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
 }
@@ -1386,11 +1398,15 @@ async function scanRequests(quiet){
     var dir;
     try { dir = await xHandle.getDirectoryHandle('_claude_요청함'); }
     catch (e) { if (!quiet) toast('아직 요청함이 없습니다.'); return; }
-    var done = 0, waiting = 0, working = 0;
+    var done = 0, waiting = 0, working = 0, pend = {};
     for await (var entry of dir.values()) {
       if (entry.kind !== 'file' || !/\.json$/i.test(entry.name)) continue;
       var j;
       try { j = JSON.parse(await (await entry.getFile()).text()); } catch (e) { continue; }
+      if (j['상태'] === '대기' || j['상태'] === '진행중') {
+        var psid = (j['설교'] || {})['ID'];
+        if (psid) { pend[psid] = pend[psid] || {}; pend[psid][j['요청유형']] = true; }
+      }
       if (j['상태'] === '대기') waiting++;
       else if (j['상태'] === '진행중') working++;
       else if (j['상태'] === '완료' && j['요청유형'] === '묵상집등록' && !j['시트등록']) {
@@ -1453,6 +1469,8 @@ async function scanRequests(quiet){
         done++;
       }
     }
+    state.pendingReqs = pend;
+    refreshReqBtns();
     if (done) { toast('완료된 요청 ' + done + '건을 기록했습니다.'); sync(); }
     else if (!quiet) toast('요청함 — 대기 ' + waiting + '건 · 진행중 ' + working + '건');
   } catch (e) { if (!quiet) toast('요청함 확인 실패: ' + e.message); }
@@ -1495,11 +1513,30 @@ async function renderOutputs(){
     }
     items.sort(function(a, b){ return b.m - a.m; });
     _outFiles = items;
-    if (!items.length) { box.innerHTML = '<div class="empty">아직 결과 파일이 없습니다.</div>'; return; }
-    box.innerHTML = items.map(function(it, i){
+    /* 작업대기중 요청도 함께 표시 */
+    var reqHtml = '';
+    try {
+      var rdir = await xHandle.getDirectoryHandle('_claude_요청함');
+      var pend2 = [];
+      for await (var e2 of rdir.values()) {
+        if (e2.kind !== 'file' || !/\.json$/i.test(e2.name)) continue;
+        var j2; try { j2 = JSON.parse(await (await e2.getFile()).text()); } catch (err) { continue; }
+        if (j2['상태'] === '대기' || j2['상태'] === '진행중')
+          pend2.push({ t: j2['요청유형'], st: j2['상태'], title: (j2['설교'] || {})['제목'] || '', m: (await e2.getFile()).lastModified });
+      }
+      pend2.sort(function(a, b){ return b.m - a.m; });
+      reqHtml = pend2.map(function(p){
+        return '<div class="item" style="cursor:default;border-left:3px solid #b8860b;background:rgba(184,134,11,.08)">' +
+          '<div class="meta"><span class="badge" style="background:#43320e;color:#ffc24d">▲ 작업대기중</span><span>' + esc(p.t) + '</span>' + (p.st === '진행중' ? '<span class="badge b-state">진행중</span>' : '') + '</div>' +
+          '<div class="title" style="font-size:13.5px">' + esc(p.title) + '</div>' +
+          '<div class="snippet">코워크 창에 "요청함 처리해줘"를 입력해 주세요</div></div>';
+      }).join('');
+    } catch (e) {}
+    if (!items.length && !reqHtml) { box.innerHTML = '<div class="empty">아직 결과 파일이 없습니다.</div>'; return; }
+    box.innerHTML = reqHtml + items.map(function(it, i){
       var d = new Date(it.m);
       function p2(n){ return ('0' + n).slice(-2); }
-      return '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px">' +
+      return '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px;border-left:3px solid #2e7d4f">' +
         '<div style="flex:1;min-width:0"><div class="title" style="font-size:14px;word-break:break-all">' + esc(it.name) + '</div>' +
         '<div class="snippet">' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) +
         ' · ' + (it.size > 1048576 ? (it.size / 1048576).toFixed(1) + 'MB' : Math.round(it.size / 1024) + 'KB') + '</div></div>' +
@@ -1870,7 +1907,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v26';
+var APP_VER = 'v27';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
