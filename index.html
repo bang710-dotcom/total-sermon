@@ -164,6 +164,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
   #detailPane{display:block;position:sticky;top:18px;max-height:calc(100vh - 40px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;min-height:300px}
   #page-compose.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
   #composeMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:4px}
+  #page-series.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
+  #seriesMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:4px}
+  #seriesMeta label{margin-top:9px}
   #composeMeta label{margin-top:9px}
   #c_text{min-height:calc(100vh - 150px);font-size:15.5px;line-height:2.0;padding:20px 22px}
   #page-import{max-width:860px}
@@ -192,6 +195,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>작성</button>
     <button class="nav" data-page="devo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
+    <button class="nav" data-page="series">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>시리즈 계획</button>
     <button class="nav" data-page="input">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>빠른 입력</button>
     <button class="nav" data-page="import">
@@ -296,15 +301,16 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <button class="ptBtn" id="devoNext" style="flex:0 0 34px;height:36px">▶</button>
         <button class="linkbtn" id="devoToday" style="font-size:13.5px">오늘</button>
         <div id="devoTitle" style="flex:1;min-width:200px;font-weight:700"></div>
-        <button class="linkbtn desktop-only" id="seriesPlanBtn" style="font-size:13.5px;color:var(--accent2)">＋ 시리즈 계획</button>
       </div>
-      <div class="card desktop-only" id="seriesPlan" style="display:none">
-        <b>시리즈 설교 계획 마법사</b>
-        <div class="cnt" style="margin-top:4px">기간과 성경을 정해 요청하면 클로드가 ①일별 묵상 범위 ②질문지 ③주차별 설교 주제(3대지)를 만들고, 앱이 묵상집·설교마스터([구상])에 자동 등록합니다. 주일은 묵상을 쉬고 설교일이 됩니다.</div>
-        <div class="row2">
-          <div><label>성경 (책 또는 범위) *</label><input type="text" id="sp_book" placeholder="예: 로마서 / 요한복음 13-21장"></div>
-          <div><label>시리즈명</label><input type="text" id="sp_series" placeholder="비우면 성경 이름으로 자동"></div>
-        </div>
+      <div id="devoBody"></div>
+    </section>
+
+    <!-- ============ 시리즈 계획 (데스크탑) ============ -->
+    <section class="page" id="page-series">
+      <div id="seriesMeta">
+        <div class="cnt" style="margin-bottom:8px">시리즈 설교 계획 마법사</div>
+        <label style="margin-top:0">성경 (책 또는 범위) *</label><input type="text" id="sp_book" placeholder="예: 로마서 / 요한복음 13-21장">
+        <label>시리즈명</label><input type="text" id="sp_series" placeholder="비우면 성경 이름으로 자동">
         <div class="row2">
           <div><label>시작일 *</label><input type="date" id="sp_start"></div>
           <div><label>종료일 *</label><input type="date" id="sp_end"></div>
@@ -312,9 +318,14 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <label>예배구분</label><input type="text" id="sp_service" value="대학부">
         <label>요청사항 (선택)</label><textarea id="sp_note" rows="2" placeholder="예: 8월 둘째 주는 수련회 — 그 주일 설교는 제외"></textarea>
         <div class="cnt" id="sp_preview" style="margin-top:8px"></div>
-        <div style="margin-top:10px"><button class="btn" id="sp_submit">요청함에 계획 요청 저장</button></div>
+        <div class="cnt" id="sp_status" style="margin-top:6px;line-height:1.8"></div>
+        <div class="toolrow"><button class="btn" id="sp_reqDevo">① 묵상 일정 요청</button></div>
+        <div class="toolrow"><button class="btn gold" id="sp_reqSermon" disabled>② 설교 주제 요청</button></div>
+        <div class="toolrow"><button class="btn sub" id="sp_check">내용 확인 (요청함)</button></div>
+        <button class="linkbtn" id="sp_reset">새 시리즈 시작</button>
+        <div class="cnt" style="margin-top:10px">흐름: ① 요청 → Cowork "요청함 처리해줘" → [내용 확인] → 오른쪽에서 검토·수정 → 확정(묵상집 등록) → ② 요청 → [내용 확인] → 주일별 선택지 고르고 수정 → 확정(설교마스터 [구상])</div>
       </div>
-      <div id="devoBody"></div>
+      <div id="seriesPane"><div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.</div></div>
     </section>
 
     <!-- ============ 입력 (모바일 빠른 입력) ============ -->
@@ -1417,9 +1428,17 @@ $$('#composeMeta [data-req]').forEach(function(b){
   });
 });
 
-/* ----- 시리즈 설교 계획 마법사 ----- */
-function spDates(){
-  var s = $('#sp_start').value, e = $('#sp_end').value;
+/* ----- 시리즈 설교 계획 마법사 (좌: 설정·요청 / 우: 검토·수정·확정) -----
+   1단계 시리즈묵상: 일별 묵상범위+질문 초안 → 오른쪽에서 검토·수정 → 확정 시 묵상집 업서트
+   2단계 시리즈설교: 주일별 설교 주제 선택지 3~4개 → 선택·수정 → 확정 시 설교마스터 [구상] 업서트 */
+state.series = { meta: null, devo: null, devoDone: false, sermon: null, sermonDone: false, view: '' };
+function saveSeries(){ idbSet('series', state.series).catch(function(){}); }
+var spSaveSoon = debounce(saveSeries, 600);
+var WD = ['일', '월', '화', '수', '목', '금', '토'];
+function wdOf(iso){ return WD[new Date(iso + 'T12:00:00').getDay()]; }
+function mdOf(iso){ return +iso.slice(5, 7) + '/' + +iso.slice(8, 10); }
+
+function spDates(s, e){
   if (!s || !e || s > e) return null;
   var devoDays = [], sundays = [];
   var d = new Date(s + 'T12:00:00'), end = new Date(e + 'T12:00:00');
@@ -1430,39 +1449,50 @@ function spDates(){
   }
   return { devoDays: devoDays, sundays: sundays };
 }
+function spReadMeta(){
+  var book = $('#sp_book').value.trim();
+  var r = spDates($('#sp_start').value, $('#sp_end').value);
+  if (!book || !r) return null;
+  return {
+    '시리즈명': $('#sp_series').value.trim() || book.replace(/\s*\d.*$/, '').trim() || book,
+    '성경범위': book, '시작일': $('#sp_start').value, '종료일': $('#sp_end').value,
+    '예배구분': $('#sp_service').value.trim() || '대학부',
+    '요청사항': $('#sp_note').value.trim(),
+    '묵상일': r.devoDays, '주일': r.sundays
+  };
+}
+function spFillInputs(m){
+  m = m || {};
+  $('#sp_book').value = m['성경범위'] || '';
+  $('#sp_series').value = m['시리즈명'] || '';
+  $('#sp_start').value = m['시작일'] || '';
+  $('#sp_end').value = m['종료일'] || '';
+  $('#sp_service').value = m['예배구분'] || '대학부';
+  $('#sp_note').value = m['요청사항'] || '';
+}
 function spPreview(){
-  var r = spDates();
+  var r = spDates($('#sp_start').value, $('#sp_end').value);
   $('#sp_preview').textContent = r ? '묵상 ' + r.devoDays.length + '일 (주일 제외) · 주일 설교 ' + r.sundays.length + '회' : '';
 }
 $('#sp_start').addEventListener('change', spPreview);
 $('#sp_end').addEventListener('change', spPreview);
-$('#seriesPlanBtn').addEventListener('click', function(){
-  var el = $('#seriesPlan');
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
-});
-$('#sp_submit').addEventListener('click', function(){
-  var book = $('#sp_book').value.trim();
-  if (!book) { toast('성경 책(또는 범위)을 입력해 주세요.'); return; }
-  var r = spDates();
-  if (!r) { toast('시작일과 종료일을 확인해 주세요.'); return; }
-  if (!r.devoDays.length) { toast('묵상일이 없습니다. 기간을 확인해 주세요.'); return; }
-  var series = $('#sp_series').value.trim() || book.replace(/\s*\d.*$/, '').trim() || book;
+
+function spStatus(){
+  var S = state.series;
+  var t1 = !S.devo ? '미요청' : S.devoDone ? '확정·등록 완료 (' + S.devo.rows.length + '일)' : '초안 검토 중 (' + S.devo.rows.length + '일)';
+  var t2 = !S.sermon ? '미요청' : S.sermonDone ? '확정·등록 완료' : '선택지 검토 중 (' + S.sermon.weeks.length + '주)';
+  $('#sp_status').innerHTML = '① 묵상일정: <b style="color:var(--accent)">' + t1 + '</b><br>② 설교계획: <b style="color:var(--accent2)">' + t2 + '</b>';
+  $('#sp_reqSermon').disabled = !S.devoDone;
+}
+
+function spWriteReq(type, payload, label){
   var d = new Date();
   function p2(n){ return ('0' + n).slice(-2); }
   var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes());
-  var payload = {
-    '요청유형': '시리즈계획', '상태': '대기',
-    '요청일시': d.toISOString().slice(0, 16).replace('T', ' '),
-    '계획': {
-      '시리즈명': series, '성경범위': book,
-      '시작일': $('#sp_start').value, '종료일': $('#sp_end').value,
-      '예배구분': $('#sp_service').value.trim() || '대학부',
-      '요청사항': $('#sp_note').value.trim(),
-      '묵상일': r.devoDays, '주일': r.sundays
-    }
-  };
-  var fname = '요청_신규_시리즈계획_' + stamp + '.json';
-  xPerm().then(function(){
+  payload['요청유형'] = type; payload['상태'] = '대기';
+  payload['요청일시'] = d.toISOString().slice(0, 16).replace('T', ' ');
+  var fname = '요청_신규_' + type + '_' + stamp + '.json';
+  return xPerm().then(function(){
     return xHandle.getDirectoryHandle('_claude_요청함', { create: true });
   }).then(function(dir){
     return dir.getFileHandle(fname, { create: true });
@@ -1471,9 +1501,253 @@ $('#sp_submit').addEventListener('click', function(){
   }).then(function(w){
     return w.write(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })).then(function(){ return w.close(); });
   }).then(function(){
-    toast('요청함에 저장: 시리즈 계획 (' + series + ') — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
+    toast('요청함에 저장: ' + label + ' — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
   }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
+}
+
+$('#sp_reqDevo').addEventListener('click', function(){
+  var m = spReadMeta();
+  if (!m) { toast('성경 범위와 기간을 먼저 입력해 주세요.'); return; }
+  if (!m['묵상일'].length) { toast('묵상일이 없습니다. 기간을 확인해 주세요.'); return; }
+  var S = state.series;
+  if (S.devo && S.meta && S.meta['시리즈명'] !== m['시리즈명'] &&
+      !confirm('진행 중이던 「' + S.meta['시리즈명'] + '」 검토 내용을 비우고 새 시리즈를 요청할까요?')) return;
+  if (!S.devo || (S.meta && S.meta['시리즈명'] !== m['시리즈명'])) {
+    state.series = { meta: m, devo: null, devoDone: false, sermon: null, sermonDone: false, view: '' };
+  } else {
+    S.meta = m; /* 같은 시리즈 재요청: 검토본은 유지, [내용 확인] 때 새 초안으로 교체 */
+  }
+  saveSeries(); spStatus();
+  spWriteReq('시리즈묵상', { '계획': m }, '묵상 일정 (' + m['시리즈명'] + ')');
 });
+
+$('#sp_reqSermon').addEventListener('click', function(){
+  var S = state.series;
+  if (!S.devoDone || !S.devo) { toast('먼저 묵상 일정을 확정해 주세요.'); return; }
+  var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
+  spWriteReq('시리즈설교', { '계획': S.meta, '묵상확정': rows }, '설교 주제 선택지 (' + S.meta['시리즈명'] + ')');
+});
+
+$('#sp_reset').addEventListener('click', function(){
+  if (state.series.devo && !confirm('진행 중인 시리즈 계획 검토 내용을 비울까요?\n(시트에 이미 등록된 내용은 그대로 둡니다)')) return;
+  state.series = { meta: null, devo: null, devoDone: false, sermon: null, sermonDone: false, view: '' };
+  saveSeries();
+  spFillInputs(null); spPreview(); spStatus(); renderSeriesPane();
+});
+
+/* [내용 확인]: 요청함에서 완료된 초안을 불러와 오른쪽에 표시 */
+async function spCheck(){
+  var S = state.series;
+  try {
+    await xPerm();
+    var dir;
+    try { dir = await xHandle.getDirectoryHandle('_claude_요청함'); }
+    catch (e) { toast('아직 요청함이 없습니다.'); return; }
+    var waiting = 0, working = 0, bestD = null, bestS = null;
+    for await (var entry of dir.values()) {
+      if (entry.kind !== 'file' || !/시리즈(묵상|설교)/.test(entry.name) || !/\.json$/i.test(entry.name)) continue;
+      var f = await entry.getFile();
+      var j; try { j = JSON.parse(await f.text()); } catch (e) { continue; }
+      var type = j['요청유형'];
+      if (type !== '시리즈묵상' && type !== '시리즈설교') continue;
+      if (S.meta && (j['계획'] || {})['시리즈명'] !== S.meta['시리즈명']) continue;
+      if (j['상태'] === '대기') { waiting++; continue; }
+      if (j['상태'] === '진행중') { working++; continue; }
+      if (j['상태'] !== '완료') continue;
+      if (type === '시리즈묵상' && (!bestD || f.lastModified > bestD.m)) bestD = { j: j, m: f.lastModified };
+      if (type === '시리즈설교' && (!bestS || f.lastModified > bestS.m)) bestS = { j: j, m: f.lastModified };
+    }
+    var loaded = [];
+    if (bestD && (bestD.j['묵상목록'] || []).length) {
+      if (!S.meta) { S.meta = bestD.j['계획'] || null; if (S.meta) { spFillInputs(S.meta); spPreview(); } }
+      if (!S.devo || bestD.m > S.devo.m) {
+        S.devo = { rows: bestD.j['묵상목록'], m: bestD.m };
+        S.devoDone = false; S.view = 'devo';
+        loaded.push('묵상 일정 ' + S.devo.rows.length + '일');
+      }
+    }
+    if (bestS && (bestS.j['설교선택지'] || []).length) {
+      if (!S.sermon || bestS.m > S.sermon.m) {
+        S.sermon = { m: bestS.m, weeks: (bestS.j['설교선택지'] || []).map(function(w){
+          var opts = w['선택지'] || [];
+          return { '주일': w['주일'], '주간범위': w['주간범위'] || '', '비고': w['비고'] || '',
+            opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
+            edit: opts.length ? JSON.parse(JSON.stringify(opts[0])) : { '제목': '', '본문': '', '핵심메시지': '', '대지': '' } };
+        }) };
+        S.sermonDone = false; S.view = 'sermon';
+        loaded.push('설교 선택지 ' + S.sermon.weeks.length + '주');
+      }
+    }
+    saveSeries(); spStatus(); renderSeriesPane();
+    toast(loaded.length ? '불러옴: ' + loaded.join(' · ') :
+      (waiting + working ? '아직 처리 전입니다 — 대기 ' + waiting + '건 · 진행중 ' + working + '건. Cowork에 "요청함 처리해줘"라고 말씀하세요' : '새 결과가 없습니다.'));
+  } catch (e) { toast('확인 실패: ' + e.message); }
+}
+$('#sp_check').addEventListener('click', withBusy($('#sp_check'), '확인 중…', spCheck));
+
+/* ----- 오른쪽 검토 패널 ----- */
+function renderSeriesPane(){
+  var S = state.series, pane = $('#seriesPane');
+  if (!S.devo && !S.sermon) {
+    pane.innerHTML = '<div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.<br>Cowork가 처리하면 [내용 확인]으로 초안을 불러와<br>여기에서 검토·수정 후 확정합니다.</div>';
+    return;
+  }
+  var view = S.view || (S.sermon ? 'sermon' : 'devo');
+  var html = '';
+  if (S.devo && S.sermon) {
+    html += '<div class="chips" style="margin-bottom:12px">' +
+      '<span class="chip' + (view === 'devo' ? ' on' : '') + '" onclick="spView(\'devo\')">① 묵상 일정</span>' +
+      '<span class="chip gold' + (view === 'sermon' ? ' on' : '') + '" onclick="spView(\'sermon\')">② 설교 계획</span></div>';
+  }
+  html += (view === 'devo' && S.devo) ? spDevoHtml() : (S.sermon ? spSermonHtml() : spDevoHtml());
+  pane.innerHTML = html;
+}
+window.spView = function(v){ state.series.view = v; saveSeries(); renderSeriesPane(); };
+
+function spDevoHtml(){
+  var S = state.series, rows = S.devo.rows, m = S.meta || {};
+  var warn = (m['묵상일'] && rows.length !== m['묵상일'].length)
+    ? '<div class="dupbox" style="margin-top:8px"><h4>⚠ 일수 불일치</h4>계획상 묵상일은 ' + m['묵상일'].length + '일인데 초안은 ' + rows.length + '일입니다. 다시 요청하거나 직접 수정해 주세요.</div>' : '';
+  var last = rows[rows.length - 1] || {};
+  var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> · ' + esc(m['성경범위'] || '') +
+    '<div class="cnt" style="margin-top:4px">묵상 ' + rows.length + '일 · 마지막 날(' + esc(last['날짜'] || '') + ') 본문: <b style="color:var(--accent2)">' + esc(last['본문범위'] || '') + '</b> — 성경 범위 끝까지 도달했는지, 어색하게 끊긴 곳이 없는지 확인해 주세요.' + (S.devoDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div>' + warn + '</div>';
+  h += rows.map(function(r, i){
+    return '<div class="ptRow">' +
+      '<div class="ptHead" style="gap:8px"><span class="ptNo" style="flex:0 0 76px;font-size:12.5px;text-align:left">' + mdOf(r['날짜']) + ' (' + wdOf(r['날짜']) + ')</span>' +
+      '<input type="text" class="spF" data-i="' + i + '" data-f="본문범위" value="' + esc(r['본문범위'] || '') + '" placeholder="본문범위" style="flex:1">' +
+      '<input type="text" class="spF" data-i="' + i + '" data-f="제목" value="' + esc(r['제목'] || '') + '" placeholder="제목" style="flex:1.3"></div>' +
+      '<details style="margin-top:5px"><summary style="font-size:12px;color:var(--dim)">질문 3개</summary>' +
+      [['관찰질문', '관찰'], ['묵상질문', '묵상'], ['적용질문', '적용']].map(function(q){
+        return '<label style="margin:7px 0 3px">' + q[1] + '</label><textarea class="spF edTa" rows="2" data-i="' + i + '" data-f="' + q[0] + '">' + esc(r[q[0]] || '') + '</textarea>';
+      }).join('') + '</details></div>';
+  }).join('');
+  h += '<div class="toolrow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 다시 등록 (업서트)' : '묵상 일정 확정 → 묵상집 등록') + '</button></div>';
+  return h;
+}
+
+function spSermonHtml(){
+  var S = state.series, m = S.meta || {};
+  var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> — 주일 설교 계획' +
+    '<div class="cnt" style="margin-top:4px">주일마다 선택지 하나를 고르고 아래 칸에서 다듬은 뒤 확정하세요. 제외할 주일은 "등록" 체크를 해제합니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
+  h += S.sermon.weeks.map(function(w, wi){
+    var ed = w.edit || {};
+    var head = '<div style="display:flex;align-items:center;gap:10px"><b style="font-size:15.5px">' + (wi + 1) + '주차 — ' + esc(w['주일']) + ' (주일)</b>' +
+      '<label style="margin:0 0 0 auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 등록</label></div>' +
+      (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">주간 묵상: ' + esc(w['주간범위']) + '</div>' : '') +
+      (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
+    var opts = (w.opts || []).map(function(o, oi){
+      return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13.5px' + (w.sel === oi ? ';border-color:var(--accent);background:rgba(124,154,255,.06)' : '') + '">' +
+        '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (w.sel === oi ? 'checked' : '') + '>' +
+        '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + esc(o['본문'] || '') + '</span>' +
+        '<div style="color:var(--dim);margin:3px 0 0 22px">' + esc(o['핵심메시지'] || '') + '</div>' +
+        '<div style="margin:3px 0 0 22px;white-space:pre-wrap;color:var(--dim);font-size:12.5px">' + esc(o['대지'] || '') + '</div></label>';
+    }).join('');
+    var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
+      '<div><label>본문</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
+      '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
+      '<label>대지 (한 줄에 하나)</label><textarea class="spS edTa" rows="3" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>';
+    return '<div class="edPoint" id="spw' + wi + '">' + head + opts + edit + '</div>';
+  }).join('');
+  h += '<div class="toolrow"><button class="btn" id="spSermonConfirm">' + (S.sermonDone ? '수정분 다시 등록 (업서트)' : '설교 계획 확정 → 설교마스터 등록 [구상]') + '</button></div>';
+  return h;
+}
+
+/* 검토 패널 입력 → 상태 반영 */
+$('#seriesPane').addEventListener('input', function(e){
+  var t = e.target;
+  if (t.classList.contains('spF')) {
+    var r = state.series.devo && state.series.devo.rows[+t.dataset.i];
+    if (r) { r[t.dataset.f] = t.value; spSaveSoon(); }
+  } else if (t.classList.contains('spS')) {
+    var w = state.series.sermon && state.series.sermon.weeks[+t.dataset.w];
+    if (w) { (w.edit = w.edit || {})[t.dataset.f] = t.value; spSaveSoon(); }
+  }
+});
+$('#seriesPane').addEventListener('change', function(e){
+  var t = e.target;
+  if (t.type === 'radio' && t.dataset.w != null) {
+    var w = state.series.sermon.weeks[+t.dataset.w];
+    w.sel = +t.value;
+    w.edit = JSON.parse(JSON.stringify(w.opts[w.sel] || {}));
+    saveSeries();
+    $$('#spw' + t.dataset.w + ' .spS').forEach(function(el){ el.value = w.edit[el.dataset.f] || ''; });
+  } else if (t.classList.contains('spUse')) {
+    var w2 = state.series.sermon.weeks[+t.dataset.w];
+    w2.skip = !t.checked; saveSeries();
+  }
+});
+$('#seriesPane').addEventListener('click', async function(e){
+  var b = e.target.closest('#spDevoConfirm, #spSermonConfirm');
+  if (!b || b.dataset.busy) return;
+  b.dataset.busy = '1';
+  var old = b.innerHTML;
+  b.innerHTML = '<span class="spin"></span>등록 중…'; b.classList.add('busy');
+  try { await (b.id === 'spDevoConfirm' ? confirmDevo() : confirmSermon()); }
+  catch (err) { toast('등록 실패: ' + err.message); }
+  finally {
+    delete b.dataset.busy; b.classList.remove('busy'); b.innerHTML = old;
+    renderSeriesPane();
+  }
+});
+
+/* 확정 → 묵상집 업서트 (같은 날짜는 수정, 새 날짜는 추가) */
+async function confirmDevo(){
+  var S = state.series, rows = S.devo.rows, m = S.meta || {};
+  var empty = rows.filter(function(r){ return !String(r['본문범위'] || '').trim(); }).length;
+  if (empty) { toast('본문범위가 비어 있는 날이 ' + empty + '일 있습니다.'); return; }
+  if (!confirm('묵상 ' + rows.length + '일을 묵상집 시트에 등록할까요?\n(같은 날짜의 기존 항목은 수정됩니다)')) return;
+  var adds = [], ups = [];
+  rows.forEach(function(r){
+    var rec = { '날짜': r['날짜'], '본문범위': r['본문범위'] || '', '제목': r['제목'] || '',
+      '관찰질문': r['관찰질문'] || '', '묵상질문': r['묵상질문'] || '', '적용질문': r['적용질문'] || '',
+      '시리즈명': m['시리즈명'] || '' };
+    var ex = (state.data.devo || []).filter(function(d){ return d['날짜'] === r['날짜']; })[0];
+    if (ex) { rec.ID = ex['ID']; ups.push(rec); } else adds.push(rec);
+  });
+  for (var b = 0; b < adds.length; b += 50) {
+    await apiPost({ action: 'bulkAdd', sheet: 'devo', rows: adds.slice(b, b + 50) });
+  }
+  for (var i = 0; i < ups.length; i++) {
+    await apiPost({ action: 'update', sheet: 'devo', data: ups[i] });
+  }
+  await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': '', '유형': '시리즈묵상', '상태': '완료', '링크': '',
+    '비고': (m['시리즈명'] || '') + ' — 묵상 ' + rows.length + '일 확정 (신규 ' + adds.length + ' · 수정 ' + ups.length + ')' } });
+  S.devoDone = true; saveSeries(); spStatus();
+  toast('묵상집 등록 완료 — 신규 ' + adds.length + '건 · 수정 ' + ups.length + '건. 이제 ② 설교 주제를 요청하세요.');
+  sync();
+}
+
+/* 확정 → 설교마스터 [구상] 업서트 (같은 시리즈·같은 날짜는 수정) */
+async function confirmSermon(){
+  var S = state.series, m = S.meta || {};
+  var use = S.sermon.weeks.filter(function(w){ return !w.skip; });
+  if (!use.length) { toast('등록할 주일이 없습니다.'); return; }
+  var noTitle = use.filter(function(w){ return !String((w.edit || {})['제목'] || '').trim(); }).length;
+  if (noTitle) { toast('제목이 비어 있는 주가 ' + noTitle + '주 있습니다.'); return; }
+  if (!confirm('주일 설교 ' + use.length + '건을 설교마스터에 [구상] 상태로 등록할까요?\n(같은 시리즈·같은 날짜의 기존 항목은 수정됩니다)')) return;
+  var adds = [], ups = [], no = 0;
+  S.sermon.weeks.forEach(function(w){
+    if (w.skip) return;
+    no++;
+    var ed = w.edit || {};
+    var rec = { '날짜': w['주일'], '예배구분': m['예배구분'] || '대학부', '시리즈': m['시리즈명'] || '',
+      '시리즈순번': String(no), '제목': ed['제목'] || '', '본문': ed['본문'] || '', '상태': '구상',
+      '핵심메시지': ed['핵심메시지'] || '', '대지': ed['대지'] || '' };
+    var ex = state.data.sermons.filter(function(s){ return s['날짜'] === w['주일'] && s['시리즈'] === rec['시리즈']; })[0];
+    if (ex) { rec.ID = ex['ID']; ups.push(rec); } else adds.push(rec);
+  });
+  for (var b = 0; b < adds.length; b += 50) {
+    await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: adds.slice(b, b + 50) });
+  }
+  for (var i = 0; i < ups.length; i++) {
+    await apiPost({ action: 'update', sheet: 'sermons', data: ups[i] });
+  }
+  await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': '', '유형': '시리즈설교', '상태': '완료', '링크': '',
+    '비고': (m['시리즈명'] || '') + ' — 주일 설교 ' + (adds.length + ups.length) + '건 확정 (신규 ' + adds.length + ' · 수정 ' + ups.length + ')' } });
+  S.sermonDone = true; saveSeries(); spStatus();
+  toast('설교마스터 등록 완료 — 신규 ' + adds.length + '건 · 수정 ' + ups.length + '건 [구상]');
+  sync();
+}
 
 /* 완료된 요청 → 산출물 시트 자동 기록 (Cowork가 상태를 '완료'로 바꿔두면 다음 확인 때 반영) */
 async function scanRequests(quiet){
@@ -1547,27 +1821,8 @@ async function scanRequests(quiet){
         await wS.close();
         done++;
       }
-      else if (j['상태'] === '완료' && j['요청유형'] === '시리즈계획' && !j['시트등록']) {
-        /* 시리즈 계획: 묵상목록 → 묵상집, 설교목록 → 설교마스터([구상]) */
-        var dvl = j['묵상목록'] || [];
-        for (var b3 = 0; b3 < dvl.length; b3 += 50) {
-          await apiPost({ action: 'bulkAdd', sheet: 'devo', rows: dvl.slice(b3, b3 + 50) });
-        }
-        var sml = j['설교목록'] || [];
-        for (var b4 = 0; b4 < sml.length; b4 += 50) {
-          await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: sml.slice(b4, b4 + 50) });
-        }
-        await apiPost({ action: 'add', sheet: 'outputs', data: {
-          '설교ID': '', '유형': '시리즈계획', '상태': '완료', '링크': '',
-          '비고': ((j['계획'] || {})['시리즈명'] || '') + ' — 묵상 ' + dvl.length + '일 · 설교 ' + sml.length + '회 / 요청: ' + entry.name
-        }});
-        j['시트등록'] = true; j['산출물기록'] = true;
-        var wP = await entry.createWritable();
-        await wP.write(new Blob([JSON.stringify(j, null, 1)], { type: 'application/json' }));
-        await wP.close();
-        done += dvl.length + sml.length;
-      }
-      else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && j['요청유형'] !== '설교요약' && !j['산출물기록']) {
+      /* 시리즈묵상·시리즈설교 완료 파일은 시리즈 계획 탭에서 검토·확정 후 앱이 등록 — 여기서는 손대지 않음 */
+      else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && j['요청유형'] !== '설교요약' && j['요청유형'] !== '시리즈묵상' && j['요청유형'] !== '시리즈설교' && !j['산출물기록']) {
         await apiPost({ action: 'add', sheet: 'outputs', data: {
           '설교ID': (j['설교'] || {})['ID'] || '', '유형': j['요청유형'], '상태': '완료',
           '링크': '', '비고': (j['결과파일'] ? '결과: ' + j['결과파일'] + ' / ' : '') + '요청: ' + entry.name
@@ -1638,7 +1893,8 @@ async function renderOutputs(){
       pend2.sort(function(a, b){ return b.m - a.m; });
       reqHtml = pend2.map(function(p){
         var fin = p.st === '완료';
-        var chk = p.sid ? '<button class="btn sub" style="margin-left:auto;flex:0 0 auto;width:auto;min-width:96px;padding:8px 14px" onclick="showPage(\'search\');openDetail(\'sermon\',\'' + esc(p.sid) + '\')">확인하기</button>' : '';
+        var chk = p.sid ? '<button class="btn sub" style="margin-left:auto;flex:0 0 auto;width:auto;min-width:96px;padding:8px 14px" onclick="showPage(\'search\');openDetail(\'sermon\',\'' + esc(p.sid) + '\')">확인하기</button>' :
+          (/^시리즈/.test(p.t) && fin ? '<button class="btn sub" style="margin-left:auto;flex:0 0 auto;width:auto;min-width:96px;padding:8px 14px" onclick="showPage(\'series\');spCheck()">확인하기</button>' : '');
         return '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px;border-left:3px solid ' + (fin ? '#2d6da8;background:rgba(45,109,168,.08)' : '#b8860b;background:rgba(184,134,11,.08)') + '">' +
           '<div style="flex:1 1 auto;min-width:0">' +
           '<div class="meta"><span class="badge" style="' + (fin ? 'background:#16324a;color:#7fc4ff">✓ 작업완료' : 'background:#43320e;color:#ffc24d">▲ 작업대기중') + '</span><span>' + esc(p.t) + '</span>' + (p.st === '진행중' ? '<span class="badge b-state">진행중</span>' : '') + '</div>' +
@@ -1970,6 +2226,7 @@ function showPage(name){
   if (name === 'input') $('#ideaContent').focus();
   if (name === 'outputs') renderOutputs();
   if (name === 'devo') renderDevo();
+  if (name === 'series') { spStatus(); spPreview(); renderSeriesPane(); }
 }
 window.showPage = showPage;
 $$('.tabbar button, .sidebar .nav').forEach(function(b){
@@ -2022,7 +2279,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v32';
+var APP_VER = 'v33';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -2048,6 +2305,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  idbGet('series').then(function(s){
+    if (s) { state.series = s; if (s.meta) { spFillInputs(s.meta); spPreview(); } }
+    spStatus();
+  }).catch(function(){ spStatus(); });
   idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
   idbGet('dirx').then(function(h){ if (h) { xHandle = h; renderDirState(); scanRequests(true); setInterval(function(){ scanRequests(true); }, 60000); } }).catch(function(){});
   idbGet('data').then(function(d){
