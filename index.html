@@ -1480,11 +1480,26 @@ function spPreview(){
 $('#sp_start').addEventListener('change', spPreview);
 $('#sp_end').addEventListener('change', spPreview);
 
+/* 단계 표시: 미요청 → 초안 → 확정 (요청·결과 도착·검토·등록 상태를 버튼 색과 동일 기준으로 반영) */
+function spStageHtml(type, drafted, doneFlag, detail){
+  var st = spBtnState(type, doneFlag); /* '' | req | fin | done */
+  var stage = st === 'req' ? 1 : st === 'done' ? 2 : (st === 'fin' || drafted) ? 1 : 0;
+  var cur;
+  if (stage === 0) cur = { c: 'var(--dim)', suf: '' };
+  else if (stage === 2) cur = { c: '#8fe6b0', suf: ' ✓ 등록' + detail };
+  else if (st === 'req') cur = { c: '#ffc24d', suf: ' ▲ 처리 대기' };
+  else if (drafted) cur = { c: '#7fc4ff', suf: ' ✓ 검토 중' + detail };
+  else cur = { c: '#7fc4ff', suf: ' ✓ 도착 — [요청 결과]로 확인' };
+  return ['미요청', '초안', '확정'].map(function(n, i){
+    return i === stage ? '<b style="color:' + cur.c + '">' + n + cur.suf + '</b>'
+      : '<span style="color:var(--dim)">' + n + '</span>';
+  }).join(' <span style="color:var(--dim)">→</span> ');
+}
 function spStatus(){
   var S = state.series;
-  var t1 = !S.devo ? '미요청' : S.devoDone ? '확정·등록 완료 (' + S.devo.rows.length + '일)' : '초안 검토 중 (' + S.devo.rows.length + '일)';
-  var t2 = !S.sermon ? '미요청' : S.sermonDone ? '확정·등록 완료' : '선택지 검토 중 (' + S.sermon.weeks.length + '주)';
-  $('#sp_status').innerHTML = '① 묵상일정: <b style="color:var(--accent)">' + t1 + '</b><br>② 설교계획: <b style="color:var(--accent2)">' + t2 + '</b>';
+  $('#sp_status').innerHTML =
+    '① 묵상일정: ' + spStageHtml('시리즈묵상', !!S.devo, S.devoDone, S.devo ? ' (' + S.devo.rows.length + '일)' : '') + '<br>' +
+    '② 설교계획: ' + spStageHtml('시리즈설교', !!S.sermon, S.sermonDone, S.sermon ? ' (' + S.sermon.weeks.length + '주)' : '');
   $('#sp_reqSermon').disabled = !S.devoDone;
   refreshSeriesBtns();
 }
@@ -2370,7 +2385,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v35';
+var APP_VER = 'v36';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
