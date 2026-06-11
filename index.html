@@ -59,6 +59,11 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 #seriesMeta .btn .ck{font-size:14px}
 .btn .inbtn{flex:0 0 auto;margin-left:auto;background:rgba(0,0,0,.28);border:1px solid currentColor;border-radius:8px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer}
 .btn .inbtn:hover{background:rgba(0,0,0,.45)}
+/* 아웃풋 날짜 그룹 */
+.ogrp{margin-bottom:6px}
+.ogrp>summary{cursor:pointer;font-size:14px;font-weight:700;padding:10px 6px;color:var(--text)}
+.ogrp>summary .gcnt{color:var(--dim);font-weight:400;font-size:12.5px;margin-left:7px}
+.ogrp[open]>summary{color:var(--accent)}
 /* 시리즈 단계 타임라인 */
 .tl{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:12px}
 .tlnode{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 13px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--dim)}
@@ -2258,10 +2263,9 @@ async function renderOutputs(){
     items.sort(function(a, b){ return b.m - a.m; });
     _outFiles = items;
     /* 작업대기중 요청도 함께 표시 */
-    var reqHtml = '';
+    var reqCards = [], pend2 = [];
     try {
       var rdir = await xHandle.getDirectoryHandle('_claude_요청함');
-      var pend2 = [];
       for await (var e2 of rdir.values()) {
         if (e2.kind !== 'file' || !/\.json$/i.test(e2.name)) continue;
         var f2 = await e2.getFile();
@@ -2275,7 +2279,7 @@ async function renderOutputs(){
         function z(n){ return ('0' + n).slice(-2); }
         return z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
       }
-      reqHtml = pend2.map(function(p){
+      reqCards = pend2.map(function(p){
         var fin = p.st === '완료';
         var times = '<span>요청 ' + esc(p.rq ? p.rq.slice(5) : fdt(p.m)) + '</span>' + (fin ? '<span>완료 ' + fdt(p.m) + '</span>' : '');
         /* 완료 + 결과함에 결과 파일이 있으면 바로 내려받기 */
@@ -2291,17 +2295,36 @@ async function renderOutputs(){
           '<div class="title" style="font-size:13.5px">' + esc(p.title) + '</div>' +
           (fin ? '' : '<div class="snippet">코워크 창에 "요청함 처리해줘"를 입력해 주세요</div>') +
           '</div>' + chk + '</div>';
-      }).join('');
+      });
     } catch (e) {}
-    if (!items.length && !reqHtml) { box.innerHTML = '<div class="empty">아직 결과 파일이 없습니다.</div>'; return; }
-    box.innerHTML = reqHtml + items.map(function(it, i){
+    /* 날짜별 그룹: 요청 카드 + 결과 파일을 함께 묶고, 오늘 그룹만 기본 펼침 */
+    var entries = [];
+    pend2.forEach(function(p, k){ entries.push({ m: p.m, h: reqCards[k] }); });
+    items.forEach(function(it, i){
       var d = new Date(it.m);
       function p2(n){ return ('0' + n).slice(-2); }
-      return '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px;border-left:3px solid #2e7d4f">' +
+      entries.push({ m: it.m, h: '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px;border-left:3px solid #2e7d4f">' +
         '<div style="flex:1;min-width:0"><div class="title" style="font-size:14px;word-break:break-all">' + esc(it.name) + '</div>' +
         '<div class="snippet">' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) +
         ' · ' + (it.size > 1048576 ? (it.size / 1048576).toFixed(1) + 'MB' : Math.round(it.size / 1024) + 'KB') + '</div></div>' +
-        '<button class="btn sub" style="width:auto;flex:0 0 auto;padding:9px 14px;font-size:13px" onclick="dlOutput(' + i + ')">내려받기</button></div>';
+        '<button class="btn sub" style="width:auto;flex:0 0 auto;padding:9px 14px;font-size:13px" onclick="dlOutput(' + i + ')">내려받기</button></div>' });
+    });
+    if (!entries.length) { box.innerHTML = '<div class="empty">아직 결과 파일이 없습니다.</div>'; return; }
+    entries.sort(function(a, b){ return b.m - a.m; });
+    function z2(n){ return ('0' + n).slice(-2); }
+    function dkey(ms){ var d = new Date(ms); return d.getFullYear() + '-' + z2(d.getMonth() + 1) + '-' + z2(d.getDate()); }
+    var groups = {}, order = [];
+    entries.forEach(function(e){
+      var k = dkey(e.m);
+      if (!groups[k]) { groups[k] = []; order.push(k); }
+      groups[k].push(e.h);
+    });
+    var today = dkey(Date.now());
+    var GW = ['일', '월', '화', '수', '목', '금', '토'];
+    box.innerHTML = order.map(function(k){
+      var d = new Date(k + 'T12:00:00');
+      return '<details class="ogrp"' + (k === today ? ' open' : '') + '><summary>' + k + ' (' + GW[d.getDay()] + ')' +
+        (k === today ? ' · 오늘' : '') + '<span class="gcnt">' + groups[k].length + '건</span></summary>' + groups[k].join('') + '</details>';
     }).join('');
   } catch (e) { box.innerHTML = '<div class="empty">결과함을 읽지 못했습니다: ' + esc(e.message) + '</div>'; }
 }
@@ -2672,7 +2695,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v41';
+var APP_VER = 'v42';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
