@@ -303,7 +303,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
           <button class="btn sub mini" data-req="리더스앱업로드"><span>리더스앱<br>업로드용</span></button>
         </div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
-        <button class="linkbtn" id="pickDir">DOCX 저장 폴더 지정</button>
+        <button class="linkbtn" id="pickDir">설교원고(카드원고) 저장 폴더 지정</button>
         <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
         <button class="linkbtn" id="pickLtc">LTC 저장 폴더 지정</button>
         <button class="linkbtn" id="checkInbox">요청함 상태 확인</button>
@@ -453,16 +453,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
       <div class="card desktop-only">
         <label style="margin-top:0">폴더 연결 (Chrome 전용)</label>
         <div class="cnt" id="dirState2"></div>
-        <div class="row2" style="margin-top:8px">
-          <button class="btn sub" id="pickDir2">DOCX 저장 폴더</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px">
+          <button class="btn sub" id="pickDir2">설교원고(카드원고) 저장 폴더</button>
           <button class="btn sub" id="pickX2">클로드 연동 폴더</button>
-        </div>
-        <div class="row2" style="margin-top:8px">
           <button class="btn sub" id="pickLtc2">LTC 저장 폴더</button>
-          <span></span>
         </div>
         <div class="cnt" style="margin-top:6px">LTC 저장 폴더는 "06 양육훈련 프로그램/LTC"를 지정하세요 — 교재·리더스앱 파일이 본문의 성경 책 폴더(없으면 자동 생성)에 저장됩니다.</div>
-        <div class="cnt" style="margin-top:8px">DOCX 저장 폴더는 아이클라우드 설교 폴더, 클로드 연동 폴더는 코워크 작업 폴더(예: Developer/claude-exchange)를 지정하세요.</div>
+        <div class="cnt" style="margin-top:8px">설교원고(카드원고) 저장 폴더는 아이클라우드 설교 폴더, 클로드 연동 폴더는 코워크 작업 폴더(예: Developer/claude-exchange)를 지정하세요.</div>
       </div>
     </section>
   </div>
@@ -788,7 +785,7 @@ function openDetail(kind, id){
       doneList.map(function(t){ return esc(t) + ' ✓'; }).join(' · ') + '</span></div>';
     html += '<div class="toolrow desktop-only">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">새버전으로 수정</button>' +
-      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
+      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">원고 전문 DOCX 내보내기</button></div>';
     state.detailId = s['ID'];
     function reqBtnRow(types){
       return '<div class="toolrow desktop-only">' + types.map(function(t){
@@ -1283,7 +1280,7 @@ var xHandle = null;    /* 클로드 연동: 요청함·결과함 (Dropbox) */
 var ltcHandle = null;  /* LTC교재·리더스앱 저장 (06 양육훈련 프로그램/LTC — 책별 폴더) */
 function dirStateText(){
   if (!window.showDirectoryPicker) return '이 브라우저는 폴더 연결을 지원하지 않습니다. DOCX는 다운로드로 저장됩니다. (Chrome 권장)';
-  return 'DOCX 저장: ' + (dirHandle ? dirHandle.name : '미지정(다운로드 폴더 사용)') +
+  return '설교원고(카드원고) 저장: ' + (dirHandle ? dirHandle.name : '미지정(다운로드 폴더 사용)') +
     ' · 클로드 연동: ' + (xHandle ? xHandle.name : '미지정') +
     ' · LTC: ' + (ltcHandle ? ltcHandle.name : '미지정(설교 폴더 사용)');
 }
@@ -1299,7 +1296,7 @@ function pickFolder(key, label, assign){
     renderDirState(); toast(label + ' 지정: ' + h.name);
   }).catch(function(){});
 }
-function pickDir(){ pickFolder('dir', 'DOCX 저장 폴더', function(h){ dirHandle = h; }); }
+function pickDir(){ pickFolder('dir', '설교원고(카드원고) 저장 폴더', function(h){ dirHandle = h; }); }
 function pickX(){ pickFolder('dirx', '클로드 연동 폴더', function(h){ xHandle = h; }); }
 function pickLtc(){ pickFolder('dirltc', 'LTC 저장 폴더', function(h){ ltcHandle = h; state.assets = {}; }); }
 $('#pickDir').addEventListener('click', pickDir);
