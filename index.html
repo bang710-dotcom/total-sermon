@@ -962,9 +962,84 @@ $('#addPoint').addEventListener('click', function(){
   state.compose.points.push(newPoint());
   renderPoints(); renderEditor();
 });
+/* 자유원고 텍스트 → 구조(서론/대지 내용·예화·적용/결론) 역파싱
+   assembleText의 규칙(번호 대지, ex), (적용), "말씀을 정리합니다")을 그대로 되돌린다 */
+function parseFreeToStructure(){
+  var c = state.compose;
+  var txt = String(c.free || '').replace(/\r/g, '');
+  if (!txt.trim()) return false;
+  var lines = txt.split('\n');
+  var headIdx = [];
+  lines.forEach(function(l, i){ if (/^\s*\d+\s*[.)]\s/.test(l)) headIdx.push(i); });
+  if (!headIdx.length) { c.intro = txt.trim(); return true; }
+  var concIdx = -1;
+  for (var ci = headIdx[0] + 1; ci < lines.length; ci++) {
+    if (lines[ci].indexOf('말씀을 정리') >= 0) { concIdx = ci; break; }
+  }
+  var endBody = concIdx >= 0 ? concIdx : lines.length;
+  var heads = headIdx.filter(function(i){ return i < endBody; });
+  if (!heads.length) { c.intro = txt.trim(); return true; }
+  c.intro = lines.slice(0, heads[0]).join('\n').replace(/\n+$/, '').trim();
+  var pts = [];
+  heads.forEach(function(h, k){
+    var end = k + 1 < heads.length ? heads[k + 1] : endBody;
+    var p = newPoint();
+    p.text = lines[h].replace(/^\s*\d+\s*[.)]\s*/, '').trim();
+    var body = [], illBody = [], apply = [], mode = 'body';
+    for (var i = h + 1; i < end; i++) {
+      var l = lines[i];
+      if (/^\s*(▶|【)/.test(l)) continue; /* 이미지 전환 바 등은 건너뜀 */
+      if (/^\s*ex\)/i.test(l) && !p.ill) { p.ill = l.replace(/^\s*ex\)\s*/i, '').trim(); mode = 'ill'; continue; }
+      var am = l.match(/^\s*\(적용\)\s*(.*)$/);
+      if (am) { mode = 'apply'; if (am[1].trim()) apply.push(am[1]); continue; }
+      (mode === 'body' ? body : mode === 'ill' ? illBody : apply).push(l);
+    }
+    function jt(a){
+      while (a.length && !a[0].trim()) a.shift();
+      while (a.length && !a[a.length - 1].trim()) a.pop();
+      return a.join('\n');
+    }
+    p.body = jt(body); p.illBody = jt(illBody); p.apply = jt(apply);
+    pts.push(p);
+  });
+  if (pts.length) c.points = pts;
+  if (concIdx >= 0) {
+    c.concIntro = lines[concIdx].trim();
+    var concL = [];
+    for (var j = concIdx + 1; j < lines.length; j++) {
+      if (/^\s*\d+\s*[.)]\s/.test(lines[j])) continue; /* 결론의 대지 반복 줄은 자동 생성됨 */
+      concL.push(lines[j]);
+    }
+    while (concL.length && !concL[0].trim()) concL.shift();
+    while (concL.length && !concL[concL.length - 1].trim()) concL.pop();
+    var msg = $('#c_msg').value.trim();
+    if (msg && concL.length && concL[concL.length - 1].trim() === msg) {
+      concL.pop(); /* 핵심메시지 줄은 자동 생성됨 */
+      while (concL.length && !concL[concL.length - 1].trim()) concL.pop();
+    }
+    c.concBody = concL.join('\n');
+  }
+  return true;
+}
 $$('#c_style .chip').forEach(function(ch){
   ch.addEventListener('click', function(){
-    state.compose.style = ch.dataset.v;
+    var from = state.compose.style;
+    var to = ch.dataset.v;
+    state.compose.style = to;
+    var c = state.compose;
+    if (from === '자유원고' && to !== '자유원고') {
+      /* 구조 칸이 비어 있으면 자유원고 내용을 구조로 불러옴 (이전 설교 재편집) */
+      var emptyStruct = !c.intro.trim() && !c.concBody.trim() &&
+        c.points.every(function(p){ return !p.body.trim() && !p.illBody.trim() && !p.apply.trim(); });
+      if (emptyStruct && c.free.trim() && parseFreeToStructure()) {
+        renderPoints();
+        toast('자유원고 내용을 구조에 맞춰 불러왔습니다 — 칸별로 확인·수정하세요.');
+      }
+    } else if (to === '자유원고' && from !== '자유원고' && !c.free.trim()) {
+      /* 반대 방향: 구조 작성분을 자유원고 텍스트로 */
+      var t = assembleText();
+      if (t.trim()) c.free = t;
+    }
     setStyleChips(); renderEditor();
   });
 });
