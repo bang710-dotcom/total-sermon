@@ -971,7 +971,11 @@ function parseFreeToStructure(){
   var lines = txt.split('\n');
   var headIdx = [];
   lines.forEach(function(l, i){ if (/^\s*\d+\s*[.)]\s/.test(l)) headIdx.push(i); });
-  if (!headIdx.length) { c.intro = txt.trim(); return true; }
+  if (!headIdx.length) {
+    if (txt.indexOf('▶') >= 0) return false; /* 카드원고 형식(전환 바) — 구조 해체 불가 */
+    c.intro = txt.trim();
+    return true;
+  }
   var concIdx = -1;
   for (var ci = headIdx[0] + 1; ci < lines.length; ci++) {
     if (lines[ci].indexOf('말씀을 정리') >= 0) { concIdx = ci; break; }
@@ -2807,7 +2811,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v43';
+var APP_VER = 'v44';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
