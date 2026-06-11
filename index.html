@@ -51,10 +51,11 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn:active{opacity:.8}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 0;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
-.btn.mini.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
-.btn.mini.req{background:#43320e;border-color:#b8860b;color:#ffc24d}
-.btn.mini.fin{background:#16324a;border-color:#2d6da8;color:#7fc4ff}
+.btn.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
+.btn.req{background:#43320e;border-color:#b8860b;color:#ffc24d}
+.btn.fin{background:#16324a;border-color:#2d6da8;color:#7fc4ff}
 .btn.mini .ck{flex:0 0 auto;font-size:14px}
+#seriesMeta .btn .ck{margin-left:7px;font-size:14px}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:7px 14px;font-size:13.5px;cursor:pointer;user-select:none}
 .chip.on{background:var(--accent);border-color:var(--accent);color:#0c1020;font-weight:700}
@@ -1483,6 +1484,21 @@ function spStatus(){
   var t2 = !S.sermon ? '미요청' : S.sermonDone ? '확정·등록 완료' : '선택지 검토 중 (' + S.sermon.weeks.length + '주)';
   $('#sp_status').innerHTML = '① 묵상일정: <b style="color:var(--accent)">' + t1 + '</b><br>② 설교계획: <b style="color:var(--accent2)">' + t2 + '</b>';
   $('#sp_reqSermon').disabled = !S.devoDone;
+  refreshSeriesBtns();
+}
+/* 요청 버튼 상태색: 요청됨(주황 ▲) → 작업완료(파랑 ✓) → 검토·확정 등록(초록 ✓) — 다른 요청 버튼과 동일한 흐름 */
+function refreshSeriesBtns(){
+  var S = state.series, sr = state.seriesReqs || {};
+  function apply(btn, type, base, doneFlag){
+    var pend = sr[type];
+    var st = doneFlag ? 'done' : (pend === '완료' ? 'fin' : (pend === '대기' || pend === '진행중') ? 'req' : '');
+    btn.classList.toggle('done', st === 'done');
+    btn.classList.toggle('fin', st === 'fin');
+    btn.classList.toggle('req', st === 'req');
+    btn.innerHTML = '<span>' + base + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '');
+  }
+  apply($('#sp_reqDevo'), '시리즈묵상', '① 묵상 일정 요청', S.devoDone);
+  apply($('#sp_reqSermon'), '시리즈설교', '② 설교 주제 요청', S.sermonDone);
 }
 
 function spWriteReq(type, payload, label){
@@ -1501,6 +1517,8 @@ function spWriteReq(type, payload, label){
   }).then(function(w){
     return w.write(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })).then(function(){ return w.close(); });
   }).then(function(){
+    (state.seriesReqs = state.seriesReqs || {})[type] = '대기';
+    spStatus();
     toast('요청함에 저장: ' + label + ' — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
   }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
 }
@@ -1543,7 +1561,7 @@ async function spCheck(){
     var dir;
     try { dir = await xHandle.getDirectoryHandle('_claude_요청함'); }
     catch (e) { toast('아직 요청함이 없습니다.'); return; }
-    var waiting = 0, working = 0, bestD = null, bestS = null;
+    var waiting = 0, working = 0, bestD = null, bestS = null, sReq = {};
     for await (var entry of dir.values()) {
       if (entry.kind !== 'file' || !/시리즈(묵상|설교)/.test(entry.name) || !/\.json$/i.test(entry.name)) continue;
       var f = await entry.getFile();
@@ -1551,6 +1569,7 @@ async function spCheck(){
       var type = j['요청유형'];
       if (type !== '시리즈묵상' && type !== '시리즈설교') continue;
       if (S.meta && (j['계획'] || {})['시리즈명'] !== S.meta['시리즈명']) continue;
+      if (!sReq[type] || f.lastModified > sReq[type].m) sReq[type] = { m: f.lastModified, st: j['상태'] };
       if (j['상태'] === '대기') { waiting++; continue; }
       if (j['상태'] === '진행중') { working++; continue; }
       if (j['상태'] !== '완료') continue;
@@ -1578,6 +1597,10 @@ async function spCheck(){
         loaded.push('설교 선택지 ' + S.sermon.weeks.length + '주');
       }
     }
+    state.seriesReqs = {
+      '시리즈묵상': sReq['시리즈묵상'] ? sReq['시리즈묵상'].st : '',
+      '시리즈설교': sReq['시리즈설교'] ? sReq['시리즈설교'].st : ''
+    };
     saveSeries(); spStatus(); renderSeriesPane();
     toast(loaded.length ? '불러옴: ' + loaded.join(' · ') :
       (waiting + working ? '아직 처리 전입니다 — 대기 ' + waiting + '건 · 진행중 ' + working + '건. Cowork에 "요청함 처리해줘"라고 말씀하세요' : '새 결과가 없습니다.'));
@@ -1759,11 +1782,19 @@ async function scanRequests(quiet){
     var dir;
     try { dir = await xHandle.getDirectoryHandle('_claude_요청함'); }
     catch (e) { if (!quiet) toast('아직 요청함이 없습니다.'); return; }
-    var done = 0, waiting = 0, working = 0, pend = {};
+    var done = 0, waiting = 0, working = 0, pend = {}, sReq = {};
     for await (var entry of dir.values()) {
       if (entry.kind !== 'file' || !/\.json$/i.test(entry.name)) continue;
+      var fObj = await entry.getFile();
       var j;
-      try { j = JSON.parse(await (await entry.getFile()).text()); } catch (e) { continue; }
+      try { j = JSON.parse(await fObj.text()); } catch (e) { continue; }
+      /* 시리즈 요청 상태 추적 (요청 버튼 색 표시용) */
+      if (j['요청유형'] === '시리즈묵상' || j['요청유형'] === '시리즈설교') {
+        var snm = (state.series && state.series.meta) ? state.series.meta['시리즈명'] : null;
+        if (!snm || (j['계획'] || {})['시리즈명'] === snm) {
+          if (!sReq[j['요청유형']] || fObj.lastModified > sReq[j['요청유형']].m) sReq[j['요청유형']] = { m: fObj.lastModified, st: j['상태'] };
+        }
+      }
       var psid = (j['설교'] || {})['ID'];
       if (psid && (j['상태'] === '대기' || j['상태'] === '진행중' || j['상태'] === '완료')) {
         pend[psid] = pend[psid] || {};
@@ -1835,7 +1866,11 @@ async function scanRequests(quiet){
       }
     }
     state.pendingReqs = pend;
-    refreshReqBtns();
+    state.seriesReqs = {
+      '시리즈묵상': sReq['시리즈묵상'] ? sReq['시리즈묵상'].st : '',
+      '시리즈설교': sReq['시리즈설교'] ? sReq['시리즈설교'].st : ''
+    };
+    refreshReqBtns(); refreshSeriesBtns();
     if (state.detailId && $('#detailPane').classList.contains('open')) openDetail('sermon', state.detailId);
     if (done) { toast('완료된 요청 ' + done + '건을 기록했습니다.'); sync(); }
     else if (!quiet) toast('요청함 — 대기 ' + waiting + '건 · 진행중 ' + working + '건');
@@ -2279,7 +2314,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v33';
+var APP_VER = 'v34';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
