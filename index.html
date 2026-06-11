@@ -1251,10 +1251,10 @@ window.editSermon = function(id){
   c.style = '자유원고';
   c.free = s['원고텍스트'] || '';
   c.sum = s['요약본'] || '';
-  var pts = String(s['대지'] || '').split('\n').map(function(l){ return l.replace(/^\s*\d+\s*[.)]\s*/, '').trim(); }).filter(Boolean);
+  var dj = djParse(String(s['대지'] || ''));
   var ills = String(s['예화'] || '').split(';').map(function(x){ return x.trim(); });
-  c.points = pts.length ? pts.map(function(t, i){ var p = newPoint(); p.text = t; p.ill = ills[i] || ''; return p; }) : [newPoint()];
-  if (!pts.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ var p = newPoint(); p.ill = t; return p; });
+  c.points = dj.length ? dj.map(function(d, i){ var p = newPoint(); p.text = d['문'] || ''; p.body = d['근거'] || ''; p.apply = d['적용'] || ''; p.ill = ills[i] || ''; return p; }) : [newPoint()];
+  if (!dj.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ var p = newPoint(); p.ill = t; return p; });
   state.compose = c;
   /* 요약본이 있으면 곧바로 기본원고 구조(뼈대)로 연다 — 풀텍스트는 [자유원고]·[전체 원고 보기] */
   if (String(c.sum || '').trim() && parseSummaryToStructure()) {
@@ -2549,7 +2549,8 @@ window.slOpenSheet = function(name){
   S.devoDone = true;
   if (serms.length) {
     S.sermon = { m: 0, weeks: serms.map(function(s){ return { '주일': s['날짜'], '주간범위': '', '비고': '', opts: [], sel: -1, skip: false,
-      edit: { '제목': s['제목'], '본문': s['본문'], '핵심메시지': s['핵심메시지'], '대지': s['대지'] } }; }) };
+      edit: { '제목': s['제목'], '본문': s['본문'], '핵심메시지': s['핵심메시지'], '대지': s['대지'],
+        '주제근거': (String(s['비고'] || '').match(/^주제 근거:\s*(.*)$/) || [])[1] || '' } }; }) };
     S.sermonDone = true;
   }
   S.view = 'devo';
@@ -2888,13 +2889,15 @@ function spSermonHtml(){
       return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13.5px' + (w.sel === oi ? ';border-color:var(--accent);background:rgba(124,154,255,.06)' : '') + '">' +
         '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (w.sel === oi ? 'checked' : '') + '>' +
         '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + esc(o['본문'] || '') + '</span>' +
-        '<div style="color:var(--dim);margin:3px 0 0 22px">' + esc(o['핵심메시지'] || '') + '</div>' +
-        '<div style="margin:3px 0 0 22px;white-space:pre-wrap;color:var(--dim);font-size:12.5px">' + esc(o['대지'] || '') + '</div></label>';
+        '<div style="margin:3px 0 0 22px">' + esc(o['핵심메시지'] || '') + '</div>' +
+        (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + esc(o['주제근거']) + '</div>' : '') +
+        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지']) + '</div></label>';
     }).join('');
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
       '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
-      '<label>대지 (한 줄에 하나)</label><textarea class="spS edTa" rows="3" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>';
+      '<label>주제 근거</label><textarea class="spS edTa" rows="2" data-w="' + wi + '" data-f="주제근거">' + esc(ed['주제근거'] || '') + '</textarea>' +
+      '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>';
     return '<div class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '">' + head + opts + edit + '</div>';
   }).join('');
   h += '<div class="toolrow"><button class="btn" id="spSermonConfirm">' + (S.sermonDone ? '수정분 다시 등록 (업서트)' : '설교 계획 확정 → 설교마스터 등록 [구상]') + '</button>' +
@@ -2918,7 +2921,7 @@ $('#seriesPane').addEventListener('change', function(e){
   if (t.type === 'radio' && t.dataset.w != null) {
     var w = state.series.sermon.weeks[+t.dataset.w];
     w.sel = +t.value;
-    w.edit = JSON.parse(JSON.stringify(w.opts[w.sel] || {}));
+    w.edit = optEdit(w.opts[w.sel]);
     saveSeries();
     $$('#spw' + t.dataset.w + ' .spS').forEach(function(el){ el.value = w.edit[el.dataset.f] || ''; });
   } else if (t.classList.contains('spUse')) {
@@ -2992,6 +2995,7 @@ async function confirmSermon(){
     var rec = { '날짜': w['주일'], '예배구분': m['예배구분'] || '대학부', '시리즈': m['시리즈명'] || '',
       '시리즈순번': String(no), '제목': ed['제목'] || '', '본문': ed['본문'] || '', '상태': '구상',
       '핵심메시지': ed['핵심메시지'] || '', '대지': ed['대지'] || '' };
+    if (String(ed['주제근거'] || '').trim()) rec['비고'] = '주제 근거: ' + ed['주제근거'].trim();
     var ex = state.data.sermons.filter(function(s){ return s['날짜'] === w['주일'] && s['시리즈'] === rec['시리즈']; })[0];
     if (ex) { rec.ID = ex['ID']; ups.push(rec); } else adds.push(rec);
   });
@@ -3571,6 +3575,7 @@ function showPage(name){
   if (name === 'outputs') renderOutputs();
   if (name === 'devo') renderDevo();
   if (name === 'series') { state.seriesMode = 'list'; renderSeriesPage(); }
+  if (name === 'occ') renderOccPane();
 }
 window.showPage = showPage;
 $$('.tabbar button, .sidebar .nav').forEach(function(b){
@@ -3623,7 +3628,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v54';
+var APP_VER = 'v55';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -3647,6 +3652,14 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   $('#page-search').classList.add('on');
   $('#smDate').value = new Date().toISOString().slice(0, 10);
   $('#c_date').value = new Date().toISOString().slice(0, 10);
+  $('#occ_date').value = new Date().toISOString().slice(0, 10);
+  idbGet('occDraft').then(function(o){
+    if (!o) return;
+    state.occ = o;
+    if (o.date) $('#occ_date').value = o.date;
+    $('#occ_sit').value = o.sit || '';
+    if (o.opts && o.opts.length) renderOccPane();
+  }).catch(function(){});
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
