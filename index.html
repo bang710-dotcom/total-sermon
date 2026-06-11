@@ -1258,6 +1258,12 @@ $('#c_save').addEventListener('click', function(){
   var data = collectCompose();
   if (!data['제목']) { toast('제목을 입력해 주세요.'); return; }
   if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
+  /* 새버전: 원본과 날짜·제목이 같으면 산출물 파일명이 겹쳐 원본 파일을 덮어쓰게 됨 — 경고 */
+  if (state.versionOf && !state.editing) {
+    var org = findSermon(state.versionOf);
+    if (org && docxFileName(org) === docxFileName(data) &&
+        !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return;
+  }
   var body;
   if (state.editing) {
     data.ID = state.editing;
@@ -3476,7 +3482,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v53';
+var APP_VER = 'v54';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
