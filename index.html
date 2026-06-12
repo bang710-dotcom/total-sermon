@@ -2111,6 +2111,58 @@ function archiveRec(m, w, wi, o){
   };
 }
 
+/* 시트 [보관] 레코드 → S.sermon 복원 (기기 이동 후 이어 작업)
+   반환값: 복원된 주 수(성공) or 0(데이터 없음) */
+function loadSermonFromArchive(S) {
+  var name = (S.meta || {})['시리즈명'];
+  if (!name) return 0;
+  var archived = (state.data.sermons || []).filter(function(s){
+    return s['시리즈'] === name && s['상태'] === '보관';
+  });
+  if (!archived.length) return 0;
+  /* 날짜 오름차순, 같은 날짜 안에선 시리즈순번 오름차순 */
+  archived.sort(function(a, b){
+    if (a['날짜'] < b['날짜']) return -1;
+    if (a['날짜'] > b['날짜']) return 1;
+    return (parseInt(a['시리즈순번'] || '0', 10) - parseInt(b['시리즈순번'] || '0', 10));
+  });
+  var byDate = {}, dates = [];
+  archived.forEach(function(s){
+    var d = s['날짜'];
+    if (!byDate[d]) { byDate[d] = []; dates.push(d); }
+    byDate[d].push(s);
+  });
+  var weeks = dates.map(function(d){
+    var items = byDate[d];
+    var opts = items.map(function(s){
+      var bigo = String(s['비고'] || '');
+      var mRoot = bigo.match(/주제 근거:\s*([^/]+)/);
+      return {
+        '제목': s['제목'] || '', '본문': s['본문'] || '',
+        '핵심메시지': s['핵심메시지'] || '',
+        '주제근거': mRoot ? mRoot[1].trim() : '',
+        '대지': s['대지'] || '',   /* archiveRec이 djSer 문자열로 저장 */
+        _id: s['ID'] || ''
+      };
+    });
+    var mRange = String(items[0]['비고'] || '').match(/주간묵상:\s*(.+)$/);
+    return {
+      '주일': d,
+      '주간범위': mRange ? mRange[1].trim() : '',
+      '비고': '',
+      opts: opts,
+      sel: opts.length ? 0 : -1,
+      skip: !opts.length,
+      edit: optEdit(opts[0])
+    };
+  });
+  S.sermon = { m: 0, weeks: weeks };
+  S.sermonDone = false;
+  S.view = 'sermon';
+  saveSeries();
+  return weeks.length;
+}
+
 /* ── 대지 직렬화·파싱 (문/근거/적용 한 세트) ── */
 function djSer(dj){
   if (!Array.isArray(dj)) return String(dj || '');
@@ -2686,12 +2738,37 @@ function spStageHtml(type, drafted, doneFlag, detail){
 function spStatus(){
   var S = state.series;
   if (!S) return;
+  /* [보관] 복원 배너 — devoDone·sermon 없을 때만 체크 */
+  var archiveBanner = '';
+  if (S.devoDone && !S.sermon) {
+    var _name = (S.meta || {})['시리즈명'];
+    var _hasArc = _name && (state.data.sermons || []).some(function(s){
+      return s['시리즈'] === _name && s['상태'] === '보관';
+    });
+    if (_hasArc) {
+      archiveBanner = '<div style="margin-top:8px;padding:8px 10px;background:rgba(127,196,255,0.12);border:1px solid rgba(127,196,255,0.3);border-radius:6px;display:flex;align-items:center;gap:8px">' +
+        '<span style="color:#7fc4ff;font-size:12px">시트에 보관된 설교 선택지가 있습니다.</span>' +
+        '<button class="btn" style="padding:3px 12px;font-size:12px;flex-shrink:0" onclick="spLoadFromArchive()">선택지 불러오기</button></div>';
+    }
+  }
   $('#sp_status').innerHTML =
     '① 묵상일정: ' + spStageHtml('시리즈묵상', !!S.devo, S.devoDone, S.devo ? ' (' + S.devo.rows.length + '일)' : '') + '<br>' +
-    '② 설교계획: ' + spStageHtml('시리즈설교', !!S.sermon, S.sermonDone, S.sermon ? ' (' + S.sermon.weeks.length + '주)' : '');
+    '② 설교계획: ' + spStageHtml('시리즈설교', !!S.sermon, S.sermonDone, S.sermon ? ' (' + S.sermon.weeks.length + '주)' : '') +
+    archiveBanner;
   $('#sp_reqSermon').disabled = !S.devoDone;
   refreshSeriesBtns();
 }
+window.spLoadFromArchive = function(){
+  var S = state.series;
+  if (!S) return;
+  var n = loadSermonFromArchive(S);
+  if (n) {
+    spStatus(); renderSeriesPane();
+    toast('시트 보관 선택지 ' + n + '주를 불러왔습니다 — 선택·수정 후 확정하세요.');
+  } else {
+    toast('보관된 선택지를 찾을 수 없습니다. 동기화(↻) 후 다시 시도하세요.');
+  }
+};
 function refreshSeriesBtns(){
   var S = state.series || {};
   function apply(btn, type, base, doneFlag){
@@ -3870,7 +3947,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v62';
+var APP_VER = 'v63';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
