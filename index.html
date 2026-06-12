@@ -3294,7 +3294,7 @@ function spSermonHtml(){
       '<b style="font-size:15px">' + (wi + 1) + '주차</b>' +
       '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
-      (!confirmed ? '<button class="btn sub" data-w="' + wi + '" data-act="weekConfirm" onclick="event.stopPropagation()" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
+      (!confirmed ? '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 주 등록</label></div>' +
@@ -4397,6 +4397,13 @@ window.openSeriesDevoPreview = function(){
   var S = state.series;
   if (!S || !S.devo) return;
   openPreview(seriesDevoPreviewHtml(S));
+};
+window.weekConfirmBtn = async function(wi, btn){
+  if (btn.dataset.busy) return;
+  btn.dataset.busy = '1'; var ow = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>확정 중…';
+  try { await confirmSermonWeek(wi); }
+  catch (err) { toast('확정 실패: ' + err.message); }
+  finally { delete btn.dataset.busy; btn.innerHTML = ow; renderSeriesPane(); }
 };
 window.openSeriesSermonPreview = function(){
   var S = state.series;
