@@ -3293,7 +3293,9 @@ function spSermonHtml(){
       (confirmed ? '<span style="font-size:14px;color:var(--accent);flex-shrink:0">✓</span>' : '') +
       '<b style="font-size:15px">' + (wi + 1) + '주차</b>' +
       '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
-      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge + '</summary>';
+      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
+      (!confirmed ? '<button class="btn sub" data-w="' + wi + '" data-act="weekConfirm" onclick="event.stopPropagation()" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
+      '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 주 등록</label></div>' +
       (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">주간 묵상: ' + esc(w['주간범위']) + '</div>' : '') +
