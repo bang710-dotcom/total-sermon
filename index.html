@@ -1500,27 +1500,27 @@ function buildSeriesPlanDocx(D, S){
   var seriesName = m['시리즈명'] || '시리즈';
   var titleText = seriesName + ' 주일설교 계획';
   var FONT = { ascii: '함초롬바탕', eastAsia: '함초롬바탕', hAnsi: '함초롬바탕' };
-  /* 열 너비: 사용자 원본 기준 (단위 mm) 합계 188.2mm, 여백 10mm×2 → 190mm 컨텐츠 영역 */
-  var COL = [12.9, 23.8, 32.7, 91.8, 13.4, 13.4].map(function(v){ return mm2twip(v); });
-  var HDR_BG = '4CAF50';  /* 헤더: 초록 (앱 색상 유지) */
-  var ALT_BG = 'E8F5E9';  /* 짝수 행: 연초록 (앱 색상 유지) */
+  /* 열 너비 (twip) — 사용자 수정본 기준: 회차·주일예배·묵상본문·주제행사·LTC·GBS */
+  var COL = [738, 1323, 2053, 5362, 756, 756];
+  var HDR_BG = '4CAF50';  /* 헤더: 초록 */
+  var ALT_BG = 'E8F5E9';  /* 짝수 행: 연초록 */
+  var PARA_SP = { before: 0, after: 0, line: 276 };
 
-  function mkCell(text, w, opts){
+  /* 단일 문단 셀 */
+  function mkCell(lines, colIdx, opts){
     opts = opts || {};
-    var lines = String(text || '').split('\n');
-    var runs = [];
-    lines.forEach(function(line, i){
-      if (i > 0) runs.push(new D.TextRun({ break: 1 }));
-      runs.push(new D.TextRun({ text: line, font: FONT, size: 24 /* 12pt */,
-        bold: !!opts.bold, color: opts.color || undefined }));
+    var paras = (Array.isArray(lines) ? lines : [lines]).map(function(txt){
+      return new D.Paragraph({
+        alignment: D.AlignmentType.CENTER,
+        spacing: PARA_SP,
+        children: [new D.TextRun({ text: String(txt || ''), font: FONT, size: 24 /* 12pt */,
+          bold: !!opts.bold, color: opts.color || undefined })]
+      });
     });
     var cellOpts = {
-      width: { size: w, type: D.WidthType.DXA },
-      children: [new D.Paragraph({
-        alignment: opts.align || D.AlignmentType.LEFT,
-        spacing: { before: 40, after: 40, line: 276 },
-        children: runs
-      })]
+      width: { size: COL[colIdx], type: D.WidthType.DXA },
+      verticalAlign: D.VerticalAlign ? D.VerticalAlign.CENTER : 'center',
+      children: paras
     };
     if (opts.shading) cellOpts.shading = { fill: opts.shading, type: D.ShadingType.CLEAR, color: 'auto' };
     return new D.TableCell(cellOpts);
@@ -1531,8 +1531,7 @@ function buildSeriesPlanDocx(D, S){
   var headerRow = new D.TableRow({
     tableHeader: true,
     children: headers.map(function(hdr, i){
-      return mkCell(hdr, COL[i], { bold: true, shading: HDR_BG, color: 'FFFFFF',
-        align: D.AlignmentType.CENTER });
+      return mkCell([hdr], i, { bold: true, shading: HDR_BG, color: 'FFFFFF' });
     })
   });
 
@@ -1544,42 +1543,39 @@ function buildSeriesPlanDocx(D, S){
     var src = selO || ed;
     var bg = wi % 2 === 1 ? ALT_BG : 'FFFFFF';
 
-    /* 주제/예배 후 행사 셀 내용 */
-    var themeText = '';
+    /* 주제 셀: 확정 설교는 제목/본문 두 줄, 외부강사·비고는 한 줄, 미확정 빈 칸 */
+    var themeLines;
     if (w.skip) {
-      themeText = String(w['비고'] || '');
+      themeLines = [String(w['비고'] || '')];
     } else if (confirmed) {
-      var t = String(src['제목'] || '');
-      var ref = String(src['본문'] || '');
-      themeText = t + (ref ? '\n(' + ref + ')' : '');
+      var t2 = String(src['제목'] || '');
+      var ref2 = String(src['본문'] || '');
+      themeLines = ref2 ? [t2, '(' + ref2 + ')'] : [t2];
+    } else {
+      themeLines = [''];
     }
 
     rows.push(new D.TableRow({
+      height: { value: 931, rule: D.HeightRule ? D.HeightRule.ATLEAST : 'atLeast' },
       children: [
-        mkCell(String(wi + 1), COL[0], { shading: bg, align: D.AlignmentType.CENTER }),
-        mkCell(fmtKorDate(w['주일']), COL[1], { shading: bg }),
-        mkCell(String(w['주간범위'] || ''), COL[2], { shading: bg }),
-        mkCell(themeText, COL[3], { shading: bg }),
-        mkCell('', COL[4], { shading: bg }),
-        mkCell('', COL[5], { shading: bg })
+        mkCell([String(wi + 1)], 0, { shading: bg }),
+        mkCell([fmtKorDate(w['주일'])], 1, { shading: bg }),
+        mkCell([String(w['주간범위'] || '')], 2, { shading: bg }),
+        mkCell(themeLines, 3, { shading: bg }),
+        mkCell([''], 4, { shading: bg }),
+        mkCell([''], 5, { shading: bg })
       ]
     }));
   });
 
+  var BDR = { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' };
   var table = new D.Table({
-    width: { size: 100, type: D.WidthType.PERCENTAGE },
-    borders: {
-      top:    { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
-      bottom: { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
-      left:   { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
-      right:  { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
-      insideH:{ style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
-      insideV:{ style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' }
-    },
+    width: { size: COL.reduce(function(a,b){return a+b;}, 0), type: D.WidthType.DXA },
+    borders: { top: BDR, bottom: BDR, left: BDR, right: BDR, insideH: BDR, insideV: BDR },
     rows: rows
   });
 
-  var pg = { w: 210, h: 297, t: 10, b: 10, l: 10, r: 10 }; /* 여백 10mm (사용자 원본 기준) */
+  var pg = { w: 210, h: 297, t: 10, b: 10, l: 10, r: 10 };
   return new D.Document({
     styles: { default: { document: { run: { font: FONT, size: 24 } } } },
     sections: [{
@@ -1594,7 +1590,7 @@ function buildSeriesPlanDocx(D, S){
         new D.Paragraph({
           alignment: D.AlignmentType.CENTER,
           spacing: { after: 300, line: 276 },
-          children: [new D.TextRun({ text: titleText, bold: true, size: 48 /* 24pt */, font: FONT })]
+          children: [new D.TextRun({ text: titleText, bold: true, size: 48, font: FONT })]
         }),
         table
       ]
