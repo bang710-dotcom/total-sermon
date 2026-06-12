@@ -1,5 +1,5 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v61';
+var CACHE = 'tsa-v62';
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
