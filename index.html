@@ -2819,7 +2819,13 @@ function renderSeriesPage(){
   }
 }
 function spStageLabel(S){
-  return S.sermonDone ? '설교 확정' : S.sermon ? '설교 검토 중' : S.devoDone ? '묵상 확정' : S.devo ? '묵상 검토 중' : (S.meta ? '계획' : '새 시리즈');
+  if (S.sermon) {
+    var use = (S.sermon.weeks || []).filter(function(w){ return !w.skip; });
+    var conf = use.filter(function(w){ return w.done && w.sig === weekSig(w); }).length;
+    if (conf > 0 || S.sermonDone) return conf + '/' + use.length + ' 확정';
+    return '설교 검토 중';
+  }
+  return S.devoDone ? '묵상 확정' : S.devo ? '묵상 검토 중' : (S.meta ? '계획' : '새 시리즈');
 }
 function renderSeriesList(){
   var box = $('#slItems'), html = '', localNames = {};
@@ -3347,7 +3353,7 @@ function spSermonHtml(){
       '<b style="font-size:15px">' + wSeq(w, wi) + '주차</b>' +
       '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
-      (!confirmed ? '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
+      (!confirmed && !w.skip ? '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 주 등록</label></div>' +
@@ -4486,7 +4492,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v78';
+var APP_VER = 'v79';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
