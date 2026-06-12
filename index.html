@@ -2241,10 +2241,12 @@ async function aiSeriesSermon(){
     }), 32000, aiTick('설교 선택지'));
     var weeks = aiJson(out);
     if (!Array.isArray(weeks) || !weeks.length) throw new Error('응답 형식 오류');
-    S.sermon = { m: Date.now(), weeks: weeks.map(function(w){
+    S.sermon = { m: Date.now(), weeks: weeks.map(function(w, wi){
       var opts = w['선택지'] || [];
+      var sunIdx = (S.meta['주일'] || []).indexOf(w['주일']);
       return { '주일': w['주일'], '주간범위': w['주간범위'] || '', '비고': w['비고'] || '',
         opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
+        '시리즈순번': sunIdx >= 0 ? sunIdx + 1 : wi + 1,
         edit: optEdit(opts[0]) };
     }) };
     S.sermonDone = false; S.view = 'sermon';
@@ -2936,6 +2938,7 @@ window.slOpenSheet = function(name){
         mRange = ((String(weekArcs[0]['비고']||'').match(/주간묵상:\s*(.+)$/) || [])[1]||'').trim();
       var mJeok = (bigo.match(/^주제 근거:\s*(.*?)(?:\s*\/\s*주간묵상:|$)/) || [])[1] || '';
       var w = { '주일': sun, '주간범위': mRange.trim(), '비고': '', opts: opts, sel: -1, skip: false,
+        '시리즈순번': wi + 1,
         edit: conf ? { '제목': conf['제목']||'', '본문': conf['본문']||'',
           '핵심메시지': conf['핵심메시지']||'', '대지': conf['대지']||'', '주제근거': mJeok.trim() } : {} };
       if (conf) {
@@ -3339,7 +3342,7 @@ function spSermonHtml(){
       : (w.done ? ' <span class="badge" style="color:var(--warn)">변경됨·재확정 필요</span>' : '');
     var summary = '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0">' +
       (confirmed ? '<span style="font-size:14px;color:var(--accent);flex-shrink:0">✓</span>' : '') +
-      '<b style="font-size:15px">' + (wi + 1) + '주차</b>' +
+      '<b style="font-size:15px">' + wSeq(w, wi) + '주차</b>' +
       '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
       (!confirmed ? '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
@@ -3515,13 +3518,13 @@ $('#seriesPane').addEventListener('click', async function(e){
     var c = state.compose;
     var hasContent = (c.free || '').trim() || (c.intro || '').trim() ||
       (c.points || []).some(function(p){ return ((p.body || '').trim() || (p.illBody || '').trim()); });
-    if (hasContent && !confirm((wi + 1) + '주차 설교 작성을 시작할까요?\n(현재 작성 중인 내용은 비워집니다)')) return;
+    if (hasContent && !confirm(wSeq(w, wi) + '주차 설교 작성을 시작할까요?\n(현재 작성 중인 내용은 비워집니다)')) return;
     clearCompose();
     /* 날짜·메타 채우기 */
     var setF = function(id, v){ var el = $('#' + id); if (el) el.value = v || ''; };
     setF('c_date', w['주일']); setF('c_service', m['예배구분'] || '대학부');
     setF('c_title', ed['제목']); setF('c_ref', ed['본문']);
-    setF('c_series', m['시리즈명']); setF('c_seriesNo', String(wi + 1));
+    setF('c_series', m['시리즈명']); setF('c_seriesNo', String(wSeq(w, wi)));
     setF('c_msg', ed['핵심메시지']); setF('c_state', '구상');
     /* 대지 → 포인트 구조로 */
     var dj = djParse(String(ed['대지'] || ''));
@@ -3531,7 +3534,7 @@ $('#seriesPane').addEventListener('click', async function(e){
       renderPoints(); renderEditor();
     }
     showPage('compose');
-    toast((wi + 1) + '주차 「' + esc(ed['제목'] || '') + '」 — 새설교 작성을 시작합니다.');
+    toast(wSeq(w, wi) + '주차 「' + esc(ed['제목'] || '') + '」 — 새설교 작성을 시작합니다.');
     return;
   }
   if (e.target.closest('#spDevoPdf')) {
@@ -3580,6 +3583,8 @@ async function confirmDevo(){
 }
 
 /* 확정 → 설교마스터 [구상] 업서트 (같은 시리즈·같은 날짜는 수정) */
+/* 주차 표시 번호 — 시리즈순번 우선, 없으면 wi+1 (건너뛴 주 포함 전체 배열 인덱스) */
+function wSeq(w, wi){ return +(w['시리즈순번']) || (wi + 1); }
 /* 한 주의 현재 상태 서명 — 직전 확정 후 바뀐 게 있는지 비교용 */
 function weekSig(w){
   var ed = w.edit || {};
@@ -3635,9 +3640,9 @@ async function confirmSermonWeek(wi){
   if (!String((w.edit || {})['제목'] || '').trim()) { toast('제목이 비어 있습니다.'); return; }
   var r = await confirmSermonWeeks([wi], false);
   await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': '', '유형': '시리즈설교', '상태': '완료', '링크': '',
-    '비고': (S.meta && S.meta['시리즈명'] || '') + ' — ' + (wi + 1) + '주차 [구상] 확정' } });
+    '비고': (S.meta && S.meta['시리즈명'] || '') + ' — ' + wSeq(w, wi) + '주차 [구상] 확정' } });
   saveSeries(); spStatus();
-  toast((wi + 1) + '주차 확정 완료 — 설교마스터 [구상] 등록' + (r.demote ? ' · 이전 후보 ' + r.demote + '건 보관 전환' : ''));
+  toast(wSeq(w, wi) + '주차 확정 완료 — 설교마스터 [구상] 등록' + (r.demote ? ' · 이전 후보 ' + r.demote + '건 보관 전환' : ''));
   sync();
 }
 
