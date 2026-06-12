@@ -199,6 +199,12 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
   #detailPane.open{display:block;position:fixed;inset:0;z-index:90;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom))}
   .detailClose{display:block;margin-bottom:12px}
 }
+@media print{
+  body>*:not(#prevOv){display:none!important}
+  #prevOv{position:static!important;background:none!important;padding:0!important;overflow:visible!important;display:block!important}
+  #prevBar{display:none!important}
+  #prevPage{box-shadow:none!important;max-width:none!important;width:100%!important;padding:16mm!important;margin:0!important;min-height:0!important}
+}
 </style>
 </head>
 <body>
@@ -1261,9 +1267,9 @@ window.editSermon = function(id){
   state.editing = null;
   state.versionOf = id;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
-  /* 기존 설교는 자유원고로 불러옴 (저장된 원고는 일반 텍스트) */
+  /* 기존 설교는 저장된 원고유형 우선, 없으면 자유원고로 불러옴 */
   var c = newCompose();
-  c.style = '자유원고';
+  c.style = s['원고유형'] || '자유원고';
   c.free = s['원고텍스트'] || '';
   c.sum = s['요약본'] || '';
   var dj = djParse(String(s['대지'] || ''));
@@ -1272,7 +1278,7 @@ window.editSermon = function(id){
   if (!dj.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ var p = newPoint(); p.ill = t; return p; });
   state.compose = c;
   /* 요약본이 있으면 곧바로 기본원고 구조(뼈대)로 연다 — 풀텍스트는 [자유원고]·[전체 원고 보기] */
-  if (String(c.sum || '').trim() && parseSummaryToStructure()) {
+  if (!s['원고유형'] && String(c.sum || '').trim() && parseSummaryToStructure()) {
     c.style = '기본원고';
     toast('요약본을 뼈대로 불러왔습니다 — 풀텍스트는 [자유원고] 또는 결론 아래 [전체 원고 보기]에서.');
   }
@@ -1440,8 +1446,9 @@ function parasFromCompose(meta, c){
 }
 function docxFileName(meta){
   var ymd = (meta['날짜'] || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
-  var name = ymd + ' ' + (meta['예배구분'] ? meta['예배구분'] + '_' : '') + (meta['제목'] || '무제') +
-    (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
+  var type = String(meta['원고유형'] || '').trim();
+  var name = ymd + ' ' + (type ? type + '_' : '') + (meta['예배구분'] ? meta['예배구분'] + '_' : '') +
+    (meta['제목'] || '무제') + (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
   return name.replace(/[\\/:*?"<>|]/g, '_') + '.docx';
 }
 function saveDocxBlob(blob, fname, dateStr){
@@ -4238,6 +4245,119 @@ function renderStats(){
   $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건 · 앱 버전 ' + APP_VER;
   $('#queueStat').textContent = state.queue.length ? '전송 대기 중인 입력: ' + state.queue.length + '건' : '';
 }
+
+/* ===================== 미리보기 (인쇄 미리보기 표준) ===================== */
+function previewSermonText(meta, text){
+  var h = '<div style="text-align:center;margin-bottom:28px">';
+  var sub = [meta['날짜']||'', meta['예배구분']||''].filter(Boolean).join(' · ');
+  if (meta['시리즈']) sub += (sub?'  ':'') + meta['시리즈'] + (meta['시리즈순번']?' '+meta['시리즈순번']:'');
+  if (sub) h += '<div style="font-size:11pt;color:#666;margin-bottom:6px">'+esc(sub)+'</div>';
+  h += '<div style="font-size:20pt;font-weight:bold;line-height:1.4;margin-bottom:6px">「'+esc(meta['제목']||'(제목 없음)')+'」</div>';
+  if (meta['본문']) h += '<div style="font-size:13pt;color:#444">'+esc(meta['본문'])+'</div>';
+  h += '</div><hr style="border:none;border-top:1px solid #ccc;margin:0 0 28px">';
+  if (text) {
+    text.split('\n').forEach(function(line){
+      if (!line.trim()){ h += '<div style="height:10px"></div>'; return; }
+      h += '<div style="margin-bottom:3px">'+esc(line)+'</div>';
+    });
+  }
+  return h;
+}
+function occPreviewHtml(o, date){
+  var h = '<div style="text-align:center;margin-bottom:24px">';
+  if (date) h += '<div style="font-size:11pt;color:#666;margin-bottom:4px">'+esc(date)+' · 상황설교 구상</div>';
+  h += '<div style="font-size:18pt;font-weight:bold;margin:4px 0">「'+esc(o['제목']||'')+'」</div>';
+  if (o['본문']) h += '<div style="font-size:12pt;color:#444">'+esc(o['본문'])+'</div>';
+  h += '</div><hr style="border:none;border-top:1px solid #ccc;margin:0 0 20px">';
+  if (o['핵심메시지']) h += '<div style="font-weight:bold;margin-bottom:16px;font-size:13pt">'+esc(o['핵심메시지'])+'</div>';
+  var dj = Array.isArray(o['대지']) ? o['대지'] : djParse(String(o['대지']||''));
+  dj.forEach(function(d,i){
+    h += '<div style="margin-bottom:16px"><div style="font-weight:bold">'+(i+1)+'. '+esc(d['문']||'')+'</div>';
+    if (d['근거']) h += '<div style="color:#555;margin-left:1.5em;font-size:12pt">근거: '+esc(d['근거'])+'</div>';
+    if (d['적용']) h += '<div style="color:#555;margin-left:1.5em;font-size:12pt">적용: '+esc(d['적용'])+'</div>';
+    h += '</div>';
+  });
+  return h;
+}
+function devoPreviewHtml(e, note){
+  var h = '<div style="text-align:center;margin-bottom:24px">';
+  if (devoState && devoState.date) h += '<div style="font-size:11pt;color:#666;margin-bottom:4px">'+esc(devoState.date)+'</div>';
+  h += '<div style="font-size:18pt;font-weight:bold;margin:4px 0">'+esc(e['제목']||'')+'</div>';
+  if (e['본문범위']) h += '<div style="font-size:12pt;color:#444">'+esc(e['본문범위'])+'</div>';
+  h += '</div><hr style="border:none;border-top:1px solid #ccc;margin:0 0 20px">';
+  function qBlock(label, q, ans){
+    if (!q) return '';
+    return '<div style="margin-bottom:18px"><div style="font-weight:bold;margin-bottom:4px">'+label+'</div>' +
+      '<div style="color:#555;margin-bottom:6px;font-size:12pt">'+esc(q)+'</div>' +
+      (ans ? '<div style="border-left:3px solid #ccc;padding-left:10px">'+esc(ans)+'</div>' : '<div style="color:#bbb;font-size:11pt">작성 전</div>') +
+      '</div>';
+  }
+  h += qBlock('관찰 질문', e['관찰질문'], note['관찰답']);
+  h += qBlock('묵상 질문', e['묵상질문'], note['묵상답']);
+  h += qBlock('적용 질문', e['적용질문'], note['적용답']);
+  if (note['묵상메시지']) h += '<div style="margin-top:20px"><div style="font-weight:bold;margin-bottom:6px">오늘 주신 메시지</div><div>'+esc(note['묵상메시지'])+'</div></div>';
+  return h;
+}
+function seriesDevoPreviewHtml(S){
+  var m = S.meta || {};
+  var h = '<div style="text-align:center;margin-bottom:24px">' +
+    '<div style="font-size:18pt;font-weight:bold">'+esc(m['시리즈명']||'시리즈')+' 묵상 일정</div>' +
+    (m['성경범위'] ? '<div style="font-size:12pt;color:#444;margin-top:4px">'+esc(m['성경범위'])+'</div>' : '') +
+    '</div><hr style="border:none;border-top:1px solid #ccc;margin:0 0 16px">';
+  (S.devo && S.devo.rows||[]).forEach(function(r,i){
+    h += '<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #eee">' +
+      '<div style="font-weight:bold;font-size:13pt">'+esc(r['날짜']||'')+'  '+esc(r['제목']||'')+'</div>' +
+      '<div style="color:#555;font-size:11pt;margin:2px 0">'+esc(r['본문범위']||'')+'</div>' +
+      (r['관찰질문'] ? '<div style="font-size:11pt;color:#666;margin-top:4px">Q1 '+esc(r['관찰질문'])+'</div>' : '') +
+      (r['묵상질문'] ? '<div style="font-size:11pt;color:#666">Q2 '+esc(r['묵상질문'])+'</div>' : '') +
+      (r['적용질문'] ? '<div style="font-size:11pt;color:#666">Q3 '+esc(r['적용질문'])+'</div>' : '') +
+      '</div>';
+  });
+  return h;
+}
+function openPreview(contentHtml, exportFn){
+  closePrev();
+  var ov = document.createElement('div');
+  ov.id = 'prevOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(60,60,60,0.92);overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:16px;-webkit-overflow-scrolling:touch';
+  var bar = '<div id="prevBar" style="width:100%;max-width:720px;display:flex;gap:8px;margin-bottom:12px;position:sticky;top:0;z-index:1;flex-wrap:wrap">' +
+    '<button onclick="closePrev()" style="background:#444;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">× 닫기</button>' +
+    '<button onclick="window.print()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">🖨 인쇄</button>';
+  if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">DOCX 내보내기</button>';
+  bar += '</div>';
+  var page = '<div id="prevPage" style="background:#fff;width:100%;max-width:720px;padding:48px 56px;box-shadow:0 4px 24px rgba(0,0,0,0.5);font-family:\'함초롬바탕\',\'나눔명조\',serif;color:#111;font-size:14pt;line-height:2;word-break:keep-all;min-height:960px">'+contentHtml+'</div>';
+  ov.innerHTML = bar + page;
+  document.body.appendChild(ov);
+  window._pvEx = exportFn || null;
+  document.body.style.overflow = 'hidden';
+}
+function closePrev(){
+  var ov = document.getElementById('prevOv');
+  if (ov) ov.remove();
+  document.body.style.overflow = '';
+  window._pvEx = null;
+}
+window.previewSermon = function(id){
+  var s = findSermon(id);
+  if (!s) return;
+  var text = String(s['원고텍스트'] || s['요약본'] || '');
+  openPreview(previewSermonText(s, text), function(){ exportSermonDocx(id); });
+};
+window.occPreview = function(i){
+  var O = state.occ, o = O.opts[i];
+  if (!o) return;
+  openPreview(occPreviewHtml(o, O.date));
+};
+window.openDevoPreview = function(){
+  var e = devoState.entry, note = devoState.note;
+  if (!e) return;
+  openPreview(devoPreviewHtml(e, note||{}));
+};
+window.openSeriesDevoPreview = function(){
+  var S = state.series;
+  if (!S || !S.devo) return;
+  openPreview(seriesDevoPreviewHtml(S));
+};
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
