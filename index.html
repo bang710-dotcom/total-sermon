@@ -1241,6 +1241,7 @@ function collectCompose(){
   data['대지'] = pts.filter(function(p){ return p.text.trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n');
   data['예화'] = pts.map(function(p){ return p.ill.trim(); }).filter(Boolean).join('; ');
   data['원고텍스트'] = assembleText();
+  data['원고유형'] = state.compose.style || '기본원고';
   return data;
 }
 function clearCompose(){
@@ -2883,6 +2884,13 @@ window.slOpenSheet = function(name){
     S.sermon = { m: 0, weeks: serms.map(function(s){
       var bigo = String(s['비고'] || '');
       var mRange = (bigo.match(/주간묵상:\s*(.+)$/) || [])[1] || '';
+      if (!mRange) {
+        /* v68 이전 확정 레코드 대비: 보관 선택지 비고에서 주간범위 복원 */
+        var arc = (state.data.sermons || []).filter(function(a){
+          return a['날짜'] === s['날짜'] && a['시리즈'] === name && a['상태'] === '보관';
+        });
+        if (arc.length) mRange = ((String(arc[0]['비고'] || '').match(/주간묵상:\s*(.+)$/) || [])[1] || '').trim();
+      }
       var mJeok = (bigo.match(/^주제 근거:\s*(.*?)(?:\s*\/\s*주간묵상:|$)/) || [])[1] || '';
       var w = { '주일': s['날짜'], '주간범위': mRange.trim(), '비고': '', opts: [], sel: -1, skip: false,
         edit: { '제목': s['제목'], '본문': s['본문'], '핵심메시지': s['핵심메시지'], '대지': s['대지'],
