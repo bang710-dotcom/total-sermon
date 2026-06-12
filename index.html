@@ -2013,7 +2013,7 @@ async function aiSeriesSermon(){
     var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
     var out = await callClaude(P_SERMON, JSON.stringify({
       '시리즈명': S.meta['시리즈명'], '요청사항': S.meta['요청사항'], '주일': S.meta['주일'], '묵상확정': rows
-    }), 14000, aiTick('설교 선택지'));
+    }), 32000, aiTick('설교 선택지'));
     var weeks = aiJson(out);
     if (!Array.isArray(weeks) || !weeks.length) throw new Error('응답 형식 오류');
     S.sermon = { m: Date.now(), weeks: weeks.map(function(w){
@@ -3628,7 +3628,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v55';
+var APP_VER = 'v56';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
