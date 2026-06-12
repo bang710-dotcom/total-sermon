@@ -3198,6 +3198,48 @@ $('#seriesPane').addEventListener('click', async function(e){
     finally { delete wc.dataset.busy; wc.innerHTML = ow; renderSeriesPane(); } /* 재렌더 시 다음 미확정 주차가 자동으로 열림 */
     return;
   }
+  /* 설교주제 다시 선택 */
+  var wr = e.target.closest('[data-act="weekReselect"]');
+  if (wr) {
+    var wi = +wr.dataset.w, w = (state.series.sermon.weeks || [])[wi];
+    if (w) { w.done = false; w.sig = ''; saveSeries(); renderSeriesPane(); }
+    return;
+  }
+  /* 이 주차 접기 */
+  var wk = e.target.closest('[data-act="weekCollapse"]');
+  if (wk) {
+    var el = document.getElementById('spw' + wk.dataset.w);
+    if (el) el.open = false;
+    return;
+  }
+  /* 이 주제로 작성하기 */
+  var wg = e.target.closest('[data-act="weekGotoCompose"]');
+  if (wg) {
+    var wi = +wg.dataset.w, S = state.series, m = S.meta || {};
+    var w = (S.sermon.weeks || [])[wi]; if (!w) return;
+    var ed = w.edit || {};
+    var c = state.compose;
+    var hasContent = (c.free || '').trim() || (c.intro || '').trim() ||
+      (c.points || []).some(function(p){ return ((p.body || '').trim() || (p.illBody || '').trim()); });
+    if (hasContent && !confirm((wi + 1) + '주차 설교 작성을 시작할까요?\n(현재 작성 중인 내용은 비워집니다)')) return;
+    clearCompose();
+    /* 날짜·메타 채우기 */
+    var setF = function(id, v){ var el = $('#' + id); if (el) el.value = v || ''; };
+    setF('c_date', w['주일']); setF('c_service', m['예배구분'] || '대학부');
+    setF('c_title', ed['제목']); setF('c_ref', ed['본문']);
+    setF('c_series', m['시리즈명']); setF('c_seriesNo', String(wi + 1));
+    setF('c_msg', ed['핵심메시지']); setF('c_state', '구상');
+    /* 대지 → 포인트 구조로 */
+    var dj = djParse(String(ed['대지'] || ''));
+    if (dj.length) {
+      var nc = state.compose;
+      nc.points = dj.map(function(d){ var p = newPoint(); p.text = d['문'] || ''; p.body = d['근거'] || ''; p.apply = d['적용'] || ''; return p; });
+      renderPoints(); renderEditor();
+    }
+    showPage('compose');
+    toast((wi + 1) + '주차 「' + esc(ed['제목'] || '') + '」 — 새설교 작성을 시작합니다.');
+    return;
+  }
   if (e.target.closest('#spDevoPdf')) {
     if (e.target.closest('.inbtn')) spPdfDownload();
     else spReqPdf();
@@ -3990,7 +4032,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v64';
+var APP_VER = 'v65';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
