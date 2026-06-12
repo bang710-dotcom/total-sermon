@@ -2936,8 +2936,16 @@ function spSermonHtml(){
     '<div class="cnt" style="margin-top:4px">주일마다 선택지 하나를 고르고 아래 칸에서 다듬은 뒤 확정하세요. 제외할 주일은 "등록" 체크를 해제합니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
   h += S.sermon.weeks.map(function(w, wi){
     var ed = w.edit || {};
-    var head = '<div style="display:flex;align-items:center;gap:10px"><b style="font-size:15.5px">' + (wi + 1) + '주차 — ' + esc(w['주일']) + ' (주일)</b>' +
-      '<label style="margin:0 0 0 auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 등록</label></div>' +
+    var selO = (w.sel >= 0 && w.opts) ? w.opts[w.sel] : null;
+    var sumTitle = w.skip ? '제외됨' : esc(ed['제목'] || (selO && selO['제목']) || '미선택');
+    var badge = w.skip ? '' : (w.done && w.sig === weekSig(w)) ? ' <span class="badge b-state">확정됨</span>'
+      : (w.done ? ' <span class="badge" style="color:var(--warn)">변경됨·재확정 필요</span>' : '');
+    var summary = '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0">' +
+      '<b style="font-size:15px">' + (wi + 1) + '주차</b>' +
+      '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
+      '<span style="color:var(--accent2);font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge + '</summary>';
+    var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 주 등록</label></div>' +
       (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">주간 묵상: ' + esc(w['주간범위']) + '</div>' : '') +
       (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
     var opts = (w.opts || []).map(function(o, oi){
@@ -2953,9 +2961,10 @@ function spSermonHtml(){
       '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
       '<label>주제 근거</label><textarea class="spS edTa" rows="2" data-w="' + wi + '" data-f="주제근거">' + esc(ed['주제근거'] || '') + '</textarea>' +
       '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>';
-    return '<div class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '">' + head + opts + edit + '</div>';
+    var wConfirm = '<div class="toolrow" style="margin-top:8px"><button class="btn sub" data-w="' + wi + '" data-act="weekConfirm" style="width:auto">이 주 설교계획 확정 →</button></div>';
+    return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === 0 ? ' open' : '') + '>' + summary + head + opts + edit + wConfirm + '</details>';
   }).join('');
-  h += '<div class="toolrow"><button class="btn" id="spSermonConfirm">' + (S.sermonDone ? '수정분 다시 등록 (업서트)' : '설교 계획 확정 → 설교마스터 등록 [구상]') + '</button>' +
+  h += '<div class="toolrow"><button class="btn" id="spSermonConfirm">선택된 항목으로 전체 확정</button>' +
     '<button class="btn sub" id="spSermonArchive" style="flex:0 0 auto;width:auto">선택지 시트에 보관</button>' +
     '<button class="btn sub" id="spSermonRedo" style="flex:0 0 auto;width:auto">재작업 요청</button></div>';
   return h;
@@ -2999,6 +3008,16 @@ $('#seriesPane').addEventListener('click', async function(e){
       toast(n ? (n + '개 선택지를 시트에 보관했습니다 — [미래설교 보관함]에서 확인하세요.') : '보관할 새 선택지가 없습니다(이미 저장됨이거나 시트 설정 필요).');
     } catch (err) { toast('보관 실패: ' + err.message); }
     finally { delete ar.dataset.busy; ar.innerHTML = oa; }
+    return;
+  }
+  var wc = e.target.closest('[data-act="weekConfirm"]');
+  if (wc) {
+    if (wc.dataset.busy) return;
+    var wi = +wc.dataset.w;
+    wc.dataset.busy = '1'; var ow = wc.innerHTML; wc.innerHTML = '<span class="spin"></span>확정 중…';
+    try { await confirmSermonWeek(wi); }
+    catch (err) { toast('확정 실패: ' + err.message); }
+    finally { delete wc.dataset.busy; wc.innerHTML = ow; renderSeriesPane(); var d = $('#spw' + wi); if (d) d.open = true; }
     return;
   }
   if (e.target.closest('#spDevoPdf')) {
@@ -3721,23 +3740,24 @@ function renderArchive(){
     return;
   }
   box.innerHTML = list.map(function(s){
-    return '<div class="card" style="margin-bottom:10px">' +
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+    return '<details class="card arItem" style="margin-bottom:8px">' +
+      '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
         '<b style="font-size:15px">' + esc(s['제목'] || '(제목 없음)') + '</b>' +
         (s['본문'] ? '<span style="color:var(--accent2)">' + esc(s['본문']) + '</span>' : '') +
-        (s['시리즈'] ? '<span class="badge">' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '주' : '') + '</span>' : '') +
         (s['날짜'] ? '<span class="cnt" style="margin-left:auto">' + esc(s['날짜']) + '</span>' : '') +
-      '</div>' +
-      (s['핵심메시지'] ? '<div style="margin-top:5px">' + esc(s['핵심메시지']) + '</div>' : '') +
-      '<details style="margin-top:5px"><summary style="font-size:12px;color:var(--dim)">대지·근거 보기</summary>' +
-        '<div style="margin-top:4px;font-size:13px">' + djHtml(s['대지'] || '') + '</div>' +
+      '</summary>' +
+      '<div style="margin-top:8px">' +
+        (s['시리즈'] ? '<div class="cnt" style="margin-bottom:4px">' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '주차' : '') + '</div>' : '') +
+        (s['핵심메시지'] ? '<div style="margin-bottom:5px">' + esc(s['핵심메시지']) + '</div>' : '') +
+        '<div style="font-size:13px">' + djHtml(s['대지'] || '') + '</div>' +
         (s['비고'] ? '<div class="cnt" style="margin-top:4px">' + esc(s['비고']) + '</div>' : '') +
-      '</details>' +
-      '<div class="toolrow" style="margin-top:8px">' +
-        '<button class="btn" onclick="archiveCompose(\'' + esc(s['ID']) + '\')">이 개요로 새설교 작성</button>' +
-        '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archivePromote(\'' + esc(s['ID']) + '\')">[구상]으로 승격</button>' +
-        '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archiveDelete(\'' + esc(s['ID']) + '\')">삭제</button>' +
-      '</div></div>';
+        '<div class="toolrow" style="margin-top:8px">' +
+          '<button class="btn" onclick="archiveCompose(\'' + esc(s['ID']) + '\')">이 개요로 새설교 작성</button>' +
+          '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archivePromote(\'' + esc(s['ID']) + '\')">[구상]으로 승격</button>' +
+          '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archiveDelete(\'' + esc(s['ID']) + '\')">삭제</button>' +
+        '</div>' +
+      '</div>' +
+    '</details>';
   }).join('');
 }
 window.archiveCompose = function(id){ editSermon(id); };
