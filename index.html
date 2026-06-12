@@ -2040,8 +2040,13 @@ async function aiSeriesSermon(){
     state.seriesReqs['시리즈설교'] = '';
     saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
     toast('주일 설교 선택지 ' + weeks.length + '주 생성 완료 — 자동 보관 중…');
-    await archiveSeriesOptions(S);
-    toast('생성·보관 완료 — 선택·수정 후 확정하세요. (모든 선택지는 [미래설교 보관함]에서 어느 기기에서나 열람)');
+    try {
+      var an = await archiveSeriesOptions(S);
+      toast(an ? ('생성·보관 완료 (' + an + '개) — 선택·수정 후 확정하세요. [미래설교 보관함]에서 어느 기기에서나 열람')
+        : '생성 완료 — 선택·수정 후 확정하세요.');
+    } catch (ae) {
+      toast('생성은 완료됐으나 자동 보관 실패: ' + ae.message + ' — 아래 [선택지 시트에 보관] 버튼으로 다시 시도하세요.');
+    }
   } catch (e) {
     state.seriesReqs['시리즈설교'] = ''; spStatus(); renderSyncState();
     toast('생성 실패: ' + e.message);
@@ -2051,28 +2056,26 @@ async function aiSeriesSermon(){
 /* 생성 즉시 모든 선택지를 설교마스터에 [보관] 상태로 기록 → 기기 무관 보관·이어작업.
    각 선택지의 시트 행 ID를 opts[*]._id 에 저장해, 확정 시 선택분만 [구상]으로 승격한다. */
 async function archiveSeriesOptions(S){
-  try {
-    if (!(state.settings && state.settings.url && state.settings.token)) return; /* 시트 미설정 시 건너뜀 */
-    var m = S.meta || {}, rows = [], map = [];
-    S.sermon.weeks.forEach(function(w, wi){
-      (w.opts || []).forEach(function(o, oi){
-        if (o._id) return; /* 이미 보관된 선택지(재생성·이어작업)는 건너뜀 */
-        rows.push(archiveRec(m, w, wi, o));
-        map.push([wi, oi]);
-      });
+  if (!(state.settings && state.settings.url && state.settings.token)) return 0; /* 시트 미설정 시 건너뜀 */
+  if (!(S && S.sermon && Array.isArray(S.sermon.weeks))) return 0;
+  var m = S.meta || {}, rows = [], map = [];
+  S.sermon.weeks.forEach(function(w, wi){
+    (w.opts || []).forEach(function(o, oi){
+      if (o._id) return; /* 이미 보관된 선택지(재생성·이어작업)는 건너뜀 */
+      rows.push(archiveRec(m, w, wi, o));
+      map.push([wi, oi]);
     });
-    if (!rows.length) return;
-    var ids = [];
-    for (var b = 0; b < rows.length; b += 50) {
-      var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: rows.slice(b, b + 50) });
-      ids = ids.concat((res && res.ids) || []);
-    }
-    ids.forEach(function(id, k){ var p = map[k]; if (p) S.sermon.weeks[p[0]].opts[p[1]]._id = id; });
-    saveSeries();
-    sync(); /* 보관함·검색 데이터 갱신 (백그라운드) */
-  } catch (e) {
-    toast('자동 보관 실패(생성은 정상): ' + e.message + ' — [확정] 시 다시 시도됩니다.');
+  });
+  if (!rows.length) return 0;
+  var ids = [];
+  for (var b = 0; b < rows.length; b += 50) {
+    var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: rows.slice(b, b + 50) });
+    ids = ids.concat((res && res.ids) || []);
   }
+  ids.forEach(function(id, k){ var p = map[k]; if (p) S.sermon.weeks[p[0]].opts[p[1]]._id = id; });
+  saveSeries();
+  sync(); /* 보관함·검색 데이터 갱신 (백그라운드) */
+  return ids.length || rows.length;
 }
 function archiveRec(m, w, wi, o){
   return {
@@ -2953,6 +2956,7 @@ function spSermonHtml(){
     return '<div class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '">' + head + opts + edit + '</div>';
   }).join('');
   h += '<div class="toolrow"><button class="btn" id="spSermonConfirm">' + (S.sermonDone ? '수정분 다시 등록 (업서트)' : '설교 계획 확정 → 설교마스터 등록 [구상]') + '</button>' +
+    '<button class="btn sub" id="spSermonArchive" style="flex:0 0 auto;width:auto">선택지 시트에 보관</button>' +
     '<button class="btn sub" id="spSermonRedo" style="flex:0 0 auto;width:auto">재작업 요청</button></div>';
   return h;
 }
