@@ -3067,6 +3067,16 @@ function spDevoHtml(){
 
 function spSermonHtml(){
   var S = state.series, m = S.meta || {};
+  /* 수동 입력 확정 경로(요한복음 등): sermonDone=true인데 개별 w.done이 없는 주차 자동 보정 */
+  if (S.sermonDone) {
+    var _needSave = false;
+    S.sermon.weeks.forEach(function(w){
+      if (!w.done && !(w.opts && w.opts.length) && String((w.edit || {})['제목'] || '').trim()) {
+        w.done = true; w.sig = weekSig(w); _needSave = true;
+      }
+    });
+    if (_needSave) saveSeries();
+  }
   var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> — 주일 설교 계획' +
     '<div class="cnt" style="margin-top:4px">주일마다 선택지 하나를 고르고 아래 칸에서 다듬은 뒤 확정하세요. 제외할 주일은 "등록" 체크를 해제합니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
   /* 기본 열림: 확정되지 않은(제외 제외) 가장 빠른 주차. 모두 확정/제외면 1주차 */
@@ -3167,6 +3177,14 @@ $('#seriesPane').addEventListener('change', function(e){
     w.edit = optEdit(w.opts[w.sel]);
     saveSeries();
     $$('#spw' + t.dataset.w + ' .spS').forEach(function(el){ el.value = w.edit[el.dataset.f] || ''; });
+    /* 선택된 카드 즉시 하이라이트 (재렌더 없이 DOM 직접 업데이트) */
+    var det = $('#spw' + t.dataset.w);
+    if (det) det.querySelectorAll('input[type="radio"]').forEach(function(r){
+      var lbl = r.closest('label'); if (!lbl) return;
+      var sel = +r.value === w.sel;
+      lbl.style.borderColor = sel ? 'var(--accent)' : '';
+      lbl.style.background  = sel ? 'rgba(124,154,255,.06)' : '';
+    });
   } else if (t.classList.contains('spUse')) {
     var w2 = state.series.sermon.weeks[+t.dataset.w];
     w2.skip = !t.checked; saveSeries();
@@ -4032,7 +4050,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v65';
+var APP_VER = 'v66';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
