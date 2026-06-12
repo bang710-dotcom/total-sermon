@@ -1992,7 +1992,7 @@ async function aiSeriesDevo(m){
     toast('Opus가 묵상 일정 ' + m['묵상일'].length + '일을 생성합니다 — 1~3분');
     var out = await callClaude(P_DEVO, JSON.stringify({
       '성경범위': m['성경범위'], '시리즈명': m['시리즈명'], '요청사항': m['요청사항'], '묵상일': m['묵상일']
-    }), 16000, aiTick('묵상 일정'));
+    }), 28000, aiTick('묵상 일정'));
     var rows = aiJson(out);
     if (!Array.isArray(rows) || rows.length !== m['묵상일'].length)
       throw new Error('일수 불일치(' + (rows.length || 0) + '/' + m['묵상일'].length + ') — 한 번 더 시도해 주세요.');
@@ -3628,7 +3628,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v56';
+var APP_VER = 'v57';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
