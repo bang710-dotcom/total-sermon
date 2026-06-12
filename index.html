@@ -2695,8 +2695,10 @@ window.slOpenSheet = function(name){
   var start = rows[0]['날짜'], end = rows[rows.length - 1]['날짜'];
   var r = spDates(start, end) || { devoDays: [], sundays: [] };
   var book = String(rows[0]['본문범위'] || '').replace(/\s*\d.*$/, '').trim() || name;
-  var serms = state.data.sermons.filter(function(s){ return s['시리즈'] === name; })
-    .sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
+  /* [보관] 레코드는 선택지 후보 — 확정 설교(구상·완료)만 sermon 재구성에 사용 */
+  var serms = state.data.sermons.filter(function(s){
+    return s['시리즈'] === name && s['상태'] !== '보관';
+  }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
   var S = newSeriesEntry();
   S.meta = { '시리즈명': name, '성경범위': book, '시작일': start, '종료일': end,
     '예배구분': serms.length ? serms[0]['예배구분'] : '대학부', '요청사항': '',
@@ -2738,9 +2740,11 @@ function spStageHtml(type, drafted, doneFlag, detail){
 function spStatus(){
   var S = state.series;
   if (!S) return;
-  /* [보관] 복원 배너 — devoDone·sermon 없을 때만 체크 */
+  /* [보관] 복원 배너 — sermon 없거나 opts 전부 비어있을 때 (slOpenSheet 오류 데이터 포함) */
   var archiveBanner = '';
-  if (S.devoDone && !S.sermon) {
+  var _sermonMissingOpts = S.sermon && S.sermon.weeks.length > 0 &&
+    S.sermon.weeks.every(function(w){ return !w.opts || !w.opts.length; });
+  if (S.devoDone && (!S.sermon || _sermonMissingOpts)) {
     var _name = (S.meta || {})['시리즈명'];
     var _hasArc = _name && (state.data.sermons || []).some(function(s){
       return s['시리즈'] === _name && s['상태'] === '보관';
