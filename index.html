@@ -357,7 +357,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <div id="slItems"></div>
       </div>
       <div id="seriesMeta">
-        <button class="linkbtn" id="sp_back" style="padding:0 0 10px">← 시리즈 목록</button>
+        <div style="display:flex;align-items:center;gap:10px;padding-bottom:10px">
+          <button class="linkbtn" id="sp_back">← 시리즈 목록</button>
+          <button class="linkbtn" id="sp_resync" style="margin-left:auto;color:var(--accent2);font-size:12.5px">↻ 시트에서 재동기화</button>
+        </div>
         <div class="cnt" style="margin-bottom:8px">시리즈 설교 계획 마법사</div>
         <label style="margin-top:0">성경 (책 또는 범위) *</label><input type="text" id="sp_book" placeholder="예: 로마서 / 요한복음 13-21장">
         <label>시리즈명</label><input type="text" id="sp_series" placeholder="비우면 성경 이름으로 자동">
@@ -2871,6 +2874,17 @@ $('#sl_new').addEventListener('click', function(){
 });
 $('#sp_back').addEventListener('click', function(){
   state.seriesMode = 'list'; renderSeriesPage();
+});
+$('#sp_resync').addEventListener('click', function(){
+  var S = state.series, name = S && S.meta && S.meta['시리즈명'];
+  if (!name) { toast('시리즈명이 없습니다.'); return; }
+  var btn = this; btn.textContent = '동기화 중…'; btn.disabled = true;
+  sync().then(function(){
+    slOpenSheet(name);
+  }).catch(function(e){
+    toast('재동기화 실패: ' + e.message);
+    btn.textContent = '↻ 시트에서 재동기화'; btn.disabled = false;
+  });
 });
 /* 시트 기록에서 시리즈 재구성 (수정·재사용)
    보관(선택지) + 구상(확정) 레코드를 통합해 모든 주차를 완전 복원 → 기기 간 이어작업 가능 */
