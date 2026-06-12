@@ -1314,6 +1314,8 @@ $('#c_save').addEventListener('click', function(){
 /* ===================== DOCX 내보내기 ===================== */
 var dirHandle = null;  /* DOCX 저장 (아이클라우드 01 Sermons — 설교 원본·카드원고) */
 var xHandle = null;    /* 클로드 연동: 요청함·결과함 (Dropbox) */
+var _exportState = 'idle'; /* 설교계획 내보내기 상태: idle|busy|done */
+var _exportBlob = null; var _exportFname = '';
 var ltcHandle = null;  /* LTC교재·리더스앱 저장 (06 양육훈련 프로그램/LTC — 책별 폴더) */
 function dirStateText(){
   if (!window.showDirectoryPicker) return '이 브라우저는 폴더 연결을 지원하지 않습니다. DOCX는 다운로드로 저장됩니다. (Chrome 권장)';
@@ -1468,6 +1470,174 @@ function saveDocxBlob(blob, fname, dateStr){
   toast('다운로드 폴더에 저장: ' + fname);
   return Promise.resolve();
 }
+
+/* ── 설교계획 내보내기 버튼 DOM 업데이트 ── */
+function updateExportBtn(){
+  var btn = document.getElementById('spSermonExport');
+  if (!btn) return;
+  if (_exportState === 'busy') {
+    btn.textContent = '▲ 내보내기 요청중';
+    btn.setAttribute('style', 'flex:0 0 auto;width:auto;background:#2563EB;color:#fff;border-color:#2563EB;cursor:default');
+  } else if (_exportState === 'done') {
+    btn.textContent = '✓ 설교계획 다운로드';
+    btn.setAttribute('style', 'flex:0 0 auto;width:auto;background:#16A34A;color:#fff;border-color:#16A34A');
+  } else {
+    btn.textContent = '설교계획 내보내기';
+    btn.setAttribute('style', 'flex:0 0 auto;width:auto');
+  }
+}
+
+/* ── 시리즈 설교계획 DOCX 생성 ── */
+function buildSeriesPlanDocx(D, S){
+  var m = S.meta || {};
+  var seriesName = m['시리즈명'] || '시리즈';
+  var titleText = seriesName + ' 주일설교 계획';
+  var FONT = { ascii: '함초롬바탕', eastAsia: '함초롬바탕', hAnsi: '함초롬바탕' };
+  /* 열 너비 (mm): 회차12 + 주일예배22 + 묵상26 + 주제/행사80 + LTC15 + GBS15 = 170mm */
+  var COL = [12, 22, 26, 80, 15, 15].map(function(v){ return mm2twip(v); });
+  var HDR_BG = '4CAF50';  /* 헤더: 초록 */
+  var ALT_BG = 'E8F5E9';  /* 짝수 행: 연초록 */
+
+  function mkCell(text, w, opts){
+    opts = opts || {};
+    var lines = String(text || '').split('\n');
+    var runs = [];
+    lines.forEach(function(line, i){
+      if (i > 0) runs.push(new D.TextRun({ break: 1 }));
+      runs.push(new D.TextRun({ text: line, font: FONT, size: 18, bold: !!opts.bold,
+        color: opts.color || undefined }));
+    });
+    var cellOpts = {
+      width: { size: w, type: D.WidthType.DXA },
+      children: [new D.Paragraph({
+        alignment: opts.align || D.AlignmentType.LEFT,
+        spacing: { before: 40, after: 40, line: 276 },
+        children: runs
+      })]
+    };
+    if (opts.shading) cellOpts.shading = { fill: opts.shading, type: D.ShadingType.CLEAR, color: 'auto' };
+    return new D.TableCell(cellOpts);
+  }
+
+  /* 헤더 행 */
+  var headers = ['회차', '주일예배', '전주간 묵상 본문', '주제 / 예배 후 행사', 'LTC', 'GBS'];
+  var headerRow = new D.TableRow({
+    tableHeader: true,
+    children: headers.map(function(hdr, i){
+      return mkCell(hdr, COL[i], { bold: true, shading: HDR_BG, color: 'FFFFFF',
+        align: D.AlignmentType.CENTER });
+    })
+  });
+
+  var rows = [headerRow];
+  (S.sermon.weeks || []).forEach(function(w, wi){
+    var ed = w.edit || {};
+    var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
+    var confirmed = !w.skip && w.done && w.sig === weekSig(w);
+    var src = selO || ed;
+    var bg = wi % 2 === 1 ? ALT_BG : 'FFFFFF';
+
+    /* 주제/예배 후 행사 셀 내용 */
+    var themeText = '';
+    if (w.skip) {
+      themeText = String(w['비고'] || '');
+    } else if (confirmed) {
+      var t = String(src['제목'] || '');
+      var ref = String(src['본문'] || '');
+      themeText = t + (ref ? '\n(' + ref + ')' : '');
+    }
+
+    rows.push(new D.TableRow({
+      children: [
+        mkCell(String(wi + 1), COL[0], { shading: bg, align: D.AlignmentType.CENTER }),
+        mkCell(String(w['주일'] || ''), COL[1], { shading: bg }),
+        mkCell(String(w['주간범위'] || ''), COL[2], { shading: bg }),
+        mkCell(themeText, COL[3], { shading: bg }),
+        mkCell('', COL[4], { shading: bg }),
+        mkCell('', COL[5], { shading: bg })
+      ]
+    }));
+  });
+
+  var table = new D.Table({
+    width: { size: 100, type: D.WidthType.PERCENTAGE },
+    borders: {
+      top:    { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
+      bottom: { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
+      left:   { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
+      right:  { style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
+      insideH:{ style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' },
+      insideV:{ style: D.BorderStyle.SINGLE, size: 4, color: '9E9E9E' }
+    },
+    rows: rows
+  });
+
+  var pg = { w: 210, h: 297, t: 20, b: 20, l: 20, r: 20 };
+  return new D.Document({
+    styles: { default: { document: { run: { font: FONT, size: 18 } } } },
+    sections: [{
+      properties: {
+        page: {
+          size: { width: mm2twip(pg.w), height: mm2twip(pg.h) },
+          margin: { top: mm2twip(pg.t), bottom: mm2twip(pg.b),
+                    left: mm2twip(pg.l), right: mm2twip(pg.r), header: 0, footer: 0 }
+        }
+      },
+      children: [
+        new D.Paragraph({
+          alignment: D.AlignmentType.CENTER,
+          spacing: { after: 300, line: 276 },
+          children: [new D.TextRun({ text: titleText, bold: true, size: 36, font: FONT })]
+        }),
+        table
+      ]
+    }]
+  });
+}
+
+/* ── 설교계획 내보내기 실행 ── */
+async function exportSeriesPlan(){
+  /* done 상태: 다운로드 */
+  if (_exportState === 'done' && _exportBlob) {
+    var a2 = document.createElement('a');
+    a2.href = URL.createObjectURL(_exportBlob);
+    a2.download = _exportFname;
+    a2.click();
+    setTimeout(function(){ URL.revokeObjectURL(a2.href); }, 4000);
+    return;
+  }
+  if (_exportState === 'busy') return;
+  _exportState = 'busy'; updateExportBtn();
+  try {
+    var D = await ensureDocxLib();
+    var S = state.series;
+    var doc = buildSeriesPlanDocx(D, S);
+    var blob = await D.Packer.toBlob(doc);
+    var sname = String((S.meta || {})['시리즈명'] || '시리즈').replace(/[\\/:*?"<>|]/g, '_');
+    var fname = sname + '_주일설교계획.docx';
+    _exportBlob = blob; _exportFname = fname;
+    /* xHandle 결과함에 저장 */
+    if (xHandle) {
+      try {
+        var perm = await xHandle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') perm = await xHandle.requestPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
+          var outDir = await xHandle.getDirectoryHandle('_claude_결과함', { create: true });
+          var fh = await outDir.getFileHandle(fname, { create: true });
+          var wr = await fh.createWritable();
+          await wr.write(blob); await wr.close();
+          toast('결과함에 저장: ' + fname);
+        }
+      } catch (xErr) { console.warn('xHandle 저장 실패:', xErr); }
+    }
+    _exportState = 'done'; updateExportBtn();
+  } catch (err) {
+    console.error('exportSeriesPlan 오류:', err);
+    toast('내보내기 실패: ' + err.message);
+    _exportState = 'idle'; updateExportBtn();
+  }
+}
+
 /* ===================== 이달의 묵상 ===================== */
 var devoState = { date: new Date().toISOString().slice(0, 10), entry: null, note: {}, bibleCache: {} };
 var DEVO_FIELDS = ['본문개요', '본문주제', '관찰답', '묵상답', '적용답', '묵상메시지', '적용', '기도'];
@@ -3152,9 +3322,12 @@ function spSermonHtml(){
     var wConfirm = '<div class="toolrow" style="margin-top:8px"><button class="btn sub" data-w="' + wi + '" data-act="weekConfirm" style="width:auto">이 주 설교계획 확정 →</button></div>';
     return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + edit + wConfirm + '</details>';
   }).join('');
-  h += '<div class="toolrow"><button class="btn" id="spSermonConfirm">선택된 항목으로 전체 확정</button>' +
-    '<button class="btn sub" id="spSermonArchive" style="flex:0 0 auto;width:auto">선택지 시트에 보관</button>' +
-    '<button class="btn sub" id="spSermonRedo" style="flex:0 0 auto;width:auto">재작업 요청</button></div>';
+  h += '<div class="toolrow">' +
+    '<button class="btn" id="spSermonConfirm" style="flex:1 1 auto;font-size:13px">선택 항목 전체 확정</button>' +
+    '<button class="btn sub" id="spSermonArchive" style="flex:0 0 auto;width:auto;font-size:13px">시트에 보관</button>' +
+    '<button class="btn sub" id="spSermonRedo" style="flex:0 0 auto;width:auto;font-size:13px">재작업</button>' +
+    '<button class="btn sub" id="spSermonExport" style="flex:0 0 auto;width:auto;font-size:13px">설교계획 내보내기</button>' +
+    '</div>';
   return h;
 }
 
@@ -3195,6 +3368,8 @@ $('#seriesPane').addEventListener('change', function(e){
 $('#seriesPane').addEventListener('click', async function(e){
   var rd = e.target.closest('#spDevoRedo, #spSermonRedo');
   if (rd) { spRedo(rd.id === 'spDevoRedo' ? '시리즈묵상' : '시리즈설교'); return; }
+  var ex = e.target.closest('#spSermonExport');
+  if (ex) { exportSeriesPlan(); return; }
   var ar = e.target.closest('#spSermonArchive');
   if (ar) {
     if (ar.dataset.busy) return;
