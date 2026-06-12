@@ -2903,7 +2903,10 @@ window.slOpenSheet = function(name){
   var arcs = (state.data.sermons || []).filter(function(s){
     return s['시리즈'] === name && s['상태'] === '보관';
   });
-  var S = newSeriesEntry();
+  /* 동일 시리즈명 기존 항목 재사용 → 재동기화 시 목록에 중복 추가 방지 */
+  var existing = state.seriesList.filter(function(s){ return (s.meta || {})['시리즈명'] === name; })[0]
+    || ((state.series && (state.series.meta || {})['시리즈명'] === name) ? state.series : null);
+  var S = existing || newSeriesEntry();
   S.meta = { '시리즈명': name, '성경범위': book, '시작일': start, '종료일': end,
     '예배구분': serms.length ? serms[0]['예배구분'] : '대학부', '요청사항': '',
     '묵상일': r.devoDays, '주일': r.sundays };
@@ -4473,7 +4476,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v74';
+var APP_VER = 'v75';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
