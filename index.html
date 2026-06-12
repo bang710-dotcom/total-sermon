@@ -1571,7 +1571,7 @@ function buildSeriesPlanDocx(D, S){
     rows.push(new D.TableRow({
       height: { value: 931, rule: D.HeightRule ? D.HeightRule.ATLEAST : 'atLeast' },
       children: [
-        mkCell([String(wi + 1)], 0, { shading: bg }),
+        mkCell([String(wSeq(w, wi))], 0, { shading: bg }),
         mkCell([fmtKorDate(w['주일'])], 1, { shading: bg }),
         mkCell([String(w['주간범위'] || '')], 2, { shading: bg }),
         mkCell(themeLines, 3, { shading: bg }),
@@ -4473,7 +4473,7 @@ window.openSeriesSermonPreview = function(){
     if (w.skip) return;
     var ed = w.edit || {};
     h += '<div style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #eee">' +
-      '<div style="font-weight:bold;font-size:14pt">'+(wi+1)+'주차 · '+esc(w['주일']||'')+'</div>' +
+      '<div style="font-weight:bold;font-size:14pt">'+wSeq(w,wi)+'주차 · '+esc(w['주일']||'')+'</div>' +
       (w['주간범위'] ? '<div style="font-size:11pt;color:#888;margin:2px 0">묵상 본문: '+esc(w['주간범위'])+'</div>' : '') +
       (ed['제목'] ? '<div style="font-size:13pt;margin:4px 0">「'+esc(ed['제목'])+'」 <span style="color:#555;font-size:12pt">'+esc(ed['본문']||'')+'</span></div>' : '') +
       (ed['핵심메시지'] ? '<div style="font-size:12pt;color:#333">'+esc(ed['핵심메시지'])+'</div>' : '') +
@@ -4484,7 +4484,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v76';
+var APP_VER = 'v77';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
