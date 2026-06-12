@@ -2707,9 +2707,13 @@ window.slOpenSheet = function(name){
     '관찰질문': d['관찰질문'], '묵상질문': d['묵상질문'], '적용질문': d['적용질문'] }; }) };
   S.devoDone = true;
   if (serms.length) {
-    S.sermon = { m: 0, weeks: serms.map(function(s){ return { '주일': s['날짜'], '주간범위': '', '비고': '', opts: [], sel: -1, skip: false,
-      edit: { '제목': s['제목'], '본문': s['본문'], '핵심메시지': s['핵심메시지'], '대지': s['대지'],
-        '주제근거': (String(s['비고'] || '').match(/^주제 근거:\s*(.*)$/) || [])[1] || '' } }; }) };
+    S.sermon = { m: 0, weeks: serms.map(function(s){
+      var w = { '주일': s['날짜'], '주간범위': '', '비고': '', opts: [], sel: -1, skip: false,
+        edit: { '제목': s['제목'], '본문': s['본문'], '핵심메시지': s['핵심메시지'], '대지': s['대지'],
+          '주제근거': (String(s['비고'] || '').match(/^주제 근거:\s*(.*)$/) || [])[1] || '' } };
+      w.done = true; w.sig = weekSig(w); /* 시트 확정분 → 확정 상태로 */
+      return w;
+    }) };
     S.sermonDone = true;
   }
   S.view = 'devo';
@@ -3069,27 +3073,62 @@ function spSermonHtml(){
   var openIdx = -1;
   S.sermon.weeks.forEach(function(w, i){
     if (openIdx >= 0) return;
-    var confirmed = w.done && w.sig === weekSig(w);
-    if (!w.skip && !confirmed) openIdx = i;
+    if (!w.skip && !(w.done && w.sig === weekSig(w))) openIdx = i;
   });
   if (openIdx < 0) openIdx = 0;
   h += S.sermon.weeks.map(function(w, wi){
     var ed = w.edit || {};
-    var selO = (w.sel >= 0 && w.opts) ? w.opts[w.sel] : null;
+    var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
+    var confirmed = !w.skip && w.done && w.sig === weekSig(w);
     var sumTitle = w.skip ? '제외됨' : esc(ed['제목'] || (selO && selO['제목']) || '미선택');
-    var badge = w.skip ? '' : (w.done && w.sig === weekSig(w)) ? ' <span class="badge b-state">확정됨</span>'
+    var badge = w.skip ? '' : confirmed ? ' <span class="badge b-state">확정됨</span>'
       : (w.done ? ' <span class="badge" style="color:var(--warn)">변경됨·재확정 필요</span>' : '');
     var summary = '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0">' +
+      (confirmed ? '<span style="font-size:14px;color:var(--accent);flex-shrink:0">✓</span>' : '') +
       '<b style="font-size:15px">' + (wi + 1) + '주차</b>' +
       '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
-      '<span style="color:var(--accent2);font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge + '</summary>';
+      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge + '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 주 등록</label></div>' +
       (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">주간 묵상: ' + esc(w['주간범위']) + '</div>' : '') +
       (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
+
+    if (confirmed) {
+      /* ── 확정 상태: 선택된 주제 풀컬러 + 나머지 흑백 접힘 ── */
+      var src = selO || ed; /* selO 없으면(slOpenSheet 경로) edit 데이터 사용 */
+      var confirmCard =
+        '<div style="margin:8px 0 10px;padding:11px 13px;border:1.5px solid var(--accent);border-radius:10px;background:rgba(124,154,255,.08)">' +
+        '<div style="margin-bottom:5px"><b style="font-size:14px">' + esc(src['제목'] || '') + '</b>' +
+        ' <span style="color:var(--accent2);font-size:13px">' + esc(src['본문'] || '') + '</span></div>' +
+        '<div style="font-size:13px;margin-bottom:3px;color:var(--txt)">' + esc(src['핵심메시지'] || ed['핵심메시지'] || '') + '</div>' +
+        ((src['주제근거'] || ed['주제근거']) ? '<div style="color:var(--dim);font-size:12px;margin-bottom:3px">근거 — ' + esc(src['주제근거'] || ed['주제근거'] || '') + '</div>' : '') +
+        '<div style="font-size:12.5px;margin-top:5px">' + djHtml(src['대지'] || ed['대지']) + '</div></div>';
+      /* 나머지 선택지: 흑백 + 접혀 있음 */
+      var nonSelHtml = (w.opts || []).filter(function(_, oi){ return oi !== w.sel; }).map(function(o){
+        return '<details style="filter:grayscale(1);opacity:0.5;margin:0 0 5px">' +
+          '<summary style="cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
+          esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + esc(o['본문'] || '') + '</span></summary>' +
+          '<div style="padding:8px 11px;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;font-size:13px;line-height:1.5">' +
+          esc(o['핵심메시지'] || '') +
+          (o['주제근거'] ? '<div style="font-size:12px;margin-top:2px;color:var(--dim)">근거 — ' + esc(o['주제근거']) + '</div>' : '') +
+          '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지']) + '</div></div></details>';
+      }).join('');
+      var composeBtn =
+        '<div style="margin:6px 0 2px">' +
+        '<button class="btn" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:13px">이 주제로 작성하기 →</button></div>';
+      var bottomRow =
+        '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        '<button class="btn sub" data-w="' + wi + '" data-act="weekReselect" style="width:auto">설교주제 다시 선택</button>' +
+        '<button class="linkbtn" data-w="' + wi + '" data-act="weekCollapse" style="font-size:12px;color:var(--dim)">이 주차 접기 ↑</button></div>';
+      return '<details class="edPoint spConfirmed' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' +
+        (wi === openIdx ? ' open' : '') + '>' + summary + head + confirmCard + nonSelHtml + composeBtn + bottomRow + '</details>';
+    }
+
+    /* ── 미확정 상태: 라디오 선택지 + 편집란 + 확정 버튼 ── */
     var opts = (w.opts || []).map(function(o, oi){
-      return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13.5px' + (w.sel === oi ? ';border-color:var(--accent);background:rgba(124,154,255,.06)' : '') + '">' +
-        '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (w.sel === oi ? 'checked' : '') + '>' +
+      var sel = w.sel === oi;
+      return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
+        '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
         '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + esc(o['본문'] || '') + '</span>' +
         '<div style="margin:3px 0 0 22px">' + esc(o['핵심메시지'] || '') + '</div>' +
         (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + esc(o['주제근거']) + '</div>' : '') +
