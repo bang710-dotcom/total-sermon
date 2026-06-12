@@ -217,6 +217,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
     <button class="nav" data-page="series">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>시리즈 계획</button>
+    <button class="nav" data-page="archive">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>미래설교 보관함</button>
     <button class="nav" data-page="input">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>빠른 입력</button>
     <button class="nav" data-page="import">
@@ -365,6 +367,16 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <div class="cnt" style="margin-top:10px">흐름: ① 요청 → Cowork "요청함 처리해줘" → 버튼이 파래지면 [요청 결과] → 오른쪽에서 검토·수정 → 확정(묵상집 등록) → ② 요청 → [요청 결과] → 주일별 선택지 고르고 수정 → 확정(설교마스터 [구상]) → [묵상집 PDF 요청]. 위 타임라인의 단계를 누르면 해당 화면으로 이동합니다.</div>
       </div>
       <div id="seriesPane"><div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.</div></div>
+    </section>
+
+    <!-- ============ 미래설교 보관함 ============ -->
+    <section class="page" id="page-archive">
+      <div class="searchbox" style="margin-bottom:10px">
+        <input type="text" id="aq" placeholder="미래설교(보관) 통합 검색 — 제목·본문·메시지·대지·시리즈" autocomplete="off">
+        <div class="cnt" style="margin-top:6px">시리즈 설교 주제 중 아직 고르지 않은 개요들이 여기에 모입니다. 어느 기기에서나 검색·열람하고, 바로 [새설교 작성]으로 잇거나 [구상]으로 승격할 수 있습니다.</div>
+      </div>
+      <div class="cnt" id="aCnt"></div>
+      <div id="aResults"><div class="empty">보관된 미래설교가 없습니다.</div></div>
     </section>
 
     <!-- ============ 입력 (모바일 빠른 입력) ============ -->
@@ -601,6 +613,7 @@ function sync(){
     d.devonotes = d.devonotes || [];
     state.data = d; saveData();
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns();
+    if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
     toast('동기화 완료 (설교 ' + d.sermons.length + ' · 아이디어 ' + d.ideas.length + ')');
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
@@ -3628,6 +3641,7 @@ function showPage(name){
   if (name === 'devo') renderDevo();
   if (name === 'series') { state.seriesMode = 'list'; renderSeriesPage(); }
   if (name === 'occ') renderOccPane();
+  if (name === 'archive') renderArchive();
 }
 window.showPage = showPage;
 $$('.tabbar button, .sidebar .nav').forEach(function(b){
@@ -3639,6 +3653,61 @@ $$('#page-search .chip').forEach(function(c){
     c.classList.add('on'); state.scope = c.dataset.scope; runSearch();
   });
 });
+
+/* ===================== 미래설교 보관함 (상태 '보관' 전용) ===================== */
+function renderArchive(){
+  var box = $('#aResults'), cnt = $('#aCnt'), inp = $('#aq');
+  if (!box) return;
+  var q = (inp && inp.value || '').trim().toLowerCase();
+  var terms = q.split(/\s+/).filter(Boolean);
+  var list = (state.data.sermons || []).filter(function(s){ return s['상태'] === '보관'; });
+  if (terms.length) {
+    list = list.filter(function(s){
+      var hay = ['제목','본문','시리즈','핵심메시지','대지','비고','키워드'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
+      return terms.every(function(t){ return hay.indexOf(t) >= 0; });
+    });
+  }
+  list.sort(function(a, b){
+    return String(a['날짜'] || '').localeCompare(String(b['날짜'] || '')) ||
+      (parseInt(a['시리즈순번'] || '0', 10) - parseInt(b['시리즈순번'] || '0', 10));
+  });
+  cnt.textContent = '보관 ' + list.length + '건' + (q ? ' · 검색 “' + q + '”' : '');
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">' + (q ? '검색 결과가 없습니다.' :
+      '보관된 미래설교가 없습니다. 시리즈 계획에서 설교 주제를 생성하면 모든 선택지가 자동으로 여기에 모입니다.') + '</div>';
+    return;
+  }
+  box.innerHTML = list.map(function(s){
+    return '<div class="card" style="margin-bottom:10px">' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<b style="font-size:15px">' + esc(s['제목'] || '(제목 없음)') + '</b>' +
+        (s['본문'] ? '<span style="color:var(--accent2)">' + esc(s['본문']) + '</span>' : '') +
+        (s['시리즈'] ? '<span class="badge">' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '주' : '') + '</span>' : '') +
+        (s['날짜'] ? '<span class="cnt" style="margin-left:auto">' + esc(s['날짜']) + '</span>' : '') +
+      '</div>' +
+      (s['핵심메시지'] ? '<div style="margin-top:5px">' + esc(s['핵심메시지']) + '</div>' : '') +
+      '<details style="margin-top:5px"><summary style="font-size:12px;color:var(--dim)">대지·근거 보기</summary>' +
+        '<div style="margin-top:4px;font-size:13px">' + djHtml(s['대지'] || '') + '</div>' +
+        (s['비고'] ? '<div class="cnt" style="margin-top:4px">' + esc(s['비고']) + '</div>' : '') +
+      '</details>' +
+      '<div class="toolrow" style="margin-top:8px">' +
+        '<button class="btn" onclick="archiveCompose(\'' + esc(s['ID']) + '\')">이 개요로 새설교 작성</button>' +
+        '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archivePromote(\'' + esc(s['ID']) + '\')">[구상]으로 승격</button>' +
+        '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archiveDelete(\'' + esc(s['ID']) + '\')">삭제</button>' +
+      '</div></div>';
+  }).join('');
+}
+window.archiveCompose = function(id){ editSermon(id); };
+window.archivePromote = function(id){
+  if (!confirm('이 개요를 [구상] 상태로 승격할까요?\n승격하면 일반 검색·설교 목록에 정식 설교로 나타납니다.')) return;
+  submit({ action: 'update', sheet: 'sermons', data: { ID: id, '상태': '구상' } }, '[구상]으로 승격 완료');
+};
+window.archiveDelete = function(id){
+  if (!confirm('이 보관 개요를 삭제할까요? (되돌릴 수 없습니다)')) return;
+  submit({ action: 'delete', sheet: 'sermons', data: { ID: id } }, '삭제 완료');
+};
+var aqSearchSoon = debounce(renderArchive, 180);
+if ($('#aq')) $('#aq').addEventListener('input', aqSearchSoon);
 $$('#ideaTypes .chip').forEach(function(c){
   c.addEventListener('click', function(){
     $$('#ideaTypes .chip').forEach(function(x){ x.classList.remove('on'); });
