@@ -2881,9 +2881,12 @@ window.slOpenSheet = function(name){
   S.devoDone = true;
   if (serms.length) {
     S.sermon = { m: 0, weeks: serms.map(function(s){
-      var w = { '주일': s['날짜'], '주간범위': '', '비고': '', opts: [], sel: -1, skip: false,
+      var bigo = String(s['비고'] || '');
+      var mRange = (bigo.match(/주간묵상:\s*(.+)$/) || [])[1] || '';
+      var mJeok = (bigo.match(/^주제 근거:\s*(.*?)(?:\s*\/\s*주간묵상:|$)/) || [])[1] || '';
+      var w = { '주일': s['날짜'], '주간범위': mRange.trim(), '비고': '', opts: [], sel: -1, skip: false,
         edit: { '제목': s['제목'], '본문': s['본문'], '핵심메시지': s['핵심메시지'], '대지': s['대지'],
-          '주제근거': (String(s['비고'] || '').match(/^주제 근거:\s*(.*)$/) || [])[1] || '' } };
+          '주제근거': mJeok.trim() } };
       w.done = true; w.sig = weekSig(w); /* 시트 확정분 → 확정 상태로 */
       return w;
     }) };
@@ -4228,7 +4231,7 @@ function renderStats(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v67';
+var APP_VER = 'v67b';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
