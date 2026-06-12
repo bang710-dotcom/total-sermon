@@ -3606,8 +3606,11 @@ async function confirmSermonWeeks(idxs, skipUnchanged){
     });
     if (!winner) { w.done = false; w.sig = sig; return; } /* 제외된 주: 강등만 */
     var ed = w.edit || {};
+    /* 보관 레코드가 있으면 원래 시리즈순번 유지 (재구성 시 wi 인덱스와 불일치 방지) */
+    var winnerRow = winner && winner._id ? rowById(winner._id) : null;
     var rec = { '날짜': w['주일'], '예배구분': m['예배구분'] || '대학부', '시리즈': m['시리즈명'] || '',
-      '시리즈순번': String(wi + 1), '제목': ed['제목'] || '', '본문': ed['본문'] || '', '상태': '구상',
+      '시리즈순번': (winnerRow && winnerRow['시리즈순번']) || String(wi + 1),
+      '제목': ed['제목'] || '', '본문': ed['본문'] || '', '상태': '구상',
       '핵심메시지': ed['핵심메시지'] || '', '대지': ed['대지'] || '' };
     var _bigo = (String(ed['주제근거'] || '').trim() ? '주제 근거: ' + ed['주제근거'].trim() : '') +
       (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '');
@@ -4476,7 +4479,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v75';
+var APP_VER = 'v76';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
