@@ -2990,6 +2990,17 @@ $('#seriesPane').addEventListener('change', function(e){
 $('#seriesPane').addEventListener('click', async function(e){
   var rd = e.target.closest('#spDevoRedo, #spSermonRedo');
   if (rd) { spRedo(rd.id === 'spDevoRedo' ? '시리즈묵상' : '시리즈설교'); return; }
+  var ar = e.target.closest('#spSermonArchive');
+  if (ar) {
+    if (ar.dataset.busy) return;
+    ar.dataset.busy = '1'; var oa = ar.innerHTML; ar.innerHTML = '<span class="spin"></span>보관 중…';
+    try {
+      var n = await archiveSeriesOptions(state.series);
+      toast(n ? (n + '개 선택지를 시트에 보관했습니다 — [미래설교 보관함]에서 확인하세요.') : '보관할 새 선택지가 없습니다(이미 저장됨이거나 시트 설정 필요).');
+    } catch (err) { toast('보관 실패: ' + err.message); }
+    finally { delete ar.dataset.busy; ar.innerHTML = oa; }
+    return;
+  }
   if (e.target.closest('#spDevoPdf')) {
     if (e.target.closest('.inbtn')) spPdfDownload();
     else spReqPdf();
