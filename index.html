@@ -2872,7 +2872,8 @@ $('#sl_new').addEventListener('click', function(){
 $('#sp_back').addEventListener('click', function(){
   state.seriesMode = 'list'; renderSeriesPage();
 });
-/* 시트 기록에서 시리즈 재구성 (수정·재사용) */
+/* 시트 기록에서 시리즈 재구성 (수정·재사용)
+   보관(선택지) + 구상(확정) 레코드를 통합해 모든 주차를 완전 복원 → 기기 간 이어작업 가능 */
 window.slOpenSheet = function(name){
   var rows = (state.data.devo || []).filter(function(d){ return d['시리즈명'] === name; })
     .sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
@@ -2880,10 +2881,14 @@ window.slOpenSheet = function(name){
   var start = rows[0]['날짜'], end = rows[rows.length - 1]['날짜'];
   var r = spDates(start, end) || { devoDays: [], sundays: [] };
   var book = String(rows[0]['본문범위'] || '').replace(/\s*\d.*$/, '').trim() || name;
-  /* [보관] 레코드는 선택지 후보 — 확정 설교(구상·완료)만 sermon 재구성에 사용 */
-  var serms = state.data.sermons.filter(function(s){
+  /* 확정 레코드(구상/완료) */
+  var serms = (state.data.sermons || []).filter(function(s){
     return s['시리즈'] === name && s['상태'] !== '보관';
   }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
+  /* 보관 레코드(선택지 후보) */
+  var arcs = (state.data.sermons || []).filter(function(s){
+    return s['시리즈'] === name && s['상태'] === '보관';
+  });
   var S = newSeriesEntry();
   S.meta = { '시리즈명': name, '성경범위': book, '시작일': start, '종료일': end,
     '예배구분': serms.length ? serms[0]['예배구분'] : '대학부', '요청사항': '',
@@ -2891,30 +2896,47 @@ window.slOpenSheet = function(name){
   S.devo = { m: 0, rows: rows.map(function(d){ return { '날짜': d['날짜'], '본문범위': d['본문범위'], '제목': d['제목'],
     '관찰질문': d['관찰질문'], '묵상질문': d['묵상질문'], '적용질문': d['적용질문'] }; }) };
   S.devoDone = true;
-  if (serms.length) {
-    S.sermon = { m: 0, weeks: serms.map(function(s){
-      var bigo = String(s['비고'] || '');
+  /* sermon 주차: 모든 주일(r.sundays) 기준으로 보관+확정 통합 재구성 */
+  var sundays = (r.sundays && r.sundays.length) ? r.sundays
+    : serms.map(function(s){ return s['날짜']; }); /* devo 없는 시리즈 fallback */
+  if (sundays.length) {
+    S.sermon = { m: 0, weeks: sundays.map(function(sun){
+      /* 이 주일의 보관 선택지 → opts */
+      var weekArcs = arcs.filter(function(s){ return s['날짜'] === sun; })
+        .sort(function(a, b){ return (+(a['시리즈순번']||99)) - (+(b['시리즈순번']||99)); });
+      var opts = weekArcs.map(function(s){
+        var ob = String(s['비고'] || '');
+        return { '제목': s['제목']||'', '본문': s['본문']||'',
+          '핵심메시지': s['핵심메시지']||'', '대지': s['대지']||'',
+          '주제근거': (ob.match(/^주제 근거:\s*(.*?)(?:\s*\/|$)/) || [])[1]||'',
+          _id: s['ID'] };
+      });
+      /* 이 주일의 확정 레코드 */
+      var conf = serms.filter(function(s){ return s['날짜'] === sun; })[0];
+      var bigo = String((conf || {})['비고'] || '');
       var mRange = (bigo.match(/주간묵상:\s*(.+)$/) || [])[1] || '';
-      if (!mRange) {
-        /* v68 이전 확정 레코드 대비: 보관 선택지 비고에서 주간범위 복원 */
-        var arc = (state.data.sermons || []).filter(function(a){
-          return a['날짜'] === s['날짜'] && a['시리즈'] === name && a['상태'] === '보관';
-        });
-        if (arc.length) mRange = ((String(arc[0]['비고'] || '').match(/주간묵상:\s*(.+)$/) || [])[1] || '').trim();
-      }
+      if (!mRange && weekArcs.length)
+        mRange = ((String(weekArcs[0]['비고']||'').match(/주간묵상:\s*(.+)$/) || [])[1]||'').trim();
       var mJeok = (bigo.match(/^주제 근거:\s*(.*?)(?:\s*\/\s*주간묵상:|$)/) || [])[1] || '';
-      var w = { '주일': s['날짜'], '주간범위': mRange.trim(), '비고': '', opts: [], sel: -1, skip: false,
-        edit: { '제목': s['제목'], '본문': s['본문'], '핵심메시지': s['핵심메시지'], '대지': s['대지'],
-          '주제근거': mJeok.trim() } };
-      w.done = true; w.sig = weekSig(w); /* 시트 확정분 → 확정 상태로 */
+      var w = { '주일': sun, '주간범위': mRange.trim(), '비고': '', opts: opts, sel: -1, skip: false,
+        edit: conf ? { '제목': conf['제목']||'', '본문': conf['본문']||'',
+          '핵심메시지': conf['핵심메시지']||'', '대지': conf['대지']||'', '주제근거': mJeok.trim() } : {} };
+      if (conf) {
+        /* 확정 내용과 일치하는 opt를 sel로 지정 (수정 후 확정이면 불일치 → sel -1, confirmCard는 edit 사용) */
+        opts.forEach(function(o, i){
+          if (o['제목'] === conf['제목'] && o['본문'] === conf['본문']) w.sel = i;
+        });
+        w.done = true; w.sig = weekSig(w);
+      }
       return w;
     }) };
-    S.sermonDone = true;
+    if (serms.length) S.sermonDone = true;
   }
-  S.view = 'devo';
+  S.view = serms.length ? 'sermon' : 'devo';
   state.series = S; state.seriesMode = 'wizard';
   saveSeries(); renderSeriesPage();
-  toast('시트에서 불러왔습니다 — 수정 후 다시 확정하면 같은 항목이 업데이트됩니다.');
+  var confCnt = serms.length, arcCnt = arcs.length;
+  toast('시트에서 불러왔습니다' + (confCnt ? ' — 확정 ' + confCnt + '주차' : '') + (arcCnt ? ' · 선택지 ' + arcCnt + '개' : '') + '. 수정 후 다시 확정하면 업데이트됩니다.');
 };
 
 /* ───── 상태·버튼 ───── */
@@ -4428,7 +4450,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v71';
+var APP_VER = 'v72';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
