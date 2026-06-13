@@ -1466,11 +1466,13 @@ function parasFromText(meta, bodyText, style){
   paras.push({ text: titleLine, bold: true, size: st.titleSize });
   if (style !== '카드원고' && meta['본문']) paras.push({ text: meta['본문'], bold: true });
   paras.push({ text: '' });
+  var allowInd = style !== '카드원고';
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
     var isHead = /^\d+\s*[.)]\s/.test(l);
     var isEx = /^ex\)/i.test(l);
-    paras.push({ text: line, bold: isHead || isEx, color: isEx ? EX_BLUE : undefined });
+    paras.push({ text: line, bold: isHead || isEx, color: isEx ? EX_BLUE : undefined,
+      ind: !!(allowInd && l && !isHead && !isEx) /* 일반 단락만 첫 줄 들여쓰기 */ });
   });
   return { paras: paras, st: st };
 }
@@ -1480,22 +1482,30 @@ function parasFromCompose(meta, c){
   var style = c.style === '자유원고' ? '기본원고' : c.style;
   if (c.style === '자유원고') return parasFromText(meta, c.free, style);
   var st = DOCX_STYLES[style];
+  var doInd = style !== '카드원고'; /* 카드원고(화면 투사용)는 들여쓰기 제외 */
   var base = parasFromText(meta, '', style);
-  var paras = base.paras.slice(0, base.paras.length - 0); /* 제목부 + 빈 줄 */
-  function push(t, b, col){ paras.push({ text: t, bold: !!b, color: col }); }
-  if (c.intro.trim()) { c.intro.trim().split('\n').forEach(function(l){ push(l); }); push(''); }
+  var paras = base.paras.slice(0);
+  while (paras.length && !String(paras[paras.length - 1].text || '').trim()) paras.pop(); /* 끝 빈줄 정리 */
+  paras.push({ text: '' }); /* 제목부 뒤 한 줄 */
+  function push(t, b, col, ind){ paras.push({ text: t, bold: !!b, color: col, ind: !!ind }); }
+  function blank(){ if (!paras.length || String(paras[paras.length - 1].text || '').trim()) paras.push({ text: '' }); } /* 섹션 사이 한 줄 (중복 빈줄 방지) */
+  /* 서론 */
+  if (c.intro.trim()) { c.intro.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
+  /* 대지 */
   c.points.forEach(function(p, i){
     if (!(p.text.trim() || p.body.trim() || p.ill.trim() || p.illBody.trim() || p.apply.trim())) return;
     push((i + 1) + '. ' + p.text.trim(), true);
-    if (p.body.trim()) p.body.trim().split('\n').forEach(function(l){ push(l); });
+    if (p.body.trim()) p.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
     if (p.ill.trim()) push('ex) ' + p.ill.trim(), true, EX_BLUE);
-    if (p.illBody.trim()) p.illBody.trim().split('\n').forEach(function(l){ push(l); });
-    if (p.apply.trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l); }); }
-    push('');
+    if (p.illBody.trim()) p.illBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
+    if (p.apply.trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); }
+    blank(); /* 대지 사이 한 줄 */
   });
+  /* 결론 */
+  blank();
   push(c.concIntro.trim() || '말씀을 정리합니다.', true);
   c.points.forEach(function(p, i){ if (p.text.trim()) push((i + 1) + '. ' + p.text.trim(), true); });
-  if (c.concBody.trim()) c.concBody.trim().split('\n').forEach(function(l){ push(l); });
+  if (c.concBody.trim()) c.concBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
   var msg = $('#c_msg') ? $('#c_msg').value.trim() : (meta['핵심메시지'] || '');
   if (msg) push(msg, true);
   return { paras: paras, st: st };
@@ -4566,12 +4576,13 @@ function paraPreviewHtml(meta, built){
   var h = '<div style="font-size:' + baseSz + 'pt;line-height:' + lh + '">';
   paras.forEach(function(p){
     var t = String(p.text || '');
-    if (!t.trim()) { h += '<div style="height:0.8em"></div>'; return; }
     var s = 'margin:0;';
     if (p.size) s += 'font-size:' + (p.size / 2) + 'pt;';
     if (p.bold) s += 'font-weight:bold;';
     if (p.color) s += 'color:#' + p.color + ';';
     if (p.just) s += 'text-align:justify;text-indent:2em;';
+    else if (p.ind) s += 'text-indent:1em;';
+    if (!t.trim()) { h += '<div style="' + s + '">&nbsp;</div>'; return; } /* 빈 단락 = 한 줄 */
     h += '<div style="' + s + '">' + esc(t) + '</div>';
   });
   return h + '</div>';
@@ -4659,7 +4670,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v83';
+var APP_VER = 'v84';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
