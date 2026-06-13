@@ -1431,6 +1431,8 @@ function buildDocxParas(D, paras, st){
     if (p.just) { /* 완성 원고 본문: 양쪽 정렬 + 첫 줄 들여쓰기 2자 */
       opts.alignment = D.AlignmentType.JUSTIFIED;
       opts.indent = { firstLine: 520 };
+    } else if (p.ind) { /* 일반 단락: 첫 줄 들여쓰기 1자 (폰트 크기 기준) */
+      opts.indent = { firstLine: Math.round((st.size || 26) * 10) };
     }
     return new D.Paragraph(opts);
   });
