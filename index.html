@@ -102,6 +102,14 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .fulltext{white-space:pre-wrap;font-size:14px;line-height:1.85;color:var(--text);word-break:break-word}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;margin-right:7px;vertical-align:-2px;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* 좌측 하단 동작 상태 핀 — 동기화·생성·요청 대기 시 눈에 띄게 표시 */
+.statusPill{display:none;align-items:center;gap:8px;margin-bottom:9px;padding:10px 12px;border-radius:11px;font-size:13px;font-weight:700;line-height:1.35;word-break:keep-all}
+.statusPill.busy{background:rgba(127,196,255,.16);border:1px solid rgba(127,196,255,.55);color:#7fc4ff;box-shadow:0 0 0 0 rgba(127,196,255,.45);animation:pillGlow 1.6s ease-in-out infinite}
+.statusPill.wait{background:rgba(255,194,77,.15);border:1px solid rgba(255,194,77,.55);color:#ffc24d;animation:pillBlink 2s ease-in-out infinite}
+.statusPill .spin{margin-right:0;flex:0 0 auto}
+.statusPill .pin{flex:0 0 auto;font-size:14px}
+@keyframes pillGlow{0%{box-shadow:0 0 0 0 rgba(127,196,255,.5)}70%{box-shadow:0 0 0 7px rgba(127,196,255,0)}100%{box-shadow:0 0 0 0 rgba(127,196,255,0)}}
+@keyframes pillBlink{0%,100%{opacity:1}50%{opacity:.6}}
 .busy{opacity:.65;pointer-events:none}
 .kwchip{display:inline-block;margin:0 6px 4px 0;padding:3px 10px;border-radius:14px;border:1px solid var(--accent2);background:transparent;color:var(--accent2);font-size:12.5px;cursor:pointer}
 .kwchip:hover{background:rgba(63,124,192,.14)}
@@ -237,6 +245,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <button class="nav" data-page="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>설정</button>
     <div class="foot">
+      <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none">⏳</span><span id="statusPillTxt"></span></div>
       <div class="syncState" id="syncStateD">—</div>
     </div>
   </aside>
@@ -628,7 +637,7 @@ function apiPost(body){
 }
 
 function sync(){
-  setSyncState('동기화 중…');
+  setSyncState('동기화 중…', true);
   return flushQueue().then(function(){
     return api({ action: 'list', sheet: 'all' });
   }).then(function(d){
@@ -1924,7 +1933,7 @@ function aiJson(text){
   return JSON.parse(s);
 }
 function aiTick(label){
-  return function(n){ setSyncState(label + ' 생성 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자'); };
+  return function(n){ setSyncState(label + ' 생성 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자', true); };
 }
 
 /* ── 프롬프트 (스킬 핵심 내장) ── */
@@ -4485,13 +4494,35 @@ document.addEventListener('touchend', function(e){
 }, { passive: false });
 
 /* ===================== 렌더 보조 ===================== */
-function setSyncState(txt){
+/* 좌측 하단 동작 상태 핀 */
+function showStatusPill(txt, kind){
+  var el = $('#statusPill'); if (!el) return;
+  el.className = 'statusPill ' + (kind || 'busy');
+  el.style.display = 'flex';
+  var sp = $('#statusSpin'), pn = $('#statusPin');
+  if (sp) sp.style.display = kind === 'wait' ? 'none' : 'inline-block';
+  if (pn) pn.style.display = kind === 'wait' ? 'inline-block' : 'none';
+  $('#statusPillTxt').textContent = txt;
+}
+function hideStatusPill(){ var el = $('#statusPill'); if (el) el.style.display = 'none'; }
+/* Cowork(요청함) 처리를 기다리는 요청 수 */
+function pendingReqCount(){
+  var n = 0, sr = state.seriesReqs || {};
+  ['시리즈묵상', '시리즈설교', '묵상집PDF'].forEach(function(k){ if (sr[k] === '대기' || sr[k] === '진행중') n++; });
+  var pr = state.pendingReqs || {};
+  Object.keys(pr).forEach(function(id){ var o = pr[id] || {}; Object.keys(o).forEach(function(t){ if (o[t] === '대기' || o[t] === '진행중') n++; }); });
+  return n;
+}
+function setSyncState(txt, busy){
   $('#syncState').textContent = txt;
   $('#syncStateD').textContent = txt;
+  if (busy) showStatusPill(txt, 'busy'); else hideStatusPill();
 }
 function renderSyncState(){
   var f = state.data.fetchedAt;
-  setSyncState(f ? '동기화: ' + f : '미동기화');
+  setSyncState(f ? '동기화: ' + f : '미동기화', false);
+  var n = pendingReqCount();
+  if (n) showStatusPill('Cowork 처리 대기 ' + n + '건 — "요청함 처리해줘"', 'wait');
 }
 function renderStats(){
   $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건 · 앱 버전 ' + APP_VER;
