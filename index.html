@@ -2006,30 +2006,19 @@ async function aiManuscript(id, meta){
     }), 32000, aiTick('완성 원고'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
-    var st = DOCX_STYLES['기본원고'];
-    var series = (meta['시리즈'] || '') + (meta['시리즈순번'] ? ' ' + meta['시리즈순번'] : '');
-    var paras = [
-      { text: (series ? series + ' - ' : '') + (meta['제목'] || ''), bold: true, size: st.titleSize },
-      { text: meta['본문'] || '', bold: true }, { text: '' }
-    ];
-    arr.forEach(function(p){
-      var x = String(p.x || '');
-      if (p.t === 'head') paras.push({ text: x, bold: true });
-      else if (p.t === 'ex') paras.push({ text: x, bold: true, color: EX_BLUE });
-      else if (p.t === 'quote') paras.push({ text: x, bold: true, color: 'C00000' });
-      else paras.push({ text: x, just: true });
-    });
-    var D = await ensureDocxLib();
-    var blob = await D.Packer.toBlob(buildDocxParas(D, paras, st));
-    await saveDocxBlob(blob, docxFileName(meta), meta['날짜']);
-    state.compose.free = arr.map(function(p){ return p.x; }).join('\n');
-    if (state.compose.style === '자유원고') renderEditor();
-    if (id) {
-      await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '원고작성', '상태': '완료', '링크': '', '비고': 'Opus API 직결 — ' + docxFileName(meta) } });
-      aiMarkDone(id, '원고작성', 'Opus API 직결 — ' + docxFileName(meta));
+    /* 완성 원고를 바로 DOCX로 내보내지 않고 오른쪽 작성창에 채운다 —
+       검토·수정 후 [내보내기]로 DOCX 생성. 자유원고는 이어진 텍스트, 기본·카드원고는 구조 파싱. */
+    var c = state.compose;
+    c.free = arr.map(function(p){ return String(p.x || ''); }).join('\n');
+    if (c.style === '자유원고') {
+      renderEditor();
+    } else {
+      var ok = parseFreeToStructure(); /* 서론·대지·결론 구조로 파싱 */
+      renderPoints(); renderEditor();
+      if (!ok) toast('번호 대지를 찾지 못해 자유원고 텍스트로 불러왔습니다 — [자유원고] 칩에서 확인하세요.');
     }
-    renderSyncState();
-    toast('완성 원고 저장 완료 — 자유원고 칩에서 본문도 볼 수 있습니다.');
+    updateComposeBadge(); renderSyncState();
+    toast('완성 원고를 작성창에 불러왔습니다 — 검토·수정 후 [내보내기]로 DOCX를 만드세요.');
   } catch (e) { renderSyncState(); toast('원고 작성 실패: ' + e.message); }
 }
 var P_OCR = '이미지는 설교 예화 자료(책 페이지·메모·캡처)다. 본문을 충실히 옮겨 적되 오탈자만 교정하고 내용은 바꾸지 않는다. 첫 줄에 제목이 있으면 내용 맨 앞에 「제목」 형태로 포함한다. 출처 단서(책·저자·기사)가 보이면 기록한다. 출력은 JSON 객체 하나만: {"내용":"...","출처":"...","키워드":"쉼표, 구분"}';
@@ -4681,7 +4670,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v85';
+var APP_VER = 'v86';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
