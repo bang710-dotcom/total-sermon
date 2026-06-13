@@ -5295,5 +5295,311 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }, true);
 })();
 </script>
+
+<!-- ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획) ============ -->
+<button id="aiFab" type="button" aria-label="설교 대화 열기">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <span class="lbl">설교 대화</span>
+</button>
+<div id="aiBack"></div>
+<div id="aiPanel" role="dialog" aria-modal="false" aria-label="설교 대화">
+  <div class="aiHd">
+    <span class="ttl"><b>설교</b> 대화</span>
+    <span class="sp"></span>
+    <select id="aiModel" title="모델 선택">
+      <option value="claude-opus-4-8">Opus 4.8 · 최고 성능</option>
+      <option value="claude-sonnet-4-6">Sonnet 4.6 · 균형</option>
+      <option value="claude-haiku-4-5-20251001">Haiku 4.5 · 빠름</option>
+    </select>
+    <button class="nu" id="aiNew" type="button" title="새 대화" aria-label="새 대화">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="x" id="aiClose" type="button" title="닫기" aria-label="닫기">✕</button>
+  </div>
+  <div class="aiCtx">
+    <label><input type="checkbox" id="aiCtxOn" checked> 현재 화면 참고</label>
+    <span class="tag" id="aiCtxTag"></span>
+  </div>
+  <div class="aiBody" id="aiBody"></div>
+  <div class="aiFt">
+    <textarea id="aiInput" rows="1" placeholder="설교 준비를 도와드릴게요…"></textarea>
+    <button class="send" id="aiSend" type="button" aria-label="보내기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===================== AI 대화 모듈 (자체완결) =====================
+   설교 작성(compose)·상황 설교 구상(occ)·시리즈 계획(series) 페이지에서만
+   플로팅 버튼으로 열리는 멀티턴 대화창. 기존 callClaude는 건드리지 않고
+   messages 배열·모델선택을 지원하는 별도 스트리밍 함수를 둔다. */
+(function(){
+  var PAGES = { compose:'설교 작성', occ:'상황 설교 구상', series:'시리즈 계획' };
+  var $ = function(s){ return document.querySelector(s); };
+  var fab = $('#aiFab'), panel = $('#aiPanel'), back = $('#aiBack'), body = $('#aiBody');
+  var input = $('#aiInput'), sendBtn = $('#aiSend'), modelSel = $('#aiModel');
+  var ctxOn = $('#aiCtxOn'), ctxTag = $('#aiCtxTag');
+  var convo = [];        /* {role, content} 누적 대화 */
+  var busy = false;
+
+  /* ── 페이지별 시스템 프롬프트 ── */
+  function sysFor(pg){
+    var base = '당신은 영락교회 대학부 담임 설교자(목사님)의 설교 준비를 돕는 동역자입니다. '
+      + '목사님의 설교는 "오늘의 자리→본문→오늘"을 왕복하는 정서적·실천적 강해이며, 5단 구조(도입·짧은 본문배경·대지 2~3개·"말씀을 정리합니다" 결론·축복선언)를 기본으로 합니다. '
+      + '대지는 함축적·도전적인 "뼈만 남은" 명제로 잡고, 예화는 자기 일화+시사문화+성경 평행인물 세 층위로 쌓으며, 적용은 오늘 실행 가능한 구체적 행동으로 착지합니다. '
+      + '구어체("~지요?","~잖아요"를 "~입니다"와 섞음)를 쓰되, 본문 해석의 근거(절·원어·맥락)를 분명히 제시합니다. 항상 따뜻한 높임말로 답합니다. '
+      + '본문 해석이나 사실 정보를 말할 때는 근거(성경 구절·출처)를 함께 밝힙니다. 모호하면 단정하지 말고 가능한 견해를 구분해 제시합니다.';
+    if (pg === 'compose') return base + ' 지금 화면은 [설교 작성]입니다. 제목·본문·핵심메시지·대지를 다듬고, 예화·적용을 보강하고, 원고 흐름을 함께 만드는 데 집중합니다.';
+    if (pg === 'occ') return base + ' 지금 화면은 [상황 설교 구상]입니다. 주어진 대상·시기·목적에 정확히 맞는 본문 선택과 설교 개요(핵심메시지·대지 3개·근거·적용)를 함께 구상합니다.';
+    if (pg === 'series') return base + ' 지금 화면은 [시리즈 계획]입니다. 한 책/범위를 여러 주일에 걸쳐 설교할 때의 전체 흐름, 주차별 본문 배분, 시리즈 제목·주제 아치를 함께 설계합니다.';
+    return base;
+  }
+
+  /* ── 현재 화면 컨텍스트 수집 ── */
+  function val(id){ var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
+  function gatherContext(pg){
+    var L = [];
+    if (pg === 'compose'){
+      if (val('c_title')) L.push('제목: ' + val('c_title'));
+      if (val('c_ref')) L.push('본문: ' + val('c_ref'));
+      if (val('c_service')) L.push('예배구분: ' + val('c_service'));
+      if (val('c_series')) L.push('시리즈: ' + val('c_series') + (val('c_seriesNo') ? ' ' + val('c_seriesNo') + '강' : ''));
+      if (val('c_msg')) L.push('핵심메시지: ' + val('c_msg'));
+      try {
+        if (window.state && state.compose){
+          var pts = (state.compose.points || []).map(function(p, i){
+            var t = String(p.text || p['문'] || p.t || '').trim();
+            if (!t) return '';
+            var ex = [];
+            if (String(p.body || '').trim()) ex.push('  설명: ' + String(p.body).trim());
+            if (String(p.ill || '').trim()) ex.push('  예화: ' + String(p.ill).trim());
+            if (String(p.apply || '').trim()) ex.push('  적용: ' + String(p.apply).trim());
+            return (i + 1) + '. ' + t + (ex.length ? '\n' + ex.join('\n') : '');
+          }).filter(Boolean);
+          if (pts.length) L.push('대지:\n' + pts.join('\n'));
+          var free = String(state.compose.free || '').trim();
+          if (free) L.push('작성중 원고(발췌):\n' + free.slice(0, 1800));
+        }
+      } catch(e){}
+      if (val('c_kw')) L.push('키워드: ' + val('c_kw'));
+    } else if (pg === 'occ'){
+      if (val('occ_date')) L.push('설교일: ' + val('occ_date'));
+      if (val('occ_sit')) L.push('설교 상황(대상·시기·목적):\n' + val('occ_sit'));
+    } else if (pg === 'series'){
+      if (val('sp_book')) L.push('성경(책/범위): ' + val('sp_book'));
+      if (val('sp_series')) L.push('시리즈명: ' + val('sp_series'));
+      if (val('sp_start') || val('sp_end')) L.push('기간: ' + val('sp_start') + ' ~ ' + val('sp_end'));
+      if (val('sp_service')) L.push('예배구분: ' + val('sp_service'));
+      if (val('sp_note')) L.push('요청사항: ' + val('sp_note'));
+    }
+    return L.join('\n');
+  }
+  function ctxSummary(pg){
+    if (pg === 'compose') return val('c_title') || val('c_ref') || '새 설교';
+    if (pg === 'occ') return val('occ_sit') ? val('occ_sit').slice(0, 30) : '상황 입력 전';
+    if (pg === 'series') return val('sp_book') || val('sp_series') || '시리즈 입력 전';
+    return '';
+  }
+  function curPage(){
+    var on = document.querySelector('.page.on');
+    return on ? on.id.replace('page-', '') : '';
+  }
+  function refreshCtxTag(){
+    var pg = curPage();
+    ctxTag.textContent = PAGES[pg] ? ('· ' + ctxSummary(pg)) : '';
+  }
+
+  /* ── 미니 마크다운 렌더 ── */
+  function mdEsc(s){ return String(s).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+  function inline(s){
+    s = mdEsc(s);
+    s = s.replace(/`([^`]+)`/g, function(_, c){ return '<code>' + c + '</code>'; });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    return s;
+  }
+  function renderMd(text){
+    var lines = String(text).split('\n'), html = [], i = 0, listType = null, buf = [];
+    function flushP(){ if (buf.length){ html.push('<p>' + buf.join('<br>') + '</p>'); buf = []; } }
+    function closeList(){ if (listType){ html.push('</' + listType + '>'); listType = null; } }
+    while (i < lines.length){
+      var ln = lines[i];
+      if (/^```/.test(ln)){
+        flushP(); closeList();
+        var code = []; i++;
+        while (i < lines.length && !/^```/.test(lines[i])){ code.push(mdEsc(lines[i])); i++; }
+        html.push('<pre><code>' + code.join('\n') + '</code></pre>'); i++; continue;
+      }
+      var h = ln.match(/^(#{1,4})\s+(.*)$/);
+      if (h){ flushP(); closeList(); var lv = Math.min(h[1].length + 2, 4); html.push('<h' + lv + '>' + inline(h[2]) + '</h' + lv + '>'); i++; continue; }
+      if (/^\s*>\s?/.test(ln)){ flushP(); closeList(); html.push('<blockquote>' + inline(ln.replace(/^\s*>\s?/, '')) + '</blockquote>'); i++; continue; }
+      var ul = ln.match(/^\s*[-*]\s+(.*)$/), ol = ln.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (ul || ol){
+        flushP();
+        var want = ul ? 'ul' : 'ol';
+        if (listType !== want){ closeList(); listType = want; html.push('<' + want + '>'); }
+        html.push('<li>' + inline((ul || ol)[1]) + '</li>'); i++; continue;
+      }
+      if (/^\s*$/.test(ln)){ flushP(); closeList(); i++; continue; }
+      buf.push(inline(ln)); i++;
+    }
+    flushP(); closeList();
+    return html.join('');
+  }
+
+  /* ── 메시지 DOM ── */
+  function addMsg(role, text){
+    var d = document.createElement('div');
+    d.className = 'aiMsg ' + (role === 'user' ? 'u' : 'a');
+    if (role === 'user') d.textContent = text; else d.innerHTML = renderMd(text || '');
+    body.appendChild(d);
+    body.scrollTop = body.scrollHeight;
+    return d;
+  }
+  function addCopy(el, getText){
+    var b = document.createElement('button');
+    b.className = 'copyMsg'; b.type = 'button'; b.textContent = '복사';
+    b.addEventListener('click', function(){
+      try { navigator.clipboard.writeText(getText()); b.textContent = '복사됨 ✓'; setTimeout(function(){ b.textContent = '복사'; }, 1400); }
+      catch(e){ b.textContent = '복사 실패'; }
+    });
+    el.appendChild(b);
+  }
+  function showHint(){
+    body.innerHTML = '';
+    var pg = curPage(), nm = PAGES[pg] || '설교';
+    var d = document.createElement('div');
+    d.className = 'hint';
+    d.innerHTML = '<b>' + nm + '</b> 화면에서 함께 준비해요.<br>본문 해석, 대지 다듬기, 예화·적용,<br>제목 후보까지 무엇이든 물어보세요.<br><br>아래 <b>현재 화면 참고</b>를 켜면<br>지금 입력한 내용을 보고 답합니다.';
+    body.appendChild(d);
+  }
+
+  /* ── 멀티턴 스트리밍 호출 ── */
+  async function callChat(messages, model, system, onTick){
+    var key = (window.aiKey ? aiKey() : String((window.state && state.settings && state.settings.claudeKey) || '').trim());
+    if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
+    var res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model: model, max_tokens: 4000, stream: true, system: system, messages: messages })
+    });
+    if (!res.ok){
+      var et = ''; try { et = (await res.json()).error.message; } catch(e){ et = 'HTTP ' + res.status; }
+      throw new Error(et);
+    }
+    var reader = res.body.getReader(), dec = new TextDecoder(), bufS = '', out = '';
+    while (true){
+      var r = await reader.read();
+      if (r.done) break;
+      bufS += dec.decode(r.value, { stream: true });
+      var ls = bufS.split('\n'); bufS = ls.pop();
+      for (var k = 0; k < ls.length; k++){
+        var l = ls[k]; if (l.indexOf('data:') !== 0) continue;
+        var ev; try { ev = JSON.parse(l.slice(5)); } catch(e){ continue; }
+        if (ev.type === 'content_block_delta' && ev.delta && ev.delta.text){ out += ev.delta.text; if (onTick) onTick(out); }
+        if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || '스트림 오류');
+      }
+    }
+    return out;
+  }
+
+  /* ── 전송 ── */
+  async function send(){
+    if (busy) return;
+    var text = input.value.trim();
+    if (!text) return;
+    var pg = curPage();
+    if (convo.length === 0) body.innerHTML = '';   /* 힌트 제거 */
+
+    /* 사용자 메시지 = (선택) 컨텍스트 + 질문. 화면 표시는 질문만. */
+    var userVisible = text, userSend = text;
+    if (ctxOn.checked && PAGES[pg]){
+      var ctx = gatherContext(pg);
+      if (ctx) userSend = '[현재 ' + PAGES[pg] + ' 화면 입력 내용]\n' + ctx + '\n\n[질문]\n' + text;
+    }
+    addMsg('user', userVisible);
+    convo.push({ role: 'user', content: userSend });
+    input.value = ''; autosize();
+
+    busy = true; sendBtn.disabled = true;
+    var aEl = addMsg('assistant', '');
+    aEl.innerHTML = '<span class="cur"></span>';
+    var full = '';
+    try {
+      full = await callChat(convo.slice(), modelSel.value, sysFor(pg), function(out){
+        aEl.innerHTML = renderMd(out) + '<span class="cur"></span>';
+        body.scrollTop = body.scrollHeight;
+      });
+      aEl.innerHTML = renderMd(full);
+      addCopy(aEl, function(){ return full; });
+      convo.push({ role: 'assistant', content: full });
+    } catch(e){
+      aEl.classList.add('err');
+      aEl.textContent = '오류: ' + e.message;
+      convo.pop(); /* 실패한 user 턴 롤백 → 재시도 가능 */
+    } finally {
+      busy = false; sendBtn.disabled = false;
+      body.scrollTop = body.scrollHeight;
+      input.focus();
+    }
+  }
+
+  /* ── 열기/닫기/새 대화 ── */
+  function openPanel(){
+    refreshCtxTag();
+    if (convo.length === 0) showHint();
+    back.classList.add('open'); panel.classList.add('open');
+    setTimeout(function(){ input.focus(); }, 220);
+  }
+  function closePanel(){ panel.classList.remove('open'); back.classList.remove('open'); }
+  function newChat(){ convo = []; showHint(); input.value = ''; autosize(); input.focus(); }
+
+  function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
+
+  /* ── FAB 노출: 대상 3개 페이지에서만 ── */
+  function syncFab(name){
+    var pg = name || curPage();
+    if (PAGES[pg]){ fab.classList.add('show'); refreshCtxTag(); }
+    else { fab.classList.remove('show'); closePanel(); }
+  }
+  /* 페이지 전환 감지: .page 의 class(on) 변화를 직접 관찰 —
+     내부에서 bare showPage()를 호출하는 모든 경로까지 빠짐없이 포착. */
+  var pageSecs = document.querySelectorAll('.page');
+  if (window.MutationObserver && pageSecs.length){
+    var mo = new MutationObserver(function(){ try { syncFab(); } catch(e){} });
+    Array.prototype.forEach.call(pageSecs, function(sec){ mo.observe(sec, { attributes: true, attributeFilter: ['class'] }); });
+  }
+  /* window.showPage 래퍼(보조) — 기존 함수 보존 */
+  if (typeof window.showPage === 'function'){
+    var _orig = window.showPage;
+    window.showPage = function(n){ var rv = _orig.apply(this, arguments); try { syncFab(n); } catch(e){} return rv; };
+  }
+
+  /* ── 이벤트 ── */
+  fab.addEventListener('click', openPanel);
+  $('#aiClose').addEventListener('click', closePanel);
+  back.addEventListener('click', closePanel);
+  $('#aiNew').addEventListener('click', newChat);
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('input', autosize);
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); }
+  });
+  ctxOn.addEventListener('change', refreshCtxTag);
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && panel.classList.contains('open')) closePanel(); });
+  try { modelSel.value = localStorage.getItem('tsa.aiModel') || 'claude-opus-4-8'; } catch(e){}
+  modelSel.addEventListener('change', function(){ try { localStorage.setItem('tsa.aiModel', modelSel.value); } catch(e){} });
+
+  /* 초기 진입 페이지 반영 */
+  syncFab();
+})();
+</script>
 </body>
 </html>
