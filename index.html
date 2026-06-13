@@ -996,7 +996,7 @@ function openDetail(kind, id){
       '<span class="badge b-sermon">' + esc(s['ID']) + '</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span><span class="badge b-state">' + esc(s['상태']) + '</span>' +
       '<button class="linkbtn" style="margin-left:auto;color:var(--warn);padding:4px 0" onclick="deleteSermon(\'' + esc(s['ID']) + '\')">설교 삭제</button></div>' +
       '<h2 style="font-size:19px;margin:2px 0 2px">' + hl(s['제목'], terms) + '</h2>' +
-      '<div style="color:var(--accent2);font-size:14px;margin-bottom:10px">' + esc(s['본문']) + '</div>';
+      '<div style="color:var(--accent2);font-size:14px;margin-bottom:10px">' + linkifyRefs(s['본문'] || '') + '</div>';
     [['시리즈', s['시리즈'] + (s['시리즈순번'] ? ' (' + s['시리즈순번'] + '회)' : '')], ['핵심메시지', s['핵심메시지']], ['대지', s['대지']], ['예화', s['예화']], ['비고', s['비고']]].forEach(function(kv){
       if (kv[1] && kv[1].trim && kv[1].trim()) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>';
     });
@@ -3814,7 +3814,7 @@ function spSermonHtml(){
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 주 등록</label></div>' +
-      (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">주간 묵상: ' + esc(w['주간범위']) + '</div>' : '') +
+      (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">주간 묵상: ' + linkifyRefs(w['주간범위']) + '</div>' : '') +
       (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
 
     if (confirmed) {
@@ -3823,19 +3823,19 @@ function spSermonHtml(){
       var confirmCard =
         '<div style="margin:8px 0 10px;padding:11px 13px;border:1.5px solid var(--accent);border-radius:10px;background:rgba(124,154,255,.08)">' +
         '<div style="margin-bottom:5px"><b style="font-size:14px">' + esc(src['제목'] || '') + '</b>' +
-        ' <span style="color:var(--accent2);font-size:13px">' + esc(src['본문'] || '') + '</span></div>' +
-        '<div style="font-size:13px;margin-bottom:3px;color:var(--txt)">' + esc(src['핵심메시지'] || ed['핵심메시지'] || '') + '</div>' +
-        ((src['주제근거'] || ed['주제근거']) ? '<div style="color:var(--dim);font-size:12px;margin-bottom:3px">근거 — ' + esc(src['주제근거'] || ed['주제근거'] || '') + '</div>' : '') +
-        '<div style="font-size:12.5px;margin-top:5px">' + djHtml(src['대지'] || ed['대지']) + '</div></div>';
+        ' <span style="color:var(--accent2);font-size:13px">' + linkifyRefs(src['본문'] || '') + '</span></div>' +
+        '<div style="font-size:13px;margin-bottom:3px;color:var(--txt)">' + linkifyRefs(src['핵심메시지'] || ed['핵심메시지'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
+        ((src['주제근거'] || ed['주제근거']) ? '<div style="color:var(--dim);font-size:12px;margin-bottom:3px">근거 — ' + linkifyRefs(src['주제근거'] || ed['주제근거'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' : '') +
+        '<div style="font-size:12.5px;margin-top:5px">' + djHtml(src['대지'] || ed['대지'], brefBook(src['본문'] || ed['본문'] || '')) + '</div></div>';
       /* 나머지 선택지: 흑백 + 접혀 있음 */
       var nonSelHtml = (w.opts || []).filter(function(_, oi){ return oi !== w.sel; }).map(function(o){
         return '<details style="filter:grayscale(1);opacity:0.5;margin:0 0 5px">' +
           '<summary style="cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
-          esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + esc(o['본문'] || '') + '</span></summary>' +
+          esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + linkifyRefs(o['본문'] || '') + '</span></summary>' +
           '<div style="padding:8px 11px;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;font-size:13px;line-height:1.5">' +
-          esc(o['핵심메시지'] || '') +
-          (o['주제근거'] ? '<div style="font-size:12px;margin-top:2px;color:var(--dim)">근거 — ' + esc(o['주제근거']) + '</div>' : '') +
-          '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지']) + '</div></div></details>';
+          linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) +
+          (o['주제근거'] ? '<div style="font-size:12px;margin-top:2px;color:var(--dim)">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
+          '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></div></details>';
       }).join('');
       var composeBtn =
         '<div style="margin:6px 0 2px">' +
@@ -3853,10 +3853,10 @@ function spSermonHtml(){
       var sel = w.sel === oi;
       return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
         '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
-        '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + esc(o['본문'] || '') + '</span>' +
-        '<div style="margin:3px 0 0 22px">' + esc(o['핵심메시지'] || '') + '</div>' +
-        (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + esc(o['주제근거']) + '</div>' : '') +
-        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지']) + '</div></label>';
+        '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
+        '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
+        (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
+        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>';
     }).join('');
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
@@ -5050,7 +5050,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v91';
+var APP_VER = 'v92';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
