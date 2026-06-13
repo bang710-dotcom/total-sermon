@@ -2311,14 +2311,14 @@ async function archiveDevoRows(S){
   if (adds.length || ups.length) sync();
   return adds.length + ups.length;
 }
-async function aiSeriesSermon(){
+async function aiSeriesSermon(noteOverride){
   var S = state.series;
   try {
     (state.seriesReqs = state.seriesReqs || {})['시리즈설교'] = '진행중'; spStatus();
     toast('Opus가 주일 설교 선택지를 생성합니다 — 1~3분');
     var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
     var out = await callClaude(P_SERMON, JSON.stringify({
-      '시리즈명': S.meta['시리즈명'], '요청사항': S.meta['요청사항'], '주일': S.meta['주일'], '묵상확정': rows
+      '시리즈명': S.meta['시리즈명'], '요청사항': (noteOverride != null ? noteOverride : S.meta['요청사항']), '주일': S.meta['주일'], '묵상확정': rows
     }), 32000, aiTick('설교 선택지'));
     var weeks = aiJson(out);
     if (!Array.isArray(weeks) || !weeks.length) throw new Error('응답 형식 오류');
@@ -3125,8 +3125,12 @@ function spResultExists(type){
     return false;
   }
   if (S.sermon && (S.sermon.weeks || []).length) return true;
+  /* 시트 판정은 '확정(구상)·완료'만 — 단순 [보관] 후보는 제외.
+     보관 레코드는 폐기·중복 시리즈에도 같은 이름으로 남아 있어, 빈 시리즈에서 '결과 있음'으로
+     오인(다른 자료 감지)되던 문제를 막는다. 보관 후보는 시트 시리즈를 직접 열 때(slOpenSheet)
+     S.sermon으로 복원되어 캐시로 감지된다. */
   if (name && (state.data.sermons || []).some(function(s){
-    return s['시리즈'] === name && (s['상태'] === '보관' || s['상태'] === '구상' || s['상태'] === '완료');
+    return s['시리즈'] === name && (s['상태'] === '구상' || s['상태'] === '완료');
   })) return true;
   return false;
 }
@@ -3256,8 +3260,10 @@ function spRedo(type){
   m['요청사항'] = (m['요청사항'] ? m['요청사항'] + '\n' : '') +
     '[재작업] 이전 초안이 마음에 들지 않아 다시 요청합니다. 이전과 다르게 보완해 주세요.' + (note.trim() ? ' — ' + note.trim() : '');
   if (type === '시리즈묵상') {
+    if (aiKey()) { aiSeriesDevo(m); return; }   /* API 직결 — 키 있으면 즉시 재생성 */
     spWriteReq('시리즈묵상', { '계획': m }, '묵상 일정 재작업 (' + m['시리즈명'] + ')');
   } else {
+    if (aiKey()) { aiSeriesSermon(m['요청사항']); return; }  /* API 직결 — 보완 지시 전달 */
     var rows = (S.devo ? S.devo.rows : []).map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
     spWriteReq('시리즈설교', { '계획': m, '묵상확정': rows }, '설교 주제 재작업 (' + m['시리즈명'] + ')');
   }
