@@ -103,7 +103,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;margin-right:7px;vertical-align:-2px;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* 좌측 하단 동작 상태 핀 — 동기화·생성·요청 대기 시 눈에 띄게 표시 */
-.statusPill{display:none;align-items:center;gap:8px;margin-bottom:9px;padding:10px 12px;border-radius:11px;font-size:13px;font-weight:700;line-height:1.35;word-break:keep-all}
+.statusPill{display:none;align-items:center;gap:8px;margin:6px 8px 2px;padding:10px 12px;border-radius:11px;font-size:13px;font-weight:700;line-height:1.35;word-break:keep-all}
 .statusPill.busy{background:rgba(127,196,255,.16);border:1px solid rgba(127,196,255,.55);color:#7fc4ff;box-shadow:0 0 0 0 rgba(127,196,255,.45);animation:pillGlow 1.6s ease-in-out infinite}
 .statusPill.wait{background:rgba(255,194,77,.15);border:1px solid rgba(255,194,77,.55);color:#ffc24d;animation:pillBlink 2s ease-in-out infinite}
 .statusPill .spin{margin-right:0;flex:0 0 auto}
@@ -244,8 +244,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>인박스</button>
     <button class="nav" data-page="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>설정</button>
+    <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none">⏳</span><span id="statusPillTxt"></span></div>
     <div class="foot">
-      <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none">⏳</span><span id="statusPillTxt"></span></div>
       <div class="syncState" id="syncStateD">—</div>
     </div>
   </aside>
@@ -4516,9 +4516,13 @@ function pendingReqCount(){
   return n;
 }
 function setSyncState(txt, busy){
-  $('#syncState').textContent = txt;
-  $('#syncStateD').textContent = txt;
-  if (busy) showStatusPill(txt, 'busy'); else hideStatusPill();
+  $('#syncState').textContent = txt; /* 모바일 헤더: 진행 문구도 표시 */
+  if (busy) {
+    showStatusPill(txt, 'busy');        /* 진행 문구는 상태 핀에만 — 아래 줄은 동기화 시각 유지 */
+  } else {
+    $('#syncStateD').textContent = txt; /* 좌측 하단 줄: 동기화 시각만 */
+    hideStatusPill();
+  }
 }
 function renderSyncState(){
   var f = state.data.fetchedAt;
@@ -4703,7 +4707,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v87';
+var APP_VER = 'v88';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
