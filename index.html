@@ -128,6 +128,29 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #dragOverlay{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.72);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
 #dragOverlay.on{display:flex;animation:fade .12s ease}
 #dragOverlay .dropMsg{pointer-events:none;border:2.5px dashed var(--accent);border-radius:22px;padding:46px 60px;text-align:center;background:rgba(24,27,34,.55)}
+/* ── 커스텀 달력 날짜 선택기 (iOS 월-휠 피커 대체, 모든 기기 동일) ── */
+input[type=date]{cursor:pointer}
+#calOv{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+#calOv.on{display:flex;animation:fade .12s ease}
+.calbox{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);width:330px;max-width:100%;padding:14px 14px 12px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.calhd{display:flex;align-items:center;gap:5px;margin-bottom:10px}
+.calhd .calnav{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:9px;width:36px;height:36px;font-size:15px;cursor:pointer;flex:0 0 auto;line-height:1;font-family:inherit}
+.calhd .calnav:active{opacity:.65}
+.calhd .caltitle{flex:1;text-align:center;font-weight:700;font-size:15.5px;color:var(--text);user-select:none}
+.calwk{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.calwk span{text-align:center;font-size:11.5px;color:var(--dim);padding:2px 0}
+.calwk span:first-child{color:var(--warn)}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.calgrid button{aspect-ratio:1/1;min-height:38px;border:1px solid transparent;background:var(--card2);color:var(--text);border-radius:9px;font-size:14px;cursor:pointer;font-family:inherit;padding:0;display:flex;align-items:center;justify-content:center}
+.calgrid button:active{opacity:.65}
+.calgrid button.sun{color:var(--warn)}
+.calgrid button.oth{opacity:.4}
+.calgrid button.today{border-color:var(--accent2);color:var(--accent2);font-weight:700}
+.calgrid button.sel{background:var(--accent);border-color:var(--accent);color:#0c1020;font-weight:700}
+.calft{display:flex;gap:8px;margin-top:12px}
+.calft button{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:10px 0;font-size:13px;cursor:pointer;font-family:inherit}
+.calft button.prim{background:var(--accent);border-color:var(--accent);color:#0c1020;font-weight:700}
+.calft button:active{opacity:.7}
 #dragOverlay svg{width:52px;height:52px;color:var(--accent);margin-bottom:14px}
 #dragOverlay h3{font-size:20px;font-weight:800;margin-bottom:8px}
 #dragOverlay p{color:var(--dim);font-size:14px;line-height:1.7}
@@ -4761,6 +4784,137 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var f = state.data.fetchedAt ? new Date(state.data.fetchedAt.replace(' ', 'T')) : null;
     if (state.settings.url && (!f || Date.now() - f.getTime() > 30 * 60 * 1000)) sync();
   });
+})();
+
+/* ══ 커스텀 달력 날짜 선택기 ══
+   iOS/iPad Safari는 input[type=date] 탭 시 '월·연도만' 고르는 휠 피커를 띄워
+   날짜(일) 선택이 안 되는 문제가 있다. 네이티브 피커를 억제하고 모든 기기에서
+   동일한 달력 모달로 날짜까지 고르게 한다. 선택 시 change/input 이벤트를
+   디스패치해 기존 리스너(spPreview·devo·import 등)가 그대로 동작한다. */
+(function(){
+  var ov = document.createElement('div');
+  ov.id = 'calOv';
+  ov.innerHTML =
+    '<div class="calbox" role="dialog" aria-modal="true">' +
+      '<div class="calhd">' +
+        '<button class="calnav" data-d="-12" aria-label="이전 해">«</button>' +
+        '<button class="calnav" data-d="-1" aria-label="이전 달">‹</button>' +
+        '<div class="caltitle" id="calTitle"></div>' +
+        '<button class="calnav" data-d="1" aria-label="다음 달">›</button>' +
+        '<button class="calnav" data-d="12" aria-label="다음 해">»</button>' +
+      '</div>' +
+      '<div class="calwk"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>' +
+      '<div class="calgrid" id="calGrid"></div>' +
+      '<div class="calft">' +
+        '<button data-act="today">오늘</button>' +
+        '<button data-act="clear">지우기</button>' +
+        '<button data-act="close" class="prim">닫기</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  var grid = ov.querySelector('#calGrid'), title = ov.querySelector('#calTitle');
+  var target = null, viewY = 0, viewM = 0; /* viewM: 0-based */
+
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function fmt(y, m, d){ return y + '-' + pad(m + 1) + '-' + pad(d); }
+  function parse(v){
+    var x = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+    return x ? { y: +x[1], m: +x[2] - 1, d: +x[3] } : null;
+  }
+  function render(){
+    title.textContent = viewY + '년 ' + (viewM + 1) + '월';
+    var startDow = new Date(viewY, viewM, 1).getDay();
+    var daysIn = new Date(viewY, viewM + 1, 0).getDate();
+    var prevDays = new Date(viewY, viewM, 0).getDate();
+    var sel = parse(target && target.value);
+    var t = new Date(), ty = t.getFullYear(), tm = t.getMonth(), td = t.getDate();
+    var cells = [], i;
+    for (i = 0; i < startDow; i++){
+      cells.push({ y: viewM === 0 ? viewY - 1 : viewY, m: (viewM + 11) % 12, d: prevDays - startDow + 1 + i, oth: true });
+    }
+    for (i = 1; i <= daysIn; i++){ cells.push({ y: viewY, m: viewM, d: i, oth: false }); }
+    var tail = (7 - cells.length % 7) % 7;
+    for (i = 1; i <= tail; i++){
+      cells.push({ y: viewM === 11 ? viewY + 1 : viewY, m: (viewM + 1) % 12, d: i, oth: true });
+    }
+    var html = '';
+    for (i = 0; i < cells.length; i++){
+      var c = cells[i], dow = i % 7, cls = [];
+      if (c.oth) cls.push('oth');
+      if (dow === 0) cls.push('sun');
+      if (c.y === ty && c.m === tm && c.d === td) cls.push('today');
+      if (sel && c.y === sel.y && c.m === sel.m && c.d === sel.d) cls.push('sel');
+      html += '<button type="button" class="' + cls.join(' ') + '" data-y="' + c.y + '" data-m="' + c.m + '" data-d="' + c.d + '">' + c.d + '</button>';
+    }
+    grid.innerHTML = html;
+  }
+  function open(inp){
+    target = inp;
+    var p = parse(inp.value);
+    if (!p){ var t = new Date(); p = { y: t.getFullYear(), m: t.getMonth() }; }
+    viewY = p.y; viewM = p.m;
+    render();
+    ov.classList.add('on');
+  }
+  function close(){ ov.classList.remove('on'); target = null; }
+  function commit(v){
+    if (target){
+      target.value = v;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    close();
+  }
+
+  ov.addEventListener('click', function(e){
+    if (e.target === ov){ close(); return; }
+    var nav = e.target.closest('.calnav');
+    if (nav){
+      var nm = viewM + (+nav.getAttribute('data-d'));
+      viewY += Math.floor(nm / 12);
+      viewM = ((nm % 12) + 12) % 12;
+      render();
+      return;
+    }
+    var act = e.target.closest('[data-act]');
+    if (act){
+      var a = act.getAttribute('data-act');
+      if (a === 'close') close();
+      else if (a === 'clear') commit('');
+      else if (a === 'today'){ var t = new Date(); commit(fmt(t.getFullYear(), t.getMonth(), t.getDate())); }
+      return;
+    }
+    var day = e.target.closest('.calgrid button');
+    if (day) commit(fmt(+day.getAttribute('data-y'), +day.getAttribute('data-m'), +day.getAttribute('data-d')));
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && ov.classList.contains('on')) close();
+  });
+
+  /* 네이티브 피커 억제: readonly면 iOS/데스크탑 모두 기본 피커가 안 뜬다.
+     (readonly여도 .value 프로그램 대입·표시·click 이벤트는 정상) */
+  function arm(inp){
+    if (inp && inp.getAttribute('data-cal') !== '1'){
+      inp.setAttribute('readonly', 'readonly');
+      inp.setAttribute('data-cal', '1');
+    }
+  }
+  document.querySelectorAll('input[type=date]').forEach(arm);
+  /* 동적으로 추가되는 날짜 입력칸(예: 가져오기 행)도 처리 */
+  new MutationObserver(function(muts){
+    muts.forEach(function(mu){
+      mu.addedNodes.forEach(function(n){
+        if (n.nodeType !== 1) return;
+        if (n.matches && n.matches('input[type=date]')) arm(n);
+        if (n.querySelectorAll) n.querySelectorAll('input[type=date]').forEach(arm);
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+  /* 클릭 위임(캡처): readonly 입력칸 탭 → 커스텀 달력 */
+  document.addEventListener('click', function(e){
+    var inp = e.target.closest && e.target.closest('input[type=date]');
+    if (inp){ e.preventDefault(); inp.blur(); open(inp); }
+  }, true);
 })();
 </script>
 </body>
