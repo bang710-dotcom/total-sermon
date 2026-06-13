@@ -730,6 +730,7 @@ function runSearch(){
   if (scope === 'all' || scope === 'sermons' || scope === 'illust' || scope === 'topics') {
     state.data.sermons.forEach(function(s){
       if (s['상태'] === '보관') return; /* 미래설교 보관함 전용 — 메인 검색에서는 숨김 */
+      if (s['상태'] !== '완료' && s['상태'] !== '설교함') return; /* 검색은 완료·설교함만 (진행중은 [설교 작성]의 진행중 불러오기에서) */
       if (!tagHit(s['키워드'])) return;
       var fields = scope === 'illust' ? ['예화'] : SERMON_FIELDS;
       var hayAll = fields.map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
@@ -1305,6 +1306,46 @@ $('#c_new').addEventListener('click', function(){
   if (hasContent && !confirm('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
   clearCompose();
 });
+
+/* ── 진행중인 설교(구상·연구·작성중) 검색·이어쓰기 ── */
+var CW_INPROGRESS = { '구상': 1, '연구': 1, '작성중': 1 };
+/* 설교를 직접 수정 모드로 불러와 이어 작업 (저장 시 같은 행 업데이트) */
+window.resumeSermon = function(id){
+  editSermon(id);                 /* 내용 로드 (+ compose 화면 전환) */
+  state.editing = id; state.versionOf = null;  /* 새버전이 아니라 직접 수정으로 */
+  updateComposeBadge(); refreshReqBtns();
+  var p = $('#cwPanel'); if (p) p.style.display = 'none';
+  toast('이어쓰기 모드 — 저장하면 ' + id + ' 행이 업데이트됩니다.');
+};
+function cwRender(){
+  var box = $('#cwResults'); if (!box) return;
+  var q = ($('#cwQ').value || '').trim().toLowerCase();
+  var ts = q ? q.split(/\s+/).filter(Boolean) : [];
+  var list = (state.data.sermons || []).filter(function(s){ return CW_INPROGRESS[s['상태']]; });
+  if (ts.length) list = list.filter(function(s){
+    var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
+    return ts.every(function(t){ return hay.indexOf(t) >= 0; });
+  });
+  list.sort(function(a, b){ var x = String(a['수정일'] || a['날짜'] || ''), y = String(b['수정일'] || b['날짜'] || ''); return x < y ? 1 : x > y ? -1 : 0; });
+  if (!list.length){ box.innerHTML = '<div class="cnt" style="padding:10px 2px;color:var(--dim)">' + (q ? '검색 결과가 없습니다.' : '진행중(구상·연구·작성중)인 설교가 없습니다.') + '</div>'; return; }
+  box.innerHTML = list.slice(0, 40).map(function(s){
+    return '<div class="item" style="cursor:pointer;padding:8px 10px;margin-bottom:5px" onclick="resumeSermon(\'' + esc(s['ID']) + '\')">' +
+      '<div class="meta"><span class="badge b-state">' + esc(s['상태']) + '</span>' +
+      (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
+      (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') + '</div>' +
+      '<div class="title" style="font-size:14px">' + esc(s['제목'] || '(제목 없음)') +
+      (s['본문'] ? ' <span style="color:var(--dim);font-weight:400;font-size:12.5px">' + esc(s['본문']) + '</span>' : '') + '</div></div>';
+  }).join('');
+}
+(function(){
+  var t = $('#cwToggle'), p = $('#cwPanel'), q = $('#cwQ');
+  if (t) t.addEventListener('click', function(){
+    var open = p.style.display === 'none';
+    p.style.display = open ? 'block' : 'none';
+    if (open) { cwRender(); if (q) q.focus(); }
+  });
+  if (q) q.addEventListener('input', cwRender);
+})();
 $('#c_save').addEventListener('click', function(){
   var data = collectCompose();
   if (!data['제목']) { toast('제목을 입력해 주세요.'); return; }
@@ -1369,11 +1410,11 @@ function ensureDocxLib(){
   return loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js').then(function(){ return window.docx; });
 }
 /* 원고 스타일별 DOCX 서식 — 전체 폰트 함초롬바탕
-   기본·자유원고: 아이패드 13" 화면용 216×290mm, 여백 10mm, 13pt, 줄간격 1.8
+   기본·자유원고: 아이패드 13" 화면용 216×290mm, 여백 10mm, 13pt, 줄간격 1.5
    카드원고: 아이패드 미니 가로화면용 210×310mm, 위·좌우 10mm 아래 12.5mm, 14pt, 줄간격 1.5 */
 var DOCX_STYLES = {
-  '기본원고': { font: '함초롬바탕', size: 26, line: 432, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
-  '자유원고': { font: '함초롬바탕', size: 26, line: 432, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
+  '기본원고': { font: '함초롬바탕', size: 26, line: 360, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
+  '자유원고': { font: '함초롬바탕', size: 26, line: 360, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
   '카드원고': { font: '함초롬바탕', size: 28, line: 360, titleSize: 40, page: { w: 210, h: 310, t: 10, b: 12.5, l: 10, r: 10 } }
 };
 var EX_BLUE = '4C94D8';
@@ -1515,6 +1556,50 @@ function fmtKorDate(d){
   return parseInt(m[1], 10) + '월 ' + parseInt(m[2], 10) + '일';
 }
 
+/* 두 본문범위 문자열을 하나의 범위로 합침 (예: "갈 1:1-10","갈 2:11-21" → "갈라디아서 1:1 ~ 2:21") */
+function combineRefs(refs){
+  if (!refs.length) return '';
+  if (refs.length === 1) return refs[0];
+  var first = refs[0], last = refs[refs.length - 1];
+  var a = parseRange(first), b = parseRange(last);
+  var fBook = (first.match(/^(.+?)\s+\d/) || [])[1] || '';
+  var lBook = (last.match(/^(.+?)\s+\d/) || [])[1] || fBook;
+  if (!a || !b || !fBook) return first + ' ~ ' + last;
+  var start = fBook + ' ' + a.c1 + ':' + a.v1;
+  var endVerse = (b.v2 && b.v2 !== 999) ? (':' + b.v2) : '';
+  var end = (lBook && lBook !== fBook) ? (lBook + ' ' + b.c2 + endVerse) : (b.c2 + endVerse);
+  return start + ' ~ ' + end;
+}
+/* 한 주일의 '전주간 묵상 본문' — 주차에 값이 있으면 그대로, 없으면 확정 묵상일정(S.devo)의
+   직전 월~토 본문에서 자동 산출 (전주간 묵상본문이 비어 나오던 문제 보강) */
+function weekDevoRange(S, w){
+  var given = String((w && w['주간범위']) || '').trim();
+  if (given) return given;
+  if (!(S && S.devo && S.devo.rows && S.devo.rows.length)) return '';
+  var sun = w && w['주일']; if (!sun) return '';
+  var sd = new Date(sun + 'T12:00:00');
+  var loD = new Date(sd); loD.setDate(sd.getDate() - 6);
+  var hiD = new Date(sd); hiD.setDate(sd.getDate() - 1);
+  var lo = loD.toISOString().slice(0, 10), hi = hiD.toISOString().slice(0, 10);
+  var refs = S.devo.rows.filter(function(r){
+    var d = r['날짜']; return d && d >= lo && d <= hi && String(r['본문범위'] || '').trim();
+  }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; }).map(function(r){ return String(r['본문범위']).trim(); });
+  return combineRefs(refs);
+}
+/* 설교계획 표 '주제 / 예배 후 행사' 셀 내용 (DOCX·미리보기 공용) */
+function planThemeLines(w){
+  if (w.skip) return [String(w['비고'] || '')];
+  var ed = w.edit || {};
+  var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
+  var confirmed = !w.skip && w.done && w.sig === weekSig(w);
+  if (confirmed){
+    var src = selO || ed;
+    var t2 = String(src['제목'] || ''), ref2 = String(src['본문'] || '');
+    return ref2 ? [t2, '(' + ref2 + ')'] : [t2];
+  }
+  return [''];
+}
+
 /* ── 시리즈 설교계획 DOCX 생성 ── */
 function buildSeriesPlanDocx(D, S){
   var m = S.meta || {};
@@ -1558,30 +1643,15 @@ function buildSeriesPlanDocx(D, S){
 
   var rows = [headerRow];
   (S.sermon.weeks || []).forEach(function(w, wi){
-    var ed = w.edit || {};
-    var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
-    var confirmed = !w.skip && w.done && w.sig === weekSig(w);
-    var src = selO || ed;
     var bg = wi % 2 === 1 ? ALT_BG : 'FFFFFF';
-
-    /* 주제 셀: 확정 설교는 제목/본문 두 줄, 외부강사·비고는 한 줄, 미확정 빈 칸 */
-    var themeLines;
-    if (w.skip) {
-      themeLines = [String(w['비고'] || '')];
-    } else if (confirmed) {
-      var t2 = String(src['제목'] || '');
-      var ref2 = String(src['본문'] || '');
-      themeLines = ref2 ? [t2, '(' + ref2 + ')'] : [t2];
-    } else {
-      themeLines = [''];
-    }
+    var themeLines = planThemeLines(w);
 
     rows.push(new D.TableRow({
       height: { value: 931, rule: D.HeightRule ? D.HeightRule.ATLEAST : 'atLeast' },
       children: [
         mkCell([String(wSeq(w, wi))], 0, { shading: bg }),
         mkCell([fmtKorDate(w['주일'])], 1, { shading: bg }),
-        mkCell([String(w['주간범위'] || '')], 2, { shading: bg }),
+        mkCell([weekDevoRange(S, w)], 2, { shading: bg }),
         mkCell(themeLines, 3, { shading: bg }),
         mkCell([''], 4, { shading: bg }),
         mkCell([''], 5, { shading: bg })
@@ -4115,10 +4185,13 @@ function exportDocxParas(meta, built, namePrefix){
 }
 $('#c_preview').addEventListener('click', function(){
   var data = collectCompose();
-  if (!data['제목'] && !data['원고텍스트']) { toast('미리볼 내용이 없습니다.'); return; }
-  openPreview(previewSermonText(data, data['원고텍스트'] || ''), function(){
+  var built = parasFromCompose(data, state.compose);
+  var hasBody = built.paras.some(function(p){ return String(p.text || '').trim(); });
+  if (!data['제목'] && !hasBody) { toast('미리볼 내용이 없습니다.'); return; }
+  /* 미리보기는 실제 내보낼 DOCX 문단(built)을 그대로 렌더 → 저장될 문서와 동일 */
+  openPreview(paraPreviewHtml(data, built), function(){
     var prefix = state.compose.style === '카드원고' ? '카드원고_' : '';
-    exportDocxParas(data, parasFromCompose(data, state.compose), prefix);
+    exportDocxParas(data, built, prefix);
   });
 });
 $('#c_export').addEventListener('click', function(){
@@ -4476,6 +4549,25 @@ function seriesDevoPreviewHtml(S){
   });
   return h;
 }
+/* 내보낼 DOCX 문단 배열(built.paras)을 그대로 화면 미리보기로 — 미리보기 = 실제 내보내기 결과와 동일 */
+function paraPreviewHtml(meta, built){
+  var paras = (built && built.paras) || [];
+  var st = (built && built.st) || {};
+  var baseSz = st.size ? (st.size / 2) : 13;   /* docx size = half-point */
+  var lh = st.line ? (st.line / 240) : 1.5;     /* docx line = 240ths per line */
+  var h = '<div style="font-size:' + baseSz + 'pt;line-height:' + lh + '">';
+  paras.forEach(function(p){
+    var t = String(p.text || '');
+    if (!t.trim()) { h += '<div style="height:0.8em"></div>'; return; }
+    var s = 'margin:0;';
+    if (p.size) s += 'font-size:' + (p.size / 2) + 'pt;';
+    if (p.bold) s += 'font-weight:bold;';
+    if (p.color) s += 'color:#' + p.color + ';';
+    if (p.just) s += 'text-align:justify;text-indent:2em;';
+    h += '<div style="' + s + '">' + esc(t) + '</div>';
+  });
+  return h + '</div>';
+}
 function openPreview(contentHtml, exportFn){
   closePrev();
   var ov = document.createElement('div');
@@ -4501,8 +4593,8 @@ function closePrev(){
 window.previewSermon = function(id){
   var s = findSermon(id);
   if (!s) return;
-  var text = String(s['원고텍스트'] || s['요약본'] || '');
-  openPreview(previewSermonText(s, text), function(){ exportSermonDocx(id); });
+  var built = parasFromText(s, String(s['원고텍스트'] || s['요약본'] || ''), '기본원고');
+  openPreview(paraPreviewHtml(s, built), function(){ exportSermonDocx(id); });
 };
 window.occPreview = function(i){
   var O = state.occ, o = O.opts[i];
@@ -4526,24 +4618,34 @@ window.weekConfirmBtn = async function(wi, btn){
   catch (err) { toast('확정 실패: ' + err.message); }
   finally { delete btn.dataset.busy; btn.innerHTML = ow; renderSeriesPane(); }
 };
+/* 설교계획 미리보기 — 스킬(sermon-plan-docx)에 저장된 내보내기 표 양식을 그대로 화면에 재현
+   (회차·주일예배·전주간 묵상 본문·주제/예배 후 행사·LTC·GBS, 초록 헤더·연초록 짝수행) */
 window.openSeriesSermonPreview = function(){
   var S = state.series;
   if (!S || !S.sermon) return;
   var m = S.meta || {};
-  var h = '<div style="text-align:center;margin-bottom:24px">' +
-    '<div style="font-size:18pt;font-weight:bold">'+esc(m['시리즈명']||'시리즈')+' 설교 계획</div>' +
-    (m['성경범위'] ? '<div style="font-size:12pt;color:#444;margin-top:4px">'+esc(m['성경범위'])+'</div>' : '') +
-    '</div><hr style="border:none;border-top:1px solid #ccc;margin:0 0 20px">';
-  S.sermon.weeks.forEach(function(w, wi){
-    if (w.skip) return;
-    var ed = w.edit || {};
-    h += '<div style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #eee">' +
-      '<div style="font-weight:bold;font-size:14pt">'+wSeq(w,wi)+'주차 · '+esc(w['주일']||'')+'</div>' +
-      (w['주간범위'] ? '<div style="font-size:11pt;color:#888;margin:2px 0">묵상 본문: '+esc(w['주간범위'])+'</div>' : '') +
-      (ed['제목'] ? '<div style="font-size:13pt;margin:4px 0">「'+esc(ed['제목'])+'」 <span style="color:#555;font-size:12pt">'+esc(ed['본문']||'')+'</span></div>' : '') +
-      (ed['핵심메시지'] ? '<div style="font-size:12pt;color:#333">'+esc(ed['핵심메시지'])+'</div>' : '') +
-      '</div>';
+  var heads = ['회차', '주일예배', '전주간 묵상 본문', '주제 / 예배 후 행사', 'LTC', 'GBS'];
+  var widths = ['7%', '13%', '22%', '44.5%', '6.75%', '6.75%'];
+  var h = '<div style="text-align:center;font-size:16pt;font-weight:bold;margin-bottom:14px">' +
+    esc(m['시리즈명'] || '시리즈') + ' 주일설교 계획</div>';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:10.5pt;table-layout:fixed">';
+  h += '<tr>' + heads.map(function(hd, i){
+    return '<th style="border:1px solid #9E9E9E;background:#4CAF50;color:#fff;padding:6px 4px;width:' + widths[i] + ';word-break:keep-all">' + esc(hd) + '</th>';
+  }).join('') + '</tr>';
+  (S.sermon.weeks || []).forEach(function(w, wi){
+    var bg = wi % 2 === 1 ? '#E8F5E9' : '#ffffff';
+    var cells = [
+      esc(String(wSeq(w, wi))),
+      esc(fmtKorDate(w['주일'])),
+      esc(weekDevoRange(S, w)),
+      planThemeLines(w).map(function(x){ return esc(x); }).join('<br>'),
+      '', ''
+    ];
+    h += '<tr>' + cells.map(function(c){
+      return '<td style="border:1px solid #9E9E9E;background:' + bg + ';padding:6px 5px;text-align:center;vertical-align:middle;word-break:keep-all">' + c + '</td>';
+    }).join('') + '</tr>';
   });
+  h += '</table>';
   openPreview(h);
 };
 
