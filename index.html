@@ -2925,7 +2925,7 @@ window.slOpenSheet = function(name){
     '묵상일': r.devoDays, '주일': r.sundays };
   S.devo = { m: 0, rows: rows.map(function(d){ return { '날짜': d['날짜'], '본문범위': d['본문범위'], '제목': d['제목'],
     '관찰질문': d['관찰질문'], '묵상질문': d['묵상질문'], '적용질문': d['적용질문'] }; }) };
-  S.devoDone = true;
+  S.devoDone = true; S.devoSig = spMetaSig(S.meta);
   /* sermon 주차: 모든 주일(r.sundays) 기준으로 보관+확정 통합 재구성 */
   var sundays = (r.sundays && r.sundays.length) ? r.sundays
     : serms.map(function(s){ return s['날짜']; }); /* devo 없는 시리즈 fallback */
@@ -3132,16 +3132,23 @@ $('#sp_reqDevo').addEventListener('click', async function(e){
   var m = spReadMeta();
   if (!m) { toast('성경 범위와 기간을 먼저 입력해 주세요.'); return; }
   if (!m['묵상일'].length) { toast('묵상일이 없습니다. 기간을 확인해 주세요.'); return; }
-  var st = spBtnState('시리즈묵상', S.devoDone);
-  if (st === 'req') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
-  if (st === 'fin' && !S.devo) {
-    await spCheck(true);
-    S = state.series;
-    if (S.devo) { S.view = 'devo'; saveSeries(); renderSeriesPane(); toast('결과를 불러왔습니다 — 오른쪽에서 검토해 주세요.'); return; }
-    if (!confirm('요청이 완료로 표시됐지만 결과 데이터(묵상목록)가 비어 있습니다.\n다시 요청할까요?\n(Cowork에 sermon-request-inbox 스킬이 최신인지 확인해 주세요)')) return;
+  /* 계획(본문 범위·기간)이 기존 초안과 달라졌으면 → 재작업으로 보고 옛 초안·설교를 초기화 후 새 조건으로 재생성 */
+  var changed = !!(S.devo && S.devoSig && S.devoSig !== spMetaSig(m));
+  if (!changed) {
+    var pend = (state.seriesReqs || {})['시리즈묵상'];
+    if (pend === '대기' || pend === '진행중') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
+    if (spResultExists('시리즈묵상')) {
+      if (!S.devo) { await spShowResult('시리즈묵상'); return; } /* 시트·폴더에서 불러오기 */
+      toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return;
+    }
+  } else {
+    if (!confirm('계획(본문 범위·기간)이 바뀌었습니다.\n이전 묵상 일정 초안' + (S.sermon ? '과 설교 선택지' : '') + '을 지우고 새 조건으로 다시 생성할까요?')) return;
+    S.devo = null; S.devoDone = false; S.devoSig = null;
+    S.sermon = null; S.sermonDone = false; S.sermonSig = null;
+    state.seriesReqs = state.seriesReqs || {};
+    state.seriesReqs['시리즈묵상'] = ''; state.seriesReqs['시리즈설교'] = '';
   }
-  else if (st) { toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return; }
-  S.meta = m; saveSeries(); spStatus();
+  S.meta = m; saveSeries(); spStatus(); renderSeriesPane();
   if (aiKey()) { aiSeriesDevo(m); return; } /* API 직결 */
   spWriteReq('시리즈묵상', { '계획': m }, '묵상 일정 (' + m['시리즈명'] + ')');
 });
@@ -3151,15 +3158,12 @@ $('#sp_reqSermon').addEventListener('click', async function(e){
   var S = state.series;
   if (!S) return;
   if (!S.devoDone || !S.devo) { toast('먼저 묵상 일정을 확정해 주세요.'); return; }
-  var st = spBtnState('시리즈설교', S.sermonDone);
-  if (st === 'req') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
-  if (st === 'fin' && !S.sermon) {
-    await spCheck(true);
-    S = state.series;
-    if (S.sermon) { S.view = 'sermon'; saveSeries(); renderSeriesPane(); toast('결과를 불러왔습니다 — 오른쪽에서 검토해 주세요.'); return; }
-    if (!confirm('요청이 완료로 표시됐지만 결과 데이터(설교선택지)가 비어 있습니다.\n다시 요청할까요?\n(Cowork에 sermon-request-inbox 스킬이 최신인지 확인해 주세요)')) return;
+  var pend = (state.seriesReqs || {})['시리즈설교'];
+  if (pend === '대기' || pend === '진행중') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
+  if (spResultExists('시리즈설교')) {
+    if (!S.sermon) { await spShowResult('시리즈설교'); return; }
+    toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return;
   }
-  else if (st) { toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return; }
   if (aiKey()) { aiSeriesSermon(); return; } /* API 직결 */
   var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
   spWriteReq('시리즈설교', { '계획': S.meta, '묵상확정': rows }, '설교 주제 선택지 (' + S.meta['시리즈명'] + ')');
@@ -3257,6 +3261,7 @@ async function spCheck(quiet){
       if (!S.devo || bestD.m > S.devo.m) {
         S.devo = { rows: bestD.j['묵상목록'], m: bestD.m };
         S.devoDone = false; S.view = 'devo';
+        S.devoSig = spMetaSig(bestD.j['계획'] || S.meta);
         loaded.push('묵상 일정 ' + S.devo.rows.length + '일');
       }
     }
@@ -4537,7 +4542,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v80';
+var APP_VER = 'v81';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
