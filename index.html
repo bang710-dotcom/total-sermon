@@ -246,7 +246,10 @@ input[type=date]{cursor:pointer}
     padding:calc(env(safe-area-inset-top) + 7px) max(16px, env(safe-area-inset-left)) 8px max(16px, env(safe-area-inset-right));
     background:var(--bg);border-bottom:1px solid var(--line)}
   header.mobile h1{font-size:18px}
-  #main{padding:10px max(14px, env(safe-area-inset-left)) 18px max(14px, env(safe-area-inset-right))}
+  #main{padding:10px max(14px, env(safe-area-inset-left)) 18px max(14px, env(safe-area-inset-right));overflow-x:hidden}
+  /* 가로 스크롤(좌우 흔들림) 차단 — 넘치는 요소가 있어도 페이지가 좌우로 밀리지 않게 */
+  #app{overflow-x:hidden}
+  .page,#seriesPane,#occPane,#editorPane,#detailPane,#qResults{max-width:100%}
 
   /* 하단 탭바: 5칸, 큰 터치 타깃, 안전영역 */
   .tabbar button{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;padding:7px 0 5px}
@@ -3105,7 +3108,43 @@ function spStageLabel(S){
   }
   return S.devoDone ? '묵상 확정' : S.devo ? '묵상 검토 중' : (S.meta ? '계획' : '새 시리즈');
 }
+/* 시리즈 진행도 점수 — 중복 중 '가장 진행된' 항목을 고르는 기준 */
+function seriesScore(S){
+  var s = 0;
+  if (S.meta) s += 1;
+  if (S.devo) s += 2;
+  if (S.devoDone) s += 4;
+  if (S.sermon) {
+    s += 8;
+    var use = (S.sermon.weeks || []).filter(function(w){ return !w.skip; });
+    s += use.filter(function(w){ return w.done && w.sig === weekSig(w); }).length * 4;
+  }
+  if (S.sermonDone) s += 1000;
+  return s;
+}
+/* 같은 시리즈(이름+기간)의 로컬 중복 제거 — 가장 진행된 항목만 남긴다.
+   seriesList는 기기별 로컬 목록이라, 한 기기에만 옛 초안이 중복으로 남아
+   목록에 두 번 표시되는 경우가 있다(예: '설교 검토 중' + '3/10 확정'). */
+function dedupeSeriesList(){
+  var keep = {}, order = [], changed = false;
+  state.seriesList.forEach(function(S){
+    var m = S.meta || {};
+    if (!m['시리즈명']) { order.push(S); return; }   /* 이름 없는 초안은 보존 */
+    var key = m['시리즈명'] + '|' + (m['시작일'] || '') + '|' + (m['종료일'] || '');
+    if (keep[key] === undefined) { keep[key] = S; order.push(key); }
+    else { changed = true; if (seriesScore(S) > seriesScore(keep[key])) keep[key] = S; }
+  });
+  if (!changed) return;
+  var pruned = order.map(function(o){ return (typeof o === 'string') ? keep[o] : o; });
+  if (state.series && pruned.indexOf(state.series) < 0) {        /* 활성 항목이 제거되면 보존본으로 */
+    var sm = state.series.meta || {};
+    state.series = keep[sm['시리즈명'] + '|' + (sm['시작일'] || '') + '|' + (sm['종료일'] || '')] || null;
+  }
+  state.seriesList = pruned;
+  idbSet('seriesList', state.seriesList).catch(function(){});
+}
 function renderSeriesList(){
+  dedupeSeriesList();
   var box = $('#slItems'), html = '', localNames = {};
   state.seriesList.forEach(function(S, i){
     var m = S.meta || {};
@@ -4918,7 +4957,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v89';
+var APP_VER = 'v90';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
