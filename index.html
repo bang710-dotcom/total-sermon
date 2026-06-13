@@ -709,6 +709,15 @@ body.aiChatOpen #aiFab{display:none}
     <!-- ============ 설정 ============ -->
     <section class="page" id="page-settings">
       <div class="card">
+        <label style="margin-top:0">화면 테마</label>
+        <div class="chips" id="themeChips">
+          <span class="chip" data-theme="dark">다크</span>
+          <span class="chip" data-theme="light">라이트</span>
+          <span class="chip" data-theme="sepia">세피아</span>
+        </div>
+        <div class="cnt" style="margin-top:6px">앱 전체 색상을 바꿉니다. 선택은 이 기기에 저장됩니다.</div>
+      </div>
+      <div class="card">
         <label>API URL (Apps Script 배포 주소 /exec)</label>
         <input type="url" id="setUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>API 토큰</label>
@@ -5357,7 +5366,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 (function(){
   var PAGES = { compose:'설교 작성', occ:'상황 설교 구상', series:'시리즈 계획' };
   var $ = function(s){ return document.querySelector(s); };
-  var fab = $('#aiFab'), panel = $('#aiPanel'), back = $('#aiBack'), body = $('#aiBody');
+  var fab = $('#aiFab'), panel = $('#aiPanel'), body = $('#aiBody');
   var input = $('#aiInput'), sendBtn = $('#aiSend'), modelSel = $('#aiModel');
   var ctxOn = $('#aiCtxOn'), ctxTag = $('#aiCtxTag');
   var convo = [];        /* {role, content} 누적 대화 */
@@ -5574,10 +5583,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   function openPanel(){
     refreshCtxTag();
     if (convo.length === 0) showHint();
-    back.classList.add('open'); panel.classList.add('open');
+    panel.classList.add('open'); document.body.classList.add('aiChatOpen');
     setTimeout(function(){ input.focus(); }, 220);
   }
-  function closePanel(){ panel.classList.remove('open'); back.classList.remove('open'); }
+  function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
   function newChat(){ convo = []; showHint(); input.value = ''; autosize(); input.focus(); }
 
   function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
@@ -5604,7 +5613,6 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   /* ── 이벤트 ── */
   fab.addEventListener('click', openPanel);
   $('#aiClose').addEventListener('click', closePanel);
-  back.addEventListener('click', closePanel);
   $('#aiNew').addEventListener('click', newChat);
   sendBtn.addEventListener('click', send);
   input.addEventListener('input', autosize);
@@ -5612,12 +5620,43 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); }
   });
   ctxOn.addEventListener('change', refreshCtxTag);
-  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && panel.classList.contains('open')) closePanel(); });
+  /* 닫기는 [닫기] 버튼 또는 다른 메뉴로 이동할 때만 — 작성창 클릭/Esc로는 닫히지 않음 */
   try { modelSel.value = localStorage.getItem('tsa.aiModel') || 'claude-opus-4-8'; } catch(e){}
   modelSel.addEventListener('change', function(){ try { localStorage.setItem('tsa.aiModel', modelSel.value); } catch(e){} });
 
   /* 초기 진입 페이지 반영 */
   syncFab();
+})();
+
+/* ===================== 색상 테마 ===================== */
+(function(){
+  var THEMES = ['dark', 'light', 'sepia'];
+  var root = document.documentElement;
+  function curTheme(){
+    var t = root.getAttribute('data-theme');
+    return (t === 'light' || t === 'sepia') ? t : 'dark';
+  }
+  function applyTheme(t){
+    if (THEMES.indexOf(t) < 0) t = 'dark';
+    if (t === 'dark') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', t);
+    try { localStorage.setItem('tsa.theme', t); } catch(e){}
+    var meta = document.querySelector('meta[name=theme-color]');
+    if (meta){
+      var bg = getComputedStyle(root).getPropertyValue('--bg').trim();
+      if (bg) meta.setAttribute('content', bg);
+    }
+    var chips = document.querySelectorAll('#themeChips .chip');
+    Array.prototype.forEach.call(chips, function(c){ c.classList.toggle('on', c.dataset.theme === t); });
+  }
+  var box = document.getElementById('themeChips');
+  if (box){
+    box.addEventListener('click', function(e){
+      var c = e.target.closest('.chip');
+      if (c && c.dataset.theme) applyTheme(c.dataset.theme);
+    });
+  }
+  applyTheme(curTheme()); /* 칩 활성표시 + theme-color 동기화 */
 })();
 </script>
 </body>
