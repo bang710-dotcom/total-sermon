@@ -196,7 +196,7 @@ input[type=date]{cursor:pointer}
    실제 데스크탑(맥)에서만 데스크탑 그리드를 적용한다. 아이패드/아이폰 등 터치
    기기는 폭이 넓어도(아이패드 가로 포함) 모바일 UI를 받는다. 데스크탑 규칙 자체는
    변경하지 않았다. */
-@media (min-width: 900px) and (hover: hover) and (pointer: fine){
+@media (min-width: 900px) and (hover: hover){
   body{font-size:14.5px}
   .tabbar{display:none}
   header.mobile{display:none}
@@ -229,7 +229,7 @@ input[type=date]{cursor:pointer}
   #page-settings{max-width:680px}
   #page-inbox{max-width:860px}
 }
-@media (max-width: 899px), (hover: none) and (pointer: coarse){
+@media (max-width: 899px), (hover: none){
   body{overflow:hidden} /* 이중 스크롤·고무줄 현상 방지 (앱 내부 #main만 스크롤) */
   .desktop-only{display:none !important}
   #detailPane.open{display:block;position:fixed;inset:0;z-index:90;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom))}
@@ -237,7 +237,7 @@ input[type=date]{cursor:pointer}
 }
 /* ===================== 모바일 UI 개선 (아이폰 세로 · 아이패드 가로/세로) =====================
    조건: 좁은 화면(<900px) 또는 터치 기기(hover 없음). 데스크탑(맥)에는 적용되지 않는다. */
-@media (max-width: 899px), (hover: none) and (pointer: coarse){
+@media (max-width: 899px), (hover: none){
   /* 태블릿 가로의 넓은 폭을 읽기 좋게 — 본문 컬럼을 중앙 정렬·폭 제한 */
   #app{max-width:840px}
   #main{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right));padding-bottom:16px}
@@ -287,7 +287,7 @@ input[type=date]{cursor:pointer}
   #moreSheet .msItem.on svg{color:var(--accent)}
 }
 /* 데스크탑에선 더보기 시트 숨김(보강) */
-@media (min-width: 900px) and (hover: hover) and (pointer: fine){ #moreSheet{display:none !important} }
+@media (min-width: 900px) and (hover: hover){ #moreSheet{display:none !important} }
 .m-deskonly-note{display:none}
 @media print{
   body>*:not(#prevOv){display:none!important}
@@ -4578,7 +4578,7 @@ $$('.tabbar button, .sidebar .nav').forEach(function(b){
   syncNav();
   /* 모바일 모드 여부 클래스(데스크탑=맥만 false) */
   try {
-    var mq = window.matchMedia('(min-width: 900px) and (hover: hover) and (pointer: fine)');
+    var mq = window.matchMedia('(min-width: 900px) and (hover: hover)');
     var apply = function(){ document.body.classList.toggle('is-mobile', !mq.matches); };
     mq.addEventListener ? mq.addEventListener('change', apply) : mq.addListener(apply);
     apply();
