@@ -291,6 +291,38 @@ input[type=date]{cursor:pointer}
 /* 데스크탑에선 더보기 시트 숨김(보강) */
 @media (min-width: 900px) and (hover: hover){ #moreSheet{display:none !important} }
 .m-deskonly-note{display:none}
+
+/* ===================== 태블릿 가로모드: 좌우 2분할 =====================
+   아이패드(터치) 가로 + 폭 1000px↑(미니 가로 1133, 프로 가로 1366 등)에서
+   주요 작업 페이지를 좌(목록/폼) + 우(상세/에디터) 2분할로. 각 패널이 독립
+   스크롤해 가로 공간을 채우고 세로 스크롤을 줄인다. (아이폰 가로·세로모드 제외) */
+@media (hover: none) and (orientation: landscape) and (min-width: 1000px){
+  #main{overflow:hidden;display:flex;flex-direction:column;padding-bottom:0}
+  .page{min-height:0}
+  .page.on{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+
+  /* 검색: 목록 + 상세 */
+  #page-search.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
+  #page-search.on #searchLeft{min-height:0;overflow-y:auto;padding-right:4px}
+  #page-search.on #detailPane{display:block !important;position:static !important;inset:auto !important;height:100%;min-height:0;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  #page-search.on .detailClose{display:none !important}
+
+  /* 설교 작성: 메타 폼 + 에디터 */
+  #page-compose.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
+  #page-compose.on #composeMeta{min-height:0;overflow-y:auto;padding-right:4px}
+  #page-compose.on #editorPane{min-height:0;overflow-y:auto}
+
+  /* 상황 설교 구상: 메타 + 결과 */
+  #page-occ.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
+  #page-occ.on #occMeta{min-height:0;overflow-y:auto;padding-right:4px}
+  #page-occ.on #occPane{min-height:0;overflow-y:auto}
+
+  /* 시리즈: 목록은 전체폭, 마법사는 좌(계획) + 우(결과) */
+  #page-series.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
+  #page-series.on #seriesListView{grid-column:1 / -1;min-height:0;overflow-y:auto}
+  #page-series.on #seriesMeta{min-height:0;overflow-y:auto;padding-right:4px}
+  #page-series.on #seriesPane{min-height:0;overflow-y:auto}
+}
 @media print{
   body>*:not(#prevOv){display:none!important}
   #prevOv{position:static!important;background:none!important;padding:0!important;overflow:visible!important;display:block!important}
