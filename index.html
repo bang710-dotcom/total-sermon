@@ -2878,6 +2878,7 @@ window.slDel = function(i){
 };
 $('#sl_new').addEventListener('click', function(){
   state.series = newSeriesEntry(); state.seriesMode = 'wizard';
+  state.seriesReqs = {}; spLastScan = null; /* 이전 시리즈의 요청 상태가 새 시리즈에 남지 않도록 초기화 */
   renderSeriesPage();
 });
 $('#sp_back').addEventListener('click', function(){
@@ -3203,7 +3204,9 @@ async function spCheck(quiet){
       var j; try { j = JSON.parse(await f.text()); } catch (e) { continue; }
       var type = j['요청유형'];
       if (type !== '시리즈묵상' && type !== '시리즈설교' && type !== '묵상집PDF') continue;
-      if (S.meta && (j['계획'] || {})['시리즈명'] !== S.meta['시리즈명']) { otherNm = (j['계획'] || {})['시리즈명'] || otherNm; continue; }
+      /* 현재 시리즈명과 일치하는 요청만 흡수. 이름이 없는(새) 시리즈는 어떤 요청과도 매칭하지 않음 → 다른 시리즈 결과를 빈 시리즈에 끌어와 중복 생성되는 버그 방지 */
+      var _myNm = (S.meta || {})['시리즈명'] || '';
+      if ((j['계획'] || {})['시리즈명'] !== _myNm) { otherNm = (j['계획'] || {})['시리즈명'] || otherNm; continue; }
       if (!sReq[type] || f.lastModified > sReq[type].m) sReq[type] = { m: f.lastModified, st: j['상태'] };
       if (j['상태'] === '대기') { waiting++; continue; }
       if (j['상태'] === '진행중') { working++; continue; }
@@ -3689,8 +3692,13 @@ async function scanRequests(quiet){
       try { j = JSON.parse(await fObj.text()); } catch (e) { continue; }
       /* 시리즈 요청 상태 추적 (요청 버튼·타임라인 색 표시용) */
       if (j['요청유형'] === '시리즈묵상' || j['요청유형'] === '시리즈설교' || j['요청유형'] === '묵상집PDF') {
+        /* 마법사에 시리즈가 열려 있으면 그 시리즈명과 일치하는 요청만 추적.
+           이름 없는(새) 시리즈가 열린 상태에서는 다른 시리즈 요청을 추적하지 않음(버튼 상태 오염 방지).
+           마법사가 닫혀 있으면(state.series 없음) 표시에 영향 없으므로 종전대로 추적. */
         var snm = (state.series && state.series.meta) ? state.series.meta['시리즈명'] : null;
-        if (!snm || (j['계획'] || {})['시리즈명'] === snm) {
+        var _trackThis = state.series ? !!(snm && (j['계획'] || {})['시리즈명'] === snm)
+                                      : true;
+        if (_trackThis) {
           if (!sReq[j['요청유형']] || fObj.lastModified > sReq[j['요청유형']].m) sReq[j['요청유형']] = { m: fObj.lastModified, st: j['상태'] };
         }
       }
@@ -4492,7 +4500,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v79';
+var APP_VER = 'v80';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
