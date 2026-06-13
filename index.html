@@ -422,6 +422,9 @@ body.aiChatOpen #aiFab{display:none}
   #aiFab{left:16px;bottom:78px;padding:12px 15px}
   #aiPanel{top:0;left:0;bottom:0;width:100%;max-width:100%;border-radius:0;transform:translateX(-100%)}
   #aiPanel.open{transform:translateX(0)}
+  /* 아이폰 노치·상태바·홈바 안전영역 확보 */
+  .aiHd{padding-top:calc(13px + env(safe-area-inset-top))}
+  .aiFt{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
 }
 </style>
 </head>
