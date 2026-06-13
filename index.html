@@ -2647,6 +2647,7 @@ function writeRequestFile(type, meta){
       refreshReqBtns();
       if ($('#detailPane').classList.contains('open')) openDetail('sermon', meta['ID']);
     }
+    renderSyncState(); /* 좌측 하단에 처리 대기 표시 */
     toast('요청함에 저장: ' + REQ_LABELS[type] + ' — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
   }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
 }
@@ -3221,7 +3222,7 @@ function spWriteReq(type, payload, label){
     return w.write(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })).then(function(){ return w.close(); });
   }).then(function(){
     (state.seriesReqs = state.seriesReqs || {})[type] = '대기';
-    spStatus(); renderSeriesPane();
+    spStatus(); renderSeriesPane(); renderSyncState(); /* 처리 대기 표시 */
     toast('요청함에 저장: ' + label + ' — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
   }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
 }
@@ -3957,6 +3958,7 @@ async function scanRequests(quiet){
       '묵상집PDF': sReq['묵상집PDF'] ? sReq['묵상집PDF'].st : ''
     };
     refreshReqBtns(); refreshSeriesBtns();
+    if (!done) renderSyncState(); /* 처리 대기 핀 갱신 (done이면 sync()가 갱신) */
     var cid = state.detailId || state.editing;
     if (cid) checkAssets(cid).then(function(){
       refreshReqBtns();
@@ -4701,7 +4703,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v86';
+var APP_VER = 'v87';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
