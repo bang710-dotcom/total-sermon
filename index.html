@@ -238,13 +238,15 @@ input[type=date]{cursor:pointer}
 /* ===================== 모바일 UI 개선 (아이폰 세로 · 아이패드 가로/세로) =====================
    조건: 좁은 화면(<900px) 또는 터치 기기(hover 없음). 데스크탑(맥)에는 적용되지 않는다. */
 @media (max-width: 899px), (hover: none){
-  /* 태블릿 가로의 넓은 폭을 읽기 좋게 — 본문 컬럼을 중앙 정렬·폭 제한 */
-  #app{max-width:840px}
-  #main{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right));padding-bottom:16px}
-
-  /* 상단 헤더: 스크롤해도 상단 고정 */
-  header.mobile{position:sticky;top:0;z-index:40;margin:0 -2px;padding:calc(6px + env(safe-area-inset-top)) 2px 12px;background:var(--bg)}
-  header.mobile h1{font-size:20px}
+  /* 전체 폭 사용(아이폰·아이패드 모든 방향) — 좌우 여백 낭비 제거 */
+  #app{max-width:none}
+  /* 상단 헤더: #app 직속 '고정 바'(스크롤과 분리). 안전영역을 헤더가 직접 흡수해
+     #main 상단 빈틈·내용 노출을 원천 차단하고, 상단 낭비 공간을 최소화한다. */
+  header.mobile{flex:0 0 auto;align-items:center;justify-content:space-between;
+    padding:calc(env(safe-area-inset-top) + 7px) max(16px, env(safe-area-inset-left)) 8px max(16px, env(safe-area-inset-right));
+    background:var(--bg);border-bottom:1px solid var(--line)}
+  header.mobile h1{font-size:18px}
+  #main{padding:10px max(14px, env(safe-area-inset-left)) 18px max(14px, env(safe-area-inset-right))}
 
   /* 하단 탭바: 5칸, 큰 터치 타깃, 안전영역 */
   .tabbar button{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;padding:7px 0 5px}
@@ -331,11 +333,12 @@ input[type=date]{cursor:pointer}
     </div>
   </aside>
 
+  <header class="mobile">
+    <h1>Total <span>Sermons</span></h1>
+    <div class="syncState" id="syncState">—</div>
+  </header>
+
   <div id="main">
-    <header class="mobile">
-      <h1>Total <span>Sermons</span></h1>
-      <div class="syncState" id="syncState">—</div>
-    </header>
 
     <!-- ============ 검색 ============ -->
     <section class="page" id="page-search">
