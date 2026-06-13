@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<script>try{var _t=localStorage.getItem('tsa.theme');if(_t==='light'||_t==='sepia')document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
 <meta name="apple-mobile-web-app-title" content="Total Sermons">
 <title>Total Sermons</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -347,41 +346,23 @@ input[type=date]{cursor:pointer}
   #prevPage{box-shadow:none!important;max-width:none!important;width:100%!important;padding:16mm!important;margin:0!important;min-height:0!important}
 }
 
-/* ============ 색상 테마 (다크 기본 / 라이트 / 세피아) ============ */
-html{transition:background .2s}
-html[data-theme="light"]{
-  --bg:#f4f6fa; --card:#ffffff; --card2:#eaeef5; --line:#d7dde7;
-  --text:#1a2230; --dim:#5c6878; --accent:#5d77e8; --accent2:#9c6f10;
-  --ok:#2e9b57; --warn:#c14e2b;
-}
-html[data-theme="sepia"]{
-  --bg:#efe6d2; --card:#faf3e2; --card2:#ece0c6; --line:#dccdac;
-  --text:#3b3018; --dim:#7a6a48; --accent:#b07d2e; --accent2:#3f7d6e;
-  --ok:#2f8a55; --warn:#b6502a;
-}
-
 /* ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획 전용) ============ */
-:root{--aip-w:380px}
-#aiFab{position:fixed;left:22px;bottom:24px;z-index:130;display:none;align-items:center;gap:8px;
+#aiFab{position:fixed;right:22px;bottom:26px;z-index:130;display:none;align-items:center;gap:8px;
   background:linear-gradient(135deg,var(--accent),#9db4ff);color:#0c1020;border:none;border-radius:99px;
   padding:13px 18px;font-size:14.5px;font-weight:800;font-family:inherit;cursor:pointer;
   box-shadow:0 6px 20px rgba(0,0,0,.45);transition:transform .12s,box-shadow .12s}
 #aiFab:hover{transform:translateY(-2px);box-shadow:0 9px 26px rgba(0,0,0,.55)}
 #aiFab.show{display:flex}
 #aiFab svg{width:19px;height:19px}
-body.aiChatOpen #aiFab{display:none}
+#aiFab.hideLabel .lbl{display:none}
 
-#aiPanel{position:fixed;top:14px;left:14px;bottom:14px;width:var(--aip-w);max-width:92vw;z-index:135;
-  background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;
-  box-shadow:0 18px 50px rgba(0,0,0,.5);
-  display:flex;flex-direction:column;transform:translateX(calc(-100% - 24px));transition:transform .22s ease;
+#aiPanel{position:fixed;top:0;right:0;height:100%;width:430px;max-width:92vw;z-index:135;
+  background:var(--card);border-left:1px solid var(--line);box-shadow:-10px 0 40px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease;
   visibility:hidden}
 #aiPanel.open{transform:translateX(0);visibility:visible}
-/* 데스크탑: 대화가 열리면 본문 전체를 오른쪽으로 밀어 작성창을 가리지 않음 */
-@media (min-width:900px) and (hover:hover){
-  #app{transition:margin .22s ease}
-  body.aiChatOpen #app{max-width:none;margin-left:calc(var(--aip-w) + 28px);margin-right:16px}
-}
+#aiBack{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:134;opacity:0;visibility:hidden;transition:opacity .2s}
+#aiBack.open{opacity:1;visibility:visible}
 .aiHd{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:13px 14px;border-bottom:1px solid var(--line);background:var(--card2)}
 .aiHd .ttl{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:7px}
 .aiHd .ttl b{color:var(--accent)}
@@ -419,9 +400,8 @@ body.aiChatOpen #aiFab{display:none}
 .aiFt .send:disabled{opacity:.45;cursor:default}
 .aiFt .send svg{width:20px;height:20px}
 @media (max-width:760px){
-  #aiFab{left:16px;bottom:78px;padding:12px 15px}
-  #aiPanel{top:0;left:0;bottom:0;width:100%;max-width:100%;border-radius:0;transform:translateX(-100%)}
-  #aiPanel.open{transform:translateX(0)}
+  #aiFab{right:16px;bottom:78px;padding:12px 15px}
+  #aiPanel{width:100%;max-width:100%}
 }
 </style>
 </head>
@@ -5321,6 +5301,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
   <span class="lbl">설교 대화</span>
 </button>
+<div id="aiBack"></div>
 <div id="aiPanel" role="dialog" aria-modal="false" aria-label="설교 대화">
   <div class="aiHd">
     <span class="ttl"><b>설교</b> 대화</span>
