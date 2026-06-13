@@ -217,7 +217,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <button class="nav on" data-page="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
     <button class="nav" data-page="compose">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>새설교 작성</button>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>설교 작성</button>
     <button class="nav" data-page="occ">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>상황 설교 구상</button>
     <button class="nav" data-page="devo">
@@ -270,6 +270,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <!-- ============ 작성 (데스크탑) ============ -->
     <section class="page" id="page-compose">
       <div id="composeMeta">
+        <div id="cwFind" style="margin-bottom:8px">
+          <button class="linkbtn" id="cwToggle" style="padding:2px 0">🔍 진행중인 설교 불러오기 (구상·연구·작성중)</button>
+          <div id="cwPanel" style="display:none;margin-top:6px">
+            <input type="text" id="cwQ" placeholder="제목·본문·시리즈로 검색" autocomplete="off">
+            <div id="cwResults" style="margin-top:6px;max-height:240px;overflow:auto"></div>
+          </div>
+        </div>
         <div class="cnt" id="c_editing" style="margin-bottom:8px">새 설교</div>
         <label style="margin-top:0">원고 스타일</label>
         <div class="chips" id="c_style">
@@ -333,7 +340,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
         <label>설교 상황 — 대상, 시기, 목적 등</label>
         <textarea id="occ_sit" rows="8" placeholder="예) 여름 수련회 둘째 날 저녁 집회. 대학 새내기가 절반, 신앙의 첫 결단을 끌어내는 자리. 찬양 후 바로 설교."></textarea>
         <div class="toolrow"><button class="btn" id="occ_gen">개요생성</button></div>
-        <div class="cnt" style="margin-top:8px">Opus가 본문·주제(근거 포함)·대지 3개(근거·적용 포함) 선택지 3세트를 만듭니다. 세트를 그 자리에서 다듬은 뒤 [이 개요로 설교 작성]을 누르면 새설교 작성으로 넘어갑니다.</div>
+        <div class="cnt" style="margin-top:8px">Opus가 본문·주제(근거 포함)·대지 3개(근거·적용 포함) 선택지 3세트를 만듭니다. 세트를 그 자리에서 다듬은 뒤 [이 개요로 설교 작성]을 누르면 설교 작성으로 넘어갑니다.</div>
       </div>
       <div id="occPane"><div class="empty">설교일과 상황을 입력하고 [개요생성]을 눌러 주세요.</div></div>
     </section>
@@ -384,7 +391,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
     <section class="page" id="page-archive">
       <div class="searchbox" style="margin-bottom:10px">
         <input type="text" id="aq" placeholder="미래설교(보관) 통합 검색 — 제목·본문·메시지·대지·시리즈" autocomplete="off">
-        <div class="cnt" style="margin-top:6px">시리즈 설교 주제 중 아직 고르지 않은 개요들이 여기에 모입니다. 어느 기기에서나 검색·열람하고, 바로 [새설교 작성]으로 잇거나 [구상]으로 승격할 수 있습니다.</div>
+        <div class="cnt" style="margin-top:6px">시리즈 설교 주제 중 아직 고르지 않은 개요들이 여기에 모입니다. 어느 기기에서나 검색·열람하고, 바로 [설교 작성]으로 잇거나 [구상]으로 승격할 수 있습니다.</div>
       </div>
       <div class="cnt" id="aCnt"></div>
       <div id="aResults"><div class="empty">보관된 미래설교가 없습니다.</div></div>
@@ -2480,7 +2487,7 @@ window.occPick = function(i){
   });
   renderPoints(); renderEditor(); updateComposeBadge();
   showPage('compose');
-  toast('개요를 새설교 작성으로 옮겼습니다 — 대지마다 근거·적용이 초안으로 들어 있습니다.');
+  toast('개요를 설교 작성으로 옮겼습니다 — 대지마다 근거·적용이 초안으로 들어 있습니다.');
 };
 
 $('#occ_gen').addEventListener('click', aiOccGen);
@@ -3587,7 +3594,7 @@ $('#seriesPane').addEventListener('click', async function(e){
       renderPoints(); renderEditor();
     }
     showPage('compose');
-    toast(wSeq(w, wi) + '주차 「' + esc(ed['제목'] || '') + '」 — 새설교 작성을 시작합니다.');
+    toast(wSeq(w, wi) + '주차 「' + esc(ed['제목'] || '') + '」 — 설교 작성을 시작합니다.');
     return;
   }
   if (e.target.closest('#spDevoPdf')) {
@@ -4342,7 +4349,7 @@ function renderArchive(){
         '<div style="font-size:13px">' + djHtml(s['대지'] || '') + '</div>' +
         (s['비고'] ? '<div class="cnt" style="margin-top:4px">' + esc(s['비고']) + '</div>' : '') +
         '<div class="toolrow" style="margin-top:8px">' +
-          '<button class="btn" onclick="archiveCompose(\'' + esc(s['ID']) + '\')">이 개요로 새설교 작성</button>' +
+          '<button class="btn" onclick="archiveCompose(\'' + esc(s['ID']) + '\')">이 개요로 설교 작성</button>' +
           '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archivePromote(\'' + esc(s['ID']) + '\')">[구상]으로 승격</button>' +
           '<button class="btn sub" style="flex:0 0 auto;width:auto" onclick="archiveDelete(\'' + esc(s['ID']) + '\')">삭제</button>' +
         '</div>' +
