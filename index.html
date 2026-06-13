@@ -51,7 +51,8 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn:active{opacity:.8}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.mini{padding:9px 8px;font-size:12.5px;font-weight:600;flex:1 1 0;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
-.btn.done{background:#1d4230;border-color:#2e7d4f;color:#8fe6b0}
+/* 통일된 요청버튼 상태색: 결과 존재(done/fin)=파랑●, 요청·처리중(req)=노랑▲, 없음=회색 */
+.btn.done{background:#16324a;border-color:#2d6da8;color:#7fc4ff}
 .btn.req{background:#43320e;border-color:#b8860b;color:#ffc24d}
 .btn.fin{background:#16324a;border-color:#2d6da8;color:#7fc4ff}
 .btn.mini .ck{flex:0 0 auto;font-size:14px}
@@ -833,7 +834,7 @@ function openDetail(kind, id){
       return '<div class="toolrow desktop-only">' + types.map(function(t){
         var st = reqBtnSt(s['ID'], t);
         return '<button class="btn sub mini' + (st ? ' ' + st : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
-          '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</button>';
+          '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">●</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</button>';
       }).join('') + '</div>';
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성', '카드원고']);
@@ -2511,7 +2512,7 @@ function refreshReqBtns(){
     b.classList.toggle('done', st === 'done');
     b.classList.toggle('fin', st === 'fin');
     b.classList.toggle('req', st === 'req');
-    b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">✓</span>' : st === 'req' ? '<span class="ck">▲</span>' : '');
+    b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">●</span>' : st === 'req' ? '<span class="ck">▲</span>' : '');
   });
 }
 
@@ -3032,19 +3033,42 @@ window.spLoadFromArchive = function(){
     toast('보관된 선택지를 찾을 수 없습니다. 동기화(↻) 후 다시 시도하세요.');
   }
 };
-function refreshSeriesBtns(){
-  var S = state.series || {};
-  function apply(btn, type, base, doneFlag){
-    var st = spBtnState(type, doneFlag);
-    btn.classList.toggle('done', st === 'done');
-    btn.classList.toggle('fin', st === 'fin');
-    btn.classList.toggle('req', st === 'req');
-    var mark = st === 'done' || st === 'fin' ? ' <span class="ck">✓</span>' : st === 'req' ? ' <span class="ck">▲</span>' : '';
-    btn.innerHTML = '<span style="flex:1 1 auto;text-align:center">' + base + mark + '</span>' +
-      (st === 'fin' || st === 'done' ? '<span class="inbtn">요청 결과</span>' : '');
+/* 계획(범위·기간) 서명 — 이 값이 바뀌면 기존 초안은 다른 조건의 것이므로 폐기 대상 */
+function spMetaSig(m){ m = m || {}; return [m['성경범위'] || '', m['시작일'] || '', m['종료일'] || '', (m['묵상일'] || []).length].join('|'); }
+/* 결과물 존재 판정: 로컬 캐시(S.devo/S.sermon) 또는 시트(state.data) — 시트는 모든 기기가 동기화하므로 기기 간 동일하게 표시됨 */
+function spResultExists(type){
+  var S = state.series; if (!S) return false;
+  var name = (S.meta || {})['시리즈명'] || '';
+  if (type === '시리즈묵상'){
+    if (S.devo && (S.devo.rows || []).length) return true;
+    if (name && (state.data.devo || []).some(function(d){ return d['시리즈명'] === name; })) return true;
+    return false;
   }
-  apply($('#sp_reqDevo'), '시리즈묵상', '① 묵상 일정 요청', S.devoDone);
-  apply($('#sp_reqSermon'), '시리즈설교', '② 설교 주제 요청', S.sermonDone);
+  if (S.sermon && (S.sermon.weeks || []).length) return true;
+  if (name && (state.data.sermons || []).some(function(s){
+    return s['시리즈'] === name && (s['상태'] === '보관' || s['상태'] === '구상' || s['상태'] === '완료');
+  })) return true;
+  return false;
+}
+/* 통일된 요청버튼 상태: 'done'(파랑●)=결과 존재 · 'req'(노랑▲)=요청·처리중 · ''(회색)=미요청 */
+function spReqBtnState(type){
+  if (spResultExists(type)) return 'done';
+  var pend = (state.seriesReqs || {})[type];
+  if (pend === '대기' || pend === '진행중') return 'req';
+  return '';
+}
+function refreshSeriesBtns(){
+  function apply(btn, type, base){
+    var st = spReqBtnState(type);
+    btn.classList.toggle('done', st === 'done');
+    btn.classList.toggle('fin', false);
+    btn.classList.toggle('req', st === 'req');
+    var mark = st === 'done' ? ' <span class="ck">●</span>' : st === 'req' ? ' <span class="ck">▲</span>' : '';
+    btn.innerHTML = '<span style="flex:1 1 auto;text-align:center">' + base + mark + '</span>' +
+      (st === 'done' ? '<span class="inbtn">요청 결과</span>' : '');
+  }
+  apply($('#sp_reqDevo'), '시리즈묵상', '① 묵상 일정 요청');
+  apply($('#sp_reqSermon'), '시리즈설교', '② 설교 주제 요청');
 }
 /* [요청 결과]: 요청함에서 결과를 불러와 오른쪽에 표시 */
 async function spShowResult(type){
@@ -3255,12 +3279,12 @@ async function spCheck(quiet){
 function spTimelineHtml(){
   var S = state.series, sr = state.seriesReqs || {};
   function node(label, st, on){
-    var c = st === 'done' ? '#8fe6b0' : st === 'fin' ? '#7fc4ff' : st === 'req' ? '#ffc24d' : '';
-    var mark = st === 'done' || st === 'fin' ? ' ✓' : st === 'req' ? ' ▲' : '';
+    var c = (st === 'done' || st === 'fin') ? '#7fc4ff' : st === 'req' ? '#ffc24d' : '';
+    var mark = (st === 'done' || st === 'fin') ? ' ●' : st === 'req' ? ' ▲' : '';
     return '<span class="tlnode" onclick="' + on + '"' + (c ? ' style="color:' + c + ';border-color:' + c + '"' : '') + '>' + label + mark + '</span>';
   }
-  var dSt = spBtnState('시리즈묵상', S.devoDone) || (S.devo ? 'fin' : '');
-  var sSt = spBtnState('시리즈설교', S.sermonDone) || (S.sermon ? 'fin' : '');
+  var dSt = spReqBtnState('시리즈묵상');
+  var sSt = spReqBtnState('시리즈설교');
   var p = sr['묵상집PDF'];
   var pSt = p === '완료' ? 'done' : (p === '대기' || p === '진행중') ? 'req' : '';
   return '<div class="tl">' +
@@ -3314,7 +3338,7 @@ function spDevoHtml(){
   }).join('');
   var pSt = (state.seriesReqs || {})['묵상집PDF'];
   var pCls = (pSt === '대기' || pSt === '진행중') ? ' req' : pSt === '완료' ? ' fin' : '';
-  var pMark = pCls === ' fin' ? ' <span class="ck">✓</span>' : pCls === ' req' ? ' <span class="ck">▲</span>' : '';
+  var pMark = pCls === ' fin' ? ' <span class="ck">●</span>' : pCls === ' req' ? ' <span class="ck">▲</span>' : '';
   h += '<div class="toolrow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 다시 등록 (업서트)' : '묵상 일정 확정 → 묵상집 등록') + '</button>' +
     '<button class="btn sub" id="spDevoRedo" style="flex:0 0 auto;width:auto">재작업 요청</button>' +
     '<button class="btn sub" onclick="openSeriesDevoPreview()" style="flex:0 0 auto;width:auto">미리보기</button>' +
