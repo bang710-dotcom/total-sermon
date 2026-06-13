@@ -414,6 +414,7 @@ input[type=date]{cursor:pointer}
           <button class="btn sub mini" data-req="이미지생성"><span>이미지<br>생성</span></button>
           <button class="btn sub mini" data-req="카드원고"><span>카드원고</span></button>
         </div>
+        <div class="m-deskonly-note cnt" style="margin-top:6px">설교 이미지(프롬프트·생성)와 묵상집 PDF는 데스크탑(Cowork)에서 진행하는 작업이라 모바일에서는 숨겨져 있습니다.</div>
         <div class="toolrow" style="margin-top:9px">
           <button class="btn sub mini" data-req="설교요약"><span>요약본<br>주제어</span></button>
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
@@ -610,13 +611,37 @@ input[type=date]{cursor:pointer}
   <nav class="tabbar">
   <button data-page="search" class="on">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
-  <button data-page="input">
-    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>입력</button>
-  <button data-page="inbox">
-    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>인박스</button>
-  <button data-page="settings">
-    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>설정</button>
+  <button data-page="compose">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>작성</button>
+  <button data-page="series">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>시리즈</button>
+  <button data-page="devo">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>묵상</button>
+  <button id="tabMore" type="button">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>더보기</button>
   </nav>
+</div>
+
+<!-- ============ 더보기 바텀시트 (모바일: 전 페이지 접근) ============ -->
+<div id="moreSheet" aria-hidden="true">
+  <div class="msBack"></div>
+  <div class="msPanel" role="dialog" aria-modal="true" aria-label="전체 메뉴">
+    <div class="msGrab"></div>
+    <div class="msTitle">전체 메뉴</div>
+    <div class="msGrid">
+      <button class="msItem" data-page="search" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
+      <button class="msItem" data-page="compose" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>설교 작성</button>
+      <button class="msItem" data-page="occ" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>상황 설교 구상</button>
+      <button class="msItem" data-page="devo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
+      <button class="msItem" data-page="series" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>시리즈 계획</button>
+      <button class="msItem" data-page="archive" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>미래설교 보관함</button>
+      <button class="msItem" data-page="input" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>빠른 입력</button>
+      <button class="msItem" data-page="import" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>가져오기</button>
+      <button class="msItem" data-page="outputs" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>아웃풋</button>
+      <button class="msItem" data-page="inbox" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>인박스</button>
+      <button class="msItem" data-page="settings" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>설정</button>
+    </div>
+  </div>
 </div>
 <div id="dragOverlay">
   <div class="dropMsg">
@@ -4506,6 +4531,7 @@ $('#syncBtn').addEventListener('click', sync);
 
 /* ===================== 페이지 전환 ===================== */
 function showPage(name){
+  if (!name) return; /* data-page 없는 버튼(예: 더보기)으로 인한 빈 화면 방지 */
   $$('.page').forEach(function(p){ p.classList.remove('on'); });
   var pg = $('#page-' + name);
   if (pg) pg.classList.add('on');
@@ -4522,8 +4548,42 @@ function showPage(name){
 }
 window.showPage = showPage;
 $$('.tabbar button, .sidebar .nav').forEach(function(b){
+  if (!b.dataset.page) return; /* 더보기(tabMore) 등은 별도 처리 */
   b.addEventListener('click', function(){ showPage(b.dataset.page); });
 });
+
+/* ── 모바일: 더보기 바텀시트 + 탭바/시트 활성표시 ── */
+(function(){
+  var PRIMARY = ['search', 'compose', 'series', 'devo']; /* 하단 탭바 1차 항목 */
+  var sheet = document.getElementById('moreSheet');
+  var moreBtn = document.getElementById('tabMore');
+  function closeSheet(){ if (sheet) { sheet.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); } }
+  function syncNav(){
+    var cur = ((document.querySelector('.page.on') || {}).id || '').replace('page-', '');
+    if (sheet) sheet.querySelectorAll('.msItem').forEach(function(b){ b.classList.toggle('on', b.dataset.page === cur); });
+    if (moreBtn) moreBtn.classList.toggle('on', PRIMARY.indexOf(cur) < 0); /* 1차 탭이 아니면 더보기 강조 */
+  }
+  function openSheet(){ if (sheet) { syncNav(); sheet.classList.add('open'); sheet.setAttribute('aria-hidden', 'false'); } }
+  if (moreBtn) moreBtn.addEventListener('click', function(e){ e.preventDefault(); openSheet(); });
+  if (sheet){
+    sheet.querySelector('.msBack').addEventListener('click', closeSheet);
+    sheet.querySelectorAll('.msItem').forEach(function(b){
+      b.addEventListener('click', function(){ showPage(b.dataset.page); closeSheet(); });
+    });
+  }
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && sheet && sheet.classList.contains('open')) closeSheet(); });
+  /* showPage 후 탭바/시트 활성표시 동기화 */
+  var _show = window.showPage;
+  window.showPage = function(n){ _show(n); syncNav(); };
+  syncNav();
+  /* 모바일 모드 여부 클래스(데스크탑=맥만 false) */
+  try {
+    var mq = window.matchMedia('(min-width: 900px) and (hover: hover) and (pointer: fine)');
+    var apply = function(){ document.body.classList.toggle('is-mobile', !mq.matches); };
+    mq.addEventListener ? mq.addEventListener('change', apply) : mq.addListener(apply);
+    apply();
+  } catch (e) {}
+})();
 $$('#page-search .chip').forEach(function(c){
   c.addEventListener('click', function(){
     $$('#page-search .chip').forEach(function(x){ x.classList.remove('on'); });
