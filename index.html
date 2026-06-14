@@ -4039,6 +4039,9 @@ $('#seriesPane').addEventListener('input', function(e){
   if (t.classList.contains('spF')) {
     var r = state.series && state.series.devo && state.series.devo.rows[+t.dataset.i];
     if (r) { r[t.dataset.f] = t.value; spSaveSoon(); }
+  } else if (t.classList.contains('dwWRange')) {
+    var wr = state.series && state.series.sermon && state.series.sermon.weeks[+t.dataset.w];
+    if (wr) { wr['통독범위'] = t.value; wr['주간범위'] = t.value; spSaveSoon(); }
   } else if (t.classList.contains('spS')) {
     var w = state.series && state.series.sermon && state.series.sermon.weeks[+t.dataset.w];
     if (w) { (w.edit = w.edit || {})[t.dataset.f] = t.value; spSaveSoon(); }
@@ -4504,7 +4507,7 @@ function spDawnHtml(){
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 날 등록</label></div>' +
-      (w['통독범위'] ? '<div class="cnt" style="margin:3px 0 8px">오늘 통독: ' + linkifyRefs(w['통독범위']) + '</div>' : '') +
+      '<div style="display:flex;gap:6px;align-items:center;margin:3px 0 8px"><span class="cnt" style="flex:0 0 auto">오늘 통독</span><input type="text" class="dwWRange" data-w="' + wi + '" value="' + esc(w['통독범위'] || '') + '" placeholder="통독 범위" style="flex:1;font-size:12px"></div>' +
       (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
 
     if (confirmed) {
@@ -5485,7 +5488,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v93';
+var APP_VER = 'v94';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
