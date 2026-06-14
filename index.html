@@ -5942,8 +5942,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   var fab = $('#aiFab'), panel = $('#aiPanel'), body = $('#aiBody');
   var input = $('#aiInput'), sendBtn = $('#aiSend'), modelSel = $('#aiModel');
   var ctxOn = $('#aiCtxOn'), ctxTag = $('#aiCtxTag');
+  var shotBtn = $('#aiShot'), attachBox = $('#aiAttach'), attachImg = $('#aiAttachImg');
   var convo = [];        /* {role, content} 누적 대화 */
   var busy = false;
+  var pendingShot = null; /* 첨부 대기 중인 화면 캡처 dataURL */
 
   /* ── 페이지별 시스템 프롬프트 ── */
   function sysFor(pg){
@@ -6089,13 +6091,55 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }
 
   /* ── 메시지 DOM ── */
-  function addMsg(role, text){
+  function addMsg(role, text, imgUrl){
     var d = document.createElement('div');
     d.className = 'aiMsg ' + (role === 'user' ? 'u' : 'a');
-    if (role === 'user') d.textContent = text; else d.innerHTML = renderMd(text || '');
+    if (role === 'user'){
+      if (text){ var tx = document.createElement('div'); tx.textContent = text; d.appendChild(tx); }
+      if (imgUrl){
+        var im = document.createElement('img'); im.className = 'aiShot'; im.src = imgUrl;
+        im.title = '클릭하면 새 탭에서 크게 보기';
+        im.addEventListener('click', function(){ try { var w = window.open(); w.document.write('<img src="' + imgUrl + '" style="max-width:100%">'); } catch(e){} });
+        d.appendChild(im);
+      }
+    } else d.innerHTML = renderMd(text || '');
     body.appendChild(d);
     body.scrollTop = body.scrollHeight;
     return d;
+  }
+  /* ── 화면 캡처(html2canvas) ── */
+  function setShotBusy(on){ if (shotBtn) shotBtn.classList.toggle('busy', !!on); }
+  function renderAttach(){
+    if (pendingShot){ attachImg.src = pendingShot; attachBox.classList.add('show'); }
+    else { attachImg.removeAttribute('src'); attachBox.classList.remove('show'); }
+  }
+  function clearAttach(){ pendingShot = null; renderAttach(); }
+  async function captureScreen(){
+    if (busy) return;
+    setShotBusy(true);
+    try {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      var target = document.getElementById('app') || document.body;
+      var bg = (getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#0f1115').trim();
+      var canvas = await window.html2canvas(target, {
+        backgroundColor: bg, scale: 1, useCORS: true, logging: false, scrollX: 0, scrollY: -window.scrollY,
+        onclone: function(doc){
+          try { doc.body.classList.remove('aiChatOpen'); } catch(e){}
+          ['aiPanel', 'aiFab', 'aiAttach'].forEach(function(id){ var el = doc.getElementById(id); if (el) el.style.display = 'none'; });
+        }
+      });
+      var maxW = 1400, out = canvas;
+      if (canvas.width > maxW){
+        var r = maxW / canvas.width, c2 = document.createElement('canvas');
+        c2.width = maxW; c2.height = Math.round(canvas.height * r);
+        c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
+        out = c2;
+      }
+      pendingShot = out.toDataURL('image/jpeg', 0.9);
+      renderAttach();
+      if (typeof toast === 'function') toast('화면을 첨부했습니다 — 질문과 함께 보내세요.');
+    } catch(e){ if (typeof toast === 'function') toast('화면 캡처 실패: ' + e.message); }
+    finally { setShotBusy(false); }
   }
   function addCopy(el, getText){
     var b = document.createElement('button');
@@ -6153,19 +6197,29 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   async function send(){
     if (busy) return;
     var text = input.value.trim();
-    if (!text) return;
+    var shot = pendingShot;
+    if (!text && !shot) return;
     var pg = curPage();
     if (convo.length === 0) body.innerHTML = '';   /* 힌트 제거 */
 
-    /* 사용자 메시지 = (선택) 컨텍스트 + 질문. 화면 표시는 질문만. */
-    var userVisible = text, userSend = text;
+    /* 사용자 메시지 = (선택) 컨텍스트 + 질문 (+ 첨부 화면). 화면 표시는 질문·썸네일만. */
+    var userVisible = text || (shot ? '(첨부한 화면을 봐주세요)' : '');
+    var userSend = text || '첨부한 화면을 보고 도와주세요.';
     if (ctxOn.checked && PAGES[pg]){
       var ctx = gatherContext(pg);
-      if (ctx) userSend = '[현재 ' + PAGES[pg] + ' 화면 입력 내용]\n' + ctx + '\n\n[질문]\n' + text;
+      if (ctx) userSend = '[현재 ' + PAGES[pg] + ' 화면 입력 내용]\n' + ctx + '\n\n[질문]\n' + userSend;
     }
-    addMsg('user', userVisible);
-    convo.push({ role: 'user', content: userSend });
+    var content;
+    if (shot){
+      content = [
+        { type: 'text', text: userSend },
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: shot.split(',')[1] } }
+      ];
+    } else { content = userSend; }
+    addMsg('user', userVisible, shot);
+    convo.push({ role: 'user', content: content });
     input.value = ''; autosize();
+    clearAttach();
 
     busy = true; sendBtn.disabled = true;
     var aEl = addMsg('assistant', '');
@@ -6198,7 +6252,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     setTimeout(function(){ input.focus(); }, 220);
   }
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
-  function newChat(){ convo = []; showHint(); input.value = ''; autosize(); input.focus(); }
+  function newChat(){ convo = []; clearAttach(); showHint(); input.value = ''; autosize(); input.focus(); }
 
   function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
 
@@ -6226,6 +6280,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   $('#aiClose').addEventListener('click', closePanel);
   $('#aiNew').addEventListener('click', newChat);
   sendBtn.addEventListener('click', send);
+  if (shotBtn) shotBtn.addEventListener('click', captureScreen);
+  var attachRm = $('#aiAttachRm'); if (attachRm) attachRm.addEventListener('click', clearAttach);
   input.addEventListener('input', autosize);
   input.addEventListener('keydown', function(e){
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); }
