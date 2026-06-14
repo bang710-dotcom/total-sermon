@@ -5950,18 +5950,22 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       if (val('c_msg')) L.push('핵심메시지: ' + val('c_msg'));
       try {
         if (window.state && state.compose){
-          var pts = (state.compose.points || []).map(function(p, i){
+          var c = state.compose;
+          if (String(c.intro || '').trim()) L.push('서론:\n' + String(c.intro).trim());
+          var pts = (c.points || []).map(function(p, i){
             var t = String(p.text || p['문'] || p.t || '').trim();
-            if (!t) return '';
-            var ex = [];
-            if (String(p.body || '').trim()) ex.push('  설명: ' + String(p.body).trim());
-            if (String(p.ill || '').trim()) ex.push('  예화: ' + String(p.ill).trim());
-            if (String(p.apply || '').trim()) ex.push('  적용: ' + String(p.apply).trim());
-            return (i + 1) + '. ' + t + (ex.length ? '\n' + ex.join('\n') : '');
+            var seg = [];
+            if (String(p.body || '').trim()) seg.push('  내용: ' + String(p.body).trim());
+            var ill = [String(p.ill || '').trim(), String(p.illBody || '').trim()].filter(Boolean).join(' — ');
+            if (ill) seg.push('  예화: ' + ill);
+            if (String(p.apply || '').trim()) seg.push('  적용: ' + String(p.apply).trim());
+            if (!t && !seg.length) return '';
+            return (i + 1) + '. ' + t + (seg.length ? '\n' + seg.join('\n') : '');
           }).filter(Boolean);
           if (pts.length) L.push('대지:\n' + pts.join('\n'));
-          var free = String(state.compose.free || '').trim();
-          if (free) L.push('작성중 원고(발췌):\n' + free.slice(0, 1800));
+          if (String(c.concBody || '').trim()) L.push('결론(' + String(c.concIntro || '말씀을 정리합니다.').trim() + '):\n' + String(c.concBody).trim());
+          var free = String(c.free || '').trim();
+          if (free && !pts.length) L.push('작성중 원고(자유원고, 발췌):\n' + free.slice(0, 1800));
         }
       } catch(e){}
       if (val('c_kw')) L.push('키워드: ' + val('c_kw'));
