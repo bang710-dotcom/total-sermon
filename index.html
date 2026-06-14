@@ -3407,7 +3407,18 @@ $('#sl_dawn').addEventListener('click', function(){
   state.seriesReqs = {}; spLastScan = null;
   renderSeriesPage();
 });
-$('#dw_date').addEventListener('change', dwPreview);
+$('#dw_date').addEventListener('change', function(){ dwSyncSched(true); dwPreview(); });
+$('#dawnMeta').addEventListener('input', function(e){
+  if (!e.target.classList.contains('dwRange')) return;
+  var S = state.series; if (!S || !S.sched) return;
+  var i = +e.target.dataset.i;
+  if (S.sched[i]) { S.sched[i]['통독범위'] = e.target.value; saveSeries(); }
+});
+$('#dawnMeta').addEventListener('click', function(e){
+  if (e.target.id !== 'dwRangeReset') return;
+  if (!confirm('통독 범위를 달력 기본값으로 되돌릴까요?\n직접 고친 내용은 지워집니다.')) return;
+  dwSyncSched(true); dwPreview(); toast('통독 범위를 달력 기본값으로 되돌렸습니다.');
+});
 $('#dw_gen').addEventListener('click', function(){
   var S = state.series; if (!S) return;
   var m = dwReadMeta();
@@ -4358,7 +4369,7 @@ function isDawn(S){ S = S || state.series; return !!(S && S.kind === 'dawn'); }
 /* ── 메타 입출력 ── */
 function dwReadMeta(){
   var dt = $('#dw_date').value;
-  var days = dawnDays(dt);
+  var days = dwSyncSched(false) || dawnDays(dt);
   if (!days) return null;
   var sun = days[0]['날짜'], fri = days[5]['날짜'];
   return {
@@ -4379,12 +4390,30 @@ function dwFillInputs(m){
   $('#dw_hymnbook').value = m['찬송판본'] || '새찬송가';
   $('#dw_note').value = m['요청사항'] || '';
 }
+/* 그 주 주일 ISO */
+function dwSundayOf(iso){ if (!iso) return ''; var d = new Date(iso + 'T12:00:00'); if (isNaN(d)) return ''; d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0, 10); }
+/* 편집 가능한 주간 통독표(S.sched) 동기화 — 날짜가 바뀌거나 비어 있으면 달력 기본값으로 재계산,
+   단 같은 주의 이전 편집(meta.일정)이 있으면 그 값을 살린다. force=true면 무조건 달력 기본값. */
+function dwSyncSched(force){
+  var S = state.series; if (!S) return null;
+  var sun = dwSundayOf($('#dw_date').value);
+  if (!sun) return S.sched || null;
+  if (!force && (!S.sched || S.schedDate !== sun) && S.meta && Array.isArray(S.meta['일정']) &&
+      S.meta['일정'][0] && S.meta['일정'][0]['날짜'] === sun) {
+    S.sched = S.meta['일정'].map(function(x){ return { '날짜': x['날짜'], '요일': x['요일'], '통독범위': x['통독범위'] }; });
+    S.schedDate = sun; saveSeries(); return S.sched;
+  }
+  if (force || !S.sched || S.schedDate !== sun) { S.sched = dawnDays(sun); S.schedDate = sun; saveSeries(); }
+  return S.sched;
+}
 function dwPreview(){
-  var dt = $('#dw_date').value, days = dawnDays(dt), box = $('#dw_preview');
-  if (!box) return;
+  var box = $('#dw_preview'); if (!box) return;
+  var days = dwSyncSched(false);
   if (!days) { box.innerHTML = ''; return; }
   box.innerHTML = '<div style="font-weight:600;margin-bottom:4px">' + esc(mdOf(days[0]['날짜'])) + '(주일) ~ ' + esc(mdOf(days[5]['날짜'])) + '(금) · 6일 <span style="color:var(--dim);font-weight:400">— 토요일은 담임목사님</span></div>' +
-    days.map(function(d){ return '<div style="display:flex;gap:8px;font-size:12.5px;padding:1px 0"><span style="flex:0 0 70px;color:var(--dim)">' + esc(mdOf(d['날짜'])) + ' (' + esc(d['요일']) + ')</span><span style="color:var(--accent2)">' + esc(d['통독범위'] || '—') + '</span></div>'; }).join('');
+    '<div class="cnt" style="margin-bottom:5px">통독 범위가 교회에서 정한 것과 다르면(윤년 등) 칸을 직접 고쳐 주세요. 이 범위 안에서 설교 본문이 정해집니다.</div>' +
+    days.map(function(d, i){ return '<div style="display:flex;gap:8px;align-items:center;padding:2px 0"><span style="flex:0 0 70px;color:var(--dim);font-size:12.5px">' + esc(mdOf(d['날짜'])) + ' (' + esc(d['요일']) + ')</span><input type="text" class="dwRange" data-i="' + i + '" value="' + esc(d['통독범위'] || '') + '" placeholder="통독 범위" style="flex:1;font-size:12.5px"></div>'; }).join('') +
+    '<div style="margin-top:5px"><button class="linkbtn" id="dwRangeReset" style="font-size:12px;color:var(--accent2)">↻ 통독 범위를 달력 기본값으로 되돌리기</button></div>';
 }
 
 /* ── 새벽 설교 선택지 프롬프트 ── */
