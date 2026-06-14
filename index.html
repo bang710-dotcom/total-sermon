@@ -932,8 +932,8 @@ function apiPost(body){
     .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
 }
 
-function sync(){
-  setSyncState('동기화 중…', true);
+/* 시트에서 최신 데이터를 받아 상태·공통 화면을 갱신 (토스트 없는 조용한 코어) */
+function pullData(){
   return flushQueue().then(function(){
     return api({ action: 'list', sheet: 'all' });
   }).then(function(d){
@@ -943,9 +943,39 @@ function sync(){
     state.data = d; saveData();
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
+    return d;
+  });
+}
+function sync(){
+  setSyncState('동기화 중…', true);
+  return pullData().then(function(d){
     toast('동기화 완료 (설교 ' + d.sermons.length + ' · 아이디어 ' + d.ideas.length + ')');
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
+  });
+}
+/* 시트 기반 메뉴 진입 시: 즉시 재로드 + 흐림→선명 */
+var SHEET_PAGES = { search:1, compose:1, occ:1, devo:1, series:1, archive:1, outputs:1, inbox:1 };
+function rerenderSheetPage(name){
+  if (name === 'outputs') renderOutputs();
+  else if (name === 'devo') renderDevo();
+  else if (name === 'series') renderSeriesPage();
+  else if (name === 'occ') renderOccPane();
+  else if (name === 'archive') renderArchive();
+  /* search·compose·inbox 는 pullData 안에서 이미 갱신됨 */
+}
+function refreshPageFromSheet(name){
+  if (!SHEET_PAGES[name]) return;
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return;
+  var pg = $('#page-' + name); if (!pg) return;
+  pg.classList.add('stale');
+  pullData().then(function(){
+    rerenderSheetPage(name);
+  }).catch(function(){
+    /* 재로드 실패 시 기존(캐시) 화면 유지 */
+  }).then(function(){
+    pg.classList.remove('stale');
   });
 }
 
@@ -3419,7 +3449,9 @@ function renderSeriesList(){
     var bits = [];
     if (S.devo) bits.push('묵상 ' + S.devo.rows.length + '일' + (S.devoDone ? ' (등록됨)' : ' 검토 중'));
     if (S.sermon) bits.push((isDawn(S) ? '새벽 ' + S.sermon.weeks.length + '일' : '주일 설교 ' + S.sermon.weeks.length + '주') + (S.sermonDone ? ' (등록됨)' : ' 검토 중'));
-    html += '<div class="item" onclick="slOpen(' + i + ')"><div class="meta">' +
+    html += '<div class="swipeRow">' +
+      '<button class="swipeDel" type="button" onclick="slDel(' + i + ')">삭제</button>' +
+      '<div class="item swipeFront" data-sw="' + i + '" onclick="slOpen(' + i + ')"><div class="meta">' +
       '<span class="badge ' + (isDawn(S) ? 'b-idea">🌅 새벽' : 'b-sermon">시리즈') + '</span>' +
       (m['시작일'] ? '<span>' + esc(m['시작일']) + ' ~ ' + esc(m['종료일'] || '') + '</span>' : '') +
       '<span class="badge b-state">' + spStageLabel(S) + '</span>' +
@@ -3427,7 +3459,7 @@ function renderSeriesList(){
       '<button class="linkbtn" style="margin-left:auto;color:var(--warn);padding:0" onclick="event.stopPropagation();slDel(' + i + ')">목록에서 삭제</button></div>' +
       '<div class="title">' + esc(m['시리즈명'] || '(이름 없는 시리즈)') +
       (m['성경범위'] && m['성경범위'] !== m['시리즈명'] ? ' <span style="color:var(--dim);font-weight:400;font-size:13px">' + esc(m['성경범위']) + '</span>' : '') + '</div>' +
-      (bits.length ? '<div class="snippet">' + bits.join(' · ') + '</div>' : '') + '</div>';
+      (bits.length ? '<div class="snippet">' + bits.join(' · ') + '</div>' : '') + '</div></div>';
   });
   /* 시트에 등록돼 있는 과거 시리즈 (로컬 목록에 없는 것) */
   var sheet = {};
@@ -3460,6 +3492,47 @@ window.slDel = function(i){
   idbSet('seriesList', state.seriesList).catch(function(){});
   renderSeriesList();
 };
+/* ── 모바일: 시리즈 목록 왼쪽 스와이프로 삭제 노출 ── */
+(function(){
+  var box = document.getElementById('slItems');
+  if (!box) return;
+  var OPEN = -96, THRESH = 48;
+  var cur = null, sx = 0, sy = 0, base = 0, dx = 0, decided = false, horiz = false, openEl = null, moved = false;
+  function closeOpen(){ if (openEl){ openEl.style.transition = 'transform .2s ease'; openEl.style.transform = ''; openEl = null; } }
+  box.addEventListener('touchstart', function(e){
+    var it = e.target.closest && e.target.closest('.item.swipeFront');
+    if (!it){ cur = null; return; }
+    if (openEl && openEl !== it) closeOpen();
+    cur = it; sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    base = (it === openEl) ? OPEN : 0;
+    dx = 0; decided = false; horiz = false; moved = false;
+    it.style.transition = 'none';
+  }, { passive: true });
+  box.addEventListener('touchmove', function(e){
+    if (!cur) return;
+    var ddx = e.touches[0].clientX - sx, ddy = e.touches[0].clientY - sy;
+    if (!decided){ if (Math.abs(ddx) < 6 && Math.abs(ddy) < 6) return; decided = true; horiz = Math.abs(ddx) > Math.abs(ddy); }
+    if (!horiz) return;
+    e.preventDefault();
+    moved = true;
+    dx = Math.max(OPEN, Math.min(0, base + ddx));
+    cur.style.transform = 'translateX(' + dx + 'px)';
+  }, { passive: false });
+  box.addEventListener('touchend', function(){
+    if (!cur) return;
+    var it = cur; cur = null;
+    it.style.transition = 'transform .2s ease';
+    if (horiz && dx <= -THRESH){ it.style.transform = 'translateX(' + OPEN + 'px)'; openEl = it; }
+    else { it.style.transform = ''; if (openEl === it) openEl = null; }
+  });
+  /* 스와이프 직후/열림 상태 탭은 항목 열기(slOpen) 대신 닫기로 처리 */
+  box.addEventListener('click', function(e){
+    var it = e.target.closest && e.target.closest('.item.swipeFront');
+    if (e.target.closest && e.target.closest('.swipeDel')) return; /* 삭제 버튼은 통과 */
+    if (moved){ moved = false; e.preventDefault(); e.stopPropagation(); return; }
+    if (it && it === openEl){ e.preventDefault(); e.stopPropagation(); closeOpen(); }
+  }, true);
+})();
 $('#sl_new').addEventListener('click', function(){
   state.series = newSeriesEntry(); state.seriesMode = 'wizard';
   state.seriesReqs = {}; spLastScan = null; /* 이전 시리즈의 요청 상태가 새 시리즈에 남지 않도록 초기화 */
@@ -5214,6 +5287,7 @@ function showPage(name){
   if (name === 'occ') renderOccPane();
   if (name === 'archive') renderArchive();
   if (name === 'compose') cwRender(); /* 진행중 설교 목록 갱신 */
+  refreshPageFromSheet(name); /* 시트 기반 메뉴: 즉시 재로드(흐림→선명) */
 }
 window.showPage = showPage;
 $$('.tabbar button, .sidebar .nav').forEach(function(b){
