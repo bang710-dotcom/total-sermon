@@ -129,23 +129,6 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #dragOverlay{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.72);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
 #dragOverlay.on{display:flex;animation:fade .12s ease}
 #dragOverlay .dropMsg{pointer-events:none;border:2.5px dashed var(--accent);border-radius:22px;padding:46px 60px;text-align:center;background:rgba(24,27,34,.55)}
-/* ── 결과물 생성 중 전체화면 오버레이 ── */
-#genOverlay{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(6,8,13,.74);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
-#genOverlay.on{display:flex;animation:fade .18s ease}
-#genOverlay .genCard{text-align:center;max-width:440px;padding:38px 34px;border-radius:22px;background:rgba(22,26,34,.92);border:1px solid rgba(127,196,255,.35);box-shadow:0 18px 60px rgba(0,0,0,.5)}
-#genOverlay .genRing{width:64px;height:64px;margin:0 auto 22px;border-radius:50%;border:5px solid rgba(127,196,255,.22);border-top-color:var(--accent);animation:spin .85s linear infinite}
-#genOverlay .genTitle{font-size:20px;font-weight:800;color:#fff;line-height:1.4;margin-bottom:10px}
-#genOverlay .genTitle .dots::after{content:'';animation:genDots 1.4s steps(4,end) infinite}
-@keyframes genDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
-#genOverlay .genSub{font-size:13.5px;color:var(--dim);line-height:1.7;margin-bottom:14px}
-#genOverlay .genCount{font-size:13px;font-weight:700;color:var(--accent);min-height:1.2em}
-/* ── 시트 재동기화 중 흐림 처리 ── */
-.page{transition:opacity .32s ease}
-.page.stale{opacity:.38;pointer-events:none}
-/* ── 시리즈 목록 스와이프 삭제(모바일) ── */
-.swipeRow{position:relative;margin-bottom:10px;border-radius:var(--radius);overflow:hidden}
-.swipeRow .swipeDel{position:absolute;top:0;right:0;height:100%;width:96px;border:none;background:var(--warn);color:#fff;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.swipeRow .item{margin-bottom:0;position:relative;background:var(--card);transition:transform .2s ease;will-change:transform;touch-action:pan-y}
 /* ── 본문 표기 링크 + 개역개정 보기 모달 ── */
 .bref{color:var(--accent2);border-bottom:1px dashed currentColor;cursor:pointer}
 .brefIcon{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:15px;line-height:1;padding:0 4px;flex:0 0 auto}
@@ -830,14 +813,6 @@ body.aiChatOpen #aiFab{display:none}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     <h3>파일을 여기에 놓으세요</h3>
     <p>예화 <b style="color:var(--accent)">이미지</b> → 글로 정리해 인박스 등록<br>설교 원고 <b style="color:var(--accent2)">DOCX</b> → 가져오기에서 시트 등록<br>여러 개를 한 번에 놓아도 알아서 분류됩니다</p>
-  </div>
-</div>
-<div id="genOverlay">
-  <div class="genCard">
-    <div class="genRing"></div>
-    <div class="genTitle"><span id="genTitleTxt">생성 중</span><span class="dots"></span></div>
-    <div class="genSub">잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.</div>
-    <div class="genCount" id="genCount"></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -2254,9 +2229,6 @@ function aiKey(){ return String(state.settings.claudeKey || '').trim(); }
 async function callClaude(system, user, maxTokens, onTick){
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
-  var genLabel = (onTick && onTick.genLabel) || '결과물';
-  showGenOverlay(genLabel);
-  try {
   var res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -2295,9 +2267,6 @@ async function callClaude(system, user, maxTokens, onTick){
     }
   }
   return out;
-  } finally {
-    hideGenOverlay();
-  }
 }
 function aiJson(text){
   var m = text.match(/```json\s*([\s\S]*?)```/) || text.match(/```\s*([\s\S]*?)```/);
@@ -2307,37 +2276,7 @@ function aiJson(text){
   return JSON.parse(s);
 }
 function aiTick(label){
-  var fn = function(n){
-    setSyncState(label + ' 생성 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자', true);
-    updateGenOverlay(n);
-  };
-  fn.genLabel = label;
-  return fn;
-}
-/* ── 결과물 생성 중 전체화면 오버레이 제어 ── */
-var GEN_MSG = {
-  '요약본': '설교 요약본을 만들고 있어요',
-  '완성 원고': '완성 원고를 집필하고 있어요',
-  '카드원고': '카드원고를 집필하고 있어요',
-  '예화 인식': '예화 이미지를 읽고 있어요',
-  'LTC 교재': 'LTC 교재를 만들고 있어요',
-  '묵상 일정': '묵상 일정을 짜고 있어요',
-  '설교 선택지': '주일 설교 선택지를 구상하고 있어요',
-  '새벽 설교 선택지': '새벽 설교 선택지를 구상하고 있어요',
-  '상황 설교 개요': '상황 설교 개요를 구상하고 있어요'
-};
-function showGenOverlay(label){
-  var el = $('#genOverlay'); if (!el) return;
-  var t = $('#genTitleTxt'); if (t) t.textContent = GEN_MSG[label] || (label + ' 생성 중');
-  var c = $('#genCount'); if (c) c.textContent = '';
-  el.classList.add('on');
-}
-function updateGenOverlay(n){
-  var c = $('#genCount'); if (!c) return;
-  c.textContent = '받는 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자';
-}
-function hideGenOverlay(){
-  var el = $('#genOverlay'); if (el) el.classList.remove('on');
+  return function(n){ setSyncState(label + ' 생성 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자', true); };
 }
 
 /* ── 프롬프트 (스킬 핵심 내장) ── */
