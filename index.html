@@ -6122,7 +6122,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       var target = document.getElementById('app') || document.body;
       var bg = (getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#0f1115').trim();
       var canvas = await window.html2canvas(target, {
-        backgroundColor: bg, scale: 1, useCORS: true, logging: false, scrollX: 0, scrollY: -window.scrollY,
+        backgroundColor: bg, scale: 1, useCORS: true, logging: false,
         onclone: function(doc){
           try { doc.body.classList.remove('aiChatOpen'); } catch(e){}
           ['aiPanel', 'aiFab', 'aiAttach'].forEach(function(id){ var el = doc.getElementById(id); if (el) el.style.display = 'none'; });
