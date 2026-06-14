@@ -5915,12 +5915,13 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   </div>
   <div class="aiBody" id="aiBody"></div>
   <div class="aiAttach" id="aiAttach">
-    <img id="aiAttachImg" alt="첨부된 화면">
-    <span class="nm"><b>화면 캡처</b> 첨부됨 — 보내면 이 이미지를 함께 봅니다</span>
+    <img id="aiAttachImg" alt="첨부된 이미지">
+    <span class="nm"><b>이미지</b> 첨부됨 — 보내면 이 이미지를 함께 봅니다</span>
     <button class="rm" id="aiAttachRm" type="button" title="첨부 제거" aria-label="첨부 제거">✕</button>
   </div>
   <div class="aiFt">
-    <button class="shot" id="aiShot" type="button" title="현재 화면 캡처 첨부" aria-label="화면 캡처">
+    <input type="file" id="aiFile" accept="image/*" style="display:none">
+    <button class="shot" id="aiShot" type="button" title="이미지 첨부 — 사진·스크린샷 불러오기(모바일은 촬영도 가능, 붙여넣기 Cmd+V도 됨)" aria-label="이미지 첨부">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
     </button>
     <textarea id="aiInput" rows="1" placeholder="설교 준비를 도와드릴게요…"></textarea>
@@ -6107,40 +6108,40 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     body.scrollTop = body.scrollHeight;
     return d;
   }
-  /* ── 화면 캡처(html2canvas) ── */
-  function setShotBusy(on){ if (shotBtn) shotBtn.classList.toggle('busy', !!on); }
+  /* ── 이미지 첨부(사진 불러오기 / 카메라 촬영 / 붙여넣기) ──
+     실제 픽셀 이미지를 받아 ≤1400px JPEG로 축소·재인코딩 후 첨부. */
   function renderAttach(){
     if (pendingShot){ attachImg.src = pendingShot; attachBox.classList.add('show'); }
     else { attachImg.removeAttribute('src'); attachBox.classList.remove('show'); }
   }
   function clearAttach(){ pendingShot = null; renderAttach(); }
-  async function captureScreen(){
-    if (busy) return;
-    setShotBusy(true);
-    try {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-      var target = document.getElementById('app') || document.body;
-      var bg = (getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#0f1115').trim();
-      var canvas = await window.html2canvas(target, {
-        backgroundColor: bg, scale: 1, useCORS: true, logging: false,
-        onclone: function(doc){
-          try { doc.body.classList.remove('aiChatOpen'); } catch(e){}
-          ['aiPanel', 'aiFab', 'aiAttach'].forEach(function(id){ var el = doc.getElementById(id); if (el) el.style.display = 'none'; });
-        }
-      });
-      var maxW = 1400, out = canvas;
-      if (canvas.width > maxW){
-        var r = maxW / canvas.width, c2 = document.createElement('canvas');
-        c2.width = maxW; c2.height = Math.round(canvas.height * r);
-        c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
-        out = c2;
-      }
-      pendingShot = out.toDataURL('image/jpeg', 0.9);
-      renderAttach();
-      if (typeof toast === 'function') toast('화면을 첨부했습니다 — 질문과 함께 보내세요.');
-    } catch(e){ if (typeof toast === 'function') toast('화면 캡처 실패: ' + e.message); }
-    finally { setShotBusy(false); }
+  function downscaleToJpeg(srcUrl, cb){
+    var img = new Image();
+    img.onload = function(){
+      var maxW = 1400, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      var sc = w > maxW ? maxW / w : 1;
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      try { cb(c.toDataURL('image/jpeg', 0.9)); } catch(e){ cb(null); }
+    };
+    img.onerror = function(){ cb(null); };
+    img.src = srcUrl;
   }
+  function attachFromFile(file){
+    if (!file || !/^image\//.test(file.type || '')){ if (typeof toast === 'function') toast('이미지 파일만 첨부할 수 있습니다.'); return; }
+    var rd = new FileReader();
+    rd.onload = function(){
+      downscaleToJpeg(String(rd.result), function(dataUrl){
+        if (!dataUrl){ if (typeof toast === 'function') toast('이미지를 불러오지 못했습니다.'); return; }
+        pendingShot = dataUrl; renderAttach();
+        if (typeof toast === 'function') toast('이미지를 첨부했습니다 — 질문과 함께 보내세요.');
+      });
+    };
+    rd.onerror = function(){ if (typeof toast === 'function') toast('이미지 읽기 실패'); };
+    rd.readAsDataURL(file);
+  }
+  function pickImage(){ var fi = document.getElementById('aiFile'); if (fi){ fi.value = ''; fi.click(); } }
   function addCopy(el, getText){
     var b = document.createElement('button');
     b.className = 'copyMsg'; b.type = 'button'; b.textContent = '복사';
@@ -6280,8 +6281,20 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   $('#aiClose').addEventListener('click', closePanel);
   $('#aiNew').addEventListener('click', newChat);
   sendBtn.addEventListener('click', send);
-  if (shotBtn) shotBtn.addEventListener('click', captureScreen);
+  if (shotBtn) shotBtn.addEventListener('click', pickImage);
+  var fileIn = $('#aiFile');
+  if (fileIn) fileIn.addEventListener('change', function(){ if (this.files && this.files[0]) attachFromFile(this.files[0]); });
   var attachRm = $('#aiAttachRm'); if (attachRm) attachRm.addEventListener('click', clearAttach);
+  /* 붙여넣기(맥 Cmd+V): 클립보드의 화면 캡처 이미지를 바로 첨부 */
+  input.addEventListener('paste', function(e){
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++){
+      if (items[i].type && items[i].type.indexOf('image') === 0){
+        var f = items[i].getAsFile();
+        if (f){ e.preventDefault(); attachFromFile(f); return; }
+      }
+    }
+  });
   input.addEventListener('input', autosize);
   input.addEventListener('keydown', function(e){
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); }
