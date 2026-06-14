@@ -3293,7 +3293,11 @@ function renderSeriesPage(){
   $('#seriesMeta').style.display = list ? 'none' : 'block';
   $('#seriesPane').style.display = list ? 'none' : 'block';
   if (list) renderSeriesList();
-  else {
+  else if (isDawn(state.series)) {
+    $('#regMeta').style.display = 'none'; $('#dawnMeta').style.display = 'block';
+    dwFillInputs(state.series.meta); dwPreview(); renderSeriesPane();
+  } else {
+    $('#regMeta').style.display = 'block'; $('#dawnMeta').style.display = 'none';
     spFillInputs(state.series.meta);
     spPreview(); spStatus(); renderSeriesPane();
   }
@@ -3350,9 +3354,9 @@ function renderSeriesList(){
     if (m['시리즈명']) localNames[m['시리즈명']] = true;
     var bits = [];
     if (S.devo) bits.push('묵상 ' + S.devo.rows.length + '일' + (S.devoDone ? ' (등록됨)' : ' 검토 중'));
-    if (S.sermon) bits.push('주일 설교 ' + S.sermon.weeks.length + '주' + (S.sermonDone ? ' (등록됨)' : ' 검토 중'));
+    if (S.sermon) bits.push((isDawn(S) ? '새벽 ' + S.sermon.weeks.length + '일' : '주일 설교 ' + S.sermon.weeks.length + '주') + (S.sermonDone ? ' (등록됨)' : ' 검토 중'));
     html += '<div class="item" onclick="slOpen(' + i + ')"><div class="meta">' +
-      '<span class="badge b-sermon">시리즈</span>' +
+      '<span class="badge ' + (isDawn(S) ? 'b-idea">🌅 새벽' : 'b-sermon">시리즈') + '</span>' +
       (m['시작일'] ? '<span>' + esc(m['시작일']) + ' ~ ' + esc(m['종료일'] || '') + '</span>' : '') +
       '<span class="badge b-state">' + spStageLabel(S) + '</span>' +
       (S.updatedAt ? '<span>수정 ' + esc(S.updatedAt) + '</span>' : '') +
@@ -3397,6 +3401,36 @@ $('#sl_new').addEventListener('click', function(){
   state.seriesReqs = {}; spLastScan = null; /* 이전 시리즈의 요청 상태가 새 시리즈에 남지 않도록 초기화 */
   renderSeriesPage();
 });
+$('#sl_dawn').addEventListener('click', function(){
+  var S = newSeriesEntry(); S.kind = 'dawn';
+  state.series = S; state.seriesMode = 'wizard';
+  state.seriesReqs = {}; spLastScan = null;
+  renderSeriesPage();
+});
+$('#dw_date').addEventListener('change', dwPreview);
+$('#dw_gen').addEventListener('click', function(){
+  var S = state.series; if (!S) return;
+  var m = dwReadMeta();
+  if (!m) { toast('설교할 날짜를 먼저 입력해 주세요.'); return; }
+  var pend = (state.seriesReqs || {})['새벽설교'];
+  if (pend === '진행중') { toast('생성 중입니다 — 잠시만 기다려 주세요.'); return; }
+  var changed = !!(S.sermon && S.meta && S.meta['시작일'] !== m['시작일']);
+  if (changed && !confirm('날짜(주간)가 바뀌었습니다.\n이전 선택지를 지우고 새 주간으로 다시 생성할까요?')) return;
+  if (changed) { S.sermon = null; S.sermonDone = false; }
+  else if (S.sermon && !confirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?\n(아래 [재작업] 버튼으로도 다시 만들 수 있습니다)')) return;
+  S.meta = m; saveSeries();
+  if (aiKey()) { aiSeriesDawn(); return; }
+  spWriteReq('새벽설교', { '계획': m }, '새벽 설교 주제 (' + m['시리즈명'] + ')');
+  renderSeriesPane();
+});
+function spDawnRedo(){
+  var S = state.series; if (!S || !S.meta) return;
+  var note = prompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '');
+  if (note === null) return;
+  var add = '[재작업] 이전 선택지가 마음에 들지 않아 다시 요청합니다. 이전과 다른 본문·주제·접근 갈래로 보완해 주세요.' + (note.trim() ? ' — ' + note.trim() : '');
+  if (aiKey()) { aiSeriesDawn(add); return; }
+  spWriteReq('새벽설교', { '계획': S.meta }, '새벽 설교 재작업 (' + S.meta['시리즈명'] + ')');
+}
 $('#sp_back').addEventListener('click', function(){
   state.seriesMode = 'list'; renderSeriesPage();
 });
@@ -3515,6 +3549,7 @@ function spStageHtml(type, drafted, doneFlag, detail){
 function spStatus(){
   var S = state.series;
   if (!S) return;
+  if (isDawn(S)) return;
   /* [보관] 복원 배너 — sermon 없거나 opts 전부 비어있을 때 (slOpenSheet 오류 데이터 포함) */
   var archiveBanner = '';
   var _sermonMissingOpts = S.sermon && S.sermon.weeks.length > 0 &&
@@ -3832,6 +3867,11 @@ function spTimelineHtml(){
 function renderSeriesPane(){
   var S = state.series, pane = $('#seriesPane');
   if (!S) { pane.innerHTML = ''; return; }
+  if (isDawn(S)) {
+    pane.innerHTML = spDawnTimeline() + (S.sermon ? spDawnHtml()
+      : '<div class="empty">왼쪽에서 설교할 날짜를 입력하고<br>[주간 설교 주제 생성]을 눌러 주세요.</div>');
+    return;
+  }
   var html = spTimelineHtml();
   if (!S.devo && !S.sermon) {
     html += '<div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.<br>Cowork가 처리해 버튼이 파래지면 [요청 결과]를 눌러<br>여기에서 검토·수정 후 확정합니다.</div>';
@@ -4018,6 +4058,8 @@ $('#seriesPane').addEventListener('change', function(e){
   }
 });
 $('#seriesPane').addEventListener('click', async function(e){
+  var ddr = e.target.closest('#spDawnRedo');
+  if (ddr) { spDawnRedo(); return; }
   var rd = e.target.closest('#spDevoRedo, #spSermonRedo');
   if (rd) { spRedo(rd.id === 'spDevoRedo' ? '시리즈묵상' : '시리즈설교'); return; }
   var ex = e.target.closest('#spSermonExport');
@@ -5415,7 +5457,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v92';
+var APP_VER = 'v93';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
