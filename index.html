@@ -850,7 +850,7 @@ body.aiChatOpen #aiFab{display:none}
   <div class="genCard">
     <div class="genRing"></div>
     <div class="genTitle"><span id="genTitleTxt">생성 중</span><span class="dots"></span></div>
-    <div class="genSub">잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.</div>
+    <div class="genSub" id="genSub">잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.</div>
     <div class="genCount" id="genCount"></div>
   </div>
 </div>
@@ -2376,9 +2376,11 @@ var GEN_MSG = {
   '새벽 설교 선택지': '새벽 설교 선택지를 구상하고 있어요',
   '상황 설교 개요': '상황 설교 개요를 구상하고 있어요'
 };
+var GEN_SUB_AI = '잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.';
 function showGenOverlay(label){
   var el = $('#genOverlay'); if (!el) return;
   var t = $('#genTitleTxt'); if (t) t.textContent = GEN_MSG[label] || (label + ' 생성 중');
+  var sb = $('#genSub'); if (sb) sb.innerHTML = GEN_SUB_AI;
   var c = $('#genCount'); if (c) c.textContent = '';
   el.classList.add('on');
 }
@@ -2388,6 +2390,34 @@ function updateGenOverlay(n){
 }
 function hideGenOverlay(){
   var el = $('#genOverlay'); if (el) el.classList.remove('on');
+}
+
+/* ── 일반 대기 오버레이 (시트 불러오기·동기화·저장 등) ──
+   genOverlay 카드를 재사용. 레퍼런스 카운트 + 지연표시(기본 250ms)로
+   아주 빠른 작업에서는 깜빡이지 않고, 사용자가 기다리는 작업에만 뜬다. */
+var _waitN = 0, _waitTimer = null, _waitInfo = null;
+function _waitPaint(){
+  var el = $('#genOverlay'); if (!el) return;
+  var t = $('#genTitleTxt'); if (t) t.textContent = (_waitInfo && _waitInfo.title) || '불러오는 중';
+  var sb = $('#genSub'); if (sb) sb.textContent = (_waitInfo && _waitInfo.sub) || '잠시만 기다려 주세요. 결과를 준비하고 있어요.';
+  var c = $('#genCount'); if (c) c.textContent = '';
+  el.classList.add('on');
+}
+function showWaitOverlay(title, sub, delay){
+  _waitN++; _waitInfo = { title: title, sub: sub };
+  var el = $('#genOverlay');
+  if (el && el.classList.contains('on')){ _waitPaint(); return; } /* 이미 떠 있으면 즉시 문구 갱신 */
+  if (delay === 0){ _waitPaint(); return; }
+  if (_waitTimer) return;
+  _waitTimer = setTimeout(function(){ _waitTimer = null; if (_waitN > 0) _waitPaint(); }, delay || 250);
+}
+function hideWaitOverlay(){
+  _waitN = Math.max(0, _waitN - 1);
+  if (_waitN === 0){
+    if (_waitTimer){ clearTimeout(_waitTimer); _waitTimer = null; }
+    _waitInfo = null;
+    var el = $('#genOverlay'); if (el) el.classList.remove('on');
+  }
 }
 
 /* ── 프롬프트 (스킬 핵심 내장) ── */
