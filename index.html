@@ -518,8 +518,7 @@ body.aiChatOpen #aiFab{display:none}
           <div style="display:flex;gap:7px">
             <select id="cwCat" style="flex:0 0 auto;width:104px;font-size:15px">
               <option value="">전체</option>
-              <option value="구상">구상</option>
-              <option value="연구">연구</option>
+              <option value="구상/연구">구상/연구</option>
               <option value="작성중">작성중</option>
             </select>
             <input type="text" id="cwQ" placeholder="제목·본문·시리즈 검색" autocomplete="off" style="flex:1 1 auto;font-size:15px">
@@ -544,7 +543,7 @@ body.aiChatOpen #aiFab{display:none}
           <div><label>순번</label><input type="number" id="c_seriesNo" min="1"></div>
         </div>
         <label>상태</label>
-        <select id="c_state"><option>구상</option><option>연구</option><option>작성중</option><option>완료</option><option>설교함</option></select>
+        <select id="c_state"><option>구상/연구</option><option>작성중</option><option>완료</option><option>설교함</option></select>
         <label>핵심메시지</label><input type="text" id="c_msg">
         <label>대지 · 예화 (↑↓로 순서 변경, 번호 자동)</label>
         <div id="pointList"></div>
@@ -698,7 +697,7 @@ body.aiChatOpen #aiFab{display:none}
           <label>본문</label><input type="text" id="smRef" placeholder="로마서 5:1-11">
           <div class="row2">
             <div><label>시리즈</label><input type="text" id="smSeries"></div>
-            <div><label>상태</label><select id="smState"><option>구상</option><option>연구</option><option>작성중</option><option>완료</option><option>설교함</option></select></div>
+            <div><label>상태</label><select id="smState"><option>구상/연구</option><option>작성중</option><option>완료</option><option>설교함</option></select></div>
           </div>
           <label>핵심메시지</label><input type="text" id="smMsg">
           <label>예화</label><input type="text" id="smIllust" placeholder="여러 개면 ; 로 구분">
@@ -1613,7 +1612,7 @@ function clearCompose(){
   state.versionOf = null;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = ''; });
   $('#c_date').value = new Date().toISOString().slice(0, 10);
-  $('#c_state').value = '구상';
+  $('#c_state').value = '구상/연구';
   $('#c_dupCheck').innerHTML = '';
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
@@ -1652,7 +1651,7 @@ $('#c_new').addEventListener('click', function(){
 });
 
 /* ── 진행중인 설교(구상·연구·작성중) 검색·이어쓰기 ── */
-var CW_INPROGRESS = { '구상': 1, '연구': 1, '작성중': 1 };
+var CW_INPROGRESS = { '구상/연구': 1, '작성중': 1, '구상': 1, '연구': 1 /* 구버전 호환 */ };
 /* 설교를 직접 수정 모드로 불러와 이어 작업 (저장 시 같은 행 업데이트) */
 window.resumeSermon = function(id){
   editSermon(id);                 /* 내용 로드 (+ compose 화면 전환) */
