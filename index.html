@@ -142,6 +142,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 /* ── 시트 재동기화 중 흐림 처리 ── */
 .page{transition:opacity .32s ease}
 .page.stale{opacity:.38;pointer-events:none}
+#syncBanner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:360;display:none;align-items:center;gap:11px;padding:13px 22px;border-radius:99px;background:rgba(22,26,34,.96);border:1px solid rgba(127,196,255,.42);color:#fff;font-size:14.5px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+#syncBanner.on{display:flex;animation:fade .18s ease}
+#syncBanner .sbRing{width:18px;height:18px;border-radius:50%;border:3px solid rgba(127,196,255,.25);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:0 0 auto}
 /* ── 시리즈 목록 스와이프 삭제(모바일) ── */
 .swipeRow{position:relative;margin-bottom:10px;border-radius:var(--radius);overflow:hidden}
 .swipeRow .swipeDel{position:absolute;top:0;right:0;height:100%;width:96px;border:none;background:var(--warn);color:#fff;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -840,6 +843,7 @@ body.aiChatOpen #aiFab{display:none}
     <div class="genCount" id="genCount"></div>
   </div>
 </div>
+<div id="syncBanner"><span class="sbRing"></span><span>최신 시트로 동기화 중입니다…</span></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -964,18 +968,23 @@ function rerenderSheetPage(name){
   else if (name === 'archive') renderArchive();
   /* search·compose·inbox 는 pullData 안에서 이미 갱신됨 */
 }
+var _syncBannerN = 0;
+function showSyncBanner(){ _syncBannerN++; var el = $('#syncBanner'); if (el) el.classList.add('on'); }
+function hideSyncBanner(){ _syncBannerN = Math.max(0, _syncBannerN - 1); if (_syncBannerN === 0){ var el = $('#syncBanner'); if (el) el.classList.remove('on'); } }
 function refreshPageFromSheet(name){
   if (!SHEET_PAGES[name]) return;
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return;
   var pg = $('#page-' + name); if (!pg) return;
   pg.classList.add('stale');
+  showSyncBanner();
   pullData().then(function(){
     rerenderSheetPage(name);
   }).catch(function(){
     /* 재로드 실패 시 기존(캐시) 화면 유지 */
   }).then(function(){
     pg.classList.remove('stale');
+    hideSyncBanner();
   });
 }
 
@@ -5626,7 +5635,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v97';
+var APP_VER = 'v98';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
