@@ -958,32 +958,25 @@ function sync(){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   });
 }
-/* 시트 기반 메뉴 진입 시: 즉시 재로드 + 흐림→선명 */
-var SHEET_PAGES = { search:1, compose:1, occ:1, devo:1, series:1, archive:1, outputs:1, inbox:1 };
-function rerenderSheetPage(name){
-  if (name === 'outputs') renderOutputs();
-  else if (name === 'devo') renderDevo();
-  else if (name === 'series') { syncSeriesDetails(); renderSeriesPage(); }
-  else if (name === 'occ') renderOccPane();
-  else if (name === 'archive') renderArchive();
-  /* search·compose·inbox 는 pullData 안에서 이미 갱신됨 */
-}
 var _syncBannerN = 0;
 function showSyncBanner(){ _syncBannerN++; var el = $('#syncBanner'); if (el) el.classList.add('on'); }
 function hideSyncBanner(){ _syncBannerN = Math.max(0, _syncBannerN - 1); if (_syncBannerN === 0){ var el = $('#syncBanner'); if (el) el.classList.remove('on'); } }
-function refreshPageFromSheet(name){
-  if (!SHEET_PAGES[name]) return;
+/* 실행 시 1회: 시트 전체 + 시리즈 세부까지 한 번에 로드(흐림→선명).
+   사용 중에는 더 이상 시트를 자동으로 부르지 않는다. */
+function bootLoad(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return;
-  var pg = $('#page-' + name); if (!pg) return;
-  pg.classList.add('stale');
+  var pg = document.querySelector('.page.on');
+  if (pg) pg.classList.add('stale');
   showSyncBanner();
-  pullData().then(function(){
-    rerenderSheetPage(name);
+  return pullData().then(function(){
+    syncSeriesDetails(); /* 각 시리즈 세부까지 로컬에 반영 */
+    var cur = (pg && pg.id === 'page-series');
+    if (cur) renderSeriesPage();
   }).catch(function(){
-    /* 재로드 실패 시 기존(캐시) 화면 유지 */
+    /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
-    pg.classList.remove('stale');
+    if (pg) pg.classList.remove('stale');
     hideSyncBanner();
   });
 }
@@ -5338,7 +5331,7 @@ function showPage(name){
   if (name === 'occ') renderOccPane();
   if (name === 'archive') renderArchive();
   if (name === 'compose') cwRender(); /* 진행중 설교 목록 갱신 */
-  refreshPageFromSheet(name); /* 시트 기반 메뉴: 즉시 재로드(흐림→선명) */
+  /* 사용 중에는 시트를 다시 부르지 않는다 — 실행 시 1회 전체 로드(bootLoad)만 수행 */
 }
 window.showPage = showPage;
 $$('.tabbar button, .sidebar .nav').forEach(function(b){
