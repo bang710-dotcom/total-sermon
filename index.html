@@ -5940,6 +5940,30 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 
   /* ── 현재 화면 컨텍스트 수집 ── */
   function val(id){ var e = document.getElementById(id); return e ? String(e.value || '').trim() : ''; }
+  /* 오른쪽 편집 패널(#seriesPane·#occPane)의 입력칸을 묶음(주차/선택지/날짜)별로 읽는다.
+     DOM의 현재 값을 직접 읽으므로 저장 전 수정분도 그대로 반영된다. */
+  function readPane(paneId, groupSel, fieldSel, cap){
+    var pane = document.getElementById(paneId);
+    if (!pane) return '';
+    var out = [], groups = pane.querySelectorAll(groupSel);
+    Array.prototype.forEach.call(groups, function(g){
+      var lines = [];
+      Array.prototype.forEach.call(g.querySelectorAll(fieldSel), function(el){
+        var v = String(el.value || '').trim();
+        if (v) lines.push((el.dataset.f || '값') + ': ' + v);
+      });
+      if (!lines.length) return;
+      var lab = '';
+      var sm = g.querySelector(':scope > summary');
+      if (sm) lab = sm.textContent.replace(/\s+/g, ' ').replace(/확정\s*→|이 주 등록.*/g, '').trim().slice(0, 50);
+      else if (/occOpt/.test(g.id || '')) lab = '선택지 ' + (parseInt(g.id.replace('occOpt', ''), 10) + 1);
+      var openMark = (g.tagName === 'DETAILS' && g.open) ? ' ★편집중' : '';
+      out.push((lab ? '[' + lab + openMark + ']\n' : '') + lines.join('\n'));
+    });
+    var s = out.join('\n\n');
+    if (cap && s.length > cap) s = s.slice(0, cap) + '\n…(이하 생략)';
+    return s;
+  }
   function gatherContext(pg){
     var L = [];
     if (pg === 'compose'){
@@ -5972,19 +5996,29 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     } else if (pg === 'occ'){
       if (val('occ_date')) L.push('설교일: ' + val('occ_date'));
       if (val('occ_sit')) L.push('설교 상황(대상·시기·목적):\n' + val('occ_sit'));
+      var occR = readPane('occPane', '.edPoint', '.occF', 6000);
+      if (occR) L.push('[오른쪽 개요 선택지 — 현재 편집 내용]\n' + occR);
     } else if (pg === 'series'){
       if (val('sp_book')) L.push('성경(책/범위): ' + val('sp_book'));
       if (val('sp_series')) L.push('시리즈명: ' + val('sp_series'));
       if (val('sp_start') || val('sp_end')) L.push('기간: ' + val('sp_start') + ' ~ ' + val('sp_end'));
       if (val('sp_service')) L.push('예배구분: ' + val('sp_service'));
       if (val('sp_note')) L.push('요청사항: ' + val('sp_note'));
+      var serR = readPane('seriesPane', 'details.edPoint, .ptRow', '.spS, .spF', 7000);
+      if (serR) L.push('[오른쪽 주차별 편집 내용 — 저장 전 값 포함, ★편집중=지금 펼친 주차]\n' + serR);
     }
     return L.join('\n');
   }
   function ctxSummary(pg){
     if (pg === 'compose') return val('c_title') || val('c_ref') || '새 설교';
     if (pg === 'occ') return val('occ_sit') ? val('occ_sit').slice(0, 30) : '상황 입력 전';
-    if (pg === 'series') return val('sp_book') || val('sp_series') || '시리즈 입력 전';
+    if (pg === 'series'){
+      try {
+        var ow = document.querySelector('#seriesPane details.edPoint[open] .spS[data-f="제목"]');
+        if (ow && ow.value.trim()) return ow.value.trim().slice(0, 24);
+      } catch(e){}
+      return val('sp_book') || val('sp_series') || '시리즈 입력 전';
+    }
     return '';
   }
   function curPage(){
