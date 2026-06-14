@@ -5491,7 +5491,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v95';
+var APP_VER = 'v96';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -5656,8 +5656,13 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
      (readonly여도 .value 프로그램 대입·표시·click 이벤트는 정상) */
   function arm(inp){
     if (inp && inp.getAttribute('data-cal') !== '1'){
-      inp.setAttribute('readonly', 'readonly');
       inp.setAttribute('data-cal', '1');
+      inp.setAttribute('readonly', 'readonly');
+      /* 네이티브 피커(iOS 휠/달력)가 readonly에도 뜨는 기기가 있어, 아예 text로 바꿔 원천 차단.
+         값은 YYYY-MM-DD 문자열 그대로 유지되고, 선택은 커스텀 달력만 담당한다. */
+      try { inp.type = 'text'; } catch (e) {}
+      inp.setAttribute('inputmode', 'none');
+      inp.setAttribute('autocomplete', 'off');
     }
   }
   document.querySelectorAll('input[type=date]').forEach(arm);
@@ -5673,7 +5678,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }).observe(document.body, { childList: true, subtree: true });
   /* 클릭 위임(캡처): readonly 입력칸 탭 → 커스텀 달력 */
   document.addEventListener('click', function(e){
-    var inp = e.target.closest && e.target.closest('input[type=date]');
+    var inp = e.target.closest && e.target.closest('input[data-cal="1"]');
     if (inp){ e.preventDefault(); inp.blur(); open(inp); }
   }, true);
 })();
