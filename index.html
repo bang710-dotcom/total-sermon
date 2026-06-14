@@ -3418,10 +3418,9 @@ $('#dw_gen').addEventListener('click', function(){
   if (changed && !confirm('날짜(주간)가 바뀌었습니다.\n이전 선택지를 지우고 새 주간으로 다시 생성할까요?')) return;
   if (changed) { S.sermon = null; S.sermonDone = false; }
   else if (S.sermon && !confirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?\n(아래 [재작업] 버튼으로도 다시 만들 수 있습니다)')) return;
-  S.meta = m; saveSeries();
+  S.meta = m; saveSeries(); renderSeriesPane();
   if (aiKey()) { aiSeriesDawn(); return; }
-  spWriteReq('새벽설교', { '계획': m }, '새벽 설교 주제 (' + m['시리즈명'] + ')');
-  renderSeriesPane();
+  toast('새벽기도 마법사는 Claude API 직결로 동작합니다. 설정에서 Claude API 키를 입력해 주세요.');
 });
 function spDawnRedo(){
   var S = state.series; if (!S || !S.meta) return;
@@ -3429,7 +3428,7 @@ function spDawnRedo(){
   if (note === null) return;
   var add = '[재작업] 이전 선택지가 마음에 들지 않아 다시 요청합니다. 이전과 다른 본문·주제·접근 갈래로 보완해 주세요.' + (note.trim() ? ' — ' + note.trim() : '');
   if (aiKey()) { aiSeriesDawn(add); return; }
-  spWriteReq('새벽설교', { '계획': S.meta }, '새벽 설교 재작업 (' + S.meta['시리즈명'] + ')');
+  toast('설정에서 Claude API 키를 입력하면 즉시 다시 생성됩니다.');
 }
 $('#sp_back').addEventListener('click', function(){
   state.seriesMode = 'list'; renderSeriesPage();
