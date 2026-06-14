@@ -439,6 +439,18 @@ body.aiChatOpen #aiFab{display:none}
 .aiFt .send{flex:0 0 auto;width:44px;height:44px;border-radius:11px;background:var(--accent);color:#0c1020;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .aiFt .send:disabled{opacity:.45;cursor:default}
 .aiFt .send svg{width:20px;height:20px}
+.aiFt .shot{flex:0 0 auto;width:44px;height:44px;border-radius:11px;background:var(--card);border:1px solid var(--line);color:var(--dim);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.aiFt .shot:hover{color:var(--accent);border-color:var(--accent)}
+.aiFt .shot.busy{opacity:.5;pointer-events:none}
+.aiFt .shot svg{width:20px;height:20px}
+.aiAttach{flex:0 0 auto;display:none;align-items:center;gap:9px;padding:9px 12px;border-top:1px solid var(--line);background:var(--card2)}
+.aiAttach.show{display:flex}
+.aiAttach img{height:42px;border-radius:6px;border:1px solid var(--line);flex:0 0 auto}
+.aiAttach .nm{font-size:12.5px;color:var(--dim);flex:1;min-width:0}
+.aiAttach .nm b{color:var(--accent2)}
+.aiAttach .rm{flex:0 0 auto;background:none;border:none;color:var(--dim);cursor:pointer;font-size:16px;line-height:1;padding:4px}
+.aiAttach .rm:hover{color:var(--warn)}
+.aiMsg .aiShot{display:block;margin-top:7px;max-width:100%;border-radius:8px;border:1px solid rgba(125,125,125,.3);cursor:zoom-in}
 @media (max-width:760px){
   #aiFab{display:none !important}   /* 모바일은 하단 탭바의 [대화] 버튼으로 연다 */
   #aiPanel{top:0;left:0;bottom:0;width:100%;max-width:100%;border-radius:0;transform:translateX(-100%)}
@@ -5902,7 +5914,15 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     <span class="tag" id="aiCtxTag"></span>
   </div>
   <div class="aiBody" id="aiBody"></div>
+  <div class="aiAttach" id="aiAttach">
+    <img id="aiAttachImg" alt="첨부된 화면">
+    <span class="nm"><b>화면 캡처</b> 첨부됨 — 보내면 이 이미지를 함께 봅니다</span>
+    <button class="rm" id="aiAttachRm" type="button" title="첨부 제거" aria-label="첨부 제거">✕</button>
+  </div>
   <div class="aiFt">
+    <button class="shot" id="aiShot" type="button" title="현재 화면 캡처 첨부" aria-label="화면 캡처">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
     <textarea id="aiInput" rows="1" placeholder="설교 준비를 도와드릴게요…"></textarea>
     <button class="send" id="aiSend" type="button" aria-label="보내기">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
