@@ -969,11 +969,12 @@ function normalizeSermonStatuses(){
 }
 function sync(){
   setSyncState('동기화 중…', true);
+  showWaitOverlay('동기화하고 있어요', '최신 시트 내용을 불러오는 중입니다.');
   return pullData().then(function(d){
     toast('동기화 완료 (설교 ' + d.sermons.length + ' · 아이디어 ' + d.ideas.length + ')');
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
-  });
+  }).then(function(){ hideWaitOverlay(); });
 }
 var _seriesReady = null; /* 실행 시 seriesList(IndexedDB) 로드 완료 프라미스 — bootLoad가 대기 */
 var _syncBannerN = 0;
@@ -986,7 +987,7 @@ function bootLoad(){
   if (!s.url || !s.token || !navigator.onLine) return;
   var pg = document.querySelector('.page.on');
   if (pg) pg.classList.add('stale');
-  showSyncBanner();
+  showWaitOverlay('시트를 불러오고 있어요', '최신 설교·묵상·시리즈 데이터를 가져오는 중입니다.', 0);
   return Promise.all([pullData(), Promise.resolve(_seriesReady)]).then(function(){
     syncSeriesDetails(); /* 각 시리즈 세부까지 로컬에 반영 */
     var cur = (pg && pg.id === 'page-series');
@@ -995,7 +996,7 @@ function bootLoad(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
     if (pg) pg.classList.remove('stale');
-    hideSyncBanner();
+    hideWaitOverlay();
   });
 }
 
@@ -1014,6 +1015,7 @@ function flushQueue(){
 }
 
 function submit(body, okMsg){
+  showWaitOverlay('시트에 저장하고 있어요', '저장하고 최신 상태로 맞추는 중입니다.');
   return apiPost(body).then(function(id){
     toast(okMsg + (id ? ' (' + (id.ids ? id.ids.length + '건' : id.count || id) + ')' : ''));
     sync();
@@ -1025,7 +1027,7 @@ function submit(body, okMsg){
     } else {
       toast('저장 실패: ' + e.message);
     }
-  });
+  }).then(function(r){ hideWaitOverlay(); return r; });
 }
 
 /* ===================== 검색 ===================== */
@@ -5726,7 +5728,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v102';
+var APP_VER = 'v103';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
