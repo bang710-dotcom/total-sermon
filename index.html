@@ -589,7 +589,7 @@ body.aiChatOpen #aiFab{display:none}
     <!-- ============ 시리즈 계획 (데스크탑) ============ -->
     <section class="page" id="page-series">
       <div id="seriesListView">
-        <div class="toolrow" style="max-width:420px;margin-bottom:6px"><button class="btn" id="sl_new">＋ 새 시리즈 만들기</button></div>
+        <div class="toolrow" style="max-width:560px;margin-bottom:6px;gap:8px"><button class="btn" id="sl_new">＋ 새 시리즈 만들기</button><button class="btn gold" id="sl_dawn">🌅 새벽기도 시리즈 만들기</button></div>
         <div class="cnt" style="margin-bottom:12px">시리즈를 선택하면 마법사로 들어가 단계별로 확인·수정하고 그 시점부터 재사용할 수 있습니다.</div>
         <div id="slItems"></div>
       </div>
@@ -598,6 +598,7 @@ body.aiChatOpen #aiFab{display:none}
           <button class="linkbtn" id="sp_back">← 시리즈 목록</button>
           <button class="linkbtn" id="sp_resync" style="margin-left:auto;color:var(--accent2);font-size:12.5px">↻ 시트에서 재동기화</button>
         </div>
+        <div id="regMeta">
         <div class="cnt" style="margin-bottom:8px">시리즈 설교 계획 마법사</div>
         <label style="margin-top:0">성경 (책 또는 범위) *</label><input type="text" id="sp_book" placeholder="예: 로마서 / 요한복음 13-21장">
         <label>시리즈명</label><input type="text" id="sp_series" placeholder="비우면 성경 이름으로 자동">
@@ -612,6 +613,19 @@ body.aiChatOpen #aiFab{display:none}
         <div class="toolrow"><button class="btn" id="sp_reqDevo">① 묵상 일정 요청</button></div>
         <div class="toolrow"><button class="btn gold" id="sp_reqSermon" disabled>② 설교 주제 요청</button></div>
         <div class="cnt" style="margin-top:10px">흐름: ① 요청 → Cowork "요청함 처리해줘" → 버튼이 파래지면 [요청 결과] → 오른쪽에서 검토·수정 → 확정(묵상집 등록) → ② 요청 → [요청 결과] → 주일별 선택지 고르고 수정 → 확정(설교마스터 [구상]) → [묵상집 PDF 요청]. 위 타임라인의 단계를 누르면 해당 화면으로 이동합니다.</div>
+        </div>
+        <div id="dawnMeta" style="display:none">
+          <div class="cnt" style="margin-bottom:8px">새벽기도 주간 설교 마법사 — 한 주(주일~금 6일)를 한 번에. 토요일은 담임목사님 담당이라 제외됩니다.</div>
+          <label style="margin-top:0">설교할 날짜 (그 주 아무 날) *</label><input type="date" id="dw_date">
+          <div class="row2">
+            <div><label>예배구분</label><input type="text" id="dw_service" value="새벽"></div>
+            <div><label>찬송가 판본</label><input type="text" id="dw_hymnbook" value="새찬송가"></div>
+          </div>
+          <label>요청사항 (선택)</label><textarea id="dw_note" rows="2" placeholder="예: 화요일은 절기 강조 / 특정 인물·주제 우선 등"></textarea>
+          <div class="cnt" id="dw_preview" style="margin-top:8px"></div>
+          <div class="toolrow"><button class="btn gold" id="dw_gen">주간 설교 주제 생성</button></div>
+          <div class="cnt" style="margin-top:10px">흐름: 날짜 입력 → 그 주 주일~금 6일의 통독 범위 자동 확정 → [주간 설교 주제 생성] → 날마다 3개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상]) → 미선택은 [미래설교 보관함]으로, 주일 설교는 묵상집용 요약도 함께 저장됩니다.</div>
+        </div>
       </div>
       <div id="seriesPane"><div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.</div></div>
     </section>
@@ -2753,13 +2767,15 @@ async function archiveSeriesOptions(S){
   return ids.length || rows.length;
 }
 function archiveRec(m, w, wi, o){
-  return {
+  var rec = {
     '날짜': w['주일'] || '', '예배구분': m['예배구분'] || '대학부',
     '시리즈': m['시리즈명'] || '', '시리즈순번': String(wi + 1),
     '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': '보관',
     '핵심메시지': o['핵심메시지'] || '', '대지': djSer(o['대지']),
-    '비고': (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
+    '비고': (o['찬송'] ? '찬송: ' + o['찬송'] + ' / ' : '') + (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
   };
+  if (o['묵상요약']) rec['요약본'] = o['묵상요약'];
+  return rec;
 }
 
 /* 시트 [보관] 레코드 → S.sermon 복원 (기기 이동 후 이어 작업)
@@ -2849,7 +2865,8 @@ function djHtml(dj, ctx){
 function optEdit(o){
   o = o || {};
   return { '제목': o['제목'] || '', '본문': o['본문'] || '', '핵심메시지': o['핵심메시지'] || '',
-    '주제근거': o['주제근거'] || '', '대지': djSer(o['대지']) };
+    '주제근거': o['주제근거'] || '', '대지': djSer(o['대지']),
+    '찬송': o['찬송'] || '', '묵상요약': o['묵상요약'] || '' };
 }
 
 /* ── 상황 설교 구상 ── */
@@ -4145,7 +4162,7 @@ function weekSig(w){
   var ed = w.edit || {};
   var win = (!w.skip && w.sel >= 0) ? w.opts[w.sel] : null;
   return JSON.stringify([!!w.skip, w.sel, (win && win._id) || '',
-    ed['제목'] || '', ed['본문'] || '', ed['핵심메시지'] || '', ed['주제근거'] || '', ed['대지'] || '']);
+    ed['제목'] || '', ed['본문'] || '', ed['핵심메시지'] || '', ed['주제근거'] || '', ed['대지'] || '', ed['찬송'] || '', ed['묵상요약'] || '']);
 }
 /* idxs 주차들을 시트에 반영: 선택분 → [구상] 승격, 같은 주의 다른 [구상] 후보 → [보관] 강등.
    skipUnchanged=true(전체 확정)면 직전 확정 후 바뀐 게 없는 주는 건너뛴다. */
@@ -4172,9 +4189,11 @@ async function confirmSermonWeeks(idxs, skipUnchanged){
       '시리즈순번': (winnerRow && winnerRow['시리즈순번']) || String(wi + 1),
       '제목': ed['제목'] || '', '본문': ed['본문'] || '', '상태': '구상',
       '핵심메시지': ed['핵심메시지'] || '', '대지': ed['대지'] || '' };
-    var _bigo = (String(ed['주제근거'] || '').trim() ? '주제 근거: ' + ed['주제근거'].trim() : '') +
+    var _bigo = (String(ed['찬송'] || '').trim() ? '찬송: ' + ed['찬송'].trim() + ' / ' : '') +
+      (String(ed['주제근거'] || '').trim() ? '주제 근거: ' + ed['주제근거'].trim() : '') +
       (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '');
     if (_bigo.trim()) rec['비고'] = _bigo.trim();
+    if (String(ed['묵상요약'] || '').trim()) rec['요약본'] = ed['묵상요약'].trim();
     /* 선택분의 보관 행이 있으면 그 행을 [구상]으로 승격(업데이트), 없으면 기존 [구상] 행 갱신/신규 추가 */
     var exId = (winner && winner._id) ||
       (state.data.sermons.filter(function(s){ return s['날짜'] === w['주일'] && s['시리즈'] === rec['시리즈'] && s['상태'] !== '보관'; })[0] || {})['ID'];
@@ -4216,6 +4235,262 @@ async function confirmSermon(){
   S.sermonDone = true; saveSeries(); spStatus();
   toast(r.wrote ? ('전체 확정 완료 — [구상] ' + r.wrote + '건' + (r.demote ? ' · 보관전환 ' + r.demote + '건' : '')) : '변경된 주가 없어 새로 등록할 항목이 없습니다.');
   sync();
+}
+
+
+/* ============ 새벽기도 주간 설교 마법사 ============
+   입력 날짜 → 그 주 주일~금(6일, 토요일=담임목사 담당 제외) 통독범위 자동 확정
+   → 날마다 1~2절 본문·제목·찬송·3대지 선택지 3개 생성 → 하나 선택·수정 → 확정
+   (선택분=설교마스터 [구상], 미선택=[보관]=미래설교 보관함). 주일은 묵상집용 요약 저장. */
+var READING_365=[
+  '창 1-3','창 4-7','창 8-11','창 12-15','창 16-18','창 19-20','창 21-23','창 24-25',
+  '창 26-28','창 29-30','창 31-32','창 33-35','창 36-38','창 39-41','창 42-44','창 45-47',
+  '창 48-50','출 1-3','출 4-6','출 7-9','출 10-12','출 13-15','출 16-18','출 19-21',
+  '출 22-24','출 25-27','출 28-29','출 30-32','출 33-35','출 36-38','출 39-40','레 1-4',
+  '레 5-7','레 8-9','레 10-12','레 13','레 14-15','레 16-18','레 19-21','레 22-23',
+  '레 24-25','레 26-27','민 1-2','민 3-4','민 5-6','민 7','민 8-10','민 11-13',
+  '민 14-15','민 16-18','민 19-21','민 22-24','민 25-26','민 27-29','민 30-31','민 32-33',
+  '민 34-36','신 1-3','신 4-6','신 7-8','신 9-10','신 11-13','신 14-17','신 18-20',
+  '신 21-23','신 24-26','신 27-28','신 29-31','신 32-34','수 1-4','수 5-7','수 8-9',
+  '수 10-11','수 12-14','수 15-17','수 18-20','수 21-22','수 23-24','삿 1-3','삿 4-6',
+  '삿 7-9','삿 10-12','삿 13-16','삿 17-19','삿 20-21','룻 1-4','삼상 1-3','삼상 4-7',
+  '삼상 8-10','삼상 11-13','삼상 14-15','삼상 16-17','삼상 18-20','삼상 21-24','삼상 25-27','삼상 28-31',
+  '삼하 1-3','삼하 4-7','삼하 8-11','삼하 12-14','삼하 15-17','삼하 18-21','삼하 22-24','왕상 1-3',
+  '왕상 4-6','왕상 7-8','왕상 9-11','왕상 12-14','왕상 15-17','왕상 18-19','왕상 20-22','왕하 1-3',
+  '왕하 4-6','왕하 7-9','왕하 10-12','왕하 13-15','왕하 16-18','왕하 19-21','왕하 22-23','왕하 24-25',
+  '대상 1','대상 2-3','대상 4-6','대상 7-9','대상 10-12','대상 13-16','대상 17-19','대상 20-23',
+  '대상 24-26','대상 27-29','대하 1-3','대하 4-6','대하 7-9','대하 10-12','대하 13-15','대하 16-18',
+  '대하 19-22','대하 23-25','대하 26-28','대하 29-30','대하 31-33','대하 34-36','스 1-2','스 3-5',
+  '스 6-8','스 9-10','느 1-3','느 4-6','느 7-8','느 9-10','느 11-13','에 1-3',
+  '에 4-7','에 8-10','욥 1-5','욥 6-10','욥 11-15','욥 16-21','욥 22-28','욥 29-33',
+  '욥 34-37','욥 38-42','시 1-9','시 10-17','시 18-22','시 23-31','시 32-37','시 38-44',
+  '시 45-51','시 52-59','시 60-67','시 68-71','시 72-77','시 78-81','시 82-88','시 90-97',
+  '시 98-106','시 107-113','시 114-118','시 119:1-72','시 119:73-176','시 120-135','시 136-142','시 143-150',
+  '잠 1-4','잠 5-8','잠 9-13','잠 14-17','잠 18-21','잠 22-24','잠 25-28','잠 29-31',
+  '전 1-6','전 7-12','아 1-8','사 1-4','사 5-8','사 9-12','사 13-16','사 17-21',
+  '사 22-25','사 26-28','사 29-31','사 32-35','사 36-38','사 39-42','사 43-47','사 48-51',
+  '사 52-56','사 57-59','사 60-63','사 64-66','렘 1-3','렘 4-6','렘 7-9','렘 10-13',
+  '렘 14-16','렘 17-19','렘 20-23','렘 24-26','렘 27-29','렘 30-32','렘 33-35','렘 36-39',
+  '렘 40-42','렘 43-45','렘 46-48','렘 49-50','렘 51-52','애 1-5','겔 1-3','겔 4-7',
+  '겔 8-12','겔 13-15','겔 16-19','겔 20-22','겔 23-24','겔 25-28','겔 29-32','겔 33-35',
+  '겔 36-39','겔 40-43','겔 44-48','단 1-2','단 3-4','단 5-6','단 7-8','단 9-10',
+  '단 11-12','호 1-7','호 8-14','욜 1-3','암 1-3','암 4-6','암 7-9','옵, 욘',
+  '미 1-3','미 4-7','나, 합','습, 학','슥 1-6','슥 7-8','슥 9-11','슥 12-14',
+  '말 1-4','마 1-4','마 5-6','마 7-9','마 10-11','마 12-13','마 14-15','마 16-18',
+  '마 19-20','마 21-22','마 23-24','마 25-26','마 27-28','막 1-3','막 4-5','막 6-7',
+  '막 8-9','막 10-11','막 12-13','막 14-16','눅 1','눅 2-3','눅 4-5','눅 6-7',
+  '눅 8','눅 9','눅 10-11','눅 12-13','눅 14-16','눅 17-18','눅 19-20','눅 21-22',
+  '눅 23-24','요 1-3','요 4-5','요 6-7','요 8-9','요 10-11','요 12-13','요 14-16',
+  '요 17-18','요 19-21','행 1-3','행 4-6','행 7-8','행 9-10','행 11-13','행 14-16',
+  '행 17-18','행 19-20','행 21-22','행 23-25','행 26-28','롬 1-3','롬 4-6','롬 7-8',
+  '롬 9-10','롬 11-12','롬 13-14','롬 15-16','고전 1-4','고전 5-7','고전 8-10','고전 11-12',
+  '고전 13-14','고전 15-16','고후 1-3','고후 4-6','고후 7-9','고후 10-11','고후 12-13','갈 1-3',
+  '갈 4-6','엡 1-3','엡 4-6','빌 1-4','골 1-4','살전 1-3','살전 4-6','살후 1-3',
+  '딤전 1-3','딤전 4-6','딤후 1-4','딛, 몬','히 1-3','히 4-6','히 7-9','히 10-11',
+  '히 12-13','약 1-5','벧전 1-3','벧전 4-5','벧후 1-3','요일','요이, 요삼, 유','계 1-4',
+  '계 5-9','계 10-13','계 14-17','계 18-20','계 21-22'
+];
+var DAWN_MDAYS = [31,28,31,30,31,30,31,31,30,31,30,31];
+function planIndex(iso){
+  var mo = +iso.slice(5,7), da = +iso.slice(8,10), doy = da, i;
+  for (i = 0; i < mo - 1; i++) doy += DAWN_MDAYS[i];
+  if (mo === 2 && da === 29) doy = 59;   /* 윤년 2/29 → 2/28 읽기와 동일(365 정렬 유지) */
+  if (doy < 1) doy = 1; if (doy > 365) doy = 365;
+  return doy;
+}
+function readingFor(iso){ return READING_365[planIndex(iso) - 1] || ''; }
+/* 입력 날짜가 속한 주의 주일~금요일(6일) + 통독범위 */
+function dawnDays(iso){
+  if (!iso) return null;
+  var d = new Date(iso + 'T12:00:00'); if (isNaN(d)) return null;
+  d.setDate(d.getDate() - d.getDay());   /* 그 주 주일로 이동 */
+  var out = [];
+  for (var k = 0; k < 6; k++) {          /* 주일(0)~금(5), 토요일 제외 */
+    var x = new Date(d); x.setDate(d.getDate() + k);
+    var s = x.toISOString().slice(0, 10);
+    out.push({ '날짜': s, '요일': WD[x.getDay()], '통독범위': readingFor(s) });
+  }
+  return out;
+}
+function isDawn(S){ S = S || state.series; return !!(S && S.kind === 'dawn'); }
+
+/* ── 메타 입출력 ── */
+function dwReadMeta(){
+  var dt = $('#dw_date').value;
+  var days = dawnDays(dt);
+  if (!days) return null;
+  var sun = days[0]['날짜'], fri = days[5]['날짜'];
+  return {
+    kind: 'dawn',
+    '시리즈명': '새벽 ' + mdOf(sun) + '~' + mdOf(fri),
+    '성경범위': days[0]['통독범위'] + ' … ' + days[5]['통독범위'],
+    '시작일': sun, '종료일': fri,
+    '예배구분': $('#dw_service').value.trim() || '새벽',
+    '찬송판본': $('#dw_hymnbook').value.trim() || '새찬송가',
+    '요청사항': $('#dw_note').value.trim(),
+    '일정': days, '주일': [sun]
+  };
+}
+function dwFillInputs(m){
+  m = m || {};
+  $('#dw_date').value = m['시작일'] || '';
+  $('#dw_service').value = m['예배구분'] || '새벽';
+  $('#dw_hymnbook').value = m['찬송판본'] || '새찬송가';
+  $('#dw_note').value = m['요청사항'] || '';
+}
+function dwPreview(){
+  var dt = $('#dw_date').value, days = dawnDays(dt), box = $('#dw_preview');
+  if (!box) return;
+  if (!days) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div style="font-weight:600;margin-bottom:4px">' + esc(mdOf(days[0]['날짜'])) + '(주일) ~ ' + esc(mdOf(days[5]['날짜'])) + '(금) · 6일 <span style="color:var(--dim);font-weight:400">— 토요일은 담임목사님</span></div>' +
+    days.map(function(d){ return '<div style="display:flex;gap:8px;font-size:12.5px;padding:1px 0"><span style="flex:0 0 70px;color:var(--dim)">' + esc(mdOf(d['날짜'])) + ' (' + esc(d['요일']) + ')</span><span style="color:var(--accent2)">' + esc(d['통독범위'] || '—') + '</span></div>'; }).join('');
+}
+
+/* ── 새벽 설교 선택지 프롬프트 ── */
+var P_DAWN = [
+'당신은 영락교회 새벽기도회 설교 기획 비서다. 입력(JSON)의 "일정"(주일~금요일 6일, 각 날의 오이코스 통독범위 포함)에 대해, 각 날마다 그 날 통독범위 "안에서" 새벽설교 본문을 정하고 설교 주제 선택지 3개를 만든다.',
+'출력은 반드시 JSON 배열만(일정과 같은 길이·같은 순서): [{"날짜":"YYYY-MM-DD","요일":"월","통독범위":"책 1-3","선택지":[{"제목":"...","본문":"책 1:6-7","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}],"찬송":"357장 주 믿는 형제들"}]}]',
+'★본문(필수): 각 선택지의 "본문"은 그 날 통독범위 안의 1~2절(설교 한 편의 중심 구절). 통독범위를 절대 벗어나지 않는다. 같은 날 선택지 3개는 본문(절)도 서로 다르게.',
+'선택지 3개는 접근 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다.',
+'핵심메시지=설교 주제 한 문장(명제). 주제근거=이 본문에서 이 주제를 끌어낸 이유 1~2문장(본문 맥락·정황 근거).',
+'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 3개, 같은 방향으로 성큼성큼. 대지마다 문=명제 한 문장 / 근거=본문 절을 짚는 주해 한 문장(절 표시 포함) / 적용=청중이 자기 삶에 적용해 마음의 변화와 결단을 끌어내는 설교적 한 문장. 외적 과제 나열 금지.',
+'★새벽설교 특성(필수): ①새벽 회중은 권사·집사·구역장·교사·부모 등 이미 헌신된 사역자다 — 적용을 그 자리에 명시적으로 떨어뜨린다 ②도입 비유는 일상·자연·전통적 인물 중심으로 차분하게(트렌디한 시사 후크 자제) ③본문은 그 책·그 장이 왜 기록되었는지(1차 독자 정황)를 짧게 환기하는 결 ④결론은 짧게, 마지막은 통성 기도로 이어질 수 있는 메시지.',
+'★찬송(필수): 각 선택지에 그 주제에 어울리는 한국교회 새찬송가(21세기 찬송가) 한 장을 "장번호 + 제목"으로 고른다(예: "470장 내 평생 살아온 길"). 번호가 불확실하면 제목을 정확히 적는다. 새벽기도회에 부르기 적합한 잔잔하고 헌신적인 곡을 우선한다.',
+'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
+'★주일(요일이 "일") 처리(필수): 주일 날의 각 선택지에는 "묵상요약" 필드를 추가한다 — 묵상집에 실을 3~5문장의 짧은 설교 요약(도입 한 문장 + 핵심 메시지 + 적용 한 문장, 따뜻한 높임말). 주일 외의 날 선택지에는 "묵상요약"을 넣지 않는다.',
+'요청사항이 있으면 반드시 반영한다.'].join('\n');
+
+/* ── 직결 생성 ── */
+async function aiSeriesDawn(noteOverride){
+  var S = state.series, m = S.meta;
+  try {
+    (state.seriesReqs = state.seriesReqs || {})['새벽설교'] = '진행중';
+    toast('Opus가 새벽기도 6일 설교 선택지를 생성합니다 — 1~3분');
+    var out = await callClaude(P_DAWN, JSON.stringify({
+      '시리즈명': m['시리즈명'], '찬송판본': m['찬송판본'],
+      '요청사항': (noteOverride != null ? noteOverride : m['요청사항']), '일정': m['일정']
+    }), 32000, aiTick('새벽 설교 선택지'));
+    var days = aiJson(out);
+    if (!Array.isArray(days) || !days.length) throw new Error('응답 형식 오류');
+    S.sermon = { m: Date.now(), weeks: days.map(function(d, di){
+      var sched = (m['일정'] || [])[di] || {};
+      var opts = d['선택지'] || [];
+      var rng = d['통독범위'] || sched['통독범위'] || '';
+      return { '주일': d['날짜'] || sched['날짜'] || '', '요일': d['요일'] || sched['요일'] || '',
+        '통독범위': rng, '주간범위': rng, '비고': '',
+        opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
+        '시리즈순번': di + 1, edit: optEdit(opts[0]) };
+    }) };
+    S.sermonDone = false; S.view = 'sermon';
+    state.seriesReqs['새벽설교'] = '';
+    saveSeries(); renderSeriesPane(); renderSyncState();
+    toast('새벽 설교 선택지 ' + days.length + '일 생성 완료 — 자동 보관 중…');
+    try {
+      var an = await archiveSeriesOptions(S);
+      toast(an ? ('생성·보관 완료 (' + an + '개) — 선택·수정 후 확정하세요. [미래설교 보관함]에서 열람')
+        : '생성 완료 — 선택·수정 후 확정하세요.');
+    } catch (ae) { toast('생성은 완료됐으나 자동 보관 실패: ' + ae.message); }
+  } catch (e) {
+    (state.seriesReqs = state.seriesReqs || {})['새벽설교'] = ''; renderSyncState();
+    toast('생성 실패: ' + e.message);
+  }
+}
+
+/* ── 오른쪽 패널: 타임라인 + 검토(일별 선택지) ── */
+function spDawnTimeline(){
+  var S = state.series;
+  function node(label, st, on){
+    var c = st === 'done' ? '#7fc4ff' : st === 'req' ? '#ffc24d' : '';
+    var mk = st === 'done' ? ' ●' : st === 'req' ? ' ▲' : '';
+    return '<span class="tlnode" onclick="' + on + '"' + (c ? ' style="color:' + c + ';border-color:' + c + '"' : '') + '>' + label + mk + '</span>';
+  }
+  var n2 = S.sermon ? 'done' : ((state.seriesReqs || {})['새벽설교'] === '진행중' ? 'req' : '');
+  return '<div class="tl">' +
+    node('① 주간 범위', S.meta ? 'done' : '', "toast('왼쪽에서 날짜를 바꾸면 통독 범위가 다시 계산됩니다.')") + '<span class="tlarrow">→</span>' +
+    node('② 설교 주제', n2, "renderSeriesPane()") + '</div>';
+}
+function spDawnHtml(){
+  var S = state.series, m = S.meta || {};
+  var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> — 새벽기도 주간 설교 (주일~금 6일)' +
+    '<div class="cnt" style="margin-top:4px">날마다 통독 범위 안의 선택지 하나를 고르고 아래에서 본문·제목·찬송을 다듬은 뒤 확정하세요. 제외할 날은 "이 날 등록"을 해제합니다. 미선택 주제는 [미래설교 보관함]으로 갑니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
+  var openIdx = -1;
+  S.sermon.weeks.forEach(function(w, i){ if (openIdx < 0 && !w.skip && !(w.done && w.sig === weekSig(w))) openIdx = i; });
+  if (openIdx < 0) openIdx = 0;
+  h += S.sermon.weeks.map(function(w, wi){
+    var ed = w.edit || {};
+    var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
+    var confirmed = !w.skip && w.done && w.sig === weekSig(w);
+    var isSun = (w['요일'] === '일') || wi === 0;
+    var dayLabel = esc(mdOf(w['주일'])) + ' (' + esc(w['요일'] || wdOf(w['주일'])) + ')';
+    var sumTitle = w.skip ? '제외됨' : esc(ed['제목'] || (selO && selO['제목']) || '미선택');
+    var badge = w.skip ? '' : confirmed ? ' <span class="badge b-state">확정됨</span>'
+      : (w.done ? ' <span class="badge" style="color:var(--warn)">변경됨·재확정 필요</span>' : '');
+    var summary = '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0">' +
+      (confirmed ? '<span style="font-size:14px;color:var(--accent);flex-shrink:0">✓</span>' : '') +
+      '<b style="font-size:15px">' + dayLabel + '</b>' +
+      (isSun ? '<span class="badge b-idea">주일</span>' : '') +
+      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
+      (!confirmed && !w.skip ? '<button class="btn sub" data-act="weekConfirm" data-w="' + wi + '" onclick="event.stopPropagation()" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
+      '</summary>';
+    var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 날 등록</label></div>' +
+      (w['통독범위'] ? '<div class="cnt" style="margin:3px 0 8px">오늘 통독: ' + linkifyRefs(w['통독범위']) + '</div>' : '') +
+      (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
+
+    if (confirmed) {
+      var src = selO || ed;
+      var hymn = src['찬송'] || ed['찬송'] || '';
+      var card =
+        '<div style="margin:8px 0 10px;padding:11px 13px;border:1.5px solid var(--accent);border-radius:10px;background:rgba(124,154,255,.08)">' +
+        '<div style="margin-bottom:5px"><b style="font-size:14px">' + esc(src['제목'] || '') + '</b> <span style="color:var(--accent2);font-size:13px">' + linkifyRefs(src['본문'] || '') + '</span></div>' +
+        (hymn ? '<div style="font-size:12.5px;color:#8fe6b0;margin-bottom:3px">🎵 ' + esc(hymn) + '</div>' : '') +
+        '<div style="font-size:13px;margin-bottom:3px">' + linkifyRefs(src['핵심메시지'] || ed['핵심메시지'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
+        ((src['주제근거'] || ed['주제근거']) ? '<div style="color:var(--dim);font-size:12px;margin-bottom:3px">근거 — ' + linkifyRefs(src['주제근거'] || ed['주제근거'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' : '') +
+        '<div style="font-size:12.5px;margin-top:5px">' + djHtml(src['대지'] || ed['대지'], brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
+        (isSun && (src['묵상요약'] || ed['묵상요약']) ? '<div style="margin-top:7px;padding-top:6px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--dim)">묵상집 요약 — ' + esc(src['묵상요약'] || ed['묵상요약']) + '</div>' : '') + '</div>';
+      var nonSel = (w.opts || []).filter(function(_, oi){ return oi !== w.sel; }).map(function(o){
+        return '<details style="filter:grayscale(1);opacity:0.5;margin:0 0 5px">' +
+          '<summary style="cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
+          esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + linkifyRefs(o['본문'] || '') + '</span></summary>' +
+          '<div style="padding:8px 11px;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;font-size:13px;line-height:1.5">' +
+          (o['찬송'] ? '<div style="color:#8fe6b0;font-size:12px;margin-bottom:2px">🎵 ' + esc(o['찬송']) + '</div>' : '') +
+          linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) +
+          '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></div></details>';
+      }).join('');
+      var bottom =
+        '<div style="margin:6px 0 2px"><button class="btn" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:13px">이 주제로 작성하기 →</button></div>' +
+        '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        '<button class="btn sub" data-w="' + wi + '" data-act="weekReselect" style="width:auto">설교주제 다시 선택</button>' +
+        '<button class="linkbtn" data-w="' + wi + '" data-act="weekCollapse" style="font-size:12px;color:var(--dim)">이 날 접기 ↑</button></div>';
+      return '<details class="edPoint spConfirmed' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + card + nonSel + bottom + '</details>';
+    }
+
+    var opts = (w.opts || []).map(function(o, oi){
+      var sel = w.sel === oi;
+      return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
+        '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
+        '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
+        (o['찬송'] ? '<div style="margin:3px 0 0 22px;color:#8fe6b0;font-size:12.5px">🎵 ' + esc(o['찬송']) + '</div>' : '') +
+        '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
+        (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
+        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>';
+    }).join('');
+    var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
+      '<div><label>본문 (1~2절)</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
+      '<label>찬송가 (장번호 + 제목)</label><input type="text" class="spS" data-w="' + wi + '" data-f="찬송" value="' + esc(ed['찬송'] || '') + '">' +
+      '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
+      '<label>주제 근거</label><textarea class="spS edTa" rows="2" data-w="' + wi + '" data-f="주제근거">' + esc(ed['주제근거'] || '') + '</textarea>' +
+      '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>' +
+      (isSun ? '<label>묵상집 요약 (주일 — 묵상집 출력용)</label><textarea class="spS edTa" rows="3" data-w="' + wi + '" data-f="묵상요약">' + esc(ed['묵상요약'] || '') + '</textarea>' : '');
+    var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn" data-w="' + wi + '" data-act="weekSave" style="width:auto">수정사항 저장 (보관함 반영)</button></div>';
+    return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + edit + wSave + '</details>';
+  }).join('');
+  h += '<div class="toolrow">' +
+    '<button class="btn" id="spSermonConfirm" style="flex:1 1 auto;font-size:13px">선택 항목 전체 확정</button>' +
+    '<button class="btn sub" id="spSermonArchive" style="flex:0 0 auto;width:auto;font-size:13px">시트에 보관</button>' +
+    '<button class="btn sub" id="spDawnRedo" style="flex:0 0 auto;width:auto;font-size:13px">재작업</button>' +
+    '</div>';
+  return h;
 }
 
 /* 완료된 요청 → 산출물 시트 자동 기록 (Cowork가 상태를 '완료'로 바꿔두면 다음 확인 때 반영) */
