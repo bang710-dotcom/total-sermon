@@ -264,8 +264,9 @@ input[type=date]{cursor:pointer}
   .page,#seriesPane,#occPane,#editorPane,#detailPane,#qResults{max-width:100%}
 
   /* 하단 탭바: 5칸, 큰 터치 타깃, 안전영역 */
-  .tabbar button{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;padding:7px 0 5px}
-  .tabbar button .ic{width:24px;height:24px;margin:0}
+  .tabbar button{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;padding:7px 0 5px}
+  .tabbar button .ic{width:23px;height:23px;margin:0}
+  .tabbar #tabAi{color:var(--accent)}
 
   /* 터치 타깃·가독성 확대 */
   .btn{padding:14px 18px;font-size:16px}
@@ -419,7 +420,7 @@ body.aiChatOpen #aiFab{display:none}
 .aiFt .send:disabled{opacity:.45;cursor:default}
 .aiFt .send svg{width:20px;height:20px}
 @media (max-width:760px){
-  #aiFab{left:16px;bottom:78px;padding:12px 15px}
+  #aiFab{display:none !important}   /* 모바일은 하단 탭바의 [대화] 버튼으로 연다 */
   #aiPanel{top:0;left:0;bottom:0;width:100%;max-width:100%;border-radius:0;transform:translateX(-100%)}
   #aiPanel.open{transform:translateX(0)}
   /* 아이폰 노치·상태바·홈바 안전영역 확보 */
@@ -764,6 +765,8 @@ body.aiChatOpen #aiFab{display:none}
   </div>
 
   <nav class="tabbar">
+  <button id="tabAi" type="button" aria-label="AI 설교 대화">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>대화</button>
   <button data-page="search" class="on">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
   <button data-page="compose">
@@ -5488,7 +5491,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v94';
+var APP_VER = 'v95';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -5942,11 +5945,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 
   function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
 
-  /* ── FAB 노출: 대상 3개 페이지에서만 ── */
-  function syncFab(name){
-    var pg = name || curPage();
-    if (PAGES[pg]){ fab.classList.add('show'); refreshCtxTag(); }
-    else { fab.classList.remove('show'); closePanel(); }
+  /* ── FAB 노출: 모든 페이지에서 상시(데스크탑). 모바일은 CSS로 숨기고 하단 탭바 [대화] 버튼으로 연다 ── */
+  function syncFab(){
+    fab.classList.add('show');
+    refreshCtxTag();   /* 컨텍스트 태그는 대상 페이지에서만 표시(그 외엔 빈 값) */
   }
   /* 페이지 전환 감지: .page 의 class(on) 변화를 직접 관찰 —
      내부에서 bare showPage()를 호출하는 모든 경로까지 빠짐없이 포착. */
@@ -5963,6 +5965,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 
   /* ── 이벤트 ── */
   fab.addEventListener('click', openPanel);
+  var tabAi = $('#tabAi'); if (tabAi) tabAi.addEventListener('click', openPanel);
   $('#aiClose').addEventListener('click', closePanel);
   $('#aiNew').addEventListener('click', newChat);
   sendBtn.addEventListener('click', send);
