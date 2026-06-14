@@ -963,7 +963,7 @@ var SHEET_PAGES = { search:1, compose:1, occ:1, devo:1, series:1, archive:1, out
 function rerenderSheetPage(name){
   if (name === 'outputs') renderOutputs();
   else if (name === 'devo') renderDevo();
-  else if (name === 'series') renderSeriesPage();
+  else if (name === 'series') { syncSeriesDetails(); renderSeriesPage(); }
   else if (name === 'occ') renderOccPane();
   else if (name === 'archive') renderArchive();
   /* search·compose·inbox 는 pullData 안에서 이미 갱신됨 */
@@ -3601,12 +3601,48 @@ $('#sp_resync').addEventListener('click', function(){
     toast('재동기화 실패: ' + e.message); resetBtn();
   });
 });
+/* 시리즈명별 시트 데이터 시그니처 — 변경 감지(델타 동기화)용 */
+function hashStr(s){ var h = 0; for (var i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) | 0; } return h; }
+function sheetSigForSeries(name){
+  var parts = [];
+  (state.data.devo || []).forEach(function(d){
+    if (d['시리즈명'] !== name) return;
+    parts.push('D|' + (d['날짜']||'') + '|' + (d['본문범위']||'') + '|' + (d['제목']||'') + '|' + (d['관찰질문']||'') + '|' + (d['묵상질문']||'') + '|' + (d['적용질문']||''));
+  });
+  (state.data.sermons || []).forEach(function(s){
+    if (s['시리즈'] !== name) return;
+    parts.push('S|' + (s['날짜']||'') + '|' + (s['상태']||'') + '|' + (s['제목']||'') + '|' + (s['본문']||'') + '|' + (s['핵심메시지']||'') + '|' + (s['대지']||'') + '|' + (s['비고']||'') + '|' + (s['시리즈순번']||''));
+  });
+  parts.sort();
+  return parts.length + '#' + hashStr(parts.join('~'));
+}
+/* 시리즈 목록 진입 시: 각 로컬 시리즈의 세부 정보를 시트에서 변경분만 재동기화.
+   - 시트에 기록이 없는(순수 로컬) 시리즈는 건너뜀
+   - 시그니처가 동일하면(변경 없음) 재구성하지 않음 → 빠름
+   - 등록 전 로컬 초안(미등록 묵상/설교)이 있으면 덮어쓰지 않고 보존 */
+function syncSeriesDetails(){
+  var changed = false;
+  (state.seriesList || []).forEach(function(S){
+    var name = S && S.meta && S.meta['시리즈명'];
+    if (!name) return;
+    var hasSheet = (state.data.devo || []).some(function(d){ return d['시리즈명'] === name; })
+      || (state.data.sermons || []).some(function(s){ return s['시리즈'] === name; });
+    if (!hasSheet) return;
+    var sig = sheetSigForSeries(name);
+    if (S._sheetSig === sig) return; /* 변경 없음 → 건너뜀 */
+    var pendingLocal = (S.devo && S.devo.m > 0 && !S.devoDone) || (S.sermon && S.sermon.m > 0 && !S.sermonDone);
+    if (pendingLocal) return; /* 미등록 로컬 초안 보존 — 수동 [↻ 시트에서 재동기화]로만 갱신 */
+    if (buildSeriesFromSheet(name)) changed = true;
+  });
+  if (changed) idbSet('seriesList', state.seriesList).catch(function(){});
+}
 /* 시트 기록에서 시리즈 재구성 (수정·재사용)
-   보관(선택지) + 구상(확정) 레코드를 통합해 모든 주차를 완전 복원 → 기기 간 이어작업 가능 */
-window.slOpenSheet = function(name){
+   보관(선택지) + 구상(확정) 레코드를 통합해 모든 주차를 완전 복원 → 기기 간 이어작업 가능.
+   buildSeriesFromSheet = 데이터 재구성만(네비게이션·토스트 없음), slOpenSheet = 재구성 + 마법사 진입 */
+function buildSeriesFromSheet(name){
   var rows = (state.data.devo || []).filter(function(d){ return d['시리즈명'] === name; })
     .sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
-  if (!rows.length) return;
+  if (!rows.length) return null;
   var start = rows[0]['날짜'], end = rows[rows.length - 1]['날짜'];
   var r = spDates(start, end) || { devoDays: [], sundays: [] };
   var book = String(rows[0]['본문범위'] || '').replace(/\s*\d.*$/, '').trim() || name;
@@ -3677,10 +3713,16 @@ window.slOpenSheet = function(name){
     if (serms.length) S.sermonDone = true;
   }
   S.view = serms.length ? 'sermon' : 'devo';
-  state.series = S; state.seriesMode = 'wizard';
+  S._sheetSig = sheetSigForSeries(name); /* 델타 동기화 기준점 */
+  if (state.seriesList.indexOf(S) < 0) state.seriesList.unshift(S);
+  return { S: S, confCnt: serms.length, arcCnt: arcs.length };
+}
+window.slOpenSheet = function(name){
+  var res = buildSeriesFromSheet(name);
+  if (!res) return;
+  state.series = res.S; state.seriesMode = 'wizard';
   saveSeries(); renderSeriesPage();
-  var confCnt = serms.length, arcCnt = arcs.length;
-  toast('시트에서 불러왔습니다' + (confCnt ? ' — 확정 ' + confCnt + '주차' : '') + (arcCnt ? ' · 선택지 ' + arcCnt + '개' : '') + '. 수정 후 다시 확정하면 업데이트됩니다.');
+  toast('시트에서 불러왔습니다' + (res.confCnt ? ' — 확정 ' + res.confCnt + '주차' : '') + (res.arcCnt ? ' · 선택지 ' + res.arcCnt + '개' : '') + '. 수정 후 다시 확정하면 업데이트됩니다.');
 };
 
 /* ───── 상태·버튼 ───── */
@@ -5635,7 +5677,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v98';
+var APP_VER = 'v99';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
