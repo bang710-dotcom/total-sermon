@@ -3520,10 +3520,10 @@ window.slDel = function(i){
   }, { passive: false });
   box.addEventListener('touchend', function(){
     if (!cur) return;
-    var it = cur; cur = null;
+    var it = cur, wasOpen = (base === OPEN); cur = null;
     it.style.transition = 'transform .2s ease';
     if (horiz && dx <= -THRESH){ it.style.transform = 'translateX(' + OPEN + 'px)'; openEl = it; }
-    else { it.style.transform = ''; if (openEl === it) openEl = null; }
+    else { it.style.transform = ''; if (openEl === it) openEl = null; if (wasOpen) moved = true; /* 열린 항목 탭=닫기: 열기 클릭 억제 */ }
   });
   /* 스와이프 직후/열림 상태 탭은 항목 열기(slOpen) 대신 닫기로 처리 */
   box.addEventListener('click', function(e){
@@ -5626,7 +5626,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v96';
+var APP_VER = 'v97';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
