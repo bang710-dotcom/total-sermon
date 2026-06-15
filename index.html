@@ -3439,7 +3439,16 @@ async function saveToLtc(blob, fname, ref){
   await w.write(blob);
   await w.close();
   toast('저장 완료: ' + ltcHandle.name + '/' + bd.name + '/' + fname);
-  return true;
+  return bd.name + '/' + fname;   /* 파일맵 ltc 경로용 (truthy) */
+}
+/* 설교 행의 파일맵에 키 하나 병합 후 시트·로컬 갱신 (예: ltc 경로 자동 기록) */
+function setSermonFileMap(id, key, val){
+  if (!id) return;
+  var s = findSermon(id); if (!s) return;
+  var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
+  fm[key] = val; s['파일맵'] = JSON.stringify(fm); saveData();
+  apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }).catch(function(){});
+  if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
 }
 async function refToken(ref){
   try {
