@@ -5960,32 +5960,57 @@ window.anSelect = function(kind, key){
   var S = ANALYTICS.sel;
   if (S.kind === kind && S.key === key) { S.kind = ''; S.key = ''; } /* 토글 해제 */
   else { S.kind = kind; S.key = key; }
-  renderAnalytics();
-  var el = $('#anDrill'); if (el && S.key) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  renderAnalytics();   /* 자동 스크롤 안 함 — 목록은 사용자가 직접 내려 본다 */
 };
+function anPolar(cx, cy, r, b){ return [cx + r * Math.sin(b), cy - r * Math.cos(b)]; }  /* 12시 기준 시계방향 b(rad) */
+function anArc(cx, cy, r, a0, a1){
+  var p0 = anPolar(cx, cy, r, a0), p1 = anPolar(cx, cy, r, a1), large = (a1 - a0) > Math.PI ? 1 : 0;
+  return 'M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2);
+}
 function donutSvg(items, total, kind, selKey){
-  /* items: [{label,count,color,noSel}], 합이 total. 선택 세그먼트는 바깥으로 튀어나옴 */
-  var R = 64, C = 92, sw = 24, push = 11, circ = 2 * Math.PI * R, off = 0, seg = '';
-  var anySel = items.some(function(it){ return !it.noSel && it.label === selKey; });
+  /* 원호 슬라이스 + 양옆 지시선 라벨. 선택 슬라이스는 원 바깥으로 분리됨 */
+  var W = 600, H = 300, cx = 300, cy = 150, R = 80, sw = 28, push = 20, gap = 21;
+  var anySel = !!selKey && items.some(function(it){ return !it.noSel && it.label === selKey; });
+  var off = 0, slices = '', labs = [];
   items.forEach(function(it){
     if (!it.count) return;
-    var frac = it.count / total, len = frac * circ;
-    var mid = (off + len / 2) / circ * 2 * Math.PI;       /* 12시 기준 시계방향 라디안 */
+    var span = it.count / total * 2 * Math.PI, a0 = off, a1 = off + span, mid = (a0 + a1) / 2;
     var on = !it.noSel && it.label === selKey;
-    var tx = on ? (push * Math.sin(mid)).toFixed(2) : 0;
-    var ty = on ? (-push * Math.cos(mid)).toFixed(2) : 0;
-    var op = anySel && !on ? '0.42' : '1';
+    var ccx = on ? cx + push * Math.sin(mid) : cx;
+    var ccy = on ? cy - push * Math.cos(mid) : cy;
+    var op = anySel && !on ? '0.4' : '1';
     var attr = it.noSel ? '' : ' data-ansel="1" data-kind="' + esc(kind) + '" data-key="' + esc(it.label) + '" style="cursor:pointer"';
-    seg += '<circle cx="' + C + '" cy="' + C + '" r="' + R + '" fill="none" stroke="' + it.color + '" stroke-width="' + (on ? sw + 3 : sw) + '"'
-      + ' stroke-opacity="' + op + '"'
-      + ' stroke-dasharray="' + len.toFixed(2) + ' ' + (circ - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '"'
-      + ' transform="translate(' + tx + ' ' + ty + ')"' + attr + '></circle>';
-    off += len;
+    slices += '<path d="' + anArc(ccx, ccy, R, a0, a1) + '" fill="none" stroke="' + it.color + '" stroke-width="' + (on ? sw + 6 : sw) + '" stroke-opacity="' + op + '"' + attr + '></path>';
+    labs.push({ mid: mid, color: it.color, label: it.label, count: it.count, noSel: it.noSel, on: on, side: Math.sin(mid) >= 0 ? 'r' : 'l' });
+    off = a1;
   });
-  return '<svg viewBox="0 0 184 184" class="donut" role="img">'
-    + '<g transform="rotate(-90 92 92)">' + seg + '</g>'
-    + '<text x="92" y="86" text-anchor="middle" class="dnum">' + total + '</text>'
-    + '<text x="92" y="106" text-anchor="middle" class="dlbl">편</text>'
+  function place(side){
+    var arr = labs.filter(function(o){ return o.side === side; });
+    arr.forEach(function(o){ o.y = cy - (R + 10) * Math.cos(o.mid); });
+    arr.sort(function(a, b){ return a.y - b.y; });
+    for (var i = 1; i < arr.length; i++){ if (arr[i].y < arr[i - 1].y + gap) arr[i].y = arr[i - 1].y + gap; }
+    var over = arr.length ? arr[arr.length - 1].y - (H - 12) : 0;
+    if (over > 0) arr.forEach(function(o){ o.y -= over; });
+    if (arr.length && arr[0].y < 12){ var d = 12 - arr[0].y; arr.forEach(function(o){ o.y += d; }); }
+    return arr;
+  }
+  function leaders(arr, side){
+    var kneeX = side === 'r' ? cx + R + 24 : cx - R - 24;
+    var lineEnd = side === 'r' ? cx + R + 30 : cx - R - 30;
+    var anchor = side === 'r' ? 'start' : 'end';
+    return arr.map(function(o){
+      var ps = anPolar(cx, cy, R + 2, o.mid);
+      var lop = anySel && !o.on ? '0.35' : '0.85';
+      var line = '<polyline points="' + ps[0].toFixed(1) + ',' + ps[1].toFixed(1) + ' ' + kneeX + ',' + o.y.toFixed(1) + ' ' + lineEnd + ',' + o.y.toFixed(1) + '" fill="none" stroke="' + o.color + '" stroke-width="1.4" stroke-opacity="' + lop + '"></polyline>';
+      var attr = o.noSel ? '' : ' data-ansel="1" data-kind="' + esc(kind) + '" data-key="' + esc(o.label) + '" style="cursor:pointer"';
+      var tx = side === 'r' ? lineEnd + 4 : lineEnd - 4;
+      return line + '<text x="' + tx + '" y="' + (o.y + 4).toFixed(1) + '" text-anchor="' + anchor + '" class="dleg' + (o.on ? ' on' : '') + '"' + attr + '>' + esc(o.label) + ' ' + o.count + '</text>';
+    }).join('');
+  }
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="donut" role="img" preserveAspectRatio="xMidYMid meet">'
+    + slices + leaders(place('r'), 'r') + leaders(place('l'), 'l')
+    + '<text x="' + cx + '" y="' + (cy - 2) + '" text-anchor="middle" class="dnum">' + total + '</text>'
+    + '<text x="' + cx + '" y="' + (cy + 20) + '" text-anchor="middle" class="dlbl">편</text>'
     + '</svg>';
 }
 function donutBlock(title, counts, opts){
@@ -6002,17 +6027,9 @@ function donutBlock(title, counts, opts){
     etc = entries.slice(opts.top).reduce(function(s, e){ return s + e.count; }, 0);
   }
   var segItems = shown.map(function(e, i){ return { label: e.label, count: e.count, color: DONUT_COLORS[i % DONUT_COLORS.length] }; });
-  if (etc) segItems.push({ label: '기타 (' + (entries.length - shown.length) + '종)', count: etc, color: '#586074', noSel: true });
-  var legend = segItems.map(function(e){
-    var pct = (e.count / total * 100);
-    var on = !e.noSel && e.label === selKey;
-    var attr = e.noSel ? '' : ' data-ansel="1" data-kind="' + esc(kind) + '" data-key="' + esc(e.label) + '"';
-    return '<div class="anLeg' + (on ? ' on' : '') + '"' + attr + '><span class="anDot" style="background:' + e.color + '"></span>'
-      + '<span class="anLbl">' + esc(e.label) + '</span>'
-      + '<span class="anCnt">' + e.count + '편 · ' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%</span></div>';
-  }).join('');
+  if (etc) segItems.push({ label: '기타 ' + (entries.length - shown.length) + '종', count: etc, color: '#586074', noSel: true });
   return '<div class="anCard"><h3>' + esc(title) + '</h3>'
-    + '<div class="anBody">' + donutSvg(segItems, total, kind, selKey) + '<div class="anLegs">' + legend + '</div></div></div>';
+    + '<div class="anBody">' + donutSvg(segItems, total, kind, selKey) + '</div></div>';
 }
 function renderAnalytics(){
   var box = $('#anResults'); if (!box) return;
@@ -6062,6 +6079,38 @@ function renderAnalytics(){
   html += anDrill(list);
   box.innerHTML = html;
 }
+function anBarSvg(arr, tot, selKey){
+  var W = 1000, barY = 46, barH = 30, H = 124;
+  var x = 0, segs = '', topL = '', botL = '', topCur = 4, botCur = 4, maxX = W, ni = 0;
+  arr.forEach(function(e){
+    var w = e.count / tot * W, color = DONUT_COLORS[e.ci % DONUT_COLORS.length];
+    var on = e.name === selKey, cxs = x + w / 2;
+    var estW = (String(e.name).length + String(e.count).length + 1) * 12 + 6;
+    segs += '<rect x="' + x.toFixed(1) + '" y="' + barY + '" width="' + Math.max(w, 0.6).toFixed(1) + '" height="' + barH + '" fill="' + color + '"'
+      + (on ? ' stroke="#fff" stroke-width="2"' : '') + ' data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer"><title>' + esc(e.name) + ' ' + e.count + '편</title></rect>';
+    if (w >= estW + 8){
+      segs += '<text x="' + cxs.toFixed(1) + '" y="' + (barY + barH / 2 + 4.5) + '" text-anchor="middle" class="anBsegT" data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer">' + esc(e.name) + ' ' + e.count + '</text>';
+    } else {
+      var label = esc(e.name) + ' ' + e.count;
+      if (ni++ % 2 === 0){
+        var lx = Math.max(cxs, topCur);
+        topL += '<polyline points="' + cxs.toFixed(1) + ',' + barY + ' ' + cxs.toFixed(1) + ',26 ' + lx.toFixed(1) + ',26" fill="none" stroke="' + color + '" stroke-width="1.2" stroke-opacity=".8"></polyline>'
+          + '<text x="' + lx.toFixed(1) + '" y="22" text-anchor="start" class="anBlead' + (on ? ' on' : '') + '" data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer">' + label + '</text>';
+        topCur = lx + estW;
+        maxX = Math.max(maxX, topCur);
+      } else {
+        var lx2 = Math.max(cxs, botCur);
+        botL += '<polyline points="' + cxs.toFixed(1) + ',' + (barY + barH) + ' ' + cxs.toFixed(1) + ',' + (H - 18) + ' ' + lx2.toFixed(1) + ',' + (H - 18) + '" fill="none" stroke="' + color + '" stroke-width="1.2" stroke-opacity=".8"></polyline>'
+          + '<text x="' + lx2.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="start" class="anBlead' + (on ? ' on' : '') + '" data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer">' + label + '</text>';
+        botCur = lx2 + estW;
+        maxX = Math.max(maxX, botCur);
+      }
+    }
+    x += w;
+  });
+  var vbW = Math.max(W, maxX + 8);
+  return '<svg viewBox="0 0 ' + vbW.toFixed(0) + ' ' + H + '" class="anBarSvg" preserveAspectRatio="xMidYMid meet">' + segs + topL + botL + '</svg>';
+}
 function anTestamentBars(byBook){
   var rows = [{ t: '구약', lo: 0, hi: 39 }, { t: '신약', lo: 39, hi: 66 }];
   var selKey = ANALYTICS.sel.kind === 'book' ? ANALYTICS.sel.key : '';
@@ -6070,20 +6119,11 @@ function anTestamentBars(byBook){
     for (var i = r.lo; i < r.hi; i++){ var nm = BOOK_FULL[i]; if (byBook[nm] != null) arr.push({ name: nm, count: byBook[nm], ci: i - r.lo }); }
     if (!arr.length) return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>설교 없음</small></div></div>';
     var tot = arr.reduce(function(s, e){ return s + e.count; }, 0);
-    var max = arr.reduce(function(m, e){ return Math.max(m, e.count); }, 0);
-    var segs = arr.map(function(e){
-      var pct = (e.count / tot * 100);
-      var on = e.name === selKey;
-      var label = pct >= 7 ? '<span class="anBsegL">' + esc(e.name) + ' ' + e.count + '</span>' : '';
-      return '<div class="anBseg' + (on ? ' on' : '') + (e.count === max ? ' top' : '') + '" style="flex:' + e.count + ' 1 0;background:' + DONUT_COLORS[e.ci % DONUT_COLORS.length] + '"'
-        + ' title="' + esc(e.name) + ' ' + e.count + '편 (' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%)"'
-        + ' data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '">' + label + '</div>';
-    }).join('');
     return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>' + tot + '편 · ' + arr.length + '권</small></div>'
-      + '<div class="anBar">' + segs + '</div></div>';
+      + anBarSvg(arr, tot, selKey) + '</div>';
   }).join('');
   return '<div class="anCard"><h3>구약·신약 권별 설교 분포 (정경 순서 · 길이=설교 횟수)</h3>'
-    + '<div class="cnt" style="margin:-4px 0 12px">막대가 길수록 그 책의 설교가 많습니다. 한 칸을 누르면 아래에 해당 설교 목록이 나옵니다.</div>'
+    + '<div class="cnt" style="margin:-4px 0 12px">막대가 길수록 그 책의 설교가 많습니다. 좁은 칸은 지시선으로 이름을 표기했습니다. 한 칸을 누르면 아래에 해당 설교 목록이 나옵니다.</div>'
     + out + '</div>';
 }
 function anDrill(list){
