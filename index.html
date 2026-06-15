@@ -565,6 +565,8 @@ body.aiChatOpen #aiFab{display:none}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center">
           <select id="libYear" class="libsel"><option value="">연도 전체</option></select>
           <select id="libSvc" class="libsel"><option value="">예배 전체</option></select>
+          <select id="libBook" class="libsel"><option value="">성경 전체</option></select>
+          <select id="libTopic" class="libsel"><option value="">주제 전체</option></select>
           <span class="chip on" data-libflag="">전체</span>
           <span class="chip" data-libflag="nopdf">PDF 없음</span>
           <span class="chip" data-libflag="nosum">요약 없음</span>
@@ -5777,7 +5779,7 @@ $$('#page-search .chip').forEach(function(c){
 
 /* ===================== 미래설교 보관함 (상태 '보관' 전용) ===================== */
 /* ===================== 설교 라이브러리 ===================== */
-state.lib = { year: '', svc: '', flag: '', q: '' };
+state.lib = { year: '', svc: '', book: '', topic: '', flag: '', q: '' };
 /* 예배 카테고리 분류:
    ① 제목에 '수련회' → 수련회, '헌신예배' → 헌신예배 (예배구분 칸보다 우선)
    ② 그 외엔 예배구분 칸(없으면 제목 첫 토큰)이 정규 예배면 그대로
@@ -5795,6 +5797,18 @@ function svcOf(s){
   if (cand.indexOf('수요') === 0) cand = '수요';     /* 수요기도회·수요사경회 → 수요 */
   if (cand.indexOf('금요') === 0) cand = '금요기도회'; /* 금요·금요기도회 → 금요기도회 */
   return SVC_REGULAR[cand] ? cand : '특별설교';
+}
+/* 본문(ref)에서 성경 책 추출 — 기존 BOOKS·parseRange·devoBookIdxMap 재사용 */
+var BOOK_FULL = BOOKS.split('|');
+function bibleBookOf(s){
+  var r = parseRange(s['본문']); if (!r) return null;
+  var idx = devoBookIdxMap()[r.book];
+  if (idx == null) return null;
+  return { idx: idx, name: BOOK_FULL[idx], testament: idx < 39 ? '구약' : '신약' };
+}
+/* 키워드(쉼표/세미콜론 구분) → 주제 배열 */
+function topicsOf(s){
+  return String(s['키워드'] || '').split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); }).filter(Boolean);
 }
 function libFiles(s){
   var m = {};
@@ -5845,16 +5859,27 @@ function renderLibrary(){
     $('#libCnt').textContent = '';
     return;
   }
-  /* 연도·예배 옵션 채우기(선택 보존) */
-  var years = {}, svcs = {};
-  all.forEach(function(s){ var y = String(s['날짜'] || '').slice(0, 4); if (y) years[y] = 1; var sv = svcOf(s); if (sv) svcs[sv] = 1; });
+  /* 연도·예배·성경권·주제 옵션 채우기(선택 보존) */
+  var years = {}, svcs = {}, books = {}, topics = {};
+  all.forEach(function(s){
+    var y = String(s['날짜'] || '').slice(0, 4); if (y) years[y] = 1;
+    var sv = svcOf(s); if (sv) svcs[sv] = 1;
+    var b = bibleBookOf(s); if (b) books[b.idx] = b.name;
+    topicsOf(s).forEach(function(t){ topics[t] = (topics[t] || 0) + 1; });
+  });
   var ysel = $('#libYear');
   if (ysel) ysel.innerHTML = '<option value="">연도 전체</option>' + Object.keys(years).sort().reverse().map(function(y){ return '<option' + (y === L.year ? ' selected' : '') + '>' + y + '</option>'; }).join('');
   var ssel = $('#libSvc');
   if (ssel) ssel.innerHTML = '<option value="">예배 전체</option>' + Object.keys(svcs).sort().map(function(v){ return '<option' + (v === L.svc ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
+  var bsel = $('#libBook');
+  if (bsel) bsel.innerHTML = '<option value="">성경 전체</option>' + Object.keys(books).map(Number).sort(function(a,b){return a-b;}).map(function(i){ return '<option' + (books[i] === L.book ? ' selected' : '') + '>' + esc(books[i]) + '</option>'; }).join('');
+  var tsel = $('#libTopic');
+  if (tsel) tsel.innerHTML = '<option value="">주제 전체</option>' + Object.keys(topics).sort(function(a,b){ return topics[b] - topics[a] || a.localeCompare(b); }).slice(0, 80).map(function(t){ return '<option value="' + esc(t) + '"' + (t === L.topic ? ' selected' : '') + '>' + esc(t) + ' (' + topics[t] + ')</option>'; }).join('');
   var list = all;
   if (L.year) list = list.filter(function(s){ return String(s['날짜'] || '').slice(0, 4) === L.year; });
   if (L.svc) list = list.filter(function(s){ return svcOf(s) === L.svc; });
+  if (L.book) list = list.filter(function(s){ var b = bibleBookOf(s); return b && b.name === L.book; });
+  if (L.topic) list = list.filter(function(s){ return topicsOf(s).indexOf(L.topic) >= 0; });
   if (L.q) { var ts = L.q.toLowerCase().split(/\s+/).filter(Boolean);
     list = list.filter(function(s){ var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드','요약본','원고텍스트','대지'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase(); return ts.every(function(t){ return hay.indexOf(t) >= 0; }); }); }
   if (L.flag) list = list.filter(function(s){ var f = libFiles(s); return L.flag === 'nopdf' ? !f.pdf : L.flag === 'nosum' ? !f.요약 : L.flag === 'nocard' ? !f.card : true; });
