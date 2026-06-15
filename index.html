@@ -254,7 +254,6 @@ input[type=date]{cursor:pointer}
   #seriesMeta label{margin-top:9px}
   #seriesListView{grid-column:1 / -1;max-width:880px}
   #composeMeta label{margin-top:9px}
-  #c_text{min-height:calc(100vh - 150px);font-size:15.5px;line-height:2.0;padding:20px 22px}
   #page-import{max-width:860px}
   #devoBody.split{display:grid;grid-template-columns:minmax(340px,1fr) minmax(340px,1fr);gap:20px;align-items:start}
   #devoScript{position:sticky;top:18px;max-height:calc(100vh - 130px);overflow:auto}
@@ -1018,8 +1017,9 @@ function submit(body, okMsg){
   showWaitOverlay('시트에 저장하고 있어요', '저장하고 최신 상태로 맞추는 중입니다.');
   return apiPost(body).then(function(id){
     toast(okMsg + (id ? ' (' + (id.ids ? id.ids.length + '건' : id.count || id) + ')' : ''));
-    sync();
-    return id;
+    /* 저장 직후 동기화는 조용한 코어(pullData)만 — sync()의 별도 오버레이·토스트 중첩 방지.
+       submit이 이미 띄운 오버레이를 갱신 완료까지 유지하도록 프라미스를 이어준다. */
+    return pullData().catch(function(){}).then(function(){ return id; });
   }).catch(function(e){
     if (!navigator.onLine || /fetch/i.test(e.message)) {
       state.queue.push(body); save(LS.queue, state.queue); renderStats();
@@ -5392,8 +5392,11 @@ function showPage(name){
   if (pg) pg.classList.add('on');
   $$('.tabbar button').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
   $$('.sidebar .nav').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
-  if (name === 'search') $('#q').focus();
-  if (name === 'input') $('#ideaContent').focus();
+  /* 모바일에서 탭 전환만으로 가상 키보드가 튀어 화면이 출렁이는 것 방지 — 데스크탑에서만 자동 포커스 */
+  if (isDesktop()) {
+    if (name === 'search') $('#q').focus();
+    if (name === 'input') $('#ideaContent').focus();
+  }
   if (name === 'outputs') renderOutputs();
   if (name === 'devo') renderDevo();
   if (name === 'series') { state.seriesMode = 'list'; renderSeriesPage(); }
@@ -6267,21 +6270,27 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     clearAttach();
 
     busy = true; sendBtn.disabled = true;
+    var myGen = chatGen;   /* 이 응답이 속한 대화 세대 */
     var aEl = addMsg('assistant', '');
     aEl.innerHTML = '<span class="cur"></span>';
     var full = '';
     try {
       full = await callChat(convo.slice(), modelSel.value, sysFor(pg), function(out){
+        if (myGen !== chatGen) return;   /* 그 사이 [새 대화] 시작 — 렌더 중단 */
         aEl.innerHTML = renderMd(out) + '<span class="cur"></span>';
         body.scrollTop = body.scrollHeight;
       });
+      if (myGen !== chatGen) return;      /* 응답 도착 전 새 대화 시작 → 폐기(convo 오염 방지) */
       aEl.innerHTML = renderMd(full);
       addCopy(aEl, function(){ return full; });
       convo.push({ role: 'assistant', content: full });
     } catch(e){
+      if (myGen !== chatGen) return;      /* 폐기된 대화의 오류는 무시 */
       aEl.classList.add('err');
       aEl.textContent = '오류: ' + e.message;
       convo.pop(); /* 실패한 user 턴 롤백 → 재시도 가능 */
+      input.value = text; autosize();                  /* 입력 텍스트 복구 */
+      if (shot){ pendingShot = shot; renderAttach(); }  /* 첨부 이미지 복구 */
     } finally {
       busy = false; sendBtn.disabled = false;
       body.scrollTop = body.scrollHeight;
@@ -6297,7 +6306,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     setTimeout(function(){ input.focus(); }, 220);
   }
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
-  function newChat(){ convo = []; clearAttach(); showHint(); input.value = ''; autosize(); input.focus(); }
+  function newChat(){ chatGen++; convo = []; clearAttach(); showHint(); input.value = ''; autosize(); input.focus(); }
 
   function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
 
@@ -6324,6 +6333,20 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   var tabAi = $('#tabAi'); if (tabAi) tabAi.addEventListener('click', openPanel);
   $('#aiClose').addEventListener('click', closePanel);
   $('#aiNew').addEventListener('click', newChat);
+  /* 접근성: Esc로 AI 패널 닫기 + 열린 모달 안에서 Tab 포커스 순환(트랩) */
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && panel.classList.contains('open')){ closePanel(); return; }
+    if (e.key !== 'Tab') return;
+    var modal = document.querySelector('#aiPanel.open, #moreSheet.open, #brefOv.on, #calOv.on');
+    if (!modal) return;
+    var f = Array.prototype.filter.call(
+      modal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'),
+      function(el){ return el.offsetParent !== null; });
+    if (!f.length) return;
+    var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+  });
   sendBtn.addEventListener('click', send);
   if (shotBtn) shotBtn.addEventListener('click', pickImage);
   var fileIn = $('#aiFile');
