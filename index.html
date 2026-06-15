@@ -5774,6 +5774,17 @@ $$('#page-search .chip').forEach(function(c){
 /* ===================== 미래설교 보관함 (상태 '보관' 전용) ===================== */
 /* ===================== 설교 라이브러리 ===================== */
 state.lib = { year: '', svc: '', flag: '', q: '' };
+/* 예배구분: 칸이 비면 제목 첫 토큰으로 보완(옛 임포트 행은 예배구분이 제목에만 들어 있음) */
+var _svcSet = null;
+function svcOf(s){
+  var v = (s['예배구분'] || '').trim(); if (v) return v;
+  if (!_svcSet){
+    _svcSet = { '대학부':1,'새벽':1,'노년':1,'고등부':1,'금요':1,'수요':1,'찬양':1,'주일찬양':1,'청년':1,'주일':1 };
+    (state.data.sermons || []).forEach(function(x){ var f = (x['예배구분'] || '').trim(); if (f) _svcSet[f] = 1; });
+  }
+  var m = String(s['제목'] || '').trim().match(/^([가-힣]+)/);
+  return (m && _svcSet[m[1]]) ? m[1] : '';
+}
 function libFiles(s){
   var m = {};
   try { m = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { m = {}; }
@@ -5793,7 +5804,7 @@ function renderLibRow(s){
     '<div class="meta">' +
       '<span class="badge b-state">' + esc(s['상태'] || '') + '</span>' +
       (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
-      (s['예배구분'] ? '<span>' + esc(s['예배구분']) + '</span>' : '') +
+      (svcOf(s) ? '<span>' + esc(svcOf(s)) + '</span>' : '') +
       (series ? '<span>' + series + '</span>' : '') + '</div>' +
     '<div class="title" style="font-size:15.5px;margin-top:2px">' + esc(s['제목'] || '(제목 없음)') +
       (s['본문'] ? ' <span style="color:var(--accent2);font-weight:400;font-size:13px">' + esc(s['본문']) + '</span>' : '') + '</div>' +
@@ -5817,14 +5828,15 @@ function renderLibrary(){
   var all = (state.data.sermons || []).filter(function(s){ return s['상태'] !== '보관'; });
   /* 연도·예배 옵션 채우기(선택 보존) */
   var years = {}, svcs = {};
-  all.forEach(function(s){ var y = String(s['날짜'] || '').slice(0, 4); if (y) years[y] = 1; if (s['예배구분']) svcs[s['예배구분']] = 1; });
+  _svcSet = null;  /* 이번 렌더에서 새로 구축 */
+  all.forEach(function(s){ var y = String(s['날짜'] || '').slice(0, 4); if (y) years[y] = 1; var sv = svcOf(s); if (sv) svcs[sv] = 1; });
   var ysel = $('#libYear');
   if (ysel) ysel.innerHTML = '<option value="">연도 전체</option>' + Object.keys(years).sort().reverse().map(function(y){ return '<option' + (y === L.year ? ' selected' : '') + '>' + y + '</option>'; }).join('');
   var ssel = $('#libSvc');
   if (ssel) ssel.innerHTML = '<option value="">예배 전체</option>' + Object.keys(svcs).sort().map(function(v){ return '<option' + (v === L.svc ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
   var list = all;
   if (L.year) list = list.filter(function(s){ return String(s['날짜'] || '').slice(0, 4) === L.year; });
-  if (L.svc) list = list.filter(function(s){ return (s['예배구분'] || '') === L.svc; });
+  if (L.svc) list = list.filter(function(s){ return svcOf(s) === L.svc; });
   if (L.q) { var ts = L.q.toLowerCase().split(/\s+/).filter(Boolean);
     list = list.filter(function(s){ var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드','요약본','원고텍스트','대지'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase(); return ts.every(function(t){ return hay.indexOf(t) >= 0; }); }); }
   if (L.flag) list = list.filter(function(s){ var f = libFiles(s); return L.flag === 'nopdf' ? !f.pdf : L.flag === 'nosum' ? !f.요약 : L.flag === 'nocard' ? !f.card : true; });
