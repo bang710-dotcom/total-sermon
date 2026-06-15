@@ -2904,12 +2904,14 @@ async function aiLtc(id, meta){
       sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 900 } } }, children: ch }]
     });
     var blob = await D.Packer.toBlob(doc);
-    if (!await saveToLtc(blob, 'LTC교재_' + docxFileName(meta), meta['본문'])) {
+    var ltcRel = await saveToLtc(blob, 'LTC교재_' + docxFileName(meta), meta['본문']);
+    if (!ltcRel) {
       await saveDocxBlob(blob, 'LTC교재_' + docxFileName(meta), meta['날짜']);
     }
     if (id) {
       await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': 'LTC교재', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
       aiMarkDone(id, 'LTC교재', 'Opus API 직결');
+      if (ltcRel) setSermonFileMap(id, 'ltc', '[LTC]' + ltcRel);   /* 라이브러리 LTC 칩 자동 반영 */
     }
     renderSyncState();
     toast('LTC 교재 저장 완료 — 2페이지가 넘으면 열어서 압축해 주세요.');
@@ -6158,7 +6160,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v111';
+var APP_VER = 'v112';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
