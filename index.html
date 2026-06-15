@@ -956,18 +956,62 @@ function apiPost(body){
     .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
 }
 
-/* 시트에서 최신 데이터를 받아 상태·공통 화면을 갱신 (토스트 없는 조용한 코어) */
-function pullData(){
+/* ── 델타 동기화 머지 ── */
+var DELTA_KEYS = ['sermons', 'ideas', 'outputs', 'devo', 'devonotes'];
+/* incoming(변경분)을 ID 기준으로 arr에 upsert (멱등) */
+function upsertById(arr, incoming){
+  if (!incoming || !incoming.length) return arr;
+  var idx = {};
+  arr.forEach(function(r, i){ if (r && r['ID'] != null) idx[r['ID']] = i; });
+  incoming.forEach(function(r){
+    var k = r && r['ID'];
+    if (k != null && idx[k] != null) arr[idx[k]] = r;
+    else { idx[k] = arr.length; arr.push(r); }
+  });
+  return arr;
+}
+function mergeDelta(d){
+  DELTA_KEYS.forEach(function(k){
+    if (!d[k]) return;
+    state.data[k] = state.data[k] || [];
+    /* 산출물: 같은 (설교ID,유형)의 임시행(ID='', aiMarkDone)이 있으면 실 행 도착 시 제거 */
+    if (k === 'outputs' && d.outputs.length){
+      var seen = {};
+      d.outputs.forEach(function(o){ seen[(o['설교ID'] || '') + '|' + (o['유형'] || '')] = true; });
+      state.data.outputs = state.data.outputs.filter(function(o){
+        return !(String(o['ID'] || '') === '' && seen[(o['설교ID'] || '') + '|' + (o['유형'] || '')]);
+      });
+    }
+    upsertById(state.data[k], d[k]);
+  });
+  (d.deletes || []).forEach(function(x){
+    var arr = state.data[x.sheet];
+    if (Array.isArray(arr)) state.data[x.sheet] = arr.filter(function(r){ return String(r['ID']) !== String(x.id); });
+  });
+}
+/* 시트에서 최신 데이터를 받아 상태·공통 화면을 갱신 (토스트 없는 조용한 코어).
+   opts.full=true 또는 동기화 기준점(state.syncAt) 없으면 전체 조회, 아니면 변경분(델타)만. */
+function pullData(opts){
+  opts = opts || {};
+  var since = opts.full ? '' : (state.syncAt || '');
   return flushQueue().then(function(){
-    return api({ action: 'list', sheet: 'all' });
+    var params = { action: 'list', sheet: 'all' };
+    if (since) params.since = since;
+    return api(params);
   }).then(function(d){
-    d.outputs = d.outputs || [];
-    d.devo = d.devo || [];
-    d.devonotes = d.devonotes || [];
-    state.data = d; normalizeSermonStatuses(); saveData();
+    if (d.delta) {                 /* 신 백엔드: 변경분만 머지 */
+      mergeDelta(d);
+    } else {                       /* 전체 응답(첫 동기화·구 백엔드): 통째 교체 */
+      d.outputs = d.outputs || [];
+      d.devo = d.devo || [];
+      d.devonotes = d.devonotes || [];
+      state.data = d;
+    }
+    if (d.fetchedAt) { state.syncAt = d.fetchedAt; idbSet('syncAt', d.fetchedAt).catch(function(){}); }
+    normalizeSermonStatuses(); saveData();
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
-    return d;
+    return state.data;
   });
 }
 /* 구버전 상태값 정규화: '구상'·'연구' → '구상/연구' (메모리상; 다음 저장 때 시트도 갱신) */
