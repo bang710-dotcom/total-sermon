@@ -1023,7 +1023,7 @@ function _pullData(opts){
       state.data = d;
     }
     if (d.fetchedAt) { state.syncAt = d.fetchedAt; idbSet('syncAt', d.fetchedAt).catch(function(){}); }
-    normalizeSermonStatuses(!d.delta); saveData();  /* 전체 로드 때만 시트도 정리 */
+    normalizeSermonStatuses(!d.delta); promotePreachedByDate(!d.delta); saveData();  /* 전체 로드 때만 시트도 정리·승격 */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
     return state.data;
@@ -3218,9 +3218,20 @@ window.occPick = function(i){
   if (dj.length) state.compose.points = dj.map(function(d){
     var p = newPoint(); p.text = d['문'] || ''; p.body = d['근거'] || ''; p.apply = d['적용'] || ''; return p;
   });
-  renderPoints(); renderEditor(); updateComposeBadge();
+  renderPoints(); renderEditor();
+  /* 선택한 보관 선택지를 [구상/연구]로 승격하고 수정 대상으로 연결 — 나머지 선택지는 [보관] 유지.
+     (이전: 선택분도 보관에 남고 저장 시 중복 행이 생기던 문제 수정) */
+  if (o._id) {
+    state.editing = o._id; state.versionOf = null;
+    $('#c_series').value = '상황설교';
+    $('#c_state').value = '구상/연구';
+    var sLoc = findSermon(o._id); if (sLoc) sLoc['상태'] = '구상/연구';
+    apiPost({ action: 'update', sheet: 'sermons', data: { ID: o._id, '상태': '구상/연구', '시리즈': '상황설교' } })
+      .then(function(){ renderSyncState(); }).catch(function(){});
+  }
+  updateComposeBadge(); refreshReqBtns();
   showPage('compose');
-  toast('개요를 설교 작성으로 옮겼습니다 — 대지마다 근거·적용이 초안으로 들어 있습니다.');
+  toast('개요를 설교 작성으로 옮겼습니다' + (o._id ? ' — [구상/연구]로 승격, 저장하면 같은 행이 갱신됩니다.' : '.'));
 };
 
 $('#occ_gen').addEventListener('click', aiOccGen);
@@ -5385,6 +5396,23 @@ function exportDocxParas(meta, built, namePrefix){
     });
   }).catch(function(e){ toast('내보내기 실패: ' + e.message); });
 }
+/* 내보낸 최종본을 시트에 반영 + 날짜 기준 상태 승격(오늘·과거=설교함, 미래=완료).
+   제목이 있어야 시트 반영(없으면 파일만 저장). 수정 중이면 같은 행 update, 새 설교면 add 후 연결. */
+function composeFinalStatus(dateStr){
+  var today = new Date().toISOString().slice(0, 10);
+  return (dateStr && dateStr <= today) ? '설교함' : '완료';
+}
+function saveComposeFinal(data){
+  if (!data['제목']) { toast('제목을 넣으면 내보낸 최종본이 시트에도 반영됩니다(파일은 저장됨).'); return; }
+  data['상태'] = composeFinalStatus(data['날짜']);
+  var st = $('#c_state'); if (st) st.value = data['상태'];
+  var editing = state.editing;
+  if (editing) data.ID = editing;
+  var body = editing ? { action: 'update', sheet: 'sermons', data: data } : { action: 'add', sheet: 'sermons', data: data };
+  submit(body, (editing ? '최종본 시트 반영' : '설교 등록') + ' (' + data['상태'] + ')').then(function(id){
+    if (id && typeof id === 'string' && !editing) { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
+  });
+}
 $('#c_preview').addEventListener('click', function(){
   var data = collectCompose();
   var built = parasFromCompose(data, state.compose);
@@ -5394,6 +5422,7 @@ $('#c_preview').addEventListener('click', function(){
   openPreview(paraPreviewHtml(data, built), function(){
     var prefix = state.compose.style === '카드원고' ? '카드원고_' : '';
     exportDocxParas(data, built, prefix);
+    saveComposeFinal(collectCompose());   /* 내보내기 시 최종본 시트 반영 + 상태 승격 */
   });
 });
 $('#c_export').addEventListener('click', function(){
@@ -5401,11 +5430,30 @@ $('#c_export').addEventListener('click', function(){
   if (!data['제목'] && !data['원고텍스트']) { toast('내보낼 내용이 없습니다.'); return; }
   var prefix = state.compose.style === '카드원고' ? '카드원고_' : '';
   exportDocxParas(data, parasFromCompose(data, state.compose), prefix);
+  saveComposeFinal(data);                 /* 내보내기 시 최종본 시트 반영 + 상태 승격 */
 });
 window.exportSermonDocx = function(id){
   var s = findSermon(id);
-  if (s) exportDocxParas(s, parasFromText(s, s['원고텍스트'], '기본원고'));
+  if (!s) return;
+  exportDocxParas(s, parasFromText(s, s['원고텍스트'], s['원고유형'] || '기본원고'));
+  /* 날짜가 지난(또는 오늘) 미설교 상태면 설교함으로 승격 */
+  var today = new Date().toISOString().slice(0, 10);
+  if (s['날짜'] && s['날짜'] <= today && ['구상/연구', '작성중', '완료'].indexOf(s['상태']) >= 0) {
+    s['상태'] = '설교함'; saveData();
+    apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '상태': '설교함' } })
+      .then(function(){ renderSyncState(); if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id); })
+      .catch(function(){});
+  }
 };
+/* 날짜 지난 [완료] 설교를 [설교함]으로 자동 승격 (전체 로드 때만 시트도 갱신) */
+function promotePreachedByDate(writeSheet){
+  var today = new Date().toISOString().slice(0, 10), ids = [];
+  (state.data.sermons || []).forEach(function(s){
+    if (s['상태'] === '완료' && s['날짜'] && s['날짜'] < today) { s['상태'] = '설교함'; if (s['ID']) ids.push(s['ID']); }
+  });
+  if (writeSheet && ids.length && state.settings.url && state.settings.token && navigator.onLine)
+    ids.forEach(function(id){ apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '상태': '설교함' } }).catch(function(){}); });
+}
 
 /* ===================== DOCX 가져오기 ===================== */
 var BOOKS = '창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록|창|출|레|민|신|수|삿|룻|삼상|삼하|왕상|왕하|대상|대하|스|느|에|욥|시|잠|전|아|사|렘|애|겔|단|호|욜|암|옵|욘|미|나|합|습|학|슥|말|마|막|눅|요|행|롬|고전|고후|갈|엡|빌|골|살전|살후|딤전|딤후|딛|몬|히|약|벧전|벧후|요일|요이|요삼|유|계';
@@ -5979,7 +6027,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var old = load(LS.data);
     if (old) { old.outputs = old.outputs || []; old.devo = old.devo || []; old.devonotes = old.devonotes || []; state.data = old; localStorage.removeItem(LS.data); return idbSet('data', old); }
   }).catch(function(){}).then(function(){
-    normalizeSermonStatuses(); /* 캐시 데이터의 구버전 상태값도 정규화 */
+    normalizeSermonStatuses(); promotePreachedByDate(); /* 캐시 데이터 정규화·승격(메모리) */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); cwRender();
     /* 델타 동기화 기준점 복원(없으면 bootLoad가 전체 조회) */
     return idbGet('syncAt').then(function(v){ if (v) state.syncAt = v; }).catch(function(){});
