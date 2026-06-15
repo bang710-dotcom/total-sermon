@@ -908,6 +908,8 @@ function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c
 function toast(msg){ var t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2400); }
 function debounce(fn, ms){ var h; return function(){ var a = arguments, c = this; clearTimeout(h); h = setTimeout(function(){ fn.apply(c, a); }, ms); }; }
 function isDesktop(){ return window.matchMedia('(min-width: 900px)').matches; }
+/* 새벽 시리즈 아이콘(일출) — currentColor 상속, 1em 크기. 이모지 🌅 대체용 공용 SVG */
+var DAWN_ICON = '<svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>';
 var _scripts = {};
 function loadScript(src){
   if (_scripts[src]) return _scripts[src];
