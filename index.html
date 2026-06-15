@@ -1003,6 +1003,8 @@ function pullData(opts){
 function _pullData(opts){
   opts = opts || {};
   var since = opts.full ? '' : (state.syncAt || '');
+  /* 캐시 유실(로컬 데이터는 비었는데 기준점만 남음) 시 델타로는 옛 데이터를 못 받으므로 전체 조회로 강등 */
+  if (since && !((state.data.sermons || []).length)) since = '';
   return flushQueue().then(function(){
     var params = { action: 'list', sheet: 'all' };
     if (since) params.since = since;
@@ -1029,15 +1031,37 @@ function normalizeSermonStatuses(){
     if (s['상태'] === '구상' || s['상태'] === '연구') s['상태'] = '구상/연구';
   });
 }
-function sync(){
+function sync(opts){
   setSyncState('동기화 중…', true);
   showWaitOverlay('동기화하고 있어요', '최신 시트 내용을 불러오는 중입니다.');
-  return pullData().then(function(d){
-    toast('동기화 완료 (설교 ' + d.sermons.length + ' · 아이디어 ' + d.ideas.length + ')');
+  return pullData(opts).then(function(d){
+    toast('동기화 완료 (설교 ' + (d.sermons || []).length + ' · 아이디어 ' + (d.ideas || []).length + ')');
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
 }
+/* 전체 새로고침: 동기화 기준점을 비워 처음부터 다시 받는다(델타 누락·드리프트 의심 시). */
+function fullResync(){
+  return (_pullInflight || Promise.resolve()).then(function(){
+    state.syncAt = ''; idbSet('syncAt', '').catch(function(){});
+    return sync({ full: true });
+  });
+}
+window.fullResync = fullResync;
+/* ── 기기 전환 따라잡기: 화면이 다시 보이거나 포커스되면 변경분(델타)만 조용히 동기화.
+   5대 기기를 오가며 한 작업을 이어갈 때 다른 기기의 최신 변경을 자동 반영한다. ── */
+var _lastFocusSync = 0;
+function focusSync(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine || document.hidden) return;
+  if (Date.now() - _lastFocusSync < 8000) return;   /* 과도한 호출 억제 */
+  _lastFocusSync = Date.now();
+  pullData().catch(function(){});                    /* 조용히(오버레이·토스트 없음) */
+}
+var _focusSyncSoon = debounce(focusSync, 500);
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) _focusSyncSoon(); });
+window.addEventListener('focus', _focusSyncSoon);
+window.addEventListener('pageshow', _focusSyncSoon);
 var _seriesReady = null; /* 실행 시 seriesList(IndexedDB) 로드 완료 프라미스 — bootLoad가 대기 */
 var _syncBannerN = 0;
 function showSyncBanner(){ _syncBannerN++; var el = $('#syncBanner'); if (el) el.classList.add('on'); }
@@ -5439,7 +5463,8 @@ $('#saveSettings').addEventListener('click', function(){
   api({ action: 'ping' }).then(function(){ toast('연결 성공! 동기화를 시작합니다.'); return sync(); })
     .catch(function(e){ toast('연결 확인 실패: ' + e.message); });
 });
-$('#syncBtn').addEventListener('click', sync);
+$('#syncBtn').addEventListener('click', function(){ sync(); });
+$('#fullSyncBtn').addEventListener('click', function(){ fullResync(); });
 
 /* 화면이 가려지거나 앱을 떠날 때: 대기 중인 시트 쓰기를 베스트에포트로 전송.
    (종료 훅은 신뢰할 수 없으므로 보장 수단이 아니라 거들기 — 로컬 작업은 IndexedDB에 이미 보존됨) */
