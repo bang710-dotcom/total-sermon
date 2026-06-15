@@ -5785,7 +5785,7 @@ state.lib = { year: '', svc: '', flag: '', q: '' };
 var SVC_REGULAR = { '대학부':1,'새벽':1,'노년':1,'고등부':1,'고등':1,'금요기도회':1,'수요':1,'찬양':1,'주일찬양':1,'주일':1,'청년':1 };
 function svcOf(s){
   var t = String(s['제목'] || '');
-  if (t.indexOf('수련회') >= 0) return '수련회';
+  if (t.indexOf('수련회') >= 0 || t.indexOf('성경학교') >= 0) return '수련회';
   if (t.indexOf('헌신예배') >= 0) return '헌신예배';
   if (t.indexOf('수능') >= 0) return '수능기도회';     /* 수능·수능기도회·수능 기도회 */
   if (t.indexOf('철야') >= 0) return '철야기도회';
@@ -6190,7 +6190,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v117';
+var APP_VER = 'v118';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
