@@ -585,18 +585,21 @@ body.aiChatOpen #aiFab{display:none}
           <button class="btn gold" id="c_export">내보내기</button>
           <button class="btn sub mini" data-req="원고작성" style="flex:0 0 30%"><span>스킬사용<br>원고요청</span></button>
         </div>
-        <label>클로드 요청 → 요청함에 저장 (Cowork가 처리)</label>
+        <label>⚡ Claude API 직결 — 즉시 생성 (설정에 API 키 입력 시)</label>
         <div class="toolrow" style="margin-top:4px">
-          <button class="btn sub mini" data-req="이미지프롬프트"><span>이미지<br>프롬프트</span></button>
-          <button class="btn sub mini" data-req="이미지생성"><span>이미지<br>생성</span></button>
           <button class="btn sub mini" data-req="카드원고"><span>카드원고</span></button>
-        </div>
-        <div class="m-deskonly-note cnt" style="margin-top:6px">설교 이미지(프롬프트·생성)와 묵상집 PDF는 데스크탑(Cowork)에서 진행하는 작업이라 모바일에서는 숨겨져 있습니다.</div>
-        <div class="toolrow" style="margin-top:9px">
           <button class="btn sub mini" data-req="설교요약"><span>요약본<br>주제어</span></button>
+        </div>
+        <div class="toolrow" style="margin-top:6px">
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
           <button class="btn sub mini" data-req="리더스앱업로드"><span>리더스앱<br>업로드용</span></button>
         </div>
+        <label class="desktop-only" style="display:block;margin-top:12px">📥 클로드 요청함 → Cowork가 처리 (이미지)</label>
+        <div class="toolrow desktop-only" style="margin-top:4px">
+          <button class="btn sub mini" data-req="이미지프롬프트"><span>이미지<br>프롬프트</span></button>
+          <button class="btn sub mini" data-req="이미지생성"><span>이미지<br>생성</span></button>
+        </div>
+        <div class="cnt" style="margin-top:6px">API 키가 없으면 위 직결 항목도 요청함에 저장돼 Cowork가 처리합니다. 이미지·묵상집 PDF는 데스크탑(Cowork) 전용이라 모바일에서는 숨겨집니다.</div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">설교원고(카드원고) 저장 폴더 지정</button>
         <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
@@ -5979,7 +5982,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v107';
+var APP_VER = 'v108';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
