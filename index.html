@@ -505,6 +505,8 @@ body.aiChatOpen #aiFab{display:none}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
     <button class="nav" data-page="library">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>설교 라이브러리</button>
+    <button class="nav" data-page="analytics">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>설교 통계 분석</button>
     <button class="nav" data-page="compose">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>설교 작성</button>
     <button class="nav" data-page="occ">
@@ -880,6 +882,7 @@ body.aiChatOpen #aiFab{display:none}
     <div class="msGrid">
       <button class="msItem" data-page="search" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
       <button class="msItem" data-page="library" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>설교 라이브러리</button>
+      <button class="msItem" data-page="analytics" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>설교 통계 분석</button>
       <button class="msItem" data-page="compose" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>설교 작성</button>
       <button class="msItem" data-page="occ" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>상황 설교 구상</button>
       <button class="msItem" data-page="devo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
@@ -5891,6 +5894,8 @@ function renderLibrary(){
   var q = $('#libQ'); if (q) q.addEventListener('input', debounce(function(){ state.lib.q = q.value.trim(); renderLibrary(); }, 150));
   var y = $('#libYear'); if (y) y.addEventListener('change', function(){ state.lib.year = y.value; renderLibrary(); });
   var sv = $('#libSvc'); if (sv) sv.addEventListener('change', function(){ state.lib.svc = sv.value; renderLibrary(); });
+  var bk = $('#libBook'); if (bk) bk.addEventListener('change', function(){ state.lib.book = bk.value; renderLibrary(); });
+  var tp = $('#libTopic'); if (tp) tp.addEventListener('change', function(){ state.lib.topic = tp.value; renderLibrary(); });
   $$('#page-library [data-libflag]').forEach(function(c){
     c.addEventListener('click', function(){
       state.lib.flag = c.dataset.libflag;
