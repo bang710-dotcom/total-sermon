@@ -1205,6 +1205,17 @@ window.searchTag = function(tag){
   runSearch();
 };
 function findSermon(id){ return state.data.sermons.filter(function(x){ return x['ID'] === id; })[0]; }
+/* 원고텍스트는 목록(슬림)에서 빠져 있어 필요 시 지연 로드. 이미 있으면 즉시 반환. */
+function ensureText(id){
+  var s = findSermon(id);
+  if (!s) return Promise.resolve(null);
+  if (String(s['원고텍스트'] || '').trim()) return Promise.resolve(s);
+  return api({ action: 'text', id: id }).then(function(d){
+    if (d && d['원고텍스트'] != null) s['원고텍스트'] = d['원고텍스트'];
+    if (d && d['요약본'] && !String(s['요약본'] || '').trim()) s['요약본'] = d['요약본'];
+    saveData(); return s;
+  }).catch(function(){ return s; });
+}
 function findIdea(id){ return state.data.ideas.filter(function(x){ return x['ID'] === id; })[0]; }
 
 function runSearch(){
@@ -1772,7 +1783,7 @@ function clearCompose(){
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
 }
-window.editSermon = function(id){
+function editSermonFill(id){
   var s = findSermon(id);
   if (!s) return;
   /* 새버전 모드: 불러오기만 — 저장하면 새 설교로 등록 (원본 보존) */
@@ -1797,7 +1808,9 @@ window.editSermon = function(id){
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   checkAssets(id).then(refreshReqBtns);
   showPage('compose');
-};
+}
+/* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
+window.editSermon = function(id){ ensureText(id).then(function(){ editSermonFill(id); }); };
 $('#c_new').addEventListener('click', function(){
   var c = state.compose;
   var hasContent = c.free.trim() || c.intro.trim() || c.points.some(function(p){ return p.body.trim() || p.illBody.trim(); });
@@ -1809,10 +1822,12 @@ $('#c_new').addEventListener('click', function(){
 var CW_INPROGRESS = { '구상/연구': 1, '작성중': 1, '구상': 1, '연구': 1 /* 구버전 호환 */ };
 /* 설교를 직접 수정 모드로 불러와 이어 작업 (저장 시 같은 행 업데이트) */
 window.resumeSermon = function(id){
-  editSermon(id);                 /* 내용 로드 (+ compose 화면 전환) */
-  state.editing = id; state.versionOf = null;  /* 새버전이 아니라 직접 수정으로 */
-  updateComposeBadge(); refreshReqBtns();
-  toast('이어쓰기 모드 — 저장하면 ' + id + ' 행이 업데이트됩니다.');
+  ensureText(id).then(function(){
+    editSermonFill(id);             /* 내용 로드 (+ compose 화면 전환) */
+    state.editing = id; state.versionOf = null;  /* 새버전이 아니라 직접 수정으로 */
+    updateComposeBadge(); refreshReqBtns();
+    toast('이어쓰기 모드 — 저장하면 ' + id + ' 행이 업데이트됩니다.');
+  });
 };
 /* 진행중 설교 목록 — 분류(드롭다운) + 검색어. 검색어가 없어도 분류 기준으로 항상 목록 표시 */
 function cwRender(){
@@ -3483,6 +3498,11 @@ function reqBtnSt(sermonId, type){
 }
 /* 완료(✓) 클릭 = 저장된 최신 파일 받기 / 재생성 선택, 대기(▲)=안내, 그 외=생성 */
 async function reqOrDownload(id, type, meta){
+  /* 원고텍스트가 필요한 작업인데 목록(슬림)이라 비어 있으면 지연 로드 */
+  if (id && meta && !String(meta['원고텍스트'] || '').trim()) {
+    var _ls = await ensureText(id);
+    if (_ls && _ls['원고텍스트']) meta['원고텍스트'] = _ls['원고텍스트'];
+  }
   var st = reqBtnSt(id, type);
   if (st === 'req') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
   if (st === 'fin' || st === 'done') {
@@ -5468,6 +5488,9 @@ $('#c_export').addEventListener('click', function(){
   saveComposeFinal(data);                 /* 내보내기 시 최종본 시트 반영 + 상태 승격 */
 });
 window.exportSermonDocx = function(id){
+  ensureText(id).then(function(s){ if (s) exportSermonDocxNow(id); });
+};
+function exportSermonDocxNow(id){
   var s = findSermon(id);
   if (!s) return;
   exportDocxParas(s, parasFromText(s, s['원고텍스트'], s['원고유형'] || '기본원고'));
@@ -6025,6 +6048,9 @@ function closePrev(){
   window._pvEx = null;
 }
 window.previewSermon = function(id){
+  ensureText(id).then(function(s){ if (s) previewSermonNow(id); });
+};
+function previewSermonNow(id){
   var s = findSermon(id);
   if (!s) return;
   var built = parasFromText(s, String(s['원고텍스트'] || s['요약본'] || ''), '기본원고');
