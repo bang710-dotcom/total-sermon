@@ -5786,6 +5786,7 @@ function svcOf(s){
   var cand = (s['예배구분'] || '').trim();
   if (!cand) { var m = t.trim().match(/^([가-힣]+)/); cand = m ? m[1] : ''; }
   if (cand === '찬양') cand = '주일찬양';   /* 찬양·주일찬양 통합 */
+  if (cand.indexOf('수요') === 0) cand = '수요';   /* 수요기도회·수요사경회 → 수요 */
   return SVC_REGULAR[cand] ? cand : '특별설교';
 }
 function libFiles(s){
@@ -6175,7 +6176,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v114';
+var APP_VER = 'v115';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
