@@ -101,14 +101,20 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .anStat{flex:1 1 120px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:center}
 .anStat b{display:block;font-size:22px;color:var(--accent);line-height:1.1}
 .anStat span{display:block;font-size:12px;color:var(--dim);margin-top:5px}
-.anGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.anGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:14px}
 .anCard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
 .anCard h3{margin:0 0 12px;font-size:15px;color:var(--text)}
 .anCard h4{margin:0 0 8px;font-size:13px;color:var(--dim)}
-.anBody{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.donut{width:150px;height:150px;flex:0 0 auto}
-.donut .dnum{font-size:30px;font-weight:700;fill:var(--text)}
-.donut .dlbl{font-size:13px;fill:var(--dim)}
+.anBody{display:flex;align-items:center;justify-content:center}
+.donut{width:100%;height:auto;max-width:560px;display:block;margin:0 auto;overflow:visible}
+.donut .dnum{font-size:36px;font-weight:700;fill:var(--text)}
+.donut .dlbl{font-size:14px;fill:var(--dim)}
+.donut .dleg{font-size:12.5px;fill:var(--text)}
+.donut .dleg.on{fill:var(--accent);font-weight:700}
+.anBarSvg{width:100%;height:auto;display:block;overflow:visible}
+.anBarSvg .anBsegT{font-size:13px;fill:#fff;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.anBarSvg .anBlead{font-size:12.5px;fill:var(--text)}
+.anBarSvg .anBlead.on{fill:var(--accent);font-weight:700}
 .anLegs{flex:1 1 160px;min-width:160px;display:flex;flex-direction:column;gap:5px}
 .anLeg{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 6px;border-radius:7px;cursor:pointer}
 .anLeg[data-ansel]:hover{background:var(--card2)}
@@ -6468,7 +6474,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v120';
+var APP_VER = 'v121';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
