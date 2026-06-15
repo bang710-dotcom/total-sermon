@@ -3643,6 +3643,21 @@ function renderSeriesList(){
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
   });
+  /* 시트에 등록된 새벽 시리즈(묵상 없이 설교만) — 로컬·묵상목록에 없는 것 */
+  var dawnSheet = {};
+  (state.data.sermons || []).forEach(function(s){
+    var n = s['시리즈'];
+    if (!n || localNames[n] || sheet[n]) return;
+    if (String(s['예배구분'] || '').indexOf('새벽') < 0) return;
+    (dawnSheet[n] = dawnSheet[n] || {})[s['날짜'] || ''] = 1;
+  });
+  Object.keys(dawnSheet).forEach(function(n){
+    var ds = Object.keys(dawnSheet[n]).filter(Boolean).sort();
+    html += '<div class="item" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
+      '<span class="badge b-idea">🌅 새벽 · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span><span>설교 ' + ds.length + '일</span>' : '') + '</div>' +
+      '<div class="title">' + esc(n) + '</div>' +
+      '<div class="snippet">시트에 등록된 새벽 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
+  });
   box.innerHTML = html || '<div class="empty">아직 시리즈 계획이 없습니다.<br>[＋ 새 시리즈 만들기]로 시작하세요.</div>';
 }
 window.slOpen = function(i){
@@ -3799,10 +3814,66 @@ function syncSeriesDetails(){
 /* 시트 기록에서 시리즈 재구성 (수정·재사용)
    보관(선택지) + 구상(확정) 레코드를 통합해 모든 주차를 완전 복원 → 기기 간 이어작업 가능.
    buildSeriesFromSheet = 데이터 재구성만(네비게이션·토스트 없음), slOpenSheet = 재구성 + 마법사 진입 */
+/* 묵상(devo)이 없는 시리즈가 '새벽'이면 설교마스터만으로 새벽 시리즈를 복원(기기 간 이어가기).
+   새벽이 아니면(=일반인데 묵상이 없을 뿐) null을 돌려 기존 동작 유지. */
+function buildDawnFromSheet(name){
+  var all = (state.data.sermons || []).filter(function(s){ return s['시리즈'] === name; });
+  if (!all.length) return null;
+  if (!all.some(function(s){ return String(s['예배구분'] || '').indexOf('새벽') >= 0; })) return null;
+  function bigoRange(b){ return ((String(b || '').match(/주간묵상:\s*(.+)$/) || [])[1] || '').trim(); }
+  function bigoJeok(b){ return ((String(b || '').match(/^주제 근거:\s*(.*?)(?:\s*\/\s*주간묵상:|$)/) || [])[1] || '').trim(); }
+  function bigoHymn(b){ return ((String(b || '').match(/찬송:\s*(.*?)(?:\s*\/|$)/) || [])[1] || '').trim(); }
+  var serms = all.filter(function(s){ return s['상태'] !== '보관'; });
+  var arcs = all.filter(function(s){ return s['상태'] === '보관'; });
+  var seen = {}, dates = [];
+  all.forEach(function(s){ var d = s['날짜']; if (d && !seen[d]) { seen[d] = 1; dates.push(d); } });
+  dates.sort();
+  var existing = state.seriesList.filter(function(s){ return (s.meta || {})['시리즈명'] === name; })[0]
+    || ((state.series && (state.series.meta || {})['시리즈명'] === name) ? state.series : null);
+  var S = existing || newSeriesEntry();
+  S.kind = 'dawn';
+  var weeks = dates.map(function(dt, di){
+    var dayArcs = arcs.filter(function(s){ return s['날짜'] === dt; })
+      .sort(function(a, b){ return (+(a['시리즈순번'] || 99)) - (+(b['시리즈순번'] || 99)); });
+    var opts = dayArcs.map(function(s){
+      return { '제목': s['제목'] || '', '본문': s['본문'] || '', '핵심메시지': s['핵심메시지'] || '',
+        '대지': s['대지'] || '', '주제근거': bigoJeok(s['비고']), '찬송': bigoHymn(s['비고']), _id: s['ID'] };
+    });
+    var conf = serms.filter(function(s){ return s['날짜'] === dt; })[0];
+    var rng = bigoRange((conf || {})['비고']) || (dayArcs[0] ? bigoRange(dayArcs[0]['비고']) : '');
+    var w = { '주일': dt, '요일': wdOf(dt), '통독범위': rng, '주간범위': rng, '비고': '',
+      opts: opts, sel: -1, skip: (!opts.length && !conf), '시리즈순번': di + 1,
+      edit: conf ? { '제목': conf['제목'] || '', '본문': conf['본문'] || '', '핵심메시지': conf['핵심메시지'] || '',
+        '대지': conf['대지'] || '', '주제근거': bigoJeok(conf['비고']), '찬송': bigoHymn(conf['비고']),
+        '묵상요약': conf['요약본'] || '' } : {} };
+    if (conf) {
+      opts.forEach(function(o, i){ if (o['제목'] === conf['제목'] && o['본문'] === conf['본문']) w.sel = i; });
+      if (w.sel === -1) {
+        opts.push({ '제목': conf['제목'] || '', '본문': conf['본문'] || '', '핵심메시지': conf['핵심메시지'] || '',
+          '대지': conf['대지'] || '', '주제근거': bigoJeok(conf['비고']), '찬송': bigoHymn(conf['비고']), _id: null });
+        w.sel = opts.length - 1;
+      }
+      w.done = true; w.sig = weekSig(w);
+    } else if (opts.length) { w.sel = 0; }
+    return w;
+  });
+  var sched = dates.map(function(dt, i){ return { '날짜': dt, '요일': wdOf(dt), '통독범위': (weeks[i] || {})['통독범위'] || '' }; });
+  S.meta = { '시리즈명': name, '예배구분': '새벽', '일정': sched,
+    '시작일': dates[0] || '', '종료일': dates[dates.length - 1] || '', '주일': [], '묵상일': [] };
+  S.sched = sched.map(function(x){ return { '날짜': x['날짜'], '요일': x['요일'], '통독범위': x['통독범위'] }; });
+  S.schedDate = dwSundayOf(dates[0] || '');
+  S.devo = null; S.devoDone = false;
+  S.sermon = { m: 0, weeks: weeks };
+  S.sermonDone = serms.length > 0;
+  S.view = 'sermon';
+  S._sheetSig = sheetSigForSeries(name);
+  if (state.seriesList.indexOf(S) < 0) state.seriesList.unshift(S);
+  return { S: S, confCnt: serms.length, arcCnt: arcs.length };
+}
 function buildSeriesFromSheet(name){
   var rows = (state.data.devo || []).filter(function(d){ return d['시리즈명'] === name; })
     .sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
-  if (!rows.length) return null;
+  if (!rows.length) return buildDawnFromSheet(name); /* 묵상 없는 시리즈 = 새벽이면 복원, 아니면 null */
   var start = rows[0]['날짜'], end = rows[rows.length - 1]['날짜'];
   var r = spDates(start, end) || { devoDays: [], sundays: [] };
   var book = String(rows[0]['본문범위'] || '').replace(/\s*\d.*$/, '').trim() || name;
