@@ -243,6 +243,8 @@ input[type=date]{cursor:pointer}
   .sidebar button.nav.on{background:var(--card);color:var(--text);font-weight:600}
   .sidebar button.nav svg{width:18px;height:18px;flex:0 0 18px}
   .sidebar .syncbtn{margin:0 8px}
+  /* 좌하단 고정 [설교 대화] 버튼과 동기화 문구(.foot)가 겹치지 않게 문구를 버튼 위로 띄움 */
+  .sidebar .foot{padding-bottom:72px}
   #page-search.on{display:grid;grid-template-columns:minmax(330px,460px) minmax(0,1fr);gap:20px;align-items:start}
   #searchLeft{min-width:0}
   #qResults{max-height:calc(100vh - 170px);overflow:auto;padding-right:4px}
@@ -5977,7 +5979,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v106';
+var APP_VER = 'v107';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
