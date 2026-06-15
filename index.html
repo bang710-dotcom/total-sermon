@@ -96,6 +96,28 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .libLoading .bigspin{width:40px;height:40px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
 .libLoading .ltxt{font-weight:600;animation:pulseT 1.4s ease-in-out infinite}
 @keyframes pulseT{0%,100%{opacity:.4}50%{opacity:1}}
+/* 설교 통계 분석 */
+.anSummary{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.anStat{flex:1 1 120px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:center}
+.anStat b{display:block;font-size:22px;color:var(--accent);line-height:1.1}
+.anStat span{display:block;font-size:12px;color:var(--dim);margin-top:5px}
+.anGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.anCard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.anCard h3{margin:0 0 12px;font-size:15px;color:var(--text)}
+.anCard h4{margin:0 0 8px;font-size:13px;color:var(--dim)}
+.anBody{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.donut{width:150px;height:150px;flex:0 0 auto}
+.donut .dnum{font-size:30px;font-weight:700;fill:var(--text)}
+.donut .dlbl{font-size:13px;fill:var(--dim)}
+.anLegs{flex:1 1 160px;min-width:160px;display:flex;flex-direction:column;gap:6px}
+.anLeg{display:flex;align-items:center;gap:8px;font-size:13px}
+.anDot{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+.anLeg .anLbl{flex:1 1 auto;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.anLeg .anCnt{color:var(--dim);font-size:12px;flex:0 0 auto}
+.anTwrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.anTrow{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px}
+.anTrow span{color:var(--text)}
+.anTrow b{color:var(--accent)}
 /* 미리보기 인쇄: 미리보기 종이(#prevPage)만 출력, 앱 UI·툴바 숨김 */
 @media print {
   body.previewing > *:not(#prevOv){ display:none !important; }
@@ -578,6 +600,18 @@ body.aiChatOpen #aiFab{display:none}
       </div>
       <div class="cnt" id="libCnt"></div>
       <div id="libResults"><div class="libLoading"><span class="bigspin"></span><span class="ltxt">설교를 불러오는 중…</span></div></div>
+    </section>
+
+    <!-- ============ 설교 통계 분석 ============ -->
+    <section class="page" id="page-analytics">
+      <div class="searchbox" style="margin-bottom:10px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="anYear" class="libsel"><option value="">전체 기간</option></select>
+          <select id="anSvc" class="libsel"><option value="">예배 전체</option></select>
+        </div>
+        <div class="cnt" style="margin-top:6px">내가 어떤 성경·어떤 주제의 설교를 많이 했는지 한눈에 봅니다. 보관(미래 설교)은 제외하고, 실제 전한 설교를 기준으로 집계합니다. 설교계획에 참고하세요.</div>
+      </div>
+      <div id="anResults"><div class="libLoading"><span class="bigspin"></span><span class="ltxt">집계하는 중…</span></div></div>
     </section>
 
     <!-- ============ 작성 (데스크탑) ============ -->
@@ -5732,6 +5766,7 @@ function showPage(name){
   if (name === 'occ') renderOccPane();
   if (name === 'archive') renderArchive();
   if (name === 'library') renderLibrary();
+  if (name === 'analytics') renderAnalytics();
   if (name === 'compose') cwRender(); /* 진행중 설교 목록 갱신 */
   /* 사용 중에는 시트를 다시 부르지 않는다 — 실행 시 1회 전체 로드(bootLoad)만 수행 */
 }
@@ -5903,6 +5938,114 @@ function renderLibrary(){
       renderLibrary();
     });
   });
+})();
+
+/* ===== 설교 통계 분석 ===== */
+var ANALYTICS = { year: '', svc: '' };
+var DONUT_COLORS = ['#5b8def','#34c4a6','#f0a93b','#e2607a','#9b6cf0','#3bbdf0','#7cc452','#e8814a','#c569c4','#6b8294','#d4a83b','#5fae8c'];
+function donutSvg(items, total){
+  /* items: [{label,count,color}], 합이 total */
+  var R = 70, C = 80, sw = 26, circ = 2 * Math.PI * R, off = 0, seg = '';
+  items.forEach(function(it){
+    if (!it.count) return;
+    var frac = it.count / total, len = frac * circ;
+    seg += '<circle cx="' + C + '" cy="' + C + '" r="' + R + '" fill="none" stroke="' + it.color + '" stroke-width="' + sw + '"'
+      + ' stroke-dasharray="' + len.toFixed(2) + ' ' + (circ - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '"></circle>';
+    off += len;
+  });
+  return '<svg viewBox="0 0 160 160" class="donut" role="img">'
+    + '<g transform="rotate(-90 80 80)">' + seg + '</g>'
+    + '<text x="80" y="74" text-anchor="middle" class="dnum">' + total + '</text>'
+    + '<text x="80" y="93" text-anchor="middle" class="dlbl">편</text>'
+    + '</svg>';
+}
+function donutBlock(title, counts, opts){
+  opts = opts || {};
+  var entries = Object.keys(counts).map(function(k){ return { label: k, count: counts[k] }; })
+    .sort(function(a, b){ return b.count - a.count; });
+  var total = entries.reduce(function(s, e){ return s + e.count; }, 0);
+  if (!total) return '<div class="anCard"><h3>' + esc(title) + '</h3><div class="empty">집계할 데이터가 없습니다.</div></div>';
+  var shown = entries, etc = 0;
+  if (opts.top && entries.length > opts.top){
+    shown = entries.slice(0, opts.top);
+    etc = entries.slice(opts.top).reduce(function(s, e){ return s + e.count; }, 0);
+  }
+  var segItems = shown.map(function(e, i){ return { label: e.label, count: e.count, color: DONUT_COLORS[i % DONUT_COLORS.length] }; });
+  if (etc) segItems.push({ label: '기타', count: etc, color: '#586074' });
+  var legend = segItems.map(function(e){
+    var pct = (e.count / total * 100);
+    return '<div class="anLeg"><span class="anDot" style="background:' + e.color + '"></span>'
+      + '<span class="anLbl">' + esc(e.label) + '</span>'
+      + '<span class="anCnt">' + e.count + '편 · ' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%</span></div>';
+  }).join('');
+  return '<div class="anCard"><h3>' + esc(title) + '</h3>'
+    + '<div class="anBody">' + donutSvg(segItems, total) + '<div class="anLegs">' + legend + '</div></div></div>';
+}
+function renderAnalytics(){
+  var box = $('#anResults'); if (!box) return;
+  var A = ANALYTICS;
+  var all = (state.data.sermons || []).filter(function(s){ return s['상태'] !== '보관'; });
+  if (!all.length){
+    var loading = !!(state.settings && state.settings.url && (_pullInflight || !state.syncAt));
+    box.innerHTML = loading
+      ? '<div class="libLoading"><span class="bigspin"></span><span class="ltxt">집계하는 중…</span></div>'
+      : '<div class="empty">아직 등록된 설교가 없습니다.<br>설정에서 동기화하거나 [전체 새로고침]을 눌러 주세요.</div>';
+    return;
+  }
+  /* 옵션 채우기(연도·예배) */
+  var years = {}, svcsAll = {};
+  all.forEach(function(s){ var y = String(s['날짜'] || '').slice(0, 4); if (y) years[y] = 1; var sv = svcOf(s); if (sv) svcsAll[sv] = 1; });
+  var ysel = $('#anYear');
+  if (ysel) ysel.innerHTML = '<option value="">전체 기간</option>' + Object.keys(years).sort().reverse().map(function(y){ return '<option' + (y === A.year ? ' selected' : '') + '>' + y + '</option>'; }).join('');
+  var ssel = $('#anSvc');
+  if (ssel) ssel.innerHTML = '<option value="">예배 전체</option>' + Object.keys(svcsAll).sort().map(function(v){ return '<option' + (v === A.svc ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
+  /* 범위 필터 */
+  var list = all;
+  if (A.year) list = list.filter(function(s){ return String(s['날짜'] || '').slice(0, 4) === A.year; });
+  if (A.svc) list = list.filter(function(s){ return svcOf(s) === A.svc; });
+  /* 집계 */
+  var byBook = {}, byTopic = {}, bySvc = {}, ot = 0, nt = 0, bookKnown = 0, topicKnown = 0;
+  list.forEach(function(s){
+    var b = bibleBookOf(s);
+    if (b){ byBook[b.name] = (byBook[b.name] || 0) + 1; bookKnown++; if (b.testament === '구약') ot++; else nt++; }
+    topicsOf(s).forEach(function(t){ byTopic[t] = (byTopic[t] || 0) + 1; topicKnown++; });
+    var sv = svcOf(s); if (sv) bySvc[sv] = (bySvc[sv] || 0) + 1;
+  });
+  var html = '';
+  /* 요약 줄 */
+  html += '<div class="anSummary">'
+    + '<div class="anStat"><b>' + list.length + '</b><span>분석 대상 설교</span></div>'
+    + '<div class="anStat"><b>' + bookKnown + '</b><span>본문 식별</span></div>'
+    + '<div class="anStat"><b>' + ot + ' : ' + nt + '</b><span>구약 : 신약</span></div>'
+    + '<div class="anStat"><b>' + Object.keys(byBook).length + '</b><span>설교한 성경권 수</span></div>'
+    + '</div>';
+  html += '<div class="anGrid">';
+  html += donutBlock('성경권별 설교 (구약 ' + ot + ' · 신약 ' + nt + ')', byBook, { top: 11 });
+  html += donutBlock('주제별 설교', byTopic, { top: 11 });
+  if (!A.svc) html += donutBlock('예배 구분별 설교', bySvc, { top: 9 });
+  html += '</div>';
+  /* 구약/신약 권별 표 (참고) */
+  html += anTestamentTable(byBook);
+  box.innerHTML = html;
+}
+function anTestamentTable(byBook){
+  var ot = [], nt = [];
+  BOOK_FULL.forEach(function(name, i){
+    if (byBook[name] == null) return;
+    (i < 39 ? ot : nt).push({ name: name, count: byBook[name] });
+  });
+  function col(title, arr){
+    if (!arr.length) return '';
+    return '<div class="anTcol"><h4>' + title + '</h4>' + arr.map(function(e){
+      return '<div class="anTrow"><span>' + esc(e.name) + '</span><b>' + e.count + '</b></div>';
+    }).join('') + '</div>';
+  }
+  return '<div class="anCard"><h3>전 권별 설교 횟수 (정경 순서)</h3><div class="anTwrap">'
+    + col('구약', ot) + col('신약', nt) + '</div></div>';
+}
+(function(){
+  var y = $('#anYear'); if (y) y.addEventListener('change', function(){ ANALYTICS.year = y.value; renderAnalytics(); });
+  var sv = $('#anSvc'); if (sv) sv.addEventListener('change', function(){ ANALYTICS.svc = sv.value; renderAnalytics(); });
 })();
 function renderArchive(){
   var box = $('#aResults'), cnt = $('#aCnt'), inp = $('#aq');
@@ -6220,7 +6363,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v118';
+var APP_VER = 'v119';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
