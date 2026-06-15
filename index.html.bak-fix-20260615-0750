@@ -2128,13 +2128,9 @@ function loadBook(n){
 function parseRange(s){
   var m = String(s || '').trim().match(/^(.+?)\s+(\d+)(?::(\d+))?(?:\s*[-~]\s*(?:(\d+):)?(\d+))?$/);
   if (!m) return null;
-  var c1 = +m[2];
-  if (!m[3]) { /* 시작 절 없음 → 장 단위. 둘째 숫자는 끝 절이 아니라 끝 '장' (예: "다니엘 3-4" = 3~4장) */
-    return { book: m[1].trim(), c1: c1, v1: 1,
-             c2: m[5] ? +m[5] : c1, v2: 999, wholeChapter: true };
-  }
-  return { book: m[1].trim(), c1: c1, v1: +m[3],
-           c2: m[4] ? +m[4] : c1, v2: m[5] ? +m[5] : +m[3], wholeChapter: false };
+  return { book: m[1].trim(), c1: +m[2], v1: m[3] ? +m[3] : 1,
+           c2: m[4] ? +m[4] : +m[2], v2: m[5] ? +m[5] : (m[3] ? (m[4] ? +m[5] : +m[3]) : 999) ,
+           wholeChapter: !m[3] };
 }
 function renderScripture(range){
   return bibleIndex().then(function(idx){
@@ -2848,7 +2844,7 @@ async function archiveDevoRows(S){
     var rec = { '날짜': r['날짜'], '본문범위': r['본문범위'] || '', '제목': r['제목'] || '',
       '관찰질문': r['관찰질문'] || '', '묵상질문': r['묵상질문'] || '', '적용질문': r['적용질문'] || '',
       '시리즈명': m['시리즈명'] || '' };
-    var ex = (state.data.devo || []).filter(function(d){ return d['날짜'] === r['날짜'] && (d['시리즈명'] || '') === (m['시리즈명'] || ''); })[0];
+    var ex = (state.data.devo || []).filter(function(d){ return d['날짜'] === r['날짜']; })[0];
     if (ex) { rec.ID = ex['ID']; ups.push(rec); } else adds.push(rec);
   });
   for (var b = 0; b < adds.length; b += 50) { await apiPost({ action: 'bulkAdd', sheet: 'devo', rows: adds.slice(b, b + 50) }); }
@@ -3643,8 +3639,7 @@ $('#sp_resync').addEventListener('click', function(){
   var btn = this; btn.textContent = '동기화 중…'; btn.disabled = true;
   function resetBtn(){ btn.textContent = '↻ 시트에서 재동기화'; btn.disabled = false; }
   sync().then(function(){
-    try { slOpenSheet(name); } catch(e) { toast('재구성 실패: ' + e.message); }
-    resetBtn();
+    try { slOpenSheet(name); } catch(e) { toast('재구성 실패: ' + e.message); resetBtn(); }
   }).catch(function(e){
     toast('재동기화 실패: ' + e.message); resetBtn();
   });
@@ -4070,20 +4065,17 @@ async function spCheck(quiet){
           var opts = w['선택지'] || [];
           return { '주일': w['주일'], '주간범위': w['주간범위'] || '', '비고': w['비고'] || '',
             opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
-            edit: opts.length ? optEdit(opts[0]) : { '제목': '', '본문': '', '핵심메시지': '', '대지': '' } };
+            edit: opts.length ? JSON.parse(JSON.stringify(opts[0])) : { '제목': '', '본문': '', '핵심메시지': '', '대지': '' } };
         }) };
         S.sermonDone = false; S.view = 'sermon';
         loaded.push('설교 선택지 ' + S.sermon.weeks.length + '주');
       }
     }
-    /* 키별 병합: 폴더에서 못 찾은 키 중 메모리 값이 '진행중'(API 직결 플래그)이면 보존하고,
-       '새벽설교' 등 폴더 미추적 키는 건드리지 않는다 (자동 스캔이 진행중 표시를 지우던 문제 방지) */
-    var _sr = state.seriesReqs = state.seriesReqs || {};
-    ['시리즈묵상', '시리즈설교', '묵상집PDF'].forEach(function(k){
-      var folder = sReq[k] ? sReq[k].st : '';
-      if (folder) _sr[k] = folder;
-      else if (_sr[k] !== '진행중') _sr[k] = '';
-    });
+    state.seriesReqs = {
+      '시리즈묵상': sReq['시리즈묵상'] ? sReq['시리즈묵상'].st : '',
+      '시리즈설교': sReq['시리즈설교'] ? sReq['시리즈설교'].st : '',
+      '묵상집PDF': sReq['묵상집PDF'] ? sReq['묵상집PDF'].st : ''
+    };
     spLastScan = {
       waiting: waiting, working: working, other: otherNm,
       emptyD: !!(bestD && !(bestD.j['묵상목록'] || []).length),
@@ -4432,7 +4424,7 @@ async function confirmDevo(){
     var rec = { '날짜': r['날짜'], '본문범위': r['본문범위'] || '', '제목': r['제목'] || '',
       '관찰질문': r['관찰질문'] || '', '묵상질문': r['묵상질문'] || '', '적용질문': r['적용질문'] || '',
       '시리즈명': m['시리즈명'] || '' };
-    var ex = (state.data.devo || []).filter(function(d){ return d['날짜'] === r['날짜'] && (d['시리즈명'] || '') === (m['시리즈명'] || ''); })[0];
+    var ex = (state.data.devo || []).filter(function(d){ return d['날짜'] === r['날짜']; })[0];
     if (ex) { rec.ID = ex['ID']; ups.push(rec); } else adds.push(rec);
   });
   for (var b = 0; b < adds.length; b += 50) {
@@ -4937,14 +4929,11 @@ async function scanRequests(quiet){
       }
     }
     state.pendingReqs = pend;
-    /* 키별 병합: 폴더에서 못 찾은 키 중 메모리 값이 '진행중'(API 직결 플래그)이면 보존하고,
-       '새벽설교' 등 폴더 미추적 키는 건드리지 않는다 (자동 스캔이 진행중 표시를 지우던 문제 방지) */
-    var _sr = state.seriesReqs = state.seriesReqs || {};
-    ['시리즈묵상', '시리즈설교', '묵상집PDF'].forEach(function(k){
-      var folder = sReq[k] ? sReq[k].st : '';
-      if (folder) _sr[k] = folder;
-      else if (_sr[k] !== '진행중') _sr[k] = '';
-    });
+    state.seriesReqs = {
+      '시리즈묵상': sReq['시리즈묵상'] ? sReq['시리즈묵상'].st : '',
+      '시리즈설교': sReq['시리즈설교'] ? sReq['시리즈설교'].st : '',
+      '묵상집PDF': sReq['묵상집PDF'] ? sReq['묵상집PDF'].st : ''
+    };
     refreshReqBtns(); refreshSeriesBtns();
     if (!done) renderSyncState(); /* 처리 대기 핀 갱신 (done이면 sync()가 갱신) */
     var cid = state.detailId || state.editing;
@@ -5076,7 +5065,7 @@ window.dlOutputs = function(idxs){
   idxs.forEach(function(i, k){ setTimeout(function(){ dlOutput(i); }, k * 600); });
 };
 $('#outRefresh').addEventListener('click', withBusy($('#outRefresh'), '새로고침 중…', function(){ return renderOutputs(); }));
-$('#outCheck').addEventListener('click', function(){ scanRequests(false); });
+$('#outCheck').addEventListener('click', function(){ scanRequests(false).then ? scanRequests(false) : scanRequests(false); });
 
 /* ----- 예화 이미지 입력: 이미지 → 요청함 → 클로드 OCR → 자동 등록 ----- */
 function handleIdeaImages(files){
@@ -5989,7 +5978,6 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   var shotBtn = $('#aiShot'), attachBox = $('#aiAttach'), attachImg = $('#aiAttachImg');
   var convo = [];        /* {role, content} 누적 대화 */
   var busy = false;
-  var chatGen = 0;        /* 대화 세대 — [새 대화] 시 증가해, 진행 중 응답이 새 대화에 끼어드는 것 방지 */
   var pendingShot = null; /* 첨부 대기 중인 화면 캡처 dataURL */
 
   /* ── 페이지별 시스템 프롬프트 ── */
