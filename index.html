@@ -109,15 +109,28 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .donut{width:150px;height:150px;flex:0 0 auto}
 .donut .dnum{font-size:30px;font-weight:700;fill:var(--text)}
 .donut .dlbl{font-size:13px;fill:var(--dim)}
-.anLegs{flex:1 1 160px;min-width:160px;display:flex;flex-direction:column;gap:6px}
-.anLeg{display:flex;align-items:center;gap:8px;font-size:13px}
+.anLegs{flex:1 1 160px;min-width:160px;display:flex;flex-direction:column;gap:5px}
+.anLeg{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 6px;border-radius:7px;cursor:pointer}
+.anLeg[data-ansel]:hover{background:var(--card2)}
+.anLeg.on{background:#1a2030}
+.anLeg.on .anLbl{color:var(--accent);font-weight:600}
 .anDot{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
 .anLeg .anLbl{flex:1 1 auto;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .anLeg .anCnt{color:var(--dim);font-size:12px;flex:0 0 auto}
-.anTwrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
-.anTrow{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px}
-.anTrow span{color:var(--text)}
-.anTrow b{color:var(--accent)}
+.donut circle[data-ansel]{transition:transform .18s ease,stroke-width .15s ease,stroke-opacity .15s ease}
+/* 구약·신약 가로 막대 */
+.anBarRow{margin-bottom:14px}
+.anBarHd{font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px}
+.anBarHd small{color:var(--dim);font-weight:400;font-size:12px;margin-left:4px}
+.anBar{display:flex;width:100%;height:34px;border-radius:8px;overflow:hidden;background:var(--card2)}
+.anBseg{display:flex;align-items:center;justify-content:center;min-width:2px;cursor:pointer;border-right:1px solid rgba(8,10,16,.35);overflow:hidden;transition:filter .15s ease,opacity .15s ease}
+.anBseg:hover{filter:brightness(1.18)}
+.anBsegL{font-size:11px;color:#fff;white-space:nowrap;padding:0 4px;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.anBseg.on{outline:2px solid #fff;outline-offset:-2px;filter:brightness(1.15)}
+.anBseg.top{box-shadow:inset 0 0 0 99px rgba(255,255,255,.06)}
+.anDrillHd{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.anDrillHd h3{margin:0}
+.anDrillHd small{color:var(--dim);font-weight:400;font-size:13px}
 /* 미리보기 인쇄: 미리보기 종이(#prevPage)만 출력, 앱 UI·툴바 숨김 */
 @media print {
   body.previewing > *:not(#prevOv){ display:none !important; }
@@ -5941,26 +5954,44 @@ function renderLibrary(){
 })();
 
 /* ===== 설교 통계 분석 ===== */
-var ANALYTICS = { year: '', svc: '' };
-var DONUT_COLORS = ['#5b8def','#34c4a6','#f0a93b','#e2607a','#9b6cf0','#3bbdf0','#7cc452','#e8814a','#c569c4','#6b8294','#d4a83b','#5fae8c'];
-function donutSvg(items, total){
-  /* items: [{label,count,color}], 합이 total */
-  var R = 70, C = 80, sw = 26, circ = 2 * Math.PI * R, off = 0, seg = '';
+var ANALYTICS = { year: '', svc: '', sel: { kind: '', key: '' } };
+var DONUT_COLORS = ['#5b8def','#34c4a6','#f0a93b','#e2607a','#9b6cf0','#3bbdf0','#7cc452','#e8814a','#c569c4','#6b8294','#d4a83b','#5fae8c','#df6b9a','#56b8c9','#a3c243','#c98a4a'];
+window.anSelect = function(kind, key){
+  var S = ANALYTICS.sel;
+  if (S.kind === kind && S.key === key) { S.kind = ''; S.key = ''; } /* 토글 해제 */
+  else { S.kind = kind; S.key = key; }
+  renderAnalytics();
+  var el = $('#anDrill'); if (el && S.key) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+};
+function donutSvg(items, total, kind, selKey){
+  /* items: [{label,count,color,noSel}], 합이 total. 선택 세그먼트는 바깥으로 튀어나옴 */
+  var R = 64, C = 92, sw = 24, push = 11, circ = 2 * Math.PI * R, off = 0, seg = '';
+  var anySel = items.some(function(it){ return !it.noSel && it.label === selKey; });
   items.forEach(function(it){
     if (!it.count) return;
     var frac = it.count / total, len = frac * circ;
-    seg += '<circle cx="' + C + '" cy="' + C + '" r="' + R + '" fill="none" stroke="' + it.color + '" stroke-width="' + sw + '"'
-      + ' stroke-dasharray="' + len.toFixed(2) + ' ' + (circ - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '"></circle>';
+    var mid = (off + len / 2) / circ * 2 * Math.PI;       /* 12시 기준 시계방향 라디안 */
+    var on = !it.noSel && it.label === selKey;
+    var tx = on ? (push * Math.sin(mid)).toFixed(2) : 0;
+    var ty = on ? (-push * Math.cos(mid)).toFixed(2) : 0;
+    var op = anySel && !on ? '0.42' : '1';
+    var attr = it.noSel ? '' : ' data-ansel="1" data-kind="' + esc(kind) + '" data-key="' + esc(it.label) + '" style="cursor:pointer"';
+    seg += '<circle cx="' + C + '" cy="' + C + '" r="' + R + '" fill="none" stroke="' + it.color + '" stroke-width="' + (on ? sw + 3 : sw) + '"'
+      + ' stroke-opacity="' + op + '"'
+      + ' stroke-dasharray="' + len.toFixed(2) + ' ' + (circ - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '"'
+      + ' transform="translate(' + tx + ' ' + ty + ')"' + attr + '></circle>';
     off += len;
   });
-  return '<svg viewBox="0 0 160 160" class="donut" role="img">'
-    + '<g transform="rotate(-90 80 80)">' + seg + '</g>'
-    + '<text x="80" y="74" text-anchor="middle" class="dnum">' + total + '</text>'
-    + '<text x="80" y="93" text-anchor="middle" class="dlbl">편</text>'
+  return '<svg viewBox="0 0 184 184" class="donut" role="img">'
+    + '<g transform="rotate(-90 92 92)">' + seg + '</g>'
+    + '<text x="92" y="86" text-anchor="middle" class="dnum">' + total + '</text>'
+    + '<text x="92" y="106" text-anchor="middle" class="dlbl">편</text>'
     + '</svg>';
 }
 function donutBlock(title, counts, opts){
   opts = opts || {};
+  var kind = opts.kind || '';
+  var selKey = ANALYTICS.sel.kind === kind ? ANALYTICS.sel.key : '';
   var entries = Object.keys(counts).map(function(k){ return { label: k, count: counts[k] }; })
     .sort(function(a, b){ return b.count - a.count; });
   var total = entries.reduce(function(s, e){ return s + e.count; }, 0);
@@ -5971,15 +6002,17 @@ function donutBlock(title, counts, opts){
     etc = entries.slice(opts.top).reduce(function(s, e){ return s + e.count; }, 0);
   }
   var segItems = shown.map(function(e, i){ return { label: e.label, count: e.count, color: DONUT_COLORS[i % DONUT_COLORS.length] }; });
-  if (etc) segItems.push({ label: '기타', count: etc, color: '#586074' });
+  if (etc) segItems.push({ label: '기타 (' + (entries.length - shown.length) + '종)', count: etc, color: '#586074', noSel: true });
   var legend = segItems.map(function(e){
     var pct = (e.count / total * 100);
-    return '<div class="anLeg"><span class="anDot" style="background:' + e.color + '"></span>'
+    var on = !e.noSel && e.label === selKey;
+    var attr = e.noSel ? '' : ' data-ansel="1" data-kind="' + esc(kind) + '" data-key="' + esc(e.label) + '"';
+    return '<div class="anLeg' + (on ? ' on' : '') + '"' + attr + '><span class="anDot" style="background:' + e.color + '"></span>'
       + '<span class="anLbl">' + esc(e.label) + '</span>'
       + '<span class="anCnt">' + e.count + '편 · ' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%</span></div>';
   }).join('');
   return '<div class="anCard"><h3>' + esc(title) + '</h3>'
-    + '<div class="anBody">' + donutSvg(segItems, total) + '<div class="anLegs">' + legend + '</div></div></div>';
+    + '<div class="anBody">' + donutSvg(segItems, total, kind, selKey) + '<div class="anLegs">' + legend + '</div></div></div>';
 }
 function renderAnalytics(){
   var box = $('#anResults'); if (!box) return;
@@ -6004,15 +6037,14 @@ function renderAnalytics(){
   if (A.year) list = list.filter(function(s){ return String(s['날짜'] || '').slice(0, 4) === A.year; });
   if (A.svc) list = list.filter(function(s){ return svcOf(s) === A.svc; });
   /* 집계 */
-  var byBook = {}, byTopic = {}, bySvc = {}, ot = 0, nt = 0, bookKnown = 0, topicKnown = 0;
+  var byBook = {}, byTopic = {}, bySvc = {}, ot = 0, nt = 0, bookKnown = 0;
   list.forEach(function(s){
     var b = bibleBookOf(s);
     if (b){ byBook[b.name] = (byBook[b.name] || 0) + 1; bookKnown++; if (b.testament === '구약') ot++; else nt++; }
-    topicsOf(s).forEach(function(t){ byTopic[t] = (byTopic[t] || 0) + 1; topicKnown++; });
+    topicsOf(s).forEach(function(t){ byTopic[t] = (byTopic[t] || 0) + 1; });
     var sv = svcOf(s); if (sv) bySvc[sv] = (bySvc[sv] || 0) + 1;
   });
   var html = '';
-  /* 요약 줄 */
   html += '<div class="anSummary">'
     + '<div class="anStat"><b>' + list.length + '</b><span>분석 대상 설교</span></div>'
     + '<div class="anStat"><b>' + bookKnown + '</b><span>본문 식별</span></div>'
@@ -6020,32 +6052,65 @@ function renderAnalytics(){
     + '<div class="anStat"><b>' + Object.keys(byBook).length + '</b><span>설교한 성경권 수</span></div>'
     + '</div>';
   html += '<div class="anGrid">';
-  html += donutBlock('성경권별 설교 (구약 ' + ot + ' · 신약 ' + nt + ')', byBook, { top: 11 });
-  html += donutBlock('주제별 설교', byTopic, { top: 11 });
-  if (!A.svc) html += donutBlock('예배 구분별 설교', bySvc, { top: 9 });
+  html += donutBlock('성경권별 설교 (구약 ' + ot + ' · 신약 ' + nt + ')', byBook, { top: 11, kind: 'book' });
+  html += donutBlock('주제별 설교', byTopic, { top: 11, kind: 'topic' });
+  if (!A.svc) html += donutBlock('예배 구분별 설교', bySvc, { top: 9, kind: 'svc' });
   html += '</div>';
-  /* 구약/신약 권별 표 (참고) */
-  html += anTestamentTable(byBook);
+  /* 구약/신약 가로 막대 */
+  html += anTestamentBars(byBook);
+  /* 선택 분류의 설교 목록(드릴다운) */
+  html += anDrill(list);
   box.innerHTML = html;
 }
-function anTestamentTable(byBook){
-  var ot = [], nt = [];
-  BOOK_FULL.forEach(function(name, i){
-    if (byBook[name] == null) return;
-    (i < 39 ? ot : nt).push({ name: name, count: byBook[name] });
-  });
-  function col(title, arr){
-    if (!arr.length) return '';
-    return '<div class="anTcol"><h4>' + title + '</h4>' + arr.map(function(e){
-      return '<div class="anTrow"><span>' + esc(e.name) + '</span><b>' + e.count + '</b></div>';
-    }).join('') + '</div>';
-  }
-  return '<div class="anCard"><h3>전 권별 설교 횟수 (정경 순서)</h3><div class="anTwrap">'
-    + col('구약', ot) + col('신약', nt) + '</div></div>';
+function anTestamentBars(byBook){
+  var rows = [{ t: '구약', lo: 0, hi: 39 }, { t: '신약', lo: 39, hi: 66 }];
+  var selKey = ANALYTICS.sel.kind === 'book' ? ANALYTICS.sel.key : '';
+  var out = rows.map(function(r){
+    var arr = [];
+    for (var i = r.lo; i < r.hi; i++){ var nm = BOOK_FULL[i]; if (byBook[nm] != null) arr.push({ name: nm, count: byBook[nm], ci: i - r.lo }); }
+    if (!arr.length) return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>설교 없음</small></div></div>';
+    var tot = arr.reduce(function(s, e){ return s + e.count; }, 0);
+    var max = arr.reduce(function(m, e){ return Math.max(m, e.count); }, 0);
+    var segs = arr.map(function(e){
+      var pct = (e.count / tot * 100);
+      var on = e.name === selKey;
+      var label = pct >= 7 ? '<span class="anBsegL">' + esc(e.name) + ' ' + e.count + '</span>' : '';
+      return '<div class="anBseg' + (on ? ' on' : '') + (e.count === max ? ' top' : '') + '" style="flex:' + e.count + ' 1 0;background:' + DONUT_COLORS[e.ci % DONUT_COLORS.length] + '"'
+        + ' title="' + esc(e.name) + ' ' + e.count + '편 (' + (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%)"'
+        + ' data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '">' + label + '</div>';
+    }).join('');
+    return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>' + tot + '편 · ' + arr.length + '권</small></div>'
+      + '<div class="anBar">' + segs + '</div></div>';
+  }).join('');
+  return '<div class="anCard"><h3>구약·신약 권별 설교 분포 (정경 순서 · 길이=설교 횟수)</h3>'
+    + '<div class="cnt" style="margin:-4px 0 12px">막대가 길수록 그 책의 설교가 많습니다. 한 칸을 누르면 아래에 해당 설교 목록이 나옵니다.</div>'
+    + out + '</div>';
+}
+function anDrill(list){
+  var S = ANALYTICS.sel;
+  if (!S.key) return '<div id="anDrill"></div>';
+  var matched = list.filter(function(s){
+    if (S.kind === 'book'){ var b = bibleBookOf(s); return b && b.name === S.key; }
+    if (S.kind === 'topic') return topicsOf(s).indexOf(S.key) >= 0;
+    if (S.kind === 'svc') return svcOf(s) === S.key;
+    return false;
+  }).sort(function(a, b){ return String(b['날짜'] || '').localeCompare(String(a['날짜'] || '')); });
+  var kindLbl = S.kind === 'book' ? '성경권' : S.kind === 'topic' ? '주제' : '예배';
+  return '<div class="anCard" id="anDrill">'
+    + '<div class="anDrillHd"><h3>' + esc(S.key) + ' <small>· ' + kindLbl + ' · ' + matched.length + '편</small></h3>'
+    + '<button class="btn sub" type="button" onclick="anSelect(\'' + esc(S.kind) + '\',\'' + esc(String(S.key).replace(/'/g, "\\'")) + '\')">선택 해제 ✕</button></div>'
+    + (matched.length ? matched.map(renderLibRow).join('') : '<div class="empty">해당 설교가 없습니다.</div>')
+    + '</div>';
 }
 (function(){
-  var y = $('#anYear'); if (y) y.addEventListener('change', function(){ ANALYTICS.year = y.value; renderAnalytics(); });
-  var sv = $('#anSvc'); if (sv) sv.addEventListener('change', function(){ ANALYTICS.svc = sv.value; renderAnalytics(); });
+  var y = $('#anYear'); if (y) y.addEventListener('change', function(){ ANALYTICS.year = y.value; ANALYTICS.sel = { kind: '', key: '' }; renderAnalytics(); });
+  var sv = $('#anSvc'); if (sv) sv.addEventListener('change', function(){ ANALYTICS.svc = sv.value; ANALYTICS.sel = { kind: '', key: '' }; renderAnalytics(); });
+  var box = $('#anResults');
+  if (box) box.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('#anDrill .libRow, #anDrill details')) return; /* 목록 행 클릭은 통과 */
+    var t = e.target.closest && e.target.closest('[data-ansel]');
+    if (t) { e.preventDefault(); window.anSelect(t.getAttribute('data-kind'), t.getAttribute('data-key')); }
+  });
 })();
 function renderArchive(){
   var box = $('#aResults'), cnt = $('#aCnt'), inp = $('#aq');
@@ -6363,7 +6428,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v119';
+var APP_VER = 'v120';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
