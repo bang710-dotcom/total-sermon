@@ -5774,16 +5774,19 @@ $$('#page-search .chip').forEach(function(c){
 /* ===================== 미래설교 보관함 (상태 '보관' 전용) ===================== */
 /* ===================== 설교 라이브러리 ===================== */
 state.lib = { year: '', svc: '', flag: '', q: '' };
-/* 예배구분: 칸이 비면 제목 첫 토큰으로 보완(옛 임포트 행은 예배구분이 제목에만 들어 있음) */
-var _svcSet = null;
+/* 예배 카테고리 분류:
+   ① 제목에 '수련회' → 수련회, '헌신예배' → 헌신예배 (예배구분 칸보다 우선)
+   ② 그 외엔 예배구분 칸(없으면 제목 첫 토큰)이 정규 예배면 그대로
+   ③ 나머지(일회성: SMC 연주회·청소년오케스트라 등)는 모두 특별설교 */
+var SVC_REGULAR = { '대학부':1,'새벽':1,'노년':1,'고등부':1,'고등':1,'금요':1,'수요':1,'찬양':1,'주일찬양':1,'주일':1,'청년':1 };
 function svcOf(s){
-  var v = (s['예배구분'] || '').trim(); if (v) return v;
-  if (!_svcSet){
-    _svcSet = { '대학부':1,'새벽':1,'노년':1,'고등부':1,'금요':1,'수요':1,'찬양':1,'주일찬양':1,'청년':1,'주일':1 };
-    (state.data.sermons || []).forEach(function(x){ var f = (x['예배구분'] || '').trim(); if (f) _svcSet[f] = 1; });
-  }
-  var m = String(s['제목'] || '').trim().match(/^([가-힣]+)/);
-  return (m && _svcSet[m[1]]) ? m[1] : '';
+  var t = String(s['제목'] || '');
+  if (t.indexOf('수련회') >= 0) return '수련회';
+  if (t.indexOf('헌신예배') >= 0) return '헌신예배';
+  var cand = (s['예배구분'] || '').trim();
+  if (!cand) { var m = t.trim().match(/^([가-힣]+)/); cand = m ? m[1] : ''; }
+  if (cand === '찬양') cand = '주일찬양';   /* 찬양·주일찬양 통합 */
+  return SVC_REGULAR[cand] ? cand : '특별설교';
 }
 function libFiles(s){
   var m = {};
@@ -6172,7 +6175,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v113';
+var APP_VER = 'v114';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
