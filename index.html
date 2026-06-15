@@ -787,6 +787,7 @@ body.aiChatOpen #aiFab{display:none}
       </div>
       <div class="card">
         <button class="btn sub" id="syncBtn">지금 동기화</button>
+        <button class="btn sub" id="fullSyncBtn" style="margin-top:8px">전체 새로고침 (처음부터 다시 받기)</button>
         <div class="cnt" id="dataStat" style="margin-top:10px"></div>
         <div class="cnt" id="queueStat"></div>
       </div>
@@ -989,9 +990,17 @@ function mergeDelta(d){
     if (Array.isArray(arr)) state.data[x.sheet] = arr.filter(function(r){ return String(r['ID']) !== String(x.id); });
   });
 }
+/* 단일 비행: 동시 호출(저장 직후 + 기기 포커스 등)이 겹쳐 flushQueue가 이중 전송되는 것 방지 */
+var _pullInflight = null;
+function pullData(opts){
+  if (_pullInflight) return _pullInflight;
+  _pullInflight = _pullData(opts).then(function(r){ _pullInflight = null; return r; },
+                                       function(e){ _pullInflight = null; throw e; });
+  return _pullInflight;
+}
 /* 시트에서 최신 데이터를 받아 상태·공통 화면을 갱신 (토스트 없는 조용한 코어).
    opts.full=true 또는 동기화 기준점(state.syncAt) 없으면 전체 조회, 아니면 변경분(델타)만. */
-function pullData(opts){
+function _pullData(opts){
   opts = opts || {};
   var since = opts.full ? '' : (state.syncAt || '');
   return flushQueue().then(function(){
@@ -1053,8 +1062,10 @@ function bootLoad(){
   });
 }
 
+var _flushing = false;
 function flushQueue(){
-  if (!state.queue.length) return Promise.resolve();
+  if (!state.queue.length || _flushing) return Promise.resolve();
+  _flushing = true;
   var q = state.queue.slice();
   var chain = Promise.resolve();
   q.forEach(function(item){
@@ -1064,7 +1075,7 @@ function flushQueue(){
       });
     });
   });
-  return chain.catch(function(){ renderStats(); });
+  return chain.catch(function(){ renderStats(); }).then(function(){ _flushing = false; });
 }
 
 function submit(body, okMsg){
@@ -5848,7 +5859,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }).catch(function(){}).then(function(){
     normalizeSermonStatuses(); /* 캐시 데이터의 구버전 상태값도 정규화 */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); cwRender();
-    /* 실행 시 1회 전체 로드(시리즈 세부 포함). 이후 사용 중에는 자동 재호출 없음. */
+    /* 델타 동기화 기준점 복원(없으면 bootLoad가 전체 조회) */
+    return idbGet('syncAt').then(function(v){ if (v) state.syncAt = v; }).catch(function(){});
+  }).then(function(){
+    /* 실행 시 동기화: 기준점 있으면 변경분만, 없으면 전체. 이후엔 기기 포커스/저장 시 델타로 따라잡음. */
     if (state.settings.url) bootLoad();
   });
 })();
