@@ -379,6 +379,16 @@ html[data-theme="sepia"]{
   --text:#3b3018; --dim:#7a6a48; --accent:#b07d2e; --accent2:#3f7d6e;
   --ok:#2f8a55; --warn:#b6502a;
 }
+/* 밝은 테마(라이트·세피아)에서 다크 톤 하드코딩 색이 그대로 남던 문제 보정
+   — 요청버튼 상태색·배지·중복/정상 박스 */
+html[data-theme="light"] .btn.done, html[data-theme="sepia"] .btn.done,
+html[data-theme="light"] .btn.fin,  html[data-theme="sepia"] .btn.fin{background:#e7f0fb;border-color:#9bc1ec;color:#1f5fa0}
+html[data-theme="light"] .btn.req,  html[data-theme="sepia"] .btn.req{background:#fbf0d6;border-color:#d9a92e;color:#8a6a12}
+html[data-theme="light"] .b-sermon, html[data-theme="sepia"] .b-sermon{background:#dfe5ff;color:#3a4ea8}
+html[data-theme="light"] .b-idea,   html[data-theme="sepia"] .b-idea{background:#f1e6c8;color:#8a6a12}
+html[data-theme="light"] .dupbox,   html[data-theme="sepia"] .dupbox{background:#fbeae5}
+html[data-theme="light"] .dupbox .d,html[data-theme="sepia"] .dupbox .d{border-top-color:#e3c6bb}
+html[data-theme="light"] .okbox,    html[data-theme="sepia"] .okbox{background:#e6f3ec}
 
 /* ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획 전용) ============ */
 :root{--aip-w:380px}
