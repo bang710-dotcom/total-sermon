@@ -1209,11 +1209,11 @@ function findSermon(id){ return state.data.sermons.filter(function(x){ return x[
 function ensureText(id){
   var s = findSermon(id);
   if (!s) return Promise.resolve(null);
-  if (String(s['원고텍스트'] || '').trim()) return Promise.resolve(s);
+  if (String(s['원고텍스트'] || '').trim() || s._txt) return Promise.resolve(s);  /* 이미 있거나 1회 시도함 */
   return api({ action: 'text', id: id }).then(function(d){
     if (d && d['원고텍스트'] != null) s['원고텍스트'] = d['원고텍스트'];
     if (d && d['요약본'] && !String(s['요약본'] || '').trim()) s['요약본'] = d['요약본'];
-    saveData(); return s;
+    s._txt = true; saveData(); return s;
   }).catch(function(){ return s; });
 }
 function findIdea(id){ return state.data.ideas.filter(function(x){ return x['ID'] === id; })[0]; }
@@ -1382,6 +1382,13 @@ function openDetail(kind, id){
   pane.scrollTop = keepScroll;
   if (kind === 'sermon' && (!state.assets[id] || Date.now() - state.assets[id].__t > 30000)) {
     checkAssets(id).then(function(){
+      if (state.detailId === id && pane.classList.contains('open')) openDetail(kind, id);
+    });
+  }
+  /* 원고 전문은 슬림 목록에서 빠져 있으므로 상세 열 때 지연 로드 후 재렌더 */
+  if (kind === 'sermon') {
+    var _s = findSermon(id);
+    if (_s && !String(_s['원고텍스트'] || '').trim() && !_s._txt) ensureText(id).then(function(){
       if (state.detailId === id && pane.classList.contains('open')) openDetail(kind, id);
     });
   }
@@ -5885,6 +5892,26 @@ $$('#inboxFilter .chip').forEach(function(c){
 });
 
 $('#q').addEventListener('input', debounce(runSearch, 120));
+/* 원고 전문(시트 서버측) 검색 — Enter로 실행, 메타 검색결과에 없는 매칭을 덧붙임 */
+function serverFullText(){
+  var q = $('#q').value.trim(); if (!q) return;
+  var shown = {}; $$('#qResults .item[data-kind="sermon"]').forEach(function(el){ shown[el.dataset.id] = 1; });
+  setSyncState('원고 전문 검색 중…', true);
+  api({ action: 'search', q: q }).then(function(ids){
+    renderSyncState();
+    var terms = (state.lastTerms && state.lastTerms.length) ? state.lastTerms : q.toLowerCase().split(/\s+/).filter(Boolean);
+    var add = (ids || []).map(findSermon).filter(function(s){ return s && !shown[s['ID']] && s['상태'] !== '보관'; });
+    if (!add.length) { toast('원고 전문에서 추가로 찾은 결과가 없습니다.'); return; }
+    var html = '<div class="cnt" style="margin:12px 2px 6px;color:var(--accent2)">📄 원고 전문 일치 ' + add.length + '건 (클릭하면 원고를 불러옵니다)</div>' +
+      add.map(function(s){
+        return '<div class="item" data-kind="sermon" data-id="' + esc(s['ID']) + '"><div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
+          (s['시리즈'] ? '<span>' + esc(s['시리즈']) + '</span>' : '') + '<span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
+          '<div class="title">' + hl(s['제목'], terms) + ' <span style="color:var(--dim);font-weight:400;font-size:13px">' + hl(s['본문'], terms) + '</span></div></div>';
+      }).join('');
+    $('#qResults').insertAdjacentHTML('beforeend', html);
+  }).catch(function(e){ renderSyncState(); toast('전문 검색 실패: ' + e.message); });
+}
+$('#q').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); runSearch(); serverFullText(); } });
 $('#ideaContent').addEventListener('input', debounce(checkDup, 350));
 
 /* iOS 핀치 줌·더블탭 줌 방지 */
