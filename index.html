@@ -92,6 +92,15 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .libItem>summary{cursor:pointer;list-style:none}
 .libItem>summary::-webkit-details-marker{display:none}
 .libBody{margin-top:9px;border-top:1px solid var(--line);padding-top:9px}
+/* 미리보기 인쇄: 미리보기 종이(#prevPage)만 출력, 앱 UI·툴바 숨김 */
+@media print {
+  body.previewing > *:not(#prevOv){ display:none !important; }
+  body.previewing #prevOv{ position:static !important; inset:auto !important; background:#fff !important; overflow:visible !important; padding:0 !important; display:block !important }
+  body.previewing #prevBar{ display:none !important }
+  body.previewing #prevPage{ box-shadow:none !important; max-width:none !important; width:auto !important; min-height:0 !important; padding:0 !important; color:#000 !important }
+  body.previewing { background:#fff !important }
+  @page { margin:15mm }
+}
 .b-sermon{background:#283250;color:#9eb4ff}.b-idea{background:#3d3322;color:#e8c87a}
 .b-state{background:var(--card2);color:var(--dim);border:1px solid var(--line)}
 .empty{text-align:center;color:var(--dim);padding:38px 0;font-size:14px}
@@ -6057,21 +6066,23 @@ function openPreview(contentHtml, exportFn){
   var ov = document.createElement('div');
   ov.id = 'prevOv';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(60,60,60,0.92);overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:16px;-webkit-overflow-scrolling:touch';
-  var bar = '<div id="prevBar" style="width:100%;max-width:720px;display:flex;gap:8px;margin-bottom:12px;position:sticky;top:0;z-index:1;flex-wrap:wrap">' +
+  var bar = '<div id="prevBar" style="width:100%;max-width:720px;display:flex;gap:8px;margin-bottom:12px;position:sticky;top:0;z-index:1;flex-wrap:wrap;background:rgba(45,45,45,0.96);padding:8px;border-radius:8px">' +
     '<button onclick="closePrev()" style="background:#444;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">× 닫기</button>' +
     '<button onclick="window.print()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">🖨 인쇄</button>';
   if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">DOCX 내보내기</button>';
   bar += '</div>';
-  var page = '<div id="prevPage" style="background:#fff;width:100%;max-width:720px;padding:48px 56px;box-shadow:0 4px 24px rgba(0,0,0,0.5);font-family:\'함초롬바탕\',\'나눔명조\',serif;color:#111;font-size:14pt;line-height:2;word-break:keep-all;min-height:960px">'+contentHtml+'</div>';
+  var page = '<div id="prevPage" style="flex:0 0 auto;background:#fff;width:100%;max-width:720px;padding:48px 56px;box-shadow:0 4px 24px rgba(0,0,0,0.5);font-family:\'함초롬바탕\',\'나눔명조\',serif;color:#111;font-size:14pt;line-height:2;word-break:keep-all;min-height:960px">'+contentHtml+'</div>';
   ov.innerHTML = bar + page;
   document.body.appendChild(ov);
   window._pvEx = exportFn || null;
   document.body.style.overflow = 'hidden';
+  document.body.classList.add('previewing');   /* 인쇄 시 미리보기만 출력되도록 표식 */
 }
 function closePrev(){
   var ov = document.getElementById('prevOv');
   if (ov) ov.remove();
   document.body.style.overflow = '';
+  document.body.classList.remove('previewing');
   window._pvEx = null;
 }
 window.previewSermon = function(id){
@@ -6138,7 +6149,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v110';
+var APP_VER = 'v111';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
