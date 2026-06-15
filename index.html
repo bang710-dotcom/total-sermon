@@ -84,6 +84,14 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .item .snippet b, .item .title b, .fulltext b{color:var(--accent2);font-weight:700}
 .badge{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:700}
 .dawn-ic{vertical-align:-0.15em}
+/* 설교 라이브러리 */
+.libsel{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
+.lchips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.lchip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;background:var(--card2);color:var(--dim);border:1px solid var(--line)}
+.lchip.on{background:rgba(127,196,255,.14);color:var(--accent);border-color:rgba(127,196,255,.5)}
+.libItem>summary{cursor:pointer;list-style:none}
+.libItem>summary::-webkit-details-marker{display:none}
+.libBody{margin-top:9px;border-top:1px solid var(--line);padding-top:9px}
 .b-sermon{background:#283250;color:#9eb4ff}.b-idea{background:#3d3322;color:#e8c87a}
 .b-state{background:var(--card2);color:var(--dim);border:1px solid var(--line)}
 .empty{text-align:center;color:var(--dim);padding:38px 0;font-size:14px}
@@ -1052,6 +1060,7 @@ function _pullData(opts){
     normalizeSermonStatuses(!d.delta); promotePreachedByDate(!d.delta); saveData();  /* 전체 로드 때만 시트도 정리·승격 */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
+    if ($('#page-library') && $('#page-library').classList.contains('on')) renderLibrary();
     return state.data;
   });
 }
@@ -5663,6 +5672,7 @@ function showPage(name){
   if (name === 'series') { state.seriesMode = 'list'; renderSeriesPage(); }
   if (name === 'occ') renderOccPane();
   if (name === 'archive') renderArchive();
+  if (name === 'library') renderLibrary();
   if (name === 'compose') cwRender(); /* 진행중 설교 목록 갱신 */
   /* 사용 중에는 시트를 다시 부르지 않는다 — 실행 시 1회 전체 로드(bootLoad)만 수행 */
 }
@@ -5712,6 +5722,78 @@ $$('#page-search .chip').forEach(function(c){
 });
 
 /* ===================== 미래설교 보관함 (상태 '보관' 전용) ===================== */
+/* ===================== 설교 라이브러리 ===================== */
+state.lib = { year: '', svc: '', flag: '', q: '' };
+function libFiles(s){
+  var m = {};
+  try { m = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { m = {}; }
+  return { 원고: !!(m.docx || m.hwp), pdf: !!m.pdf, card: !!m.card, ltc: !!m.ltc,
+           요약: !!String(s['요약본'] || '').trim(), map: m };
+}
+function renderLibRow(s){
+  var f = libFiles(s);
+  function chip(on, label){ return '<span class="lchip' + (on ? ' on' : '') + '">' + (on ? '● ' : '') + label + '</span>'; }
+  var series = s['시리즈'] ? esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') : '';
+  var paths = Object.keys(f.map).map(function(k){
+    var lbl = { hwp: '원고(HWP)', docx: '원고(DOCX)', pdf: 'PDF', card: '카드원고', ltc: 'LTC' }[k] || k;
+    return '<div class="cnt" style="word-break:break-all">' + lbl + ': ' + esc(f.map[k]) + '</div>';
+  }).join('');
+  var id = esc(s['ID'] || '');
+  return '<details class="card libItem" style="margin-bottom:7px"><summary>' +
+    '<div class="meta">' +
+      '<span class="badge b-state">' + esc(s['상태'] || '') + '</span>' +
+      (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
+      (s['예배구분'] ? '<span>' + esc(s['예배구분']) + '</span>' : '') +
+      (series ? '<span>' + series + '</span>' : '') + '</div>' +
+    '<div class="title" style="font-size:15.5px;margin-top:2px">' + esc(s['제목'] || '(제목 없음)') +
+      (s['본문'] ? ' <span style="color:var(--accent2);font-weight:400;font-size:13px">' + esc(s['본문']) + '</span>' : '') + '</div>' +
+    '<div class="lchips">' + chip(f.원고, '원고') + chip(f.pdf, 'PDF') + chip(f.card, '카드') + chip(f.요약, '요약') + chip(f.ltc, 'LTC') + '</div>' +
+    '</summary>' +
+    '<div class="libBody">' +
+      (s['핵심메시지'] ? '<div class="kv"><span class="k">메시지</span><span class="v">' + esc(s['핵심메시지']) + '</span></div>' : '') +
+      (String(s['요약본'] || '').trim() ? '<details class="sumbox"><summary>요약본</summary><div class="fulltext" style="margin-top:6px">' + mdSum(esc(s['요약본'])) + '</div></details>' : '') +
+      (String(s['대지'] || '').trim() ? '<div class="kv"><span class="k">대지</span><span class="v">' + esc(s['대지']).replace(/\n/g, '<br>') + '</span></div>' : '') +
+      (paths ? '<div style="margin-top:6px">' + paths + '</div>' : '<div class="cnt" style="margin-top:6px">연결된 파일 정보 없음</div>') +
+      '<div class="toolrow" style="margin-top:9px">' +
+        '<button class="btn sub" onclick="previewSermon(\'' + id + '\')">미리보기</button>' +
+        '<button class="btn sub" onclick="editSermon(\'' + id + '\')">새버전 수정</button>' +
+        '<button class="btn gold desktop-only" onclick="exportSermonDocx(\'' + id + '\')">DOCX 내보내기</button>' +
+      '</div>' +
+    '</div></details>';
+}
+function renderLibrary(){
+  var box = $('#libResults'); if (!box) return;
+  var L = state.lib;
+  var all = (state.data.sermons || []).filter(function(s){ return s['상태'] !== '보관'; });
+  /* 연도·예배 옵션 채우기(선택 보존) */
+  var years = {}, svcs = {};
+  all.forEach(function(s){ var y = String(s['날짜'] || '').slice(0, 4); if (y) years[y] = 1; if (s['예배구분']) svcs[s['예배구분']] = 1; });
+  var ysel = $('#libYear');
+  if (ysel) ysel.innerHTML = '<option value="">연도 전체</option>' + Object.keys(years).sort().reverse().map(function(y){ return '<option' + (y === L.year ? ' selected' : '') + '>' + y + '</option>'; }).join('');
+  var ssel = $('#libSvc');
+  if (ssel) ssel.innerHTML = '<option value="">예배 전체</option>' + Object.keys(svcs).sort().map(function(v){ return '<option' + (v === L.svc ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
+  var list = all;
+  if (L.year) list = list.filter(function(s){ return String(s['날짜'] || '').slice(0, 4) === L.year; });
+  if (L.svc) list = list.filter(function(s){ return (s['예배구분'] || '') === L.svc; });
+  if (L.q) { var ts = L.q.toLowerCase().split(/\s+/).filter(Boolean);
+    list = list.filter(function(s){ var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드','요약본','원고텍스트','대지'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase(); return ts.every(function(t){ return hay.indexOf(t) >= 0; }); }); }
+  if (L.flag) list = list.filter(function(s){ var f = libFiles(s); return L.flag === 'nopdf' ? !f.pdf : L.flag === 'nosum' ? !f.요약 : L.flag === 'nocard' ? !f.card : true; });
+  list.sort(function(a, b){ return String(b['날짜'] || '').localeCompare(String(a['날짜'] || '')); });
+  $('#libCnt').textContent = '설교 ' + list.length + '편' + (all.length !== list.length ? ' / 전체 ' + all.length : '');
+  box.innerHTML = list.length ? list.slice(0, 800).map(renderLibRow).join('') : '<div class="empty">조건에 맞는 설교가 없습니다.</div>';
+}
+(function(){
+  var q = $('#libQ'); if (q) q.addEventListener('input', debounce(function(){ state.lib.q = q.value.trim(); renderLibrary(); }, 150));
+  var y = $('#libYear'); if (y) y.addEventListener('change', function(){ state.lib.year = y.value; renderLibrary(); });
+  var sv = $('#libSvc'); if (sv) sv.addEventListener('change', function(){ state.lib.svc = sv.value; renderLibrary(); });
+  $$('#page-library [data-libflag]').forEach(function(c){
+    c.addEventListener('click', function(){
+      state.lib.flag = c.dataset.libflag;
+      $$('#page-library [data-libflag]').forEach(function(x){ x.classList.toggle('on', x === c); });
+      renderLibrary();
+    });
+  });
+})();
 function renderArchive(){
   var box = $('#aResults'), cnt = $('#aCnt'), inp = $('#aq');
   if (!box) return;
@@ -6003,7 +6085,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v108';
+var APP_VER = 'v109';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
