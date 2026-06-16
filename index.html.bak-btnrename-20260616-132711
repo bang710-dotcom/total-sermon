@@ -786,7 +786,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         </div>
         <div class="toolrow" style="margin-top:6px">
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
-          <button class="btn sub mini" data-req="리더스앱업로드"><span>LTC 교재 /<br>리더스앱 업로드</span></button>
+          <button class="btn sub mini" data-req="리더스앱업로드"><span>리더스앱<br>업로드용</span></button>
         </div>
         <label class="desktop-only" style="display:block;margin-top:12px">📥 클로드 요청함 → Cowork가 처리 (이미지)</label>
         <div class="toolrow desktop-only" style="margin-top:4px">
@@ -990,7 +990,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <input type="url" id="setLaUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>리더스앱 업로드 토큰</label>
         <input type="text" id="setLaToken" placeholder="리더스앱 시트 setup 실행 시 로그의 토큰">
-        <div class="cnt" style="margin-top:6px">리더스앱 통합시트에 배포한 업로드 웹앱 주소·토큰을 넣으면, [LTC 교재 / 리더스앱 업로드] 버튼이 파일을 받는 대신 <b>시트에 바로 한 줄 추가</b>합니다. 비워두면 기존처럼 TSV 파일을 내려받습니다.</div>
+        <div class="cnt" style="margin-top:6px">리더스앱 통합시트에 배포한 업로드 웹앱 주소·토큰을 넣으면, [리더스앱 업로드용] 버튼이 파일을 받는 대신 <b>시트에 바로 한 줄 추가</b>합니다. 비워두면 기존처럼 TSV 파일을 내려받습니다.</div>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
       <div class="card">
@@ -1515,7 +1515,7 @@ function openDetail(kind, id){
     var done = doneTypes(s['ID']);
     var doneList = REQ_TYPES.filter(function(t){ return done[t]; });
     if (doneList.length) html += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
-      doneList.map(function(t){ return esc(REQ_LABELS[t] || t) + ' ✓'; }).join(' · ') + '</span></div>';
+      doneList.map(function(t){ return esc(t) + ' ✓'; }).join(' · ') + '</span></div>';
     html += '<div class="toolrow desktop-only">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">새버전으로 수정</button>' +
       '<button class="btn sub" onclick="previewSermon(\'' + esc(s['ID']) + '\')">미리보기</button>' +
@@ -3649,8 +3649,8 @@ $('#occ_sit').addEventListener('input', function(){ state.occ.sit = this.value; 
 
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
-var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 / 리더스앱 업로드', '원고작성': '스킬사용 원고요청' };
-var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 /<br>리더스앱 업로드', '원고작성': '스킬사용<br>원고요청' };
+var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱 업로드용', '원고작성': '스킬사용 원고요청' };
+var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스앱<br>업로드용', '원고작성': '스킬사용<br>원고요청' };
 function doneTypes(sermonId){
   var set = {};
   state.data.outputs.forEach(function(o){
