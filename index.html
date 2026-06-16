@@ -4616,12 +4616,12 @@ function spSermonHtml(){
     var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn" data-w="' + wi + '" data-act="weekSave" style="width:auto">수정사항 저장 (보관함 반영)</button></div>';
     return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + edit + wSave + '</details>';
   }).join('');
-  h += '<div class="toolrow">' +
-    '<button class="btn" id="spSermonConfirm" style="flex:1 1 auto;font-size:13px">선택 항목 전체 확정</button>' +
-    '<button class="btn sub" id="spSermonArchive" style="flex:0 0 auto;width:auto;font-size:13px">시트에 보관</button>' +
-    '<button class="btn sub" id="spSermonRedo" style="flex:0 0 auto;width:auto;font-size:13px">재작업</button>' +
-    '<button class="btn sub" onclick="openSeriesSermonPreview()" style="flex:0 0 auto;width:auto;font-size:13px">미리보기</button>' +
-    '<button class="btn sub" id="spSermonExport" style="flex:0 0 auto;width:auto;font-size:13px">설교계획 내보내기</button>' +
+  h += '<div class="toolrow" style="flex-wrap:wrap">' +
+    '<button class="btn" id="spSermonConfirm" style="flex:1 1 100%;font-size:13px">선택 항목 전체 확정</button>' +
+    '<button class="btn sub" id="spSermonArchive" style="flex:1 1 auto;min-width:120px;font-size:13px">시트에 보관</button>' +
+    '<button class="btn sub" id="spSermonRedo" style="flex:1 1 auto;min-width:120px;font-size:13px">재작업</button>' +
+    '<button class="btn sub" onclick="openSeriesSermonPreview()" style="flex:1 1 auto;min-width:120px;font-size:13px">미리보기</button>' +
+    '<button class="btn sub" id="spSermonExport" style="flex:1 1 auto;min-width:120px;font-size:13px">설교계획 내보내기</button>' +
     '</div>';
   return h;
 }
@@ -5158,10 +5158,10 @@ function spDawnHtml(){
     var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn" data-w="' + wi + '" data-act="weekSave" style="width:auto">수정사항 저장 (보관함 반영)</button></div>';
     return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + edit + wSave + '</details>';
   }).join('');
-  h += '<div class="toolrow">' +
-    '<button class="btn" id="spSermonConfirm" style="flex:1 1 auto;font-size:13px">선택 항목 전체 확정</button>' +
-    '<button class="btn sub" id="spSermonArchive" style="flex:0 0 auto;width:auto;font-size:13px">시트에 보관</button>' +
-    '<button class="btn sub" id="spDawnRedo" style="flex:0 0 auto;width:auto;font-size:13px">재작업</button>' +
+  h += '<div class="toolrow" style="flex-wrap:wrap">' +
+    '<button class="btn" id="spSermonConfirm" style="flex:1 1 100%;font-size:13px">선택 항목 전체 확정</button>' +
+    '<button class="btn sub" id="spSermonArchive" style="flex:1 1 auto;min-width:120px;font-size:13px">시트에 보관</button>' +
+    '<button class="btn sub" id="spDawnRedo" style="flex:1 1 auto;min-width:120px;font-size:13px">재작업</button>' +
     '</div>';
   return h;
 }
@@ -6539,7 +6539,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v124';
+var APP_VER = 'v125';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
