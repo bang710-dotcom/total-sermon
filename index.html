@@ -502,11 +502,8 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
 #aiResetW{display:none}
 #aiResetW.show{display:flex}
 @media (max-width:760px){.aiResize{display:none}}
-/* 데스크탑: 대화가 열리면 본문 전체를 오른쪽으로 밀어 작성창을 가리지 않음 */
-@media (min-width:900px) and (hover:hover){
-  #app{transition:margin .22s ease}
-  body.aiChatOpen #app{max-width:none;margin-left:calc(var(--aip-w) + 28px);margin-right:16px}
-}
+/* 데스크탑: 대화창은 본문을 밀어내지 않고 그 위를 '덮는다'(오버레이).
+   너비를 늘려도 다른 영역을 가릴 뿐 레이아웃을 밀지 않는다. */
 .aiHd{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:13px 14px;border-bottom:1px solid var(--line);background:var(--card2)}
 .aiHd .ttl{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:7px}
 .aiHd .ttl b{color:var(--accent)}
@@ -6684,7 +6681,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v125';
+var APP_VER = 'v126';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
