@@ -7457,6 +7457,38 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   try { modelSel.value = localStorage.getItem('tsa.aiModel') || 'claude-opus-4-8'; } catch(e){}
   modelSel.addEventListener('change', function(){ try { localStorage.setItem('tsa.aiModel', modelSel.value); } catch(e){} });
 
+  /* ── 대화창 너비 조절(우측 경계 드래그) ── */
+  var W_DEFAULT = 380, W_MIN = 320, docEl = document.documentElement;
+  var resizeH = $('#aiResize'), resetBtn = $('#aiResetW');
+  function wMax(){ return Math.max(W_MIN, Math.round(window.innerWidth * 0.92)); }   /* 화면의 92%까지 (그 너머는 의미 없음) */
+  function wCur(){ var v = parseInt(getComputedStyle(docEl).getPropertyValue('--aip-w'), 10); return isNaN(v) ? W_DEFAULT : v; }
+  function setW(px, persist){
+    px = Math.max(W_MIN, Math.min(Math.round(px), wMax()));
+    docEl.style.setProperty('--aip-w', px + 'px');
+    if (resetBtn) resetBtn.classList.toggle('show', Math.abs(px - W_DEFAULT) > 2);
+    if (persist){ try { localStorage.setItem('tsa.aipW', String(px)); } catch(e){} }
+  }
+  function resetW(){ docEl.style.removeProperty('--aip-w'); if (resetBtn) resetBtn.classList.remove('show'); try { localStorage.removeItem('tsa.aipW'); } catch(e){} }
+  /* 저장된 너비 복원 */
+  try { var savedW = parseInt(localStorage.getItem('tsa.aipW'), 10); if (!isNaN(savedW)) setW(savedW, false); } catch(e){}
+  if (resizeH){
+    var dragging = false, startX = 0, startW = 0;
+    resizeH.addEventListener('pointerdown', function(e){
+      dragging = true; startX = e.clientX; startW = wCur();
+      document.body.classList.add('aiResizing');
+      try { resizeH.setPointerCapture(e.pointerId); } catch(_){}
+      e.preventDefault();
+    });
+    resizeH.addEventListener('pointermove', function(e){ if (dragging) setW(startW + (e.clientX - startX), false); });
+    function endDrag(){ if (!dragging) return; dragging = false; document.body.classList.remove('aiResizing'); setW(wCur(), true); }
+    resizeH.addEventListener('pointerup', endDrag);
+    resizeH.addEventListener('pointercancel', endDrag);
+    resizeH.addEventListener('dblclick', resetW);   /* 핸들 더블클릭 = 초기화 */
+  }
+  if (resetBtn) resetBtn.addEventListener('click', function(){ resetW(); input.focus(); });
+  /* 창 크기 변하면 너비 재보정(화면 밖으로 안 나가게) */
+  window.addEventListener('resize', function(){ if (wCur() !== W_DEFAULT) setW(wCur(), false); });
+
   /* 초기 진입 페이지 반영 */
   syncFab();
 })();
