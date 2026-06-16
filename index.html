@@ -484,6 +484,11 @@ html[data-theme="sepia"] .b-idea{background:#f0e6cd;color:#8a6a2a}
 html[data-theme="sepia"] .dupbox{background:#f3e6dd}
 html[data-theme="sepia"] .dupbox .d{border-top-color:#e0cdbb}
 html[data-theme="sepia"] .okbox{background:#dcefe5}
+/* 진한 강조색(애플 블루·스타벅스 그린) 위 글자는 흰색으로 — 기본 버튼·활성 칩 */
+html[data-theme="light"] .btn:not(.sub):not(.done):not(.fin):not(.req),
+html[data-theme="sepia"] .btn:not(.sub):not(.done):not(.fin):not(.req){color:#fff}
+html[data-theme="light"] .chip.on, html[data-theme="sepia"] .chip.on{color:#fff}
+html[data-theme="light"] .tabbar button.on, html[data-theme="sepia"] .tabbar button.on{color:var(--accent)}
 
 /* ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획 전용) ============ */
 :root{--aip-w:380px;--aip-w0:380px}
@@ -6779,7 +6784,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v134';
+var APP_VER = 'v135';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
