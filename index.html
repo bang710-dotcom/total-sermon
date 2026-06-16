@@ -2245,10 +2245,13 @@ function parasFromText(meta, bodyText, style){
   var allowInd = style !== '카드원고';
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
+    var conv = toLeadRefQuote(l);                 /* 옛 형식(후행 괄호) → 새 형식으로 강제 */
+    var converted = conv !== l;
+    if (converted) l = conv.trim();
     var isHead = /^\d+\s*[.)]\s/.test(l);
     var isEx = /^ex\)/i.test(l);
     var isQuote = !isHead && !isEx && refQuoteRe().test(l);   /* 성경 인용 → 빨간 볼드 */
-    paras.push({ text: line, bold: isHead || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
+    paras.push({ text: converted ? l : line, bold: isHead || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
       ind: !!(allowInd && l && !isHead && !isEx && !isQuote) /* 일반 단락만 첫 줄 들여쓰기 */ });
   });
   return { paras: paras, st: st };
@@ -2265,7 +2268,11 @@ function parasFromCompose(meta, c){
   while (paras.length && !String(paras[paras.length - 1].text || '').trim()) paras.pop(); /* 끝 빈줄 정리 */
   paras.push({ text: '' }); /* 제목부 뒤 한 줄 */
   function push(t, b, col, ind){
-    if (!b && col == null && refQuoteRe().test(String(t).trim())) { b = true; col = REF_RED; ind = false; }  /* 본문 인용 자동 빨간 볼드 */
+    if (!b && col == null){
+      var cv = toLeadRefQuote(String(t).trim());           /* 옛 형식 → 새 형식 강제 */
+      if (cv !== String(t).trim()) { t = cv; }
+      if (refQuoteRe().test(String(t).trim())) { b = true; col = REF_RED; ind = false; }  /* 본문 인용 자동 빨간 볼드 */
+    }
     paras.push({ text: t, bold: !!b, color: col, ind: !!ind });
   }
   function blank(){ if (!paras.length || String(paras[paras.length - 1].text || '').trim()) paras.push({ text: '' }); } /* 섹션 사이 한 줄 (중복 빈줄 방지) */
@@ -2855,7 +2862,7 @@ var P_MS = [
 '당신은 영락교회 대학부 설교자의 원고 집필 비서다. 입력된 초고(JSON)를 강단에서 바로 쓸 완성 설교문으로 발전시킨다.',
 '출력은 반드시 JSON 배열만: [{"t":"p|head|ex|quote","x":"문단 텍스트"}] — 서론부터 결론·축복까지 순서대로.',
 't 규칙: head=대지 선언("1. ...")·"말씀을 정리합니다."·결론 핵심메시지 / ex="ex) 예화제목" 한 줄 / quote=성경 인용 / p=일반 문단.',
-'★ 인용(quote) 형식(필수): 반드시 「약어 장:절, "절 단위 전문(개역개정)"」 한 줄로 쓴다. 책 이름은 약어(요·창·고전·살전 등), 맨 앞에 약어 장:절을 적고 쉼표+공백 뒤 큰따옴표로 본문 전문. 범위면 "요 7:14-24". 예) 요 7:18, "스스로 말하는 자는 자기 영광만 구하되 그를 보내신 이의 영광을 구하는 자는 참되니 그 속에 불의가 없느니라". (앱이 자동으로 빨간 볼드로 표시하므로 별도 장식·괄호 표기 금지)',
+'★ 인용(quote) 형식(필수): 반드시 「약어 장:절, "절 단위 전문(개역개정)"」 한 줄로 쓴다. 책 이름은 약어(요·창·고전·살전 등), 맨 앞에 약어 장:절을 적고 쉼표+공백 뒤 큰따옴표로 본문 전문. 범위면 "요 7:14-24". 예) 요 7:18, "스스로 말하는 자는 자기 영광만 구하되 그를 보내신 이의 영광을 구하는 자는 참되니 그 속에 불의가 없느니라". (앱이 자동으로 빨간 볼드로 표시하므로 별도 장식 금지. 초고에 「본문…(책 장:절)」 같은 후행 괄호 형식이 있어도 반드시 이 선두 약어 형식으로 바꿔 쓴다)',
 '집필 원칙: ①초고의 구조(대지 순서·예화 배치)와 핵심메시지를 존중하고 살을 붙인다 ②호칭은 "여러분" ③짧고 강력한 호흡 — 한 문장에 생각 하나, 만연체·문어체 금지 ④빠른 논리 도약과 속도감 ⑤단락마다 상징 어휘 또는 생각이 머무는 명제 문장 하나 ⑥그러나 적용은 오늘 실행 가능한 구체적 행동으로 착지 ⑦"~지요?", "~잖아요"를 "~입니다"와 섞은 구어체 ⑧대조("~가 아닙니다. ~입니다")와 재정의 활용 ⑨결론은 단문 3~4개 + 축복 선언으로 짧게 ⑩"/" 끊어 읽기 표시 절대 금지.',
 '분량: 4,500~6,000자.'].join('\n');
 
@@ -2927,7 +2934,7 @@ async function aiManuscript(id, meta){
     /* 완성 원고를 바로 DOCX로 내보내지 않고 오른쪽 작성창에 채운다 —
        검토·수정 후 [내보내기]로 DOCX 생성. 자유원고는 이어진 텍스트, 기본·카드원고는 구조 파싱. */
     var c = state.compose;
-    c.free = arr.map(function(p){ return String(p.x || ''); }).join('\n');
+    c.free = arr.map(function(p){ var x = String(p.x || ''); var cv = toLeadRefQuote(x.trim()); return (cv !== x.trim()) ? cv : x; }).join('\n');   /* 본문 인용 새 형식 강제 */
     if (c.style === '자유원고') {
       renderEditor();
     } else {
@@ -3056,6 +3063,7 @@ function buildCardDocx(D, meta, items){
         children: [new D.TextRun({ text: x, bold: true, color: 'FFFFFF' })]
       }));
     } else {
+      if (it.t === 'quote') x = toLeadRefQuote(x);   /* 후행 괄호 → 선두 약어 형식 강제 */
       var col = it.t === 'quote' ? 'EE0000' : it.t === 'ex' ? '215E99' : undefined;
       children.push(new D.Paragraph({ spacing: { line: 360 },
         children: [new D.TextRun({ text: x, bold: it.t !== 'p', color: col })] }));
@@ -6726,7 +6734,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v130';
+var APP_VER = 'v131';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
