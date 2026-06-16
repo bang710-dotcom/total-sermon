@@ -3834,7 +3834,21 @@ function reqBtnSt(sermonId, type){
   return doneTypes(sermonId)[type] ? 'done' : pend[type] === '완료' ? 'fin' : '';
 }
 /* 완료(✓) 클릭 = 저장된 최신 파일 받기 / 재생성 선택, 대기(▲)=안내, 그 외=생성 */
+/* 클릭 활성화(user activation)가 살아있는 시작 시점에 폴더 권한을 먼저 확보한다.
+   생성(callClaude)이 수 분 걸려 그 뒤에 requestPermission을 부르면 활성화가 만료돼
+   "User activation is required to request permissions" 오류가 난다 — 그래서 클릭 직후 미리 요청. */
+async function ensureReqPerms(type){
+  try {
+    var hs = [];
+    if (type === 'LTC교재' || type === '리더스앱업로드') { if (ltcHandle) hs.push(ltcHandle); if (dirHandle) hs.push(dirHandle); }
+    else if (type === '카드원고' || type === '원고작성') { if (dirHandle) hs.push(dirHandle); }
+    for (var i = 0; i < hs.length; i++){
+      if (await hs[i].queryPermission({ mode: 'readwrite' }) !== 'granted') await hs[i].requestPermission({ mode: 'readwrite' });
+    }
+  } catch (e) { /* 거부·실패해도 본 작업은 진행 — 저장 단계에서 다운로드로 폴백 */ }
+}
 async function reqOrDownload(id, type, meta){
+  await ensureReqPerms(type);   /* 활성화 살아있을 때 폴더 권한 선확보 */
   /* 원고텍스트가 필요한 작업인데 목록(슬림)이라 비어 있으면 지연 로드 */
   if (id && meta && !String(meta['원고텍스트'] || '').trim()) {
     var _ls = await ensureText(id);
@@ -3887,7 +3901,7 @@ $$('#composeMeta [data-req]').forEach(function(b){
       meta['ID'] = state.editing;
       reqOrDownload(state.editing, b.dataset.req, meta);
     } else if (aiKey() && AI_DIRECT[b.dataset.req]) {
-      AI_DIRECT[b.dataset.req]('', meta); /* API 직결 (미저장 설교) */
+      ensureReqPerms(b.dataset.req).then(function(){ AI_DIRECT[b.dataset.req]('', meta); }); /* API 직결 (미저장 설교) — 권한 선확보 */
     } else {
       writeRequestFile(b.dataset.req, meta);
     }
