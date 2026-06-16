@@ -264,10 +264,25 @@ input[type=date]{cursor:pointer}
 .ptRow .ptHead{display:flex;gap:6px;align-items:center}
 .ptRow .ptNo{flex:0 0 22px;text-align:center;font-weight:700;color:var(--accent);font-size:14px}
 .ptRow input{padding:8px 10px;font-size:14px}
-.ptRow .ptBtn{flex:0 0 26px;height:30px;background:var(--card2);border:1px solid var(--line);border-radius:7px;color:var(--dim);cursor:pointer;font-size:13px;padding:0}
-.ptRow .ptBtn:hover{color:var(--text)}
-.ptRow .ptIll{display:flex;gap:6px;align-items:center;margin-top:6px}
-.ptRow .ptIll .exTag{flex:0 0 26px;text-align:center;color:#5b9bd5;font-weight:700;font-size:12.5px}
+/* 대지 섹션(외부) 이동 버튼 — 회색 사각, 큼 */
+.ptRow .ptHead .ptBtn{flex:0 0 28px;height:32px;background:var(--card2);border:1px solid var(--line);border-radius:7px;color:var(--dim);cursor:pointer;font-size:14px;font-weight:700;padding:0}
+.ptRow .ptHead .ptBtn:hover{color:var(--text);border-color:var(--dim)}
+/* 대지 내부 블록 영역 */
+.ptRow .ptBlocks{margin-top:9px;padding-left:11px;border-left:2px solid rgba(124,154,255,.35);display:flex;flex-direction:column;gap:6px}
+.ptRow .ptBlk{display:flex;gap:6px;align-items:center}
+.ptRow .ptBlk .blkTag{flex:0 0 40px;text-align:center;font-weight:700;font-size:11.5px;border-radius:6px;padding:4px 0;line-height:1.1}
+.ptRow .ptBlk .bodyTag{color:var(--accent2);background:rgba(224,182,92,.13);border:1px solid rgba(224,182,92,.4)}
+.ptRow .ptBlk .illTag{color:#5b9bd5;background:rgba(91,155,213,.14);border:1px solid rgba(91,155,213,.42)}
+.ptRow .ptBlk input{flex:1;min-width:0;padding:6px 9px;font-size:13px}
+.ptRow .ptBlk .blkHint{flex:1;color:var(--dim);font-size:12px;font-style:italic}
+/* 내부(블록) 이동 버튼 — 파란 둥근 알약, 작음 → 섹션 버튼과 명확히 구별 */
+.ptRow .ptBlk .blkBtn{flex:0 0 23px;height:25px;background:rgba(124,154,255,.12);border:1px solid rgba(124,154,255,.5);border-radius:13px;color:var(--accent);cursor:pointer;font-size:12px;font-weight:700;padding:0}
+.ptRow .ptBlk .blkBtn:hover{background:rgba(124,154,255,.26)}
+.ptRow .ptBlk .blkBtn:disabled{opacity:.28;cursor:default}
+.ptRow .ptBlk .blkBtn.bdel{color:#d9788a;border-color:rgba(217,120,138,.5);background:rgba(217,120,138,.12)}
+.ptRow .ptBlk .blkBtn.bdel:hover{background:rgba(217,120,138,.26)}
+.ptRow .ptAddRow{margin-top:7px;padding-left:11px}
+.ptRow .ptAddRow .addIll{color:#5b9bd5}
 /* 구조화 에디터 (오른쪽) */
 #editorPane{display:flex;flex-direction:column;gap:0}
 .edHeader{padding:6px 4px 14px}
@@ -671,7 +686,7 @@ body.aiChatOpen #aiFab{display:none}
         <label>상태</label>
         <select id="c_state"><option>구상/연구</option><option>작성중</option><option>완료</option><option>설교함</option></select>
         <label>핵심메시지</label><input type="text" id="c_msg">
-        <label>대지 · 예화 (↑↓로 순서 변경, 번호 자동)</label>
+        <label>대지 · 예화 (회색 ↑↓=대지 이동 · 파란 ↑↓=내부 순서 · ＋예화 추가)</label>
         <div id="pointList"></div>
         <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
         <div id="c_dupCheck"></div>
@@ -1703,25 +1718,31 @@ function parseFreeToStructure(){
   if (!heads.length) { c.intro = txt.trim(); return true; }
   c.intro = lines.slice(0, heads[0]).join('\n').replace(/\n+$/, '').trim();
   var pts = [];
+  function jt(a){
+    while (a.length && !a[0].trim()) a.shift();
+    while (a.length && !a[a.length - 1].trim()) a.pop();
+    return a.join('\n');
+  }
   heads.forEach(function(h, k){
     var end = k + 1 < heads.length ? heads[k + 1] : endBody;
-    var p = newPoint();
-    p.text = lines[h].replace(/^\s*\d+\s*[.)]\s*/, '').trim();
-    var body = [], illBody = [], apply = [], mode = 'body';
+    var p = { text: lines[h].replace(/^\s*\d+\s*[.)]\s*/, '').trim(), blocks: [], apply: '' };
+    var bodyAcc = [], curIll = null, applyAcc = [], mode = 'body';
+    function flushBody(){ var t = jt(bodyAcc); if (t) p.blocks.push(newBodyBlock(t)); bodyAcc = []; }
+    function flushIll(){ if (curIll) { curIll.illBody = jt(curIll._b); delete curIll._b; p.blocks.push(curIll); curIll = null; } }
     for (var i = h + 1; i < end; i++) {
       var l = lines[i];
       if (/^\s*(▶|【)/.test(l)) continue; /* 이미지 전환 바 등은 건너뜀 */
-      if (/^\s*ex\)/i.test(l) && !p.ill) { p.ill = l.replace(/^\s*ex\)\s*/i, '').trim(); mode = 'ill'; continue; }
+      var exm = l.match(/^\s*ex\)\s*(.*)$/i);
+      if (exm) { flushBody(); flushIll(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
       var am = l.match(/^\s*\(적용\)\s*(.*)$/);
-      if (am) { mode = 'apply'; if (am[1].trim()) apply.push(am[1]); continue; }
-      (mode === 'body' ? body : mode === 'ill' ? illBody : apply).push(l);
+      if (am) { flushBody(); flushIll(); mode = 'apply'; if (am[1].trim()) applyAcc.push(am[1]); continue; }
+      if (mode === 'ill' && curIll) curIll._b.push(l);
+      else if (mode === 'apply') applyAcc.push(l);
+      else bodyAcc.push(l);
     }
-    function jt(a){
-      while (a.length && !a[0].trim()) a.shift();
-      while (a.length && !a[a.length - 1].trim()) a.pop();
-      return a.join('\n');
-    }
-    p.body = jt(body); p.illBody = jt(illBody); p.apply = jt(apply);
+    flushBody(); flushIll();
+    p.apply = jt(applyAcc);
+    if (!p.blocks.length) p.blocks = [newBodyBlock('')];
     pts.push(p);
   });
   if (pts.length) c.points = pts;
@@ -1757,7 +1778,7 @@ function parseSummaryToStructure(){
     if (h) {
       var tag = h[1];
       if (tag.indexOf('서론') === 0) cur = { k: 'intro' };
-      else if (tag.indexOf('대지') === 0) { var p = newPoint(); p.text = smd(h[2]); pts.push(p); cur = { k: 'pt', p: p }; }
+      else if (tag.indexOf('대지') === 0) { var p = { text: smd(h[2]), blocks: [], apply: '' }; pts.push(p); cur = { k: 'pt', p: p, cb: null }; }
       else cur = { k: 'conc' };
       return;
     }
@@ -1766,17 +1787,19 @@ function parseSummaryToStructure(){
     if (!cur || cur.k === 'intro') { if (cur) intro.push(sm); return; }
     if (cur.k === 'conc') { conc.push(sm); return; }
     var ex = body.match(/^ex\)\s*(.+)$/i);
-    if (ex && !cur.p.ill) {
+    if (ex) {
       var seg = ex[1].split(/\s—\s|\s--\s/);
-      cur.p.ill = smd(seg[0]);
-      if (seg.length > 1) cur.p.illBody = smd(seg.slice(1).join(' — '));
+      cur.p.blocks.push(newIllBlock(smd(seg[0]), seg.length > 1 ? smd(seg.slice(1).join(' — ')) : ''));
+      cur.cb = null; /* 예화 뒤 이어지는 본문은 새 내용 블록으로 (순서 보존) */
     } else if (/^적용\s*[:：]/.test(sm)) {
       cur.p.apply = (cur.p.apply ? cur.p.apply + '\n' : '') + sm.replace(/^적용\s*[:：]\s*/, '');
     } else {
-      cur.p.body = (cur.p.body ? cur.p.body + '\n' : '') + sm;
+      if (!cur.cb) { cur.cb = newBodyBlock(''); cur.p.blocks.push(cur.cb); }
+      cur.cb.body = (cur.cb.body ? cur.cb.body + '\n' : '') + sm;
     }
   });
   if (!pts.length && !intro.length) return false;
+  pts.forEach(function(p){ if (!p.blocks.length) p.blocks = [newBodyBlock('')]; });
   c.intro = intro.join('\n');
   if (pts.length) c.points = pts;
   c.concBody = conc.join('\n');
@@ -1791,7 +1814,7 @@ $$('#c_style .chip').forEach(function(ch){
     if (from === '자유원고' && to !== '자유원고') {
       /* 구조 칸이 비어 있으면: ①원고텍스트 구조 파싱 → 안 되면 ②요약본 뼈대 */
       var emptyStruct = !c.intro.trim() && !c.concBody.trim() &&
-        c.points.every(function(p){ return !p.body.trim() && !p.illBody.trim() && !p.apply.trim(); });
+        c.points.every(function(p){ return !pStructFilled(p); });
       if (emptyStruct) {
         var note = '';
         /* 요약본 우선(뼈대 활용) → 없으면 앱 작성 초고의 구조 파싱 */
@@ -1921,8 +1944,8 @@ function collectCompose(){
   var data = {};
   Object.keys(C_META).forEach(function(k){ data[k] = $('#' + C_META[k]).value.trim(); });
   var pts = state.compose.points;
-  data['대지'] = pts.filter(function(p){ return p.text.trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n');
-  data['예화'] = pts.map(function(p){ return p.ill.trim(); }).filter(Boolean).join('; ');
+  data['대지'] = pts.filter(function(p){ return (p.text || '').trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n');
+  data['예화'] = pts.map(function(p){ return pIllTitles(p).join(' / '); }).filter(Boolean).join('; ');
   data['원고텍스트'] = assembleText();
   data['원고유형'] = state.compose.style || '기본원고';
   return data;
@@ -1951,8 +1974,8 @@ function editSermonFill(id){
   c.sum = s['요약본'] || '';
   var dj = djParse(String(s['대지'] || ''));
   var ills = String(s['예화'] || '').split(';').map(function(x){ return x.trim(); });
-  c.points = dj.length ? dj.map(function(d, i){ var p = newPoint(); p.text = d['문'] || ''; p.body = d['근거'] || ''; p.apply = d['적용'] || ''; p.ill = ills[i] || ''; return p; }) : [newPoint()];
-  if (!dj.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ var p = newPoint(); p.ill = t; return p; });
+  c.points = dj.length ? dj.map(function(d, i){ return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '', ill: (ills[i] || '').split(' / ')[0] || '' }); }) : [newPoint()];
+  if (!dj.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ return normPoint({ ill: t.split(' / ')[0] || t }); });
   state.compose = c;
   /* 요약본이 있으면 곧바로 기본원고 구조(뼈대)로 연다 — 풀텍스트는 [자유원고]·[전체 원고 보기] */
   if (!s['원고유형'] && String(c.sum || '').trim() && parseSummaryToStructure()) {
@@ -1967,7 +1990,7 @@ function editSermonFill(id){
 window.editSermon = function(id){ ensureText(id).then(function(){ editSermonFill(id); }); };
 $('#c_new').addEventListener('click', function(){
   var c = state.compose;
-  var hasContent = c.free.trim() || c.intro.trim() || c.points.some(function(p){ return p.body.trim() || p.illBody.trim(); });
+  var hasContent = c.free.trim() || c.intro.trim() || c.points.some(function(p){ return pStructFilled(p); });
   if (hasContent && !confirm('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
   clearCompose();
 });
@@ -2164,12 +2187,15 @@ function parasFromCompose(meta, c){
   if (c.intro.trim()) { c.intro.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
   /* 대지 */
   c.points.forEach(function(p, i){
-    if (!(p.text.trim() || p.body.trim() || p.ill.trim() || p.illBody.trim() || p.apply.trim())) return;
-    push((i + 1) + '. ' + p.text.trim(), true);
-    if (p.body.trim()) p.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
-    if (p.ill.trim()) push('ex) ' + p.ill.trim(), true, EX_BLUE);
-    if (p.illBody.trim()) p.illBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
-    if (p.apply.trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); }
+    if (!pHasContent(p)) return;
+    push((i + 1) + '. ' + (p.text || '').trim(), true);
+    pBlocks(p).forEach(function(b){
+      if (b.type === 'ill') {
+        if ((b.ill || '').trim()) push('ex) ' + b.ill.trim(), true, EX_BLUE);
+        if ((b.illBody || '').trim()) b.illBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
+      } else if ((b.body || '').trim()) b.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
+    });
+    if ((p.apply || '').trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); }
     blank(); /* 대지 사이 한 줄 */
   });
   /* 결론 */
@@ -3423,7 +3449,7 @@ window.occPick = function(i){
   $('#c_note').value = (o['주제근거'] ? '주제 근거: ' + o['주제근거'] + ' / ' : '') + '상황: ' + O.sit.replace(/\s+/g, ' ').slice(0, 120);
   var dj = djParse(o['대지']);
   if (dj.length) state.compose.points = dj.map(function(d){
-    var p = newPoint(); p.text = d['문'] || ''; p.body = d['근거'] || ''; p.apply = d['적용'] || ''; return p;
+    return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '' });
   });
   renderPoints(); renderEditor();
   /* 선택한 보관 선택지를 [구상/연구]로 승격하고 수정 대상으로 연결 — 나머지 선택지는 [보관] 유지.
@@ -4810,7 +4836,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     var ed = w.edit || {};
     var c = state.compose;
     var hasContent = (c.free || '').trim() || (c.intro || '').trim() ||
-      (c.points || []).some(function(p){ return ((p.body || '').trim() || (p.illBody || '').trim()); });
+      (c.points || []).some(function(p){ return pStructFilled(p); });
     if (hasContent && !confirm(wSeq(w, wi) + '주차 설교 작성을 시작할까요?\n(현재 작성 중인 내용은 비워집니다)')) return;
     clearCompose();
     /* 날짜·메타 채우기 */
@@ -4823,7 +4849,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     var dj = djParse(String(ed['대지'] || ''));
     if (dj.length) {
       var nc = state.compose;
-      nc.points = dj.map(function(d){ var p = newPoint(); p.text = d['문'] || ''; p.body = d['근거'] || ''; p.apply = d['적용'] || ''; return p; });
+      nc.points = dj.map(function(d){ return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '' }); });
       renderPoints(); renderEditor();
     }
     showPage('compose');
@@ -6922,9 +6948,12 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
           var pts = (c.points || []).map(function(p, i){
             var t = String(p.text || p['문'] || p.t || '').trim();
             var seg = [];
-            if (String(p.body || '').trim()) seg.push('  내용: ' + String(p.body).trim());
-            var ill = [String(p.ill || '').trim(), String(p.illBody || '').trim()].filter(Boolean).join(' — ');
-            if (ill) seg.push('  예화: ' + ill);
+            pBlocks(p).forEach(function(b){
+              if (b.type === 'ill') {
+                var ill = [String(b.ill || '').trim(), String(b.illBody || '').trim()].filter(Boolean).join(' — ');
+                if (ill) seg.push('  예화: ' + ill);
+              } else if (String(b.body || '').trim()) seg.push('  내용: ' + String(b.body).trim());
+            });
             if (String(p.apply || '').trim()) seg.push('  적용: ' + String(p.apply).trim());
             if (!t && !seg.length) return '';
             return (i + 1) + '. ' + t + (seg.length ? '\n' + seg.join('\n') : '');
