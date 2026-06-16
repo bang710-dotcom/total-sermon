@@ -1939,6 +1939,9 @@ $$('#c_style .chip').forEach(function(ch){
       state.compose.style = to;
     }
     setStyleChips(); renderEditor();
+    /* 토글 자체의 형식 변환은 '편집'이 아니므로 기준 서명을 새로 잡는다.
+       이렇게 해야 실제 타이핑 변경이 없는 한 다음 토글에서 다시 저장되지 않는다. */
+    state.savedSig = composeSig();
   });
 });
 
@@ -6886,7 +6889,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v144';
+var APP_VER = 'v145';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
