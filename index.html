@@ -1516,20 +1516,21 @@ function openDetail(kind, id){
     var doneList = REQ_TYPES.filter(function(t){ return done[t]; });
     if (doneList.length) html += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
       doneList.map(function(t){ return esc(REQ_LABELS[t] || t) + ' ✓'; }).join(' · ') + '</span></div>';
-    html += '<div class="toolrow desktop-only">' +
+    html += '<div class="toolrow">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">새버전으로 수정</button>' +
       '<button class="btn sub" onclick="previewSermon(\'' + esc(s['ID']) + '\')">미리보기</button>' +
       '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
     state.detailId = s['ID'];
-    function reqBtnRow(types){
-      return '<div class="toolrow desktop-only">' + types.map(function(t){
+    function reqBtnRow(types, desktopOnly){
+      return '<div class="toolrow' + (desktopOnly ? ' desktop-only' : '') + '">' + types.map(function(t){
         var st = reqBtnSt(s['ID'], t);
         return '<button class="btn sub mini' + (st ? ' ' + st : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
           '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">●</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</button>';
       }).join('') + '</div>';
     }
-    html += reqBtnRow(['이미지프롬프트', '이미지생성', '카드원고']);
-    html += reqBtnRow(['설교요약', 'LTC교재', '리더스앱업로드']);
+    html += reqBtnRow(['이미지프롬프트', '이미지생성'], true);   /* 요청함(Cowork) 경유 — 데스크탑 전용 */
+    html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
+    html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
     var txt = String(s['원고텍스트'] || '');
     var hasSum = !!String(s['요약본'] || '').trim();
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">';
