@@ -3133,7 +3133,15 @@ async function aiLtcData(meta){
   if (j.gbs.length > 3) j.gbs = j.gbs.slice(0, 3);   /* 3개 초과면 앞 3개만 — 빡빡한 ===3 검증 완화 */
   if (!Array.isArray(j.notices)) j.notices = [];
   _ltcJson[key] = j;
+  if (meta['ID']) setSermonFileMap(meta['ID'], 'ltcData', j);   /* 세션 끊겨도 리더스앱이 같은 데이터 재사용(페어 유지) */
   return j;
+}
+/* 설교 레코드(파일맵.ltcData)에 저장된 LTC 데이터 — 세션·기기 무관 */
+function sermonLtcData(id){
+  var s = id && findSermon(id); if (!s) return null;
+  var m = {}; try { m = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { m = {}; }
+  var d = m.ltcData;
+  return (d && Array.isArray(d.sections) && d.sections.length && Array.isArray(d.gbs) && d.gbs.length) ? d : null;
 }
 async function aiLtc(id, meta){
   try {
@@ -3202,8 +3210,9 @@ async function aiLtc(id, meta){
 async function aiLeadersTsv(id, meta){
   try {
     var key = id || meta['제목'] || '';
-    var data = _ltcJson[key];
+    var data = _ltcJson[key] || sermonLtcData(id);   /* 메모리 → 저장된 LTC 데이터(세션 끊겨도 페어 유지) */
     if (!data) { toast('LTC 교재 내용을 먼저 생성합니다…'); data = await aiLtcData(meta); }
+    else _ltcJson[key] = data;
     var sc = await scriptureArr(meta['본문']);
     var ejson = {
       sections: data.sections, gbs: data.gbs,
@@ -6801,7 +6810,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v138';
+var APP_VER = 'v139';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
