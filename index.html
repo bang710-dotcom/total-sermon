@@ -5974,8 +5974,8 @@ function anArc(cx, cy, r, a0, a1){
   return 'M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2);
 }
 function donutSvg(items, total, kind, selKey){
-  /* 원호 슬라이스 + 양옆 지시선 라벨. 선택 슬라이스는 원 바깥으로 분리됨 */
-  var W = 600, H = 300, cx = 300, cy = 150, R = 80, sw = 28, push = 20, gap = 21;
+  /* 원호 슬라이스 + 양옆 지시선 라벨. 선택 슬라이스는 원 바깥으로 분리되고, 그 라벨도 함께 바깥으로 이동 */
+  var W = 600, H = 330, cx = 300, cy = 165, R = 84, sw = 30, push = 22, gap = 25, EX = push + sw / 2 + 10;
   var anySel = !!selKey && items.some(function(it){ return !it.noSel && it.label === selKey; });
   var off = 0, slices = '', labs = [];
   items.forEach(function(it){
@@ -5992,7 +5992,7 @@ function donutSvg(items, total, kind, selKey){
   });
   function place(side){
     var arr = labs.filter(function(o){ return o.side === side; });
-    arr.forEach(function(o){ o.y = cy - (R + 10) * Math.cos(o.mid); });
+    arr.forEach(function(o){ o.y = cy - (R + 10) * Math.cos(o.mid) + (o.on ? -push * Math.cos(o.mid) : 0); });
     arr.sort(function(a, b){ return a.y - b.y; });
     for (var i = 1; i < arr.length; i++){ if (arr[i].y < arr[i - 1].y + gap) arr[i].y = arr[i - 1].y + gap; }
     var over = arr.length ? arr[arr.length - 1].y - (H - 12) : 0;
@@ -6001,22 +6001,24 @@ function donutSvg(items, total, kind, selKey){
     return arr;
   }
   function leaders(arr, side){
-    var kneeX = side === 'r' ? cx + R + 24 : cx - R - 24;
-    var lineEnd = side === 'r' ? cx + R + 30 : cx - R - 30;
+    var sgn = side === 'r' ? 1 : -1;
     var anchor = side === 'r' ? 'start' : 'end';
     return arr.map(function(o){
-      var ps = anPolar(cx, cy, R + 2, o.mid);
+      var ex = o.on ? EX : 0;                         /* 선택 슬라이스는 라벨·지시선도 바깥으로 */
+      var kneeX = cx + sgn * (R + 24 + ex);
+      var lineEnd = cx + sgn * (R + 30 + ex);
+      var ps = anPolar(cx, cy, R + 2 + (o.on ? push : 0), o.mid);   /* 시작점도 분리된 호 가장자리에서 */
       var lop = anySel && !o.on ? '0.35' : '0.85';
-      var line = '<polyline points="' + ps[0].toFixed(1) + ',' + ps[1].toFixed(1) + ' ' + kneeX + ',' + o.y.toFixed(1) + ' ' + lineEnd + ',' + o.y.toFixed(1) + '" fill="none" stroke="' + o.color + '" stroke-width="1.4" stroke-opacity="' + lop + '"></polyline>';
+      var line = '<polyline points="' + ps[0].toFixed(1) + ',' + ps[1].toFixed(1) + ' ' + kneeX.toFixed(1) + ',' + o.y.toFixed(1) + ' ' + lineEnd.toFixed(1) + ',' + o.y.toFixed(1) + '" fill="none" stroke="' + o.color + '" stroke-width="1.4" stroke-opacity="' + lop + '"></polyline>';
       var attr = o.noSel ? '' : ' data-ansel="1" data-kind="' + esc(kind) + '" data-key="' + esc(o.label) + '" style="cursor:pointer"';
-      var tx = side === 'r' ? lineEnd + 4 : lineEnd - 4;
-      return line + '<text x="' + tx + '" y="' + (o.y + 4).toFixed(1) + '" text-anchor="' + anchor + '" class="dleg' + (o.on ? ' on' : '') + '"' + attr + '>' + esc(o.label) + ' ' + o.count + '</text>';
+      var tx = lineEnd + sgn * 5;
+      return line + '<text x="' + tx.toFixed(1) + '" y="' + (o.y + 5).toFixed(1) + '" text-anchor="' + anchor + '" class="dleg' + (o.on ? ' on' : '') + '"' + attr + '>' + esc(o.label) + ' ' + o.count + '</text>';
     }).join('');
   }
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="donut" role="img" preserveAspectRatio="xMidYMid meet">'
     + slices + leaders(place('r'), 'r') + leaders(place('l'), 'l')
-    + '<text x="' + cx + '" y="' + (cy - 2) + '" text-anchor="middle" class="dnum">' + total + '</text>'
-    + '<text x="' + cx + '" y="' + (cy + 20) + '" text-anchor="middle" class="dlbl">편</text>'
+    + '<text x="' + cx + '" y="' + (cy - 1) + '" text-anchor="middle" class="dnum">' + total + '</text>'
+    + '<text x="' + cx + '" y="' + (cy + 22) + '" text-anchor="middle" class="dlbl">편</text>'
     + '</svg>';
 }
 function donutBlock(title, counts, opts){
@@ -6074,8 +6076,11 @@ function renderAnalytics(){
     + '<div class="anStat"><b>' + ot + ' : ' + nt + '</b><span>구약 : 신약</span></div>'
     + '<div class="anStat"><b>' + Object.keys(byBook).length + '</b><span>설교한 성경권 수</span></div>'
     + '</div>';
+  var byBookOT = {}, byBookNT = {};
+  Object.keys(byBook).forEach(function(nm){ (BOOK_FULL.indexOf(nm) < 39 ? byBookOT : byBookNT)[nm] = byBook[nm]; });
   html += '<div class="anGrid">';
-  html += donutBlock('성경권별 설교 (구약 ' + ot + ' · 신약 ' + nt + ')', byBook, { top: 11, kind: 'book' });
+  html += donutBlock('성경권별 설교 — 구약 (' + ot + '편)', byBookOT, { top: 9, kind: 'book' });
+  html += donutBlock('성경권별 설교 — 신약 (' + nt + '편)', byBookNT, { top: 9, kind: 'book' });
   html += donutBlock('주제별 설교', byTopic, { top: 11, kind: 'topic' });
   if (!A.svc) html += donutBlock('예배 구분별 설교', bySvc, { top: 9, kind: 'svc' });
   html += '</div>';
