@@ -7318,13 +7318,79 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     if (!convo.length) return;
     var arr = loadSessions();
     if (!curSessId) curSessId = 'c' + Date.now();
-    var rec = { id: curSessId, ts: Date.now(), page: curPage(), title: sessTitle(convo), convo: convoForStore(convo) };
-    var idx = -1;
-    for (var i = 0; i < arr.length; i++){ if (arr[i] && arr[i].id === curSessId){ idx = i; break; } }
+    var prev = null;
+    for (var i = 0; i < arr.length; i++){ if (arr[i] && arr[i].id === curSessId){ prev = arr[i]; break; } }
+    var rec = { id: curSessId, sid: prev && prev.sid, ts: Date.now(), page: curPage(), title: sessTitle(convo), convo: convoForStore(convo) };
+    var idx = prev ? arr.indexOf(prev) : -1;
     if (idx >= 0) arr.splice(idx, 1);
     arr.push(rec);                      /* 최신을 맨 끝으로 */
     if (arr.length > MAX_SESS) arr = arr.slice(arr.length - MAX_SESS);
     saveSessions(arr);
+    schedulePush(rec);                  /* 기기 간 공유용 시트 동기화(디바운스) */
+  }
+
+  /* ===================== 대화 기록 기기 간 동기화(대화기록 시트) ===================== */
+  function chatSyncOn(){ return !!(state.settings && state.settings.url && state.settings.token); }
+  var _pushTimer = null, _pushQ = {};
+  function schedulePush(rec){
+    if (!chatSyncOn() || !rec) return;
+    _pushQ[rec.id] = rec;                /* 같은 세션은 최신 1건만 */
+    clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(flushPush, 1500);
+  }
+  function flushPush(){
+    if (!chatSyncOn() || !navigator.onLine) return;
+    var items = Object.keys(_pushQ).map(function(k){ return _pushQ[k]; }); _pushQ = {};
+    items.forEach(function(rec){
+      var data = { '로컬ID': rec.id, '제목': rec.title || '', '페이지': rec.page || '',
+        '시각': String(rec.ts || Date.now()), '대화': JSON.stringify(rec.convo || []) };
+      if (rec.sid){
+        data.ID = rec.sid;
+        apiPost({ action: 'update', sheet: 'chats', data: data }).catch(function(){
+          delete data.ID; addChatRow(rec, data);   /* 행이 사라졌으면 새로 추가 */
+        });
+      } else addChatRow(rec, data);
+    });
+  }
+  function addChatRow(rec, data){
+    apiPost({ action: 'add', sheet: 'chats', data: data }).then(function(id){
+      var arr = loadSessions();
+      for (var i = 0; i < arr.length; i++){ if (arr[i] && arr[i].id === rec.id){ arr[i].sid = id; break; } }
+      saveSessions(arr);
+    }).catch(function(){});
+  }
+  /* 원격(다른 기기) 대화 → 로컬에 병합. 같은 대화는 로컬ID로 식별, 최신(시각) 우선 */
+  function chatRemotePull(){
+    if (!chatSyncOn() || !navigator.onLine) return Promise.resolve(false);
+    return api({ action: 'list', sheet: 'chats' }).then(function(d){
+      var rows = (d && d.chats) || []; if (!rows.length) return false;
+      var arr = loadSessions(), byCid = {}, changed = false;
+      arr.forEach(function(s, i){ if (s && s.id) byCid[s.id] = i; });
+      rows.forEach(function(row){
+        var cid = row['로컬ID'] || row['ID']; if (!cid) return;
+        var conv; try { conv = JSON.parse(row['대화'] || '[]'); } catch(e){ conv = []; }
+        if (!Array.isArray(conv) || !conv.length) return;
+        var ts = +row['시각'] || 0;
+        var i = byCid[cid];
+        if (i == null){
+          arr.push({ id: cid, sid: row['ID'], ts: ts || Date.now(), page: row['페이지'] || '', title: row['제목'] || '새 대화', convo: conv });
+          byCid[cid] = arr.length - 1; changed = true;
+        } else {
+          var cur = arr[i];
+          if (!cur.sid){ cur.sid = row['ID']; changed = true; }
+          if (ts && ts > (cur.ts || 0)){
+            arr[i] = { id: cid, sid: row['ID'], ts: ts, page: row['페이지'] || '', title: row['제목'] || '새 대화', convo: conv };
+            changed = true;
+          }
+        }
+      });
+      if (changed){
+        arr.sort(function(a, b){ return (a.ts || 0) - (b.ts || 0); });
+        if (arr.length > MAX_SESS) arr = arr.slice(arr.length - MAX_SESS);
+        saveSessions(arr);
+      }
+      return changed;
+    }).catch(function(){ return false; });
   }
   function fmtTs(ts){
     var d = new Date(ts);
@@ -7351,6 +7417,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     persistCurrent();              /* 현재 진행 중 대화도 먼저 저장 */
     renderHistList();
     $('#aiHistOv').classList.add('open');
+    chatRemotePull().then(function(changed){ if (changed) renderHistList(); });   /* 다른 기기 대화 가져오기 */
   }
   function closeHistory(){ $('#aiHistOv').classList.remove('open'); }
   function renderHistList(){
