@@ -275,12 +275,13 @@ input[type=date]{cursor:pointer}
 .ptRow .ptBlk .illTag{color:#5b9bd5;background:rgba(91,155,213,.14);border:1px solid rgba(91,155,213,.42)}
 .ptRow .ptBlk input{flex:1;min-width:0;padding:6px 9px;font-size:13px}
 .ptRow .ptBlk .blkHint{flex:1;color:var(--dim);font-size:12px;font-style:italic}
-/* 내부(블록) 이동 버튼 — 파란 둥근 알약, 작음 → 섹션 버튼과 명확히 구별 */
-.ptRow .ptBlk .blkBtn{flex:0 0 23px;height:25px;background:rgba(124,154,255,.12);border:1px solid rgba(124,154,255,.5);border-radius:13px;color:var(--accent);cursor:pointer;font-size:12px;font-weight:700;padding:0}
-.ptRow .ptBlk .blkBtn:hover{background:rgba(124,154,255,.26)}
-.ptRow .ptBlk .blkBtn:disabled{opacity:.28;cursor:default}
-.ptRow .ptBlk .blkBtn.bdel{color:#d9788a;border-color:rgba(217,120,138,.5);background:rgba(217,120,138,.12)}
-.ptRow .ptBlk .blkBtn.bdel:hover{background:rgba(217,120,138,.26)}
+.ptRow .ptBlk .blkBodyPrev{flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 블록 드래그 핸들 — 잡아끌어 이동, 우클릭/롱프레스로 삭제 */
+.ptRow .ptBlk .dragH{flex:0 0 22px;text-align:center;cursor:grab;color:var(--dim);font-size:15px;line-height:1;user-select:none;-webkit-user-select:none;touch-action:none;padding:6px 0}
+.ptRow .ptBlk .dragH:hover{color:var(--accent)}
+.ptRow .ptBlk.dragging{opacity:.4}
+.ptRow .ptBlocks.cwSectActive{outline:2px dashed var(--accent);outline-offset:3px;border-radius:8px}
+.cwDropLine{height:0;border-top:2px solid var(--accent);margin:1px 0;border-radius:2px;pointer-events:none}
 .ptRow .ptAddRow{margin-top:7px;padding-left:11px}
 .ptRow .ptAddRow .addBody{color:var(--accent2);margin-right:16px}
 .ptRow .ptAddRow .addIll{color:#5b9bd5}
@@ -1732,17 +1733,17 @@ function renderPoints(){
   $('#pointList').innerHTML = c.points.map(function(p, i){
     p = normPoint(p); c.points[i] = p;
     var blk = p.blocks.map(function(b, bi){
-      var top = bi === 0, bot = bi === p.blocks.length - 1;
-      var up = '<button class="blkBtn" data-bact="bup" data-i="' + i + '" data-bi="' + bi + '" title="내부에서 위로"' + (top ? ' disabled' : '') + '>↑</button>';
-      var dn = '<button class="blkBtn" data-bact="bdown" data-i="' + i + '" data-bi="' + bi + '" title="내부에서 아래로"' + (bot ? ' disabled' : '') + '>↓</button>';
+      var handle = '<span class="dragH" data-i="' + i + '" data-bi="' + bi + '" title="드래그로 이동 · 우클릭(데스크탑)/길게 눌러(모바일) 삭제">⠿</span>';
       if (b.type === 'ill') {
-        return '<div class="ptBlk illBlk"><span class="blkTag illTag">ex)</span>' +
-          '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
-          up + dn + '<button class="blkBtn bdel" data-bact="bdel" data-i="' + i + '" data-bi="' + bi + '" title="예화 삭제">✕</button></div>';
+        return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
+          '<span class="blkTag illTag">ex)</span>' +
+          '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)"></div>';
       }
-      return '<div class="ptBlk bodyBlk"><span class="blkTag bodyTag">내용</span>' +
-        '<span class="blkHint">대지 본문 — 오른쪽에서 작성</span>' + up + dn +
-        '<button class="blkBtn bdel" data-bact="bdel" data-i="' + i + '" data-bi="' + bi + '" title="내용 블록 삭제">✕</button></div>';
+      var bp = (b.body || '').replace(/\s+/g, ' ').trim();
+      var prev = bp ? '<span class="blkBodyPrev">' + esc(bp.slice(0, 30)) + (bp.length > 30 ? '…' : '') + '</span>'
+                    : '<span class="blkHint">대지 본문 — 오른쪽에서 작성</span>';
+      return '<div class="ptBlk bodyBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
+        '<span class="blkTag bodyTag">내용</span>' + prev + '</div>';
     }).join('');
     return '<div class="ptRow">' +
       '<div class="ptHead"><span class="ptNo">' + (i + 1) + '.</span>' +
@@ -1781,24 +1782,6 @@ $('#pointList').addEventListener('click', function(e){
     } else return;
     renderPoints(); renderEditor(); return;
   }
-  /* ② 대지 내부 블록(내용·예화) 이동·삭제 */
-  var bb = e.target.closest('.blkBtn');
-  if (bb) {
-    if (bb.disabled) return;
-    var pp = state.compose.points[+bb.dataset.i]; if (!pp) return;
-    var bl = pp.blocks, bi = +bb.dataset.bi, act = bb.dataset.bact;
-    if (act === 'bup' && bi > 0) { bl.splice(bi - 1, 0, bl.splice(bi, 1)[0]); }
-    else if (act === 'bdown' && bi < bl.length - 1) { bl.splice(bi + 1, 0, bl.splice(bi, 1)[0]); }
-    else if (act === 'bdel') {
-      var blk = bl[bi];
-      var isIll = blk.type === 'ill';
-      var hasC = isIll ? ((blk.ill || '').trim() || (blk.illBody || '').trim()) : (blk.body || '').trim();
-      if (hasC && !confirm((isIll ? '이 예화를' : '이 내용 블록을') + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
-      bl.splice(bi, 1);
-      if (!bl.length) bl.push(newBodyBlock(''));
-    } else return;
-    renderPoints(); renderEditor(); return;
-  }
   /* ③ 예화 추가 */
   var ai = e.target.closest('.addIll');
   if (ai) {
@@ -1817,6 +1800,107 @@ $('#addPoint').addEventListener('click', function(){
   state.compose.points.push(newPoint());
   renderPoints(); renderEditor();
 });
+
+/* ===== 블록(예화·내용) 핸들 드래그 이동 + 우클릭/롱프레스 삭제 ===== */
+function cwBlockDelete(i, bi){
+  var p = state.compose.points[i]; if (!p) return;
+  var bl = p.blocks, b = bl[bi]; if (!b) return;
+  var isIll = b.type === 'ill';
+  var hasC = isIll ? ((b.ill || '').trim() || (b.illBody || '').trim()) : (b.body || '').trim();
+  if (hasC && !confirm((isIll ? '이 예화를' : '이 내용 블록을') + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
+  bl.splice(bi, 1);
+  if (!bl.length) bl.push(newBodyBlock(''));
+  renderPoints(); renderEditor();
+}
+function cwBlockMove(srcI, srcBi, dstI, dstIdx){
+  var pts = state.compose.points, sp = pts[srcI], dp = pts[dstI];
+  if (!sp || !dp) return;
+  var blk = sp.blocks[srcBi]; if (!blk) return;
+  sp.blocks.splice(srcBi, 1);
+  if (srcI === dstI && srcBi < dstIdx) dstIdx--;   /* 같은 섹션 내 제거로 인덱스 보정 */
+  dstIdx = Math.max(0, Math.min(dstIdx, dp.blocks.length));
+  dp.blocks.splice(dstIdx, 0, blk);
+  if (!sp.blocks.length) sp.blocks.push(newBodyBlock(''));
+  renderPoints(); renderEditor();
+}
+(function(){
+  var listEl = document.getElementById('pointList');
+  if (!listEl) return;
+  var st = null;
+  function clearMarks(){
+    var l = document.getElementById('cwDropLine'); if (l) l.remove();
+    Array.prototype.forEach.call(listEl.querySelectorAll('.ptBlocks.cwSectActive'), function(s){ s.classList.remove('cwSectActive'); });
+  }
+  function cleanup(){
+    if (!st) return;
+    clearTimeout(st.lp); clearTimeout(st.dwellTimer);
+    var src = listEl.querySelector('.ptBlk.dragging'); if (src) src.classList.remove('dragging');
+    clearMarks();
+    document.body.style.cursor = '';
+    try { st.h.releasePointerCapture(st.pid); } catch(_){}
+    st = null;
+  }
+  function computeTarget(x, y){
+    var sec = st.allowSect;
+    var rows = Array.prototype.slice.call(listEl.querySelectorAll('.ptBlk[data-i="' + sec + '"]'));
+    var idx = rows.length;
+    for (var k = 0; k < rows.length; k++){
+      var r = rows[k].getBoundingClientRect();
+      if (y < r.top + r.height / 2){ idx = k; break; }
+    }
+    return { i: sec, idx: idx, rows: rows };
+  }
+  function showLine(t){
+    clearMarks();
+    if (!t.rows.length) return;
+    var parent = t.rows[0].parentNode;
+    if (t.i !== st.i) parent.classList.add('cwSectActive');
+    var line = document.createElement('div');
+    line.id = 'cwDropLine'; line.className = 'cwDropLine';
+    if (t.idx >= t.rows.length) parent.appendChild(line); else parent.insertBefore(line, t.rows[t.idx]);
+  }
+  listEl.addEventListener('pointerdown', function(e){
+    var h = e.target.closest ? e.target.closest('.dragH') : null;
+    if (!h || e.button === 2) return;
+    var i = +h.dataset.i, bi = +h.dataset.bi;
+    st = { i: i, bi: bi, h: h, sx: e.clientX, sy: e.clientY, pid: e.pointerId,
+           started: false, allowSect: i, dwellSect: null, dwellTimer: null, dst: null,
+           lp: setTimeout(function(){ if (st && !st.started){ var d = st; cleanup(); cwBlockDelete(d.i, d.bi); } }, 550) };
+    try { h.setPointerCapture(e.pointerId); } catch(_){}
+  });
+  listEl.addEventListener('pointermove', function(e){
+    if (!st) return;
+    if (!st.started){
+      if (Math.abs(e.clientX - st.sx) < 7 && Math.abs(e.clientY - st.sy) < 7) return;
+      st.started = true; clearTimeout(st.lp);
+      var src = listEl.querySelector('.ptBlk[data-i="' + st.i + '"][data-bi="' + st.bi + '"]');
+      if (src) src.classList.add('dragging');
+      document.body.style.cursor = 'grabbing';
+    }
+    e.preventDefault();
+    var under = document.elementFromPoint(e.clientX, e.clientY);
+    var row = under && under.closest ? under.closest('.ptBlk') : null;
+    var overSec = row ? +row.dataset.i : null;
+    /* 다른 대지 섹션으로 넘어갈 때 딜레이(체류 320ms) 후에야 그 섹션으로 끌려감 */
+    if (overSec != null && overSec !== st.allowSect){
+      if (st.dwellSect !== overSec){ st.dwellSect = overSec; clearTimeout(st.dwellTimer);
+        st.dwellTimer = setTimeout(function(){ if (st){ st.allowSect = overSec; st.dwellSect = null; } }, 320); }
+    } else if (overSec === st.allowSect){ st.dwellSect = null; clearTimeout(st.dwellTimer); }
+    st.dst = computeTarget(e.clientX, e.clientY);
+    showLine(st.dst);
+  });
+  function onUp(){
+    if (!st) return;
+    if (st.started && st.dst){ var d = st; cleanup(); cwBlockMove(d.i, d.bi, d.dst.i, d.dst.idx); }
+    else cleanup();
+  }
+  listEl.addEventListener('pointerup', onUp);
+  listEl.addEventListener('pointercancel', cleanup);
+  listEl.addEventListener('contextmenu', function(e){
+    var h = e.target.closest ? e.target.closest('.dragH') : null;
+    if (h){ e.preventDefault(); cwBlockDelete(+h.dataset.i, +h.dataset.bi); }
+  });
+})();
 /* 자유원고 텍스트 → 구조(서론/대지 내용·예화·적용/결론) 역파싱
    assembleText의 규칙(번호 대지, ex), (적용), "말씀을 정리합니다")을 그대로 되돌린다 */
 function parseFreeToStructure(){
@@ -3053,7 +3137,8 @@ var P_SUM = [
 '당신은 영락교회 대학부 설교자의 요약 비서다. 설교 원고 전문을 읽고 사후 회상용 요약본과 주제어 3개를 만든다.',
 '출력은 반드시 JSON 객체 하나만: {"요약본":"...","키워드":"주제어1, 주제어2, 주제어3"}',
 '요약본 형식(마크다운, 제목 줄 없이 **[서론]**부터 시작):',
-'**[서론]** 다음 줄부터 "- " 항목 / **[대지 N] 명제문** 아래 "- 근거 한두 문장", "- ex) **예화 제목** — 한 줄 요지", "- **적용:** 명령형 한 문장" / 마지막 **[결론·적용]**.',
+'**[서론]** 다음 줄부터 "- " 항목 / **[대지 N] 명제문** 아래에 근거(내용)와 예화 항목을 "원고에 나온 순서 그대로" 나열한다: 내용은 "- 한두 문장", 예화는 "- ex) **예화 제목** — 한 줄 요지". 마지막에 "- **적용:** 명령형 한 문장" / 그리고 **[결론·적용]**.',
+'★ 한 대지에 예화가 2개 이상이면 모두 "- ex)" 줄로 각각 넣는다. 내용과 예화의 순서는 고정하지 말고 원고 흐름을 따른다(예: 예화 → 내용 → 예화 처럼 섞여도 그 순서대로). 예화가 없는 대지는 ex) 줄을 넣지 않는다.',
 '원고에 있는 내용만 쓴다. 항목당 한두 문장, 연결어로 흐름을 잇는다. 대지 수는 원고에 충실.',
 '키워드: 1=핵심 주제, 2·3=대지 소주제. 짧은 명사형.'].join('\n');
 
