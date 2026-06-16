@@ -1666,6 +1666,8 @@ function normPoint(p){
   if (!p) return newPoint();
   if (Array.isArray(p.blocks)) {
     if (!p.blocks.length) p.blocks = [newBodyBlock('')];
+    /* 예화만 있고 본문(내용) 블록이 없으면 맨 앞에 빈 본문 블록 보강 — 대지 본문 작성칸이 사라지는 문제 방지 */
+    else if (!p.blocks.some(function(b){ return b.type !== 'ill'; })) p.blocks.unshift(newBodyBlock(''));
     p.text = p.text || ''; p.apply = p.apply || '';
     return p;
   }
