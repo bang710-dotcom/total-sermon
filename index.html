@@ -347,8 +347,9 @@ input[type=date]{cursor:pointer}
 @media (max-width: 899px), (hover: none){
   body{overflow:hidden} /* 이중 스크롤·고무줄 현상 방지 (앱 내부 #main만 스크롤) */
   .desktop-only{display:none !important}
-  #detailPane.open{display:block;position:fixed;inset:0;z-index:90;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom))}
-  .detailClose{display:block;margin-bottom:12px}
+  #detailPane.open{display:block;position:fixed;inset:0;z-index:100;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom))}
+  /* [← 목록으로] 버튼: 상세창 상단에 고정해 헤더·스크롤에 가려지지 않게 (좌우 패딩만큼 블리드 + 불투명 배경) */
+  .detailClose{display:block;position:sticky;top:0;z-index:5;margin:0 -16px 12px;padding:4px 16px 8px;background:var(--bg)}
 }
 /* ===================== 모바일 UI 개선 (아이폰 세로 · 아이패드 가로/세로) =====================
    조건: 좁은 화면(<900px) 또는 터치 기기(hover 없음). 데스크탑(맥)에는 적용되지 않는다. */
@@ -788,7 +789,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         </div>
         <div class="toolrow" style="margin-top:6px">
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
-          <button class="btn sub mini" data-req="리더스앱업로드"><span>LTC 교재 /<br>리더스앱 업로드</span></button>
+          <button class="btn sub mini" data-req="리더스앱업로드"><span>LTC 교재<br>리더스앱 업로드</span></button>
         </div>
         <label class="desktop-only" style="display:block;margin-top:12px">📥 클로드 요청함 → Cowork가 처리 (이미지)</label>
         <div class="toolrow desktop-only" style="margin-top:4px">
@@ -1519,9 +1520,9 @@ function openDetail(kind, id){
     if (doneList.length) html += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
       doneList.map(function(t){ return esc(REQ_LABELS[t] || t) + ' ✓'; }).join(' · ') + '</span></div>';
     html += '<div class="toolrow">' +
-      '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">새버전으로 수정</button>' +
+      '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">새버전으로<br>수정</button>' +
       '<button class="btn sub" onclick="previewSermon(\'' + esc(s['ID']) + '\')">미리보기</button>' +
-      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX 내보내기</button></div>';
+      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX<br>내보내기</button></div>';
     state.detailId = s['ID'];
     function reqBtnRow(types, desktopOnly){
       return '<div class="toolrow' + (desktopOnly ? ' desktop-only' : '') + '">' + types.map(function(t){
@@ -3698,7 +3699,7 @@ $('#occ_sit').addEventListener('input', function(){ state.occ.sit = this.value; 
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 / 리더스앱 업로드', '원고작성': '스킬사용 원고요청' };
-var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 /<br>리더스앱 업로드', '원고작성': '스킬사용<br>원고요청' };
+var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재<br>리더스앱 업로드', '원고작성': '스킬사용<br>원고요청' };
 function doneTypes(sermonId){
   var set = {};
   state.data.outputs.forEach(function(o){
@@ -6903,7 +6904,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v146';
+var APP_VER = 'v147';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
