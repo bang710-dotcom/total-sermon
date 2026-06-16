@@ -347,9 +347,12 @@ input[type=date]{cursor:pointer}
 @media (max-width: 899px), (hover: none){
   body{overflow:hidden} /* 이중 스크롤·고무줄 현상 방지 (앱 내부 #main만 스크롤) */
   .desktop-only{display:none !important}
-  #detailPane.open{display:block;position:fixed;inset:0;z-index:100;background:var(--bg);overflow:auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(30px + env(safe-area-inset-bottom))}
-  /* [← 목록으로] 버튼: 상세창 상단에 고정해 헤더·스크롤에 가려지지 않게 (좌우 패딩만큼 블리드 + 불투명 배경) */
-  .detailClose{display:block;position:sticky;top:0;z-index:5;margin:0 -16px 12px;padding:4px 16px 8px;background:var(--bg)}
+  /* 모바일 상세: 고정 오버레이 대신 검색목록을 숨기고 본문 흐름에 인라인 표시 →
+     네이티브 #main 스크롤 사용(고정 오버플로 컨테이너의 스크롤 멈춤·헤더 가림 문제 해결) */
+  #detailPane.open{display:block;background:var(--bg);padding:0 0 calc(24px + env(safe-area-inset-bottom))}
+  body.detailOpen #searchLeft{display:none !important}
+  /* [← 목록으로] 버튼: #main 스크롤 상단(헤더 바로 아래)에 고정 */
+  .detailClose{display:block;position:sticky;top:0;z-index:5;margin:0 0 12px;padding:8px 0;background:var(--bg)}
 }
 /* ===================== 모바일 UI 개선 (아이폰 세로 · 아이패드 가로/세로) =====================
    조건: 좁은 화면(<900px) 또는 터치 기기(hover 없음). 데스크탑(맥)에는 적용되지 않는다. */
@@ -1492,6 +1495,7 @@ $('#qResults').addEventListener('click', function(e){
 
 function openDetail(kind, id){
   var pane = $('#detailPane');
+  var prevId = state.detailId;
   /* 재렌더 시 스크롤 보존 — 같은 설교를 다시 그릴 때는 보던 위치 유지 */
   var keepScroll = (kind === 'sermon' && state.detailId === id && pane.classList.contains('open')) ? pane.scrollTop : 0;
   var terms = state.lastTerms || [];
@@ -1557,7 +1561,10 @@ function openDetail(kind, id){
   }
   pane.innerHTML = html;
   pane.classList.add('open');
+  document.body.classList.add('detailOpen');   /* 모바일: 검색목록 숨기고 상세를 인라인 표시 */
   pane.scrollTop = keepScroll;
+  /* 새 항목을 열 때만(같은 항목 재렌더는 제외) 모바일 본문 스크롤을 상단으로 — [목록으로]가 보이게 */
+  if (!isDesktop() && prevId !== id) { var _mn = document.getElementById('main'); if (_mn) _mn.scrollTop = 0; }
   if (kind === 'sermon' && (!state.assets[id] || Date.now() - state.assets[id].__t > 30000)) {
     checkAssets(id).then(function(){
       if (state.detailId === id && pane.classList.contains('open')) openDetail(kind, id);
@@ -1572,7 +1579,7 @@ function openDetail(kind, id){
   }
 }
 window.openDetail = openDetail;
-window.closeDetail = function(){ $('#detailPane').classList.remove('open'); };
+window.closeDetail = function(){ $('#detailPane').classList.remove('open'); document.body.classList.remove('detailOpen'); };
 
 window.deleteSermon = function(id){
   var s = findSermon(id);
@@ -6155,6 +6162,9 @@ function showPage(name){
   $$('.page').forEach(function(p){ p.classList.remove('on'); });
   var pg = $('#page-' + name);
   if (pg) pg.classList.add('on');
+  /* 페이지 전환 시 모바일 상세 인라인 상태 해제 (검색 목록 복원) */
+  document.body.classList.remove('detailOpen');
+  var _dp = document.getElementById('detailPane'); if (_dp) _dp.classList.remove('open');
   $$('.tabbar button').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
   $$('.sidebar .nav').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
   /* 모바일에서 탭 전환만으로 가상 키보드가 튀어 화면이 출렁이는 것 방지 — 데스크탑에서만 자동 포커스 */
@@ -6904,7 +6914,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v147';
+var APP_VER = 'v148';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
