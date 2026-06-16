@@ -2167,8 +2167,32 @@ var REF_RED = 'EE0000';   /* 성경 인용 — 빨간 볼드(카드원고 quote 
 /* 본문 인용 줄 판별: 「약어 장:절[-끝], "…"」 형식(맨 앞 성구 표기 + 쉼표 + 큰따옴표) */
 var _refQuoteRe = null;
 function refQuoteRe(){
-  if (!_refQuoteRe) _refQuoteRe = new RegExp('^\\s*(' + BOOKS + ')\\s*\\d+\\s*[:장]\\s*\\d+(?:\\s*[-~]\\s*\\d+)?\\s*,\\s*["“]');
+  if (!_refQuoteRe) _refQuoteRe = new RegExp('^\\s*(' + BOOKS + ')\\s*\\d+\\s*[:장]\\s*\\d+[a-zA-Z]?(?:\\s*[-~]\\s*\\d+[a-zA-Z]?)?\\s*,\\s*["“]');
   return _refQuoteRe;
+}
+/* 정경 약어 얻기 (BOOKS = 전체이름66 + 약어66) */
+var _bookAbbrArr = null;
+function bookAbbrOf(name){
+  if (!_bookAbbrArr) _bookAbbrArr = BOOKS.split('|');
+  var i = devoBookIdxMap()[name];
+  return (i != null) ? _bookAbbrArr[66 + i] : name;
+}
+/* 옛 형식 「본문… (책 장:절)」 → 새 형식 「약어 장:절, "본문…"」 로 변환(아니면 원문 유지).
+   모델이 초고의 옛 형식을 따라가도, 화면·DOCX 출력 시 새 형식으로 강제한다. */
+var _trailRefRe = null;
+function trailRefRe(){
+  if (!_trailRefRe) _trailRefRe = new RegExp('^(.*\\S)\\s*[\\(\\[]\\s*(' + BOOKS + ')\\s*(\\d+)\\s*[:장]\\s*(\\d+)([a-zA-Z]?)(?:\\s*[-~]\\s*(\\d+)([a-zA-Z]?))?\\s*[\\)\\]]\\s*[.。]?\\s*$');
+  return _trailRefRe;
+}
+function toLeadRefQuote(line){
+  var s = String(line).trim();
+  if (refQuoteRe().test(s)) return line;          /* 이미 새 형식 */
+  var m = s.match(trailRefRe());
+  if (!m) return line;
+  var text = m[1].replace(/^["“]/, '').replace(/["”]$/, '').trim();
+  if (!text) return line;
+  var ref = bookAbbrOf(m[2]) + ' ' + m[3] + ':' + m[4] + (m[5] || '') + (m[6] ? '-' + m[6] + (m[7] || '') : '');
+  return ref + ', "' + text + '"';
 }
 function mm2twip(v){ return Math.round(v * 56.6929); }
 
