@@ -3017,6 +3017,7 @@ var P_CARD = [
 't 규칙: trans=빨간 전환 바 텍스트("▶ 이미지 #N 전환 ◀" 또는 성경 인용 직전 "▶ 본문 이미지 #N 전환 ◀") / quote=성경 인용 / ex="ex) 예화 제목" 한 줄 / head=강조·대지 선언·"말씀을 정리합니다" / p=일반 구어체 단락.',
 '★ 인용(quote) 형식(필수): 반드시 「약어 장:절, "절 단위 전문(개역개정)"」 한 줄. 책 이름은 약어(요·창·고전 등), 맨 앞에 약어 장:절을 적고 쉼표+공백 뒤 큰따옴표로 본문 전문. 같은 절 재인용도 매번 전문. 범위면 "요 7:14-24". 예) 요 7:18, "스스로 말하는 자는 자기 영광만 구하되 그를 보내신 이의 영광을 구하는 자는 참되니 그 속에 불의가 없느니라". (앱이 빨간 볼드로 표시 — 끝 괄호 표기 금지)',
 '전환 바 규칙: 본문 시작에 "▶ 이미지 #2 전환 ◀"(표지가 #1), 각 대지·주요 단락 시작과 결론 앞에 일반 전환 바, 모든 성경 인용 직전에 본문 이미지 바. 번호는 2부터 연속.',
+'★ 기존 전환표 우선: 입력에 "기존전환표"(배열 [{n,t,a}])가 있으면 전환 바를 새로 만들지 말고 그 표를 그대로 따른다 — 각 항목의 a(앵커 텍스트)로 시작하거나 가장 가까운 단락·인용 "직전"에 해당 번호의 trans 블록을 넣는다(t="일반"→"▶ 이미지 #n 전환 ◀", t="본문"→"▶ 본문 이미지 #n 전환 ◀"). 번호·종류·개수·순서를 임의로 바꾸지 않는다. 기존전환표가 없을 때만 위 기본 규칙으로 새로 만든다.',
 '집필 원칙: 호칭 "여러분"만, 대지는 ①선언 ②근거 ③"그래서 우리는 ~합시다" 실천 소결론의 3단, 대지 번호 대신 자연스러운 전환문("그래서 첫 번째 메시지"), 짧은 호흡·그림 언어·대조·재정의, "/" 표시 절대 금지, 분량은 25~30분 설교(공백 포함 5,500~7,000자).'].join('\n');
 
 var P_LTC = [
@@ -3089,12 +3090,14 @@ async function aiCardScript(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) { toast('초고나 대지를 먼저 작성해 주세요.'); return; }
     toast('Opus가 카드원고를 집필합니다 — 수 분 걸릴 수 있습니다');
-    var out = await callClaude(P_CARD, JSON.stringify({
-      '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
-      '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': meta['원고텍스트']
-    }), 32000, aiTick('카드원고'));
+    var prevTrans = id ? sermonTrans(id) : null;   /* 먼저 확정된 전환표가 있으면 그대로 재사용 */
+    var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
+      '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': meta['원고텍스트'] };
+    if (prevTrans) inp['기존전환표'] = prevTrans;
+    var out = await callClaude(P_CARD, JSON.stringify(inp), 32000, aiTick('카드원고'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    if (id && !prevTrans) storeTransIfEmpty(id, extractTransTable(arr));   /* 카드원고가 첫 산출물이면 이 표가 기준 */
     var D = await ensureDocxLib();
     var blob = await D.Packer.toBlob(buildCardDocx(D, meta, arr));
     await saveDocxBlob(blob, '카드원고_' + docxFileName(meta), meta['날짜']);
@@ -3716,6 +3719,31 @@ function setSermonFileMap(id, key, val){
   fm[key] = val; s['파일맵'] = JSON.stringify(fm); saveData();
   apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }).catch(function(){});
   if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
+}
+/* ── 이미지 전환표(카드원고 ↔ 이미지전환표시 원고 페어) — 파일맵.trans 에 보관 ──
+   먼저 만들어진 산출물이 표를 확정하면 그게 단일 기준이 된다(앱·코워크 공용). */
+function sermonTrans(idOrMeta){
+  var s = (typeof idOrMeta === 'string') ? findSermon(idOrMeta) : idOrMeta;
+  if (!s) return null;
+  var m = {}; try { m = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { m = {}; }
+  return (Array.isArray(m.trans) && m.trans.length) ? m.trans : null;
+}
+/* 카드원고 블록(arr: [{t,x}])에서 전환표 추출 → [{n,t:'일반'|'본문',a:앵커}] */
+function extractTransTable(arr){
+  var out = [];
+  for (var i = 0; i < arr.length; i++){
+    var it = arr[i]; if (!it || it.t !== 'trans') continue;
+    var x = String(it.x || ''); var mm = x.match(/#\s*(\d+)/); if (!mm) continue;
+    var anchor = '';
+    for (var k = i + 1; k < arr.length; k++){ if (arr[k] && arr[k].t !== 'trans'){ anchor = String(arr[k].x || '').trim().slice(0, 30); break; } }
+    out.push({ n: parseInt(mm[1], 10), t: /본문/.test(x) ? '본문' : '일반', a: anchor });
+  }
+  return out;
+}
+/* 먼저 만들어진 표가 없을 때만 저장(기준표 보존) */
+function storeTransIfEmpty(id, table){
+  if (!id || !table || !table.length || sermonTrans(id)) return;
+  setSermonFileMap(id, 'trans', table);
 }
 async function refToken(ref){
   try {
