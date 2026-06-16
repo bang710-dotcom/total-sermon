@@ -107,12 +107,14 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .anCard h4{margin:0 0 8px;font-size:13px;color:var(--dim)}
 .anBody{display:flex;align-items:center;justify-content:center}
 .donut{width:100%;height:auto;max-width:560px;display:block;margin:0 auto;overflow:visible}
-.donut .dnum{font-size:36px;font-weight:700;fill:var(--text)}
-.donut .dlbl{font-size:14px;fill:var(--dim)}
-.donut .dleg{font-size:12.5px;fill:var(--text)}
+.donut .dnum{font-size:40px;font-weight:700;fill:var(--text)}
+.donut .dlbl{font-size:15px;fill:var(--dim)}
+.donut .dleg{font-size:15px;fill:var(--text)}
 .donut .dleg.on{fill:var(--accent);font-weight:700}
-.anBarSvg{width:100%;height:auto;display:block;overflow:visible}
-.anBarSvg .anBsegT{font-size:13px;fill:#fff;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.anBarRow{margin-bottom:16px}
+.anBarScroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.anBarSvg{width:100%;min-width:880px;height:auto;display:block;overflow:visible}
+.anBarSvg .anBsegT{font-size:13px;fill:#fff;font-weight:600}
 .anBarSvg .anBlead{font-size:12.5px;fill:var(--text)}
 .anBarSvg .anBlead.on{fill:var(--accent);font-weight:700}
 .anLegs{flex:1 1 160px;min-width:160px;display:flex;flex-direction:column;gap:5px}
@@ -6091,36 +6093,56 @@ function renderAnalytics(){
   box.innerHTML = html;
 }
 function anBarSvg(arr, tot, selKey){
-  var W = 1000, barY = 46, barH = 30, H = 124;
-  var x = 0, segs = '', topL = '', botL = '', topCur = 4, botCur = 4, maxX = W, ni = 0;
+  /* 막대는 viewBox 전체폭(W)을 꽉 채우고, 좁은 칸 라벨은 칸 근처에서 위/아래로 여러 층 쌓는다 */
+  var W = 1000, barH = 30, pad = 4, rowH = 20;
+  var x = 0, meta = [];
   arr.forEach(function(e){
-    var w = e.count / tot * W, color = DONUT_COLORS[e.ci % DONUT_COLORS.length];
-    var on = e.name === selKey, cxs = x + w / 2;
-    var estW = (String(e.name).length + String(e.count).length + 1) * 12 + 6;
-    segs += '<rect x="' + x.toFixed(1) + '" y="' + barY + '" width="' + Math.max(w, 0.6).toFixed(1) + '" height="' + barH + '" fill="' + color + '"'
-      + (on ? ' stroke="#fff" stroke-width="2"' : '') + ' data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer"><title>' + esc(e.name) + ' ' + e.count + '편</title></rect>';
-    if (w >= estW + 8){
-      segs += '<text x="' + cxs.toFixed(1) + '" y="' + (barY + barH / 2 + 4.5) + '" text-anchor="middle" class="anBsegT" data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer">' + esc(e.name) + ' ' + e.count + '</text>';
-    } else {
-      var label = esc(e.name) + ' ' + e.count;
-      if (ni++ % 2 === 0){
-        var lx = Math.max(cxs, topCur);
-        topL += '<polyline points="' + cxs.toFixed(1) + ',' + barY + ' ' + cxs.toFixed(1) + ',26 ' + lx.toFixed(1) + ',26" fill="none" stroke="' + color + '" stroke-width="1.2" stroke-opacity=".8"></polyline>'
-          + '<text x="' + lx.toFixed(1) + '" y="22" text-anchor="start" class="anBlead' + (on ? ' on' : '') + '" data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer">' + label + '</text>';
-        topCur = lx + estW;
-        maxX = Math.max(maxX, topCur);
-      } else {
-        var lx2 = Math.max(cxs, botCur);
-        botL += '<polyline points="' + cxs.toFixed(1) + ',' + (barY + barH) + ' ' + cxs.toFixed(1) + ',' + (H - 18) + ' ' + lx2.toFixed(1) + ',' + (H - 18) + '" fill="none" stroke="' + color + '" stroke-width="1.2" stroke-opacity=".8"></polyline>'
-          + '<text x="' + lx2.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="start" class="anBlead' + (on ? ' on' : '') + '" data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer">' + label + '</text>';
-        botCur = lx2 + estW;
-        maxX = Math.max(maxX, botCur);
-      }
-    }
+    var w = e.count / tot * W;
+    var estW = (String(e.name).length + String(e.count).length + 1) * 11 + 8;
+    meta.push({ e: e, x: x, w: w, cx: x + w / 2, estW: estW, inline: w >= estW + 6 });
     x += w;
   });
-  var vbW = Math.max(W, maxX + 8);
-  return '<svg viewBox="0 0 ' + vbW.toFixed(0) + ' ' + H + '" class="anBarSvg" preserveAspectRatio="xMidYMid meet">' + segs + topL + botL + '</svg>';
+  var above = [], below = [], ni = 0;
+  function placeLevel(levels, cx, estW){
+    var x0 = cx - estW / 2, x1 = cx + estW / 2;
+    if (x0 < pad){ x1 += pad - x0; x0 = pad; }
+    if (x1 > W - pad){ x0 -= x1 - (W - pad); x1 = W - pad; }
+    for (var L = 0; L < levels.length; L++){
+      var ok = true;
+      for (var k = 0; k < levels[L].length; k++){ var iv = levels[L][k]; if (!(x1 + 4 < iv[0] || x0 - 4 > iv[1])){ ok = false; break; } }
+      if (ok){ levels[L].push([x0, x1]); return { L: L, cx: (x0 + x1) / 2 }; }
+    }
+    levels.push([[x0, x1]]); return { L: levels.length - 1, cx: (x0 + x1) / 2 };
+  }
+  meta.forEach(function(m){
+    if (m.inline) return;
+    m.side = (ni++ % 2 === 0) ? 'top' : 'bot';
+    var lv = placeLevel(m.side === 'top' ? above : below, m.cx, m.estW);
+    m.level = lv.L; m.labelCx = lv.cx;
+  });
+  var barY = above.length * rowH + 12;
+  var H = barY + barH + below.length * rowH + 14;
+  var segs = '', leads = '';
+  meta.forEach(function(m){
+    var e = m.e, color = DONUT_COLORS[e.ci % DONUT_COLORS.length], on = e.name === selKey;
+    segs += '<rect x="' + m.x.toFixed(1) + '" y="' + barY + '" width="' + Math.max(m.w, 0.6).toFixed(1) + '" height="' + barH + '" fill="' + color + '"'
+      + (on ? ' stroke="#fff" stroke-width="2"' : '') + ' data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer"><title>' + esc(e.name) + ' ' + e.count + '편</title></rect>';
+    if (m.inline){
+      segs += '<text x="' + m.cx.toFixed(1) + '" y="' + (barY + barH / 2 + 4.5) + '" text-anchor="middle" class="anBsegT" data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer">' + esc(e.name) + ' ' + e.count + '</text>';
+      return;
+    }
+    var label = esc(e.name) + ' ' + e.count, dk = ' data-ansel="1" data-kind="book" data-key="' + esc(e.name) + '" style="cursor:pointer"';
+    if (m.side === 'top'){
+      var ly = barY - 8 - m.level * rowH, liney = ly + 4;
+      leads += '<polyline points="' + m.cx.toFixed(1) + ',' + barY + ' ' + m.cx.toFixed(1) + ',' + liney.toFixed(1) + ' ' + m.labelCx.toFixed(1) + ',' + liney.toFixed(1) + '" fill="none" stroke="' + color + '" stroke-width="1.1" stroke-opacity=".75"></polyline>'
+        + '<text x="' + m.labelCx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" class="anBlead' + (on ? ' on' : '') + '"' + dk + '>' + label + '</text>';
+    } else {
+      var ly2 = barY + barH + 16 + m.level * rowH, liney2 = ly2 - 12;
+      leads += '<polyline points="' + m.cx.toFixed(1) + ',' + (barY + barH) + ' ' + m.cx.toFixed(1) + ',' + liney2.toFixed(1) + ' ' + m.labelCx.toFixed(1) + ',' + liney2.toFixed(1) + '" fill="none" stroke="' + color + '" stroke-width="1.1" stroke-opacity=".75"></polyline>'
+        + '<text x="' + m.labelCx.toFixed(1) + '" y="' + ly2.toFixed(1) + '" text-anchor="middle" class="anBlead' + (on ? ' on' : '') + '"' + dk + '>' + label + '</text>';
+    }
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H.toFixed(0) + '" class="anBarSvg" preserveAspectRatio="xMidYMid meet">' + segs + leads + '</svg>';
 }
 function anTestamentBars(byBook){
   var rows = [{ t: '구약', lo: 0, hi: 39 }, { t: '신약', lo: 39, hi: 66 }];
@@ -6131,10 +6153,10 @@ function anTestamentBars(byBook){
     if (!arr.length) return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>설교 없음</small></div></div>';
     var tot = arr.reduce(function(s, e){ return s + e.count; }, 0);
     return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>' + tot + '편 · ' + arr.length + '권</small></div>'
-      + anBarSvg(arr, tot, selKey) + '</div>';
+      + '<div class="anBarScroll">' + anBarSvg(arr, tot, selKey) + '</div></div>';
   }).join('');
   return '<div class="anCard"><h3>구약·신약 권별 설교 분포 (정경 순서 · 길이=설교 횟수)</h3>'
-    + '<div class="cnt" style="margin:-4px 0 12px">막대가 길수록 그 책의 설교가 많습니다. 좁은 칸은 지시선으로 이름을 표기했습니다. 한 칸을 누르면 아래에 해당 설교 목록이 나옵니다.</div>'
+    + '<div class="cnt" style="margin:-4px 0 12px">막대가 길수록 그 책의 설교가 많습니다. 좁은 칸은 지시선으로 이름을 표기했습니다(좁은 화면에서는 좌우로 넘겨 보세요). 한 칸을 누르면 아래에 해당 설교 목록이 나옵니다.</div>'
     + out + '</div>';
 }
 function anDrill(list){
@@ -6479,7 +6501,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v121';
+var APP_VER = 'v122';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
