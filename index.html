@@ -3253,7 +3253,8 @@ async function aiLeadersTsv(id, meta){
     var es = JSON.stringify(ejson).replace(/[\t\r\n]+/g, ' ');
     var refC = sc.bk.abbr + ' ' + sc.range.c1 + ':' + sc.range.v1 +
       (sc.range.c2 !== sc.range.c1 ? '-' + sc.range.c2 + ':' + sc.range.v2 : (sc.range.v2 !== sc.range.v1 ? '-' + sc.range.v2 : ''));
-    var cols = [sc.bk.ko + ' ' + sc.range.c1, ltcSaturday(meta['날짜']), refC, meta['제목'] || '', es, '', 'TRUE'];
+    var seqN = String(meta['시리즈순번'] || '').trim();   /* 회차 = 시리즈 순번(없으면 본문 장 폴백) */
+    var cols = [sc.bk.ko + ' ' + (seqN || sc.range.c1), ltcSaturday(meta['날짜']), refC, meta['제목'] || '', es, '', 'TRUE'];
     var row = cols.join('\t');
     if (row.split('\t').length !== 7 || /[\r\n]/.test(row)) throw new Error('TSV 검증 실패');
     JSON.parse(es); /* E열 유효성 */
