@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<script>try{var _t=localStorage.getItem('tsa.theme');if(_t==='light'||_t==='sepia')document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
+<script>try{var _t=localStorage.getItem('tsa.theme');if(['light','sepia','compote','scuba'].indexOf(_t)>=0)document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
 <meta name="apple-mobile-web-app-title" content="Total Sermons">
 <title>Total Sermons</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -468,7 +468,28 @@ html[data-theme="sepia"]{
   --text:#1e3932; --dim:#5b6b60; --accent:#00704a; --accent2:#a6703a;
   --ok:#00704a; --warn:#a6431f;
 }
+/* 콤폿 = 톤다운 베리 팔레트 (934A5F 베리 / 57648C 슬레이트블루 / C2B4D6 라벤더 / E5E5E5 그레이) */
+html[data-theme="compote"]{
+  --bg:#f7f5f7; --card:#ffffff; --card2:#efebf1; --line:#ddd5e1;
+  --text:#352a31; --dim:#7e7280; --accent:#934a5f; --accent2:#57648c;
+  --ok:#3f7d6e; --warn:#a14a5c;
+}
+/* 스쿠바 = 잔잔한 톤 + 강렬한 청록 (0C4A60 딥틸 / EF6C33 오렌지 / ABDFF1 아이스블루 / E1DDDB웜그레이) */
+html[data-theme="scuba"]{
+  --bg:#f5f4f2; --card:#ffffff; --card2:#eaf1f4; --line:#d4dde1;
+  --text:#13333f; --dim:#5d7682; --accent:#0c4a60; --accent2:#ef6c33;
+  --ok:#0c6a52; --warn:#d2541f;
+}
 /* 밝은 테마에서 다크 톤 하드코딩 색 보정 — 요청버튼 상태색·배지·중복/정상 박스 */
+html[data-theme="light"] .btn.done, html[data-theme="light"] .btn.fin,
+html[data-theme="compote"] .btn.done, html[data-theme="compote"] .btn.fin,
+html[data-theme="scuba"] .btn.done, html[data-theme="scuba"] .btn.fin{background:#e8f1fd;border-color:#9cc4f0;color:#0058b8}
+html[data-theme="light"] .btn.req, html[data-theme="compote"] .btn.req, html[data-theme="scuba"] .btn.req{background:#fdf0db;border-color:#e0a93a;color:#9a6a10}
+html[data-theme="light"] .b-sermon, html[data-theme="compote"] .b-sermon, html[data-theme="scuba"] .b-sermon{background:#e3edfd;color:#0058b8}
+html[data-theme="light"] .b-idea, html[data-theme="compote"] .b-idea, html[data-theme="scuba"] .b-idea{background:#fceedb;color:#9a6a10}
+html[data-theme="compote"] .dupbox, html[data-theme="scuba"] .dupbox{background:#fbeae5}
+html[data-theme="compote"] .dupbox .d, html[data-theme="scuba"] .dupbox .d{border-top-color:#e3c6bb}
+html[data-theme="compote"] .okbox, html[data-theme="scuba"] .okbox{background:#e6f3ec}
 html[data-theme="light"] .btn.done, html[data-theme="light"] .btn.fin{background:#e8f1fd;border-color:#9cc4f0;color:#0058b8}
 html[data-theme="light"] .btn.req{background:#fdf0db;border-color:#e0a93a;color:#9a6a10}
 html[data-theme="light"] .b-sermon{background:#e3edfd;color:#0058b8}
@@ -486,9 +507,11 @@ html[data-theme="sepia"] .dupbox .d{border-top-color:#e0cdbb}
 html[data-theme="sepia"] .okbox{background:#dcefe5}
 /* 진한 강조색(애플 블루·스타벅스 그린) 위 글자는 흰색으로 — 기본 버튼·활성 칩 */
 html[data-theme="light"] .btn:not(.sub):not(.done):not(.fin):not(.req),
-html[data-theme="sepia"] .btn:not(.sub):not(.done):not(.fin):not(.req){color:#fff}
-html[data-theme="light"] .chip.on, html[data-theme="sepia"] .chip.on{color:#fff}
-html[data-theme="light"] .tabbar button.on, html[data-theme="sepia"] .tabbar button.on{color:var(--accent)}
+html[data-theme="sepia"] .btn:not(.sub):not(.done):not(.fin):not(.req),
+html[data-theme="compote"] .btn:not(.sub):not(.done):not(.fin):not(.req),
+html[data-theme="scuba"] .btn:not(.sub):not(.done):not(.fin):not(.req){color:#fff}
+html[data-theme="light"] .chip.on, html[data-theme="sepia"] .chip.on,
+html[data-theme="compote"] .chip.on, html[data-theme="scuba"] .chip.on{color:#fff}
 
 /* ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획 전용) ============ */
 :root{--aip-w:380px;--aip-w0:380px}
@@ -7692,11 +7715,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 
 /* ===================== 색상 테마 ===================== */
 (function(){
-  var THEMES = ['dark', 'light', 'sepia'];
+  var THEMES = ['dark', 'light', 'sepia', 'compote', 'scuba'];
   var root = document.documentElement;
   function curTheme(){
     var t = root.getAttribute('data-theme');
-    return (t === 'light' || t === 'sepia') ? t : 'dark';
+    return THEMES.indexOf(t) > 0 ? t : 'dark';
   }
   function applyTheme(t){
     if (THEMES.indexOf(t) < 0) t = 'dark';
