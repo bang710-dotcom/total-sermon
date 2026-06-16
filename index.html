@@ -5409,6 +5409,9 @@ async function scanRequests(quiet){
       var fObj = await entry.getFile();
       var j;
       try { j = JSON.parse(await fObj.text()); } catch (e) { continue; }
+      /* 이미지 전환표 백필(멱등·산출물 영향 없음): 코워크가 만든 표를 설교 레코드(파일맵.trans)에 저장.
+         이미 처리완료된(산출물기록 있는) 요청에서도 표만 채운다 — 카드원고가 재사용. */
+      if (j['이미지전환표'] && (j['설교'] || {})['ID']) storeTransIfEmpty(j['설교']['ID'], j['이미지전환표']);
       /* 시리즈 요청 상태 추적 (요청 버튼·타임라인 색 표시용) */
       if (j['요청유형'] === '시리즈묵상' || j['요청유형'] === '시리즈설교' || j['요청유형'] === '묵상집PDF') {
         /* 마법사에 시리즈가 열려 있으면 그 시리즈명과 일치하는 요청만 추적.
@@ -6768,7 +6771,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v133';
+var APP_VER = 'v134';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
