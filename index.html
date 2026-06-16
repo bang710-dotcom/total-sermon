@@ -1982,12 +1982,17 @@ function renderEditor(){
     html += '<div class="edSec"><div class="edLabel">서론</div>' + ta('intro', 0, '', 5, '서론을 작성하세요', c.intro) + '</div>';
     c.points.forEach(function(p, i){
       p = normPoint(p); c.points[i] = p;
+      var illTot = p.blocks.filter(function(b){ return b.type === 'ill'; }).length;
+      var bodyTot = p.blocks.length - illTot;
+      var illN = 0, bodyN = 0;
       var inner = p.blocks.map(function(b, bi){
         if (b.type === 'ill') {
+          illN++;
           return '<div class="edEx" data-x="' + i + '.' + bi + '"></div>' +
-            '<div class="edLabel" style="margin-top:8px">예화</div>' + ta(null, i, 'illBody', 4, '예화 세부 내용', b.illBody, null, bi);
+            '<div class="edLabel" style="margin-top:8px">예화' + (illTot > 1 ? ' ' + illN : '') + '</div>' + ta(null, i, 'illBody', 4, '예화 세부 내용', b.illBody, null, bi);
         }
-        return '<div class="edLabel" style="margin-top:8px">내용</div>' + ta(null, i, 'body', 5, '대지 내용을 풀어 쓰세요', b.body, null, bi);
+        bodyN++;
+        return '<div class="edLabel" style="margin-top:8px">내용' + (bodyTot > 1 ? ' ' + bodyN : '') + '</div>' + ta(null, i, 'body', 5, '대지 내용을 풀어 쓰세요', b.body, null, bi);
       }).join('');
       html += '<div class="edPoint">' +
         '<div class="edPointTitle" data-h="' + i + '"></div>' +
@@ -6926,7 +6931,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v148';
+var APP_VER = 'v149';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
