@@ -2163,6 +2163,13 @@ var DOCX_STYLES = {
   '카드원고': { font: '함초롬바탕', size: 28, line: 360, titleSize: 40, page: { w: 210, h: 310, t: 10, b: 12.5, l: 10, r: 10 } }
 };
 var EX_BLUE = '4C94D8';
+var REF_RED = 'EE0000';   /* 성경 인용 — 빨간 볼드(카드원고 quote 색과 동일) */
+/* 본문 인용 줄 판별: 「약어 장:절[-끝], "…"」 형식(맨 앞 성구 표기 + 쉼표 + 큰따옴표) */
+var _refQuoteRe = null;
+function refQuoteRe(){
+  if (!_refQuoteRe) _refQuoteRe = new RegExp('^\\s*(' + BOOKS + ')\\s*\\d+\\s*[:장]\\s*\\d+(?:\\s*[-~]\\s*\\d+)?\\s*,\\s*["“]');
+  return _refQuoteRe;
+}
 function mm2twip(v){ return Math.round(v * 56.6929); }
 
 /* paras: [{text, bold, color, size}] → Document */
@@ -2216,8 +2223,9 @@ function parasFromText(meta, bodyText, style){
     var l = line.trim();
     var isHead = /^\d+\s*[.)]\s/.test(l);
     var isEx = /^ex\)/i.test(l);
-    paras.push({ text: line, bold: isHead || isEx, color: isEx ? EX_BLUE : undefined,
-      ind: !!(allowInd && l && !isHead && !isEx) /* 일반 단락만 첫 줄 들여쓰기 */ });
+    var isQuote = !isHead && !isEx && refQuoteRe().test(l);   /* 성경 인용 → 빨간 볼드 */
+    paras.push({ text: line, bold: isHead || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
+      ind: !!(allowInd && l && !isHead && !isEx && !isQuote) /* 일반 단락만 첫 줄 들여쓰기 */ });
   });
   return { paras: paras, st: st };
 }
