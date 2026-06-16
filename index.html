@@ -1826,6 +1826,8 @@ function parseFreeToStructure(){
       if (/^\s*(▶|【)/.test(l)) continue; /* 이미지 전환 바 등은 건너뜀 */
       var exm = l.match(/^\s*ex\)\s*(.*)$/i);
       if (exm) { flushBody(); flushIll(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
+      var cm = l.match(/^\s*\((?:대지\s*)?내용\)\s*(.*)$/);
+      if (cm) { flushBody(); flushIll(); mode = 'body'; if (cm[1].trim()) bodyAcc.push(cm[1]); continue; }
       var am = l.match(/^\s*\(적용\)\s*(.*)$/);
       if (am) { flushBody(); flushIll(); mode = 'apply'; if (am[1].trim()) applyAcc.push(am[1]); continue; }
       if (mode === 'ill' && curIll) curIll._b.push(l);
@@ -2038,11 +2040,16 @@ function assembleText(){
   c.points.forEach(function(p, i){
     if (!pHasContent(p)) return;
     L.push((i + 1) + '. ' + (p.text || '').trim());
+    var seenIll = false;
     pBlocks(p).forEach(function(b){
       if (b.type === 'ill') {
         if ((b.ill || '').trim()) L.push('ex) ' + b.ill.trim());
         if ((b.illBody || '').trim()) L.push(b.illBody.trim());
-      } else if ((b.body || '').trim()) L.push(b.body.trim());
+        seenIll = true;
+      } else if ((b.body || '').trim()) {
+        if (seenIll) L.push('(대지 내용)');   /* 예화 뒤 본문은 마커로 구분 — 재불러올 때 예화에 합쳐지지 않게 */
+        L.push(b.body.trim());
+      }
     });
     if ((p.apply || '').trim()) L.push('(적용) ' + p.apply.trim());
     L.push('');
@@ -2324,6 +2331,11 @@ function parasFromText(meta, bodyText, style){
   function lastBlank(){ return !paras.length || String(paras[paras.length - 1].text || '').trim() === ''; }
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
+    if (/^\((?:대지\s*)?내용\)/.test(l)) {        /* 구조 보존용 마커 — 출력엔 찍지 않음 */
+      l = l.replace(/^\((?:대지\s*)?내용\)\s*/, '');
+      if (!l) return;
+      line = l;
+    }
     var conv = toLeadRefQuote(l);                 /* 옛 형식(후행 괄호) → 새 형식으로 강제 */
     var converted = conv !== l;
     if (converted) l = conv.trim();
@@ -6724,7 +6736,9 @@ function previewSermonText(meta, text){
   if (text) {
     text.split('\n').forEach(function(line){
       if (!line.trim()){ h += '<div style="height:10px"></div>'; return; }
-      h += '<div style="margin-bottom:3px">'+esc(line)+'</div>';
+      var pl = line.replace(/^\s*\((?:대지\s*)?내용\)\s*/, '');   /* 구조 보존용 마커는 미리보기에서 숨김 */
+      if (!pl.trim()) return;
+      h += '<div style="margin-bottom:3px">'+esc(pl)+'</div>';
     });
   }
   return h;
@@ -6889,7 +6903,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v145';
+var APP_VER = 'v146';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
