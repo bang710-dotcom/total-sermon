@@ -101,7 +101,7 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .anStat{flex:1 1 120px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:center}
 .anStat b{display:block;font-size:22px;color:var(--accent);line-height:1.1}
 .anStat span{display:block;font-size:12px;color:var(--dim);margin-top:5px}
-.anGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:14px}
+.anGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(440px,100%),1fr));gap:14px}
 .anCard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
 .anCard h3{margin:0 0 12px;font-size:15px;color:var(--text)}
 .anCard h4{margin:0 0 8px;font-size:13px;color:var(--dim)}
@@ -112,8 +112,9 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .donut .dleg{font-size:15px;fill:var(--text)}
 .donut .dleg.on{fill:var(--accent);font-weight:700}
 .anBarRow{margin-bottom:16px}
-.anBarScroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
-.anBarSvg{width:100%;min-width:880px;height:auto;display:block;overflow:visible}
+.anBarScroll{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.anBarInner{min-width:880px}
+.anBarSvg{width:100%;height:auto;display:block;overflow:visible}
 .anBarSvg .anBsegT{font-size:13px;fill:#fff;font-weight:600}
 .anBarSvg .anBlead{font-size:12.5px;fill:var(--text)}
 .anBarSvg .anBlead.on{fill:var(--accent);font-weight:700}
@@ -5815,6 +5816,26 @@ $$('.tabbar button, .sidebar .nav').forEach(function(b){
     sheet.querySelectorAll('.msItem').forEach(function(b){
       b.addEventListener('click', function(){ showPage(b.dataset.page); closeSheet(); });
     });
+    /* 아래로 쓸어내려 닫기 */
+    var panel = sheet.querySelector('.msPanel');
+    if (panel){
+      var sy = 0, dy = 0, drag = false;
+      panel.addEventListener('touchstart', function(e){
+        if (panel.scrollTop > 0) { drag = false; return; }   /* 내용이 위로 스크롤된 상태면 닫기 동작 안 함 */
+        sy = e.touches[0].clientY; dy = 0; drag = true; panel.style.transition = 'none';
+      }, { passive: true });
+      panel.addEventListener('touchmove', function(e){
+        if (!drag) return;
+        dy = e.touches[0].clientY - sy;
+        if (dy > 0) panel.style.transform = 'translateY(' + dy + 'px)';
+      }, { passive: true });
+      panel.addEventListener('touchend', function(){
+        if (!drag) return;
+        drag = false; panel.style.transition = 'transform .18s ease';
+        if (dy > 90) { closeSheet(); setTimeout(function(){ panel.style.transform = ''; panel.style.transition = ''; }, 200); }
+        else panel.style.transform = '';
+      });
+    }
   }
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && sheet && sheet.classList.contains('open')) closeSheet(); });
   /* showPage 후 탭바/시트 활성표시 동기화 */
@@ -6153,7 +6174,7 @@ function anTestamentBars(byBook){
     if (!arr.length) return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>설교 없음</small></div></div>';
     var tot = arr.reduce(function(s, e){ return s + e.count; }, 0);
     return '<div class="anBarRow"><div class="anBarHd">' + r.t + ' <small>' + tot + '편 · ' + arr.length + '권</small></div>'
-      + '<div class="anBarScroll">' + anBarSvg(arr, tot, selKey) + '</div></div>';
+      + '<div class="anBarScroll"><div class="anBarInner">' + anBarSvg(arr, tot, selKey) + '</div></div></div>';
   }).join('');
   return '<div class="anCard"><h3>구약·신약 권별 설교 분포 (정경 순서 · 길이=설교 횟수)</h3>'
     + '<div class="cnt" style="margin:-4px 0 12px">막대가 길수록 그 책의 설교가 많습니다. 좁은 칸은 지시선으로 이름을 표기했습니다(좁은 화면에서는 좌우로 넘겨 보세요). 한 칸을 누르면 아래에 해당 설교 목록이 나옵니다.</div>'
@@ -6501,7 +6522,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v122';
+var APP_VER = 'v123';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
