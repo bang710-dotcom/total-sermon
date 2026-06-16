@@ -282,6 +282,7 @@ input[type=date]{cursor:pointer}
 .ptRow .ptBlk .blkBtn.bdel{color:#d9788a;border-color:rgba(217,120,138,.5);background:rgba(217,120,138,.12)}
 .ptRow .ptBlk .blkBtn.bdel:hover{background:rgba(217,120,138,.26)}
 .ptRow .ptAddRow{margin-top:7px;padding-left:11px}
+.ptRow .ptAddRow .addBody{color:var(--accent2);margin-right:16px}
 .ptRow .ptAddRow .addIll{color:#5b9bd5}
 /* 구조화 에디터 (오른쪽) */
 #editorPane{display:flex;flex-direction:column;gap:0}
@@ -1734,7 +1735,8 @@ function renderPoints(){
           up + dn + '<button class="blkBtn bdel" data-bact="bdel" data-i="' + i + '" data-bi="' + bi + '" title="예화 삭제">✕</button></div>';
       }
       return '<div class="ptBlk bodyBlk"><span class="blkTag bodyTag">내용</span>' +
-        '<span class="blkHint">대지 본문 — 오른쪽에서 작성</span>' + up + dn + '</div>';
+        '<span class="blkHint">대지 본문 — 오른쪽에서 작성</span>' + up + dn +
+        '<button class="blkBtn bdel" data-bact="bdel" data-i="' + i + '" data-bi="' + bi + '" title="내용 블록 삭제">✕</button></div>';
     }).join('');
     return '<div class="ptRow">' +
       '<div class="ptHead"><span class="ptNo">' + (i + 1) + '.</span>' +
@@ -1743,7 +1745,8 @@ function renderPoints(){
       '<button class="ptBtn" data-act="down" data-i="' + i + '" title="대지 아래로">↓</button>' +
       '<button class="ptBtn" data-act="del" data-i="' + i + '" title="대지 삭제">✕</button></div>' +
       '<div class="ptBlocks">' + blk + '</div>' +
-      '<div class="ptAddRow"><button class="linkbtn addIll" data-i="' + i + '">＋ 예화 추가</button></div>' +
+      '<div class="ptAddRow"><button class="linkbtn addBody" data-i="' + i + '">＋ 내용 추가</button>' +
+      '<button class="linkbtn addIll" data-i="' + i + '">＋ 예화 추가</button></div>' +
       '</div>';
   }).join('');
 }
@@ -1782,7 +1785,9 @@ $('#pointList').addEventListener('click', function(e){
     else if (act === 'bdown' && bi < bl.length - 1) { bl.splice(bi + 1, 0, bl.splice(bi, 1)[0]); }
     else if (act === 'bdel') {
       var blk = bl[bi];
-      if (((blk.ill || '').trim() || (blk.illBody || '').trim()) && !confirm('이 예화를 삭제할까요? 작성 내용도 사라집니다.')) return;
+      var isIll = blk.type === 'ill';
+      var hasC = isIll ? ((blk.ill || '').trim() || (blk.illBody || '').trim()) : (blk.body || '').trim();
+      if (hasC && !confirm((isIll ? '이 예화를' : '이 내용 블록을') + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
       bl.splice(bi, 1);
       if (!bl.length) bl.push(newBodyBlock(''));
     } else return;
@@ -1793,6 +1798,13 @@ $('#pointList').addEventListener('click', function(e){
   if (ai) {
     var ap = state.compose.points[+ai.dataset.i];
     if (ap) { ap.blocks.push(newIllBlock('', '')); renderPoints(); renderEditor(); }
+    return;
+  }
+  /* ④ 내용 블록 추가 */
+  var ab = e.target.closest('.addBody');
+  if (ab) {
+    var bp = state.compose.points[+ab.dataset.i];
+    if (bp) { bp.blocks.push(newBodyBlock('')); renderPoints(); renderEditor(); }
   }
 });
 $('#addPoint').addEventListener('click', function(){
