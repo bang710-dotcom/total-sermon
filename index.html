@@ -6686,7 +6686,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v126';
+var APP_VER = 'v127';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
@@ -7283,6 +7283,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     panel.classList.add('open'); document.body.classList.add('aiChatOpen');
     syncFollowBtn();
     setTimeout(function(){ input.focus(); }, 220);
+    chatRemotePull();   /* 열 때 다른 기기 대화 조용히 동기화 */
   }
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
   function newChat(){ persistCurrent(); chatGen++; convo = []; curSessId = null; clearAttach(); showHint(); input.value = ''; autosize(); autoFollow = true; syncFollowBtn(); input.focus(); }
@@ -7454,10 +7455,13 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }
   function deleteSession(id){
     if (!confirm('이 대화 기록을 삭제할까요?')) return;
-    var arr = loadSessions().filter(function(s){ return s && s.id !== id; });
+    var all = loadSessions(), gone = all.filter(function(s){ return s && s.id === id; })[0];
+    var arr = all.filter(function(s){ return s && s.id !== id; });
     saveSessions(arr);
     if (curSessId === id) curSessId = null;
     renderHistList();
+    if (gone && gone.sid && chatSyncOn() && navigator.onLine)   /* 시트에서도 제거 → 다른 기기에 다시 안 옴 */
+      apiPost({ action: 'delete', sheet: 'chats', data: { ID: gone.sid } }).catch(function(){});
   }
 
   function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
