@@ -2066,22 +2066,26 @@ function assembleText(){
     if (!pHasContent(p)) return;
     L.push((i + 1) + '. ' + (p.text || '').trim());
     var seenIll = false;
+    /* 모든 블록은 앞에 빈 줄 한 개로 구분 — 명제·예화·내용·적용 사이 한 줄 띄기 */
     pBlocks(p).forEach(function(b){
       if (b.type === 'ill') {
+        if (!((b.ill || '').trim() || (b.illBody || '').trim())) return;
+        L.push('');
         if ((b.ill || '').trim()) L.push('ex) ' + b.ill.trim());
         if ((b.illBody || '').trim()) L.push(b.illBody.trim());
         seenIll = true;
       } else if ((b.body || '').trim()) {
+        L.push('');
         if (seenIll) L.push('(대지 내용)');   /* 예화 뒤 본문은 마커로 구분 — 재불러올 때 예화에 합쳐지지 않게 */
         L.push(b.body.trim());
       }
     });
-    if ((p.apply || '').trim()) L.push('(적용) ' + p.apply.trim());
-    L.push('');
+    if ((p.apply || '').trim()) { L.push(''); L.push('(적용) ' + p.apply.trim()); }
+    L.push('');   /* 대지 사이 한 줄 */
   });
   L.push(c.concIntro.trim() || '말씀을 정리합니다.');
   c.points.forEach(function(p, i){ if (p.text.trim()) L.push((i + 1) + '. ' + p.text.trim()); });
-  if (c.concBody.trim()) L.push(c.concBody.trim());
+  if (c.concBody.trim()) { L.push(''); L.push(c.concBody.trim()); }
   var msg = $('#c_msg').value.trim();
   if (msg) L.push(msg);
   return L.join('\n');
@@ -2226,6 +2230,77 @@ function doSaveCompose(){
   });
 }
 $('#c_save').addEventListener('click', function(){ doSaveCompose(); });
+/* 작성 화면에서 Cmd/Ctrl + S = 시트에 저장 (브라우저 저장 대화상자 차단) */
+document.addEventListener('keydown', function(e){
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 's' || e.key === 'S')) {
+    var cp = document.getElementById('page-compose');
+    if (cp && cp.classList.contains('on')) { e.preventDefault(); doSaveCompose(); }
+  }
+});
+
+/* ===== 대화 → 작성칸 넣기: 선택 문구를 입력칸 클릭으로 삽입 ===== */
+var cwArmText = null, cwArmPopup = null;
+function cwInsSel(){ return '#c_title,#c_ref,#c_msg,.edTa,.ptText,.ptIllT'; }
+window.cwStartInsert = function(text){
+  text = String(text || '').trim();
+  if (!text) { toast('넣을 문구를 먼저 드래그해서 선택하세요.'); return; }
+  cwArmText = text;
+  document.body.classList.add('cwArm');
+  toast('넣을 입력칸을 클릭하세요 (취소: Esc)');
+  if (typeof isDesktop === 'function' && !isDesktop()) {
+    var ap = document.getElementById('aiPanel'); if (ap) ap.classList.remove('open');
+    document.body.classList.remove('aiChatOpen');
+    showPage('compose');
+  }
+  setTimeout(function(){
+    document.addEventListener('click', cwArmClick, true);
+    document.addEventListener('keydown', cwArmEsc, true);
+  }, 0);
+};
+function cwArmEsc(e){ if (e.key === 'Escape') cwCancelArm(); }
+function cwCancelArm(){
+  cwArmText = null;
+  document.body.classList.remove('cwArm');
+  document.removeEventListener('click', cwArmClick, true);
+  document.removeEventListener('keydown', cwArmEsc, true);
+  if (cwArmPopup) { cwArmPopup.remove(); cwArmPopup = null; }
+}
+function cwArmClick(e){
+  if (cwArmPopup && cwArmPopup.contains(e.target)) return;   /* 팝업 버튼 클릭은 통과 */
+  var f = e.target.closest ? e.target.closest(cwInsSel()) : null;
+  if (!f) { cwCancelArm(); return; }                          /* 입력칸 외 클릭 = 취소 */
+  e.preventDefault(); e.stopPropagation();
+  cwShowChoice(f);
+}
+function cwShowChoice(field){
+  if (cwArmPopup) cwArmPopup.remove();
+  var r = field.getBoundingClientRect();
+  var pop = document.createElement('div');
+  pop.className = 'cwInsPop';
+  pop.innerHTML = '<span class="lbl">여기에:</span>' +
+    '<button type="button" data-m="append">이어붙이기</button>' +
+    '<button type="button" data-m="over">덮어쓰기</button>';
+  document.body.appendChild(pop);
+  var top = window.scrollY + Math.min(r.bottom + 6, window.innerHeight - 56);
+  pop.style.top = top + 'px';
+  pop.style.left = (window.scrollX + Math.max(8, Math.min(r.left, window.innerWidth - 230))) + 'px';
+  cwArmPopup = pop;
+  pop.addEventListener('click', function(ev){
+    var b = ev.target.closest('button'); if (!b) return;
+    cwDoInsert(field, b.dataset.m === 'append');
+  });
+}
+function cwDoInsert(field, append){
+  var text = cwArmText || '';
+  var isInput = field.tagName === 'INPUT';
+  if (isInput) text = text.replace(/\s*\n\s*/g, ' ').trim();   /* 한 줄 입력칸엔 줄바꿈 제거 */
+  var cur = field.value || '';
+  field.value = (append && cur.trim()) ? (cur.replace(/\s*$/, '') + (isInput ? ' ' : '\n') + text) : text;
+  field.dispatchEvent(new Event('input', { bubbles: true }));   /* 기존 핸들러가 state 동기화 */
+  field.focus();
+  toast(append ? '이어붙였습니다.' : '덮어썼습니다.');
+  cwCancelArm();
+}
 
 /* ===================== DOCX 내보내기 ===================== */
 var dirHandle = null;  /* DOCX 저장 (아이클라우드 01 Sermons — 설교 원본·카드원고) */
@@ -2401,14 +2476,17 @@ function parasFromCompose(meta, c){
   c.points.forEach(function(p, i){
     if (!pHasContent(p)) return;
     push((i + 1) + '. ' + (p.text || '').trim(), true);
+    blank(); /* 명제와 첫 블록 사이 한 줄 */
     pBlocks(p).forEach(function(b){
       if (b.type === 'ill') {
+        if (!((b.ill || '').trim() || (b.illBody || '').trim())) return;
         if ((b.ill || '').trim()) push('ex) ' + b.ill.trim(), true, EX_BLUE);
         if ((b.illBody || '').trim()) b.illBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
-      } else if ((b.body || '').trim()) b.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
+        blank(); /* 블록 사이 한 줄 */
+      } else if ((b.body || '').trim()) { b.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
     });
-    if ((p.apply || '').trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); }
-    blank(); /* 대지 사이 한 줄 */
+    if ((p.apply || '').trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
+    blank(); /* 대지 사이 한 줄 (blank()는 중복 빈줄 방지) */
   });
   /* 결론 */
   blank();
