@@ -456,26 +456,34 @@ input[type=date]{cursor:pointer}
 
 /* ============ 색상 테마 (다크 기본 / 라이트 / 세피아) ============ */
 html{transition:background .2s}
+/* 라이트 = Apple 사이트 스타일 (밝은 회백 바탕·순백 카드·근검정 텍스트·애플 블루) */
 html[data-theme="light"]{
-  --bg:#f4f6fa; --card:#ffffff; --card2:#eaeef5; --line:#d7dde7;
-  --text:#1a2230; --dim:#5c6878; --accent:#5d77e8; --accent2:#9c6f10;
-  --ok:#2e9b57; --warn:#c14e2b;
+  --bg:#fbfbfd; --card:#ffffff; --card2:#f5f5f7; --line:#d2d2d7;
+  --text:#1d1d1f; --dim:#6e6e73; --accent:#0071e3; --accent2:#bf4800;
+  --ok:#1a7f37; --warn:#bf4800;
 }
+/* 세피아 = Starbucks 사이트 스타일 (따뜻한 크림 바탕·하우스 그린 텍스트·스타벅스 그린) */
 html[data-theme="sepia"]{
-  --bg:#efe6d2; --card:#faf3e2; --card2:#ece0c6; --line:#dccdac;
-  --text:#3b3018; --dim:#7a6a48; --accent:#b07d2e; --accent2:#3f7d6e;
-  --ok:#2f8a55; --warn:#b6502a;
+  --bg:#f3efe7; --card:#fbf9f3; --card2:#ece6d8; --line:#d9d0bd;
+  --text:#1e3932; --dim:#5b6b60; --accent:#00704a; --accent2:#a6703a;
+  --ok:#00704a; --warn:#a6431f;
 }
-/* 밝은 테마(라이트·세피아)에서 다크 톤 하드코딩 색이 그대로 남던 문제 보정
-   — 요청버튼 상태색·배지·중복/정상 박스 */
-html[data-theme="light"] .btn.done, html[data-theme="sepia"] .btn.done,
-html[data-theme="light"] .btn.fin,  html[data-theme="sepia"] .btn.fin{background:#e7f0fb;border-color:#9bc1ec;color:#1f5fa0}
-html[data-theme="light"] .btn.req,  html[data-theme="sepia"] .btn.req{background:#fbf0d6;border-color:#d9a92e;color:#8a6a12}
-html[data-theme="light"] .b-sermon, html[data-theme="sepia"] .b-sermon{background:#dfe5ff;color:#3a4ea8}
-html[data-theme="light"] .b-idea,   html[data-theme="sepia"] .b-idea{background:#f1e6c8;color:#8a6a12}
-html[data-theme="light"] .dupbox,   html[data-theme="sepia"] .dupbox{background:#fbeae5}
-html[data-theme="light"] .dupbox .d,html[data-theme="sepia"] .dupbox .d{border-top-color:#e3c6bb}
-html[data-theme="light"] .okbox,    html[data-theme="sepia"] .okbox{background:#e6f3ec}
+/* 밝은 테마에서 다크 톤 하드코딩 색 보정 — 요청버튼 상태색·배지·중복/정상 박스 */
+html[data-theme="light"] .btn.done, html[data-theme="light"] .btn.fin{background:#e8f1fd;border-color:#9cc4f0;color:#0058b8}
+html[data-theme="light"] .btn.req{background:#fdf0db;border-color:#e0a93a;color:#9a6a10}
+html[data-theme="light"] .b-sermon{background:#e3edfd;color:#0058b8}
+html[data-theme="light"] .b-idea{background:#fceedb;color:#9a6a10}
+html[data-theme="light"] .dupbox{background:#fbeae5}
+html[data-theme="light"] .dupbox .d{border-top-color:#e3c6bb}
+html[data-theme="light"] .okbox{background:#e6f3ec}
+/* 세피아(스타벅스)는 그린 계열로 — 파랑 대신 하우스 그린 톤 */
+html[data-theme="sepia"] .btn.done, html[data-theme="sepia"] .btn.fin{background:#dceee6;border-color:#7cc0a8;color:#1e6b4f}
+html[data-theme="sepia"] .btn.req{background:#f2e7cf;border-color:#c6a35a;color:#8a6a2a}
+html[data-theme="sepia"] .b-sermon{background:#d7ece1;color:#1e6b4f}
+html[data-theme="sepia"] .b-idea{background:#f0e6cd;color:#8a6a2a}
+html[data-theme="sepia"] .dupbox{background:#f3e6dd}
+html[data-theme="sepia"] .dupbox .d{border-top-color:#e0cdbb}
+html[data-theme="sepia"] .okbox{background:#dcefe5}
 
 /* ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획 전용) ============ */
 :root{--aip-w:380px;--aip-w0:380px}
