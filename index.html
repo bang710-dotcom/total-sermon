@@ -3252,14 +3252,26 @@ async function aiLeadersTsv(id, meta){
     var es = JSON.stringify(ejson).replace(/[\t\r\n]+/g, ' ');
     var refC = sc.bk.abbr + ' ' + sc.range.c1 + ':' + sc.range.v1 +
       (sc.range.c2 !== sc.range.c1 ? '-' + sc.range.c2 + ':' + sc.range.v2 : (sc.range.v2 !== sc.range.v1 ? '-' + sc.range.v2 : ''));
-    var row = [sc.bk.ko + ' ' + sc.range.c1, ltcSaturday(meta['날짜']), refC, meta['제목'] || '', es, '', 'TRUE'].join('\t');
+    var cols = [sc.bk.ko + ' ' + sc.range.c1, ltcSaturday(meta['날짜']), refC, meta['제목'] || '', es, '', 'TRUE'];
+    var row = cols.join('\t');
     if (row.split('\t').length !== 7 || /[\r\n]/.test(row)) throw new Error('TSV 검증 실패');
     JSON.parse(es); /* E열 유효성 */
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([row], { type: 'text/plain;charset=utf-8' }));
-    a.download = sc.bk.ko + sc.range.c1 + '_LTC_리더스앱.txt';
-    a.click();
-    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    var uploaded = false, laUrl = (state.settings || {}).laUrl, laToken = (state.settings || {}).laToken;
+    if (laUrl && laToken && navigator.onLine) {   /* 설정돼 있으면 통합시트에 한 줄 직접 추가 */
+      try {
+        var rj = await fetch(laUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ token: laToken, action: 'append', cols: cols }) }).then(function(r){ return r.json(); });
+        if (!rj || !rj.ok) throw new Error((rj && rj.error) || '업로드 응답 오류');
+        uploaded = true;
+      } catch (ue) { toast('리더스앱 직접 업로드 실패 — 파일로 받습니다: ' + ue.message); }
+    }
+    if (!uploaded) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([row], { type: 'text/plain;charset=utf-8' }));
+      a.download = sc.bk.ko + sc.range.c1 + '_LTC_리더스앱.txt';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    }
     try { /* 상태 인식용 보관본 — LTC 책 폴더(미지정 시 설교 폴더 연도) */
       var tname = '리더스앱_' + docxFileName(meta).replace(/\.docx$/, '.txt');
       var tblob = new Blob([row], { type: 'text/plain;charset=utf-8' });
@@ -3276,7 +3288,7 @@ async function aiLeadersTsv(id, meta){
       aiMarkDone(id, '리더스앱업로드', 'Opus API 직결');
     }
     renderSyncState();
-    toast('리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.');
+    toast(uploaded ? '리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.');
   } catch (e) { renderSyncState(); toast('리더스앱 파일 실패: ' + e.message); }
 }
 
@@ -6841,7 +6853,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v140';
+var APP_VER = 'v141';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
