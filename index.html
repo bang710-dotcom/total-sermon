@@ -3827,7 +3827,8 @@ function reqBtnSt(sermonId, type){
     /* 폴더 접근 불가한 유형만 기존 기록으로 폴백 */
     var fileTypes = { '원고작성': '__noDir', '카드원고': '__noDir', 'LTC교재': '__noDir', '리더스앱업로드': '__noDir', '이미지프롬프트': '__noEx', '이미지생성': '__noEx' };
     if (fileTypes[type] && A[fileTypes[type]]) return doneTypes(sermonId)[type] ? 'done' : pend[type] === '완료' ? 'fin' : '';
-    return pend[type] === '완료' ? 'fin' : '';
+    /* 폴더에 파일이 안 잡혀도(다운로드 폴백 등) 산출물 시트 기록이 있으면 완료로 표시 */
+    return doneTypes(sermonId)[type] ? 'done' : pend[type] === '완료' ? 'fin' : '';
   }
   return doneTypes(sermonId)[type] ? 'done' : pend[type] === '완료' ? 'fin' : '';
 }
@@ -6800,7 +6801,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v137';
+var APP_VER = 'v138';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
