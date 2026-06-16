@@ -7255,6 +7255,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     refreshCtxTag();
     if (convo.length === 0) showHint();
     panel.classList.add('open'); document.body.classList.add('aiChatOpen');
+    syncFollowBtn();
     setTimeout(function(){ input.focus(); }, 220);
   }
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
@@ -7282,8 +7283,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     if (Array.isArray(content)) return content.filter(function(b){ return b && b.type === 'text'; }).map(function(b){ return b.text; }).join(' ');
     return '';
   }
+  function cleanUserText(content){ return stripCtx(textOf(content)).replace(/\s*\[이미지 첨부\]\s*/g, ' ').replace(/\s+/g, ' ').trim(); }
   function sessTitle(c){
-    for (var i = 0; i < c.length; i++){ if (c[i].role === 'user'){ var t = stripCtx(textOf(c[i].content)).replace(/\s+/g, ' ').trim(); if (t) return t.slice(0, 46); } }
+    for (var i = 0; i < c.length; i++){ if (c[i].role === 'user'){ var t = cleanUserText(c[i].content); if (t) return t.slice(0, 46); } }
     return '새 대화';
   }
   function persistCurrent(){
@@ -7309,7 +7311,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     c.forEach(function(m){
       if (m.role === 'user'){
         var hasImg = Array.isArray(m.content) && m.content.some(function(b){ return b && b.type === 'text' && b.text === '[이미지 첨부]'; });
-        var t = stripCtx(textOf(m.content)).trim();
+        var t = cleanUserText(m.content);
         var el = addMsg('user', t || (hasImg ? '(이미지 첨부)' : ''), null);
         if (hasImg && t){ var note = document.createElement('div'); note.style.cssText = 'font-size:11px;opacity:.7;margin-top:4px'; note.textContent = '🖼 이미지 첨부됨'; el.appendChild(note); }
       } else {
@@ -7390,8 +7392,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   var tabAi = $('#tabAi'); if (tabAi) tabAi.addEventListener('click', openPanel);
   $('#aiClose').addEventListener('click', closePanel);
   $('#aiNew').addEventListener('click', newChat);
+  $('#aiHist').addEventListener('click', openHistory);
+  $('#aiHistClose').addEventListener('click', closeHistory);
   /* 접근성: Esc로 AI 패널 닫기 + 열린 모달 안에서 Tab 포커스 순환(트랩) */
   document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && $('#aiHistOv').classList.contains('open')){ closeHistory(); return; }
     if (e.key === 'Escape' && panel.classList.contains('open')){ closePanel(); return; }
     if (e.key !== 'Tab') return;
     var modal = document.querySelector('#aiPanel.open, #moreSheet.open, #brefOv.on, #calOv.on');
