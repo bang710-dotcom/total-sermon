@@ -544,6 +544,32 @@ body.aiChatOpen #aiFab{display:none}
 .aiAttach .rm{flex:0 0 auto;background:none;border:none;color:var(--dim);cursor:pointer;font-size:16px;line-height:1;padding:4px}
 .aiAttach .rm:hover{color:var(--warn)}
 .aiMsg .aiShot{display:block;margin-top:7px;max-width:100%;border-radius:8px;border:1px solid rgba(125,125,125,.3);cursor:zoom-in}
+/* 맨 아래로 버튼 — 위로 스크롤해 자동추적이 꺼졌을 때만 표시 */
+.aiToBottom{position:absolute;right:16px;bottom:74px;z-index:6;display:none;align-items:center;gap:5px;
+  background:var(--accent);color:#0c1020;border:none;border-radius:16px;padding:6px 11px 6px 9px;
+  font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.aiToBottom.show{display:flex}
+.aiToBottom svg{width:15px;height:15px}
+/* 대화 기록 오버레이 */
+.aiHistOv{position:absolute;inset:0;z-index:12;background:var(--card);display:flex;flex-direction:column;
+  transform:translateX(10px);opacity:0;visibility:hidden;transition:opacity .16s,transform .16s}
+.aiHistOv.open{transform:none;opacity:1;visibility:visible}
+.aiHistOv .hh{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:13px 14px;border-bottom:1px solid var(--line);background:var(--card2)}
+.aiHistOv .hh .t{font-size:15.5px;font-weight:800}
+.aiHistOv .hh .t b{color:var(--accent)}
+.aiHistOv .hh .sp{flex:1}
+.aiHistOv .hh .x{background:var(--card);border:1px solid var(--line);color:var(--dim);border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.aiHistOv .hh .x:hover{color:var(--text);border-color:var(--accent)}
+.aiHistList{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.aiHistList .empty{color:var(--dim);font-size:13px;text-align:center;margin:auto;padding:20px;line-height:1.7}
+.histItem{display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:10px 12px;cursor:pointer}
+.histItem:hover{border-color:var(--accent)}
+.histItem .ic{flex:1;min-width:0}
+.histItem .ti{font-size:13.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.histItem .mt{font-size:11.5px;color:var(--dim);margin-top:3px;display:flex;gap:8px}
+.histItem .mt .pg{color:var(--accent2)}
+.histItem .del{flex:0 0 auto;background:none;border:none;color:var(--dim);font-size:15px;cursor:pointer;padding:5px;border-radius:6px;line-height:1}
+.histItem .del:hover{color:var(--warn)}
 @media (max-width:760px){
   #aiFab{display:none !important}   /* 모바일은 하단 탭바의 [대화] 버튼으로 연다 */
   #aiPanel{top:0;left:0;bottom:0;width:100%;max-width:100%;border-radius:0;transform:translateX(-100%)}
@@ -6904,6 +6930,17 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   var busy = false;
   var chatGen = 0;        /* 대화 세대 — [새 대화] 시 증가해, 진행 중 응답이 새 대화에 끼어드는 것 방지 */
   var pendingShot = null; /* 첨부 대기 중인 화면 캡처 dataURL */
+  var curSessId = null;   /* 현재 대화의 저장 세션 id */
+
+  /* ── 스크롤 추적: 사용자가 위로 읽으러 올라가면 자동 하단이동을 멈춘다 ── */
+  var autoFollow = true;
+  var toBottomBtn = $('#aiToBottom');
+  function isNearBottom(){ return (body.scrollHeight - body.scrollTop - body.clientHeight) < 60; }
+  function syncFollowBtn(){ if (toBottomBtn) toBottomBtn.classList.toggle('show', !autoFollow); }
+  function followBottom(){ if (autoFollow) body.scrollTop = body.scrollHeight; }   /* 추적 중일 때만 따라감 */
+  function jumpBottom(){ autoFollow = true; body.scrollTop = body.scrollHeight; syncFollowBtn(); }   /* 강제: 사용자가 보낼 때·버튼 클릭 시 */
+  body.addEventListener('scroll', function(){ autoFollow = isNearBottom(); syncFollowBtn(); });
+  if (toBottomBtn) toBottomBtn.addEventListener('click', function(){ jumpBottom(); input.focus(); });
 
   /* ── 페이지별 시스템 프롬프트 ── */
   function sysFor(pg){
@@ -7065,7 +7102,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       }
     } else d.innerHTML = renderMd(text || '');
     body.appendChild(d);
-    body.scrollTop = body.scrollHeight;
+    followBottom();
     return d;
   }
   /* ── 이미지 첨부(사진 불러오기 / 카메라 촬영 / 붙여넣기) ──
@@ -7179,6 +7216,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     } else { content = userSend; }
     addMsg('user', userVisible, shot);
     convo.push({ role: 'user', content: content });
+    jumpBottom();   /* 사용자가 보냈으면 항상 최신으로 (이후 스트리밍은 사용자 스크롤 존중) */
     input.value = ''; autosize();
     clearAttach();
 
@@ -7191,12 +7229,13 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       full = await callChat(convo.slice(), modelSel.value, sysFor(pg), function(out){
         if (myGen !== chatGen) return;   /* 그 사이 [새 대화] 시작 — 렌더 중단 */
         aEl.innerHTML = renderMd(out) + '<span class="cur"></span>';
-        body.scrollTop = body.scrollHeight;
+        followBottom();
       });
       if (myGen !== chatGen) return;      /* 응답 도착 전 새 대화 시작 → 폐기(convo 오염 방지) */
       aEl.innerHTML = renderMd(full);
       addCopy(aEl, function(){ return full; });
       convo.push({ role: 'assistant', content: full });
+      persistCurrent();   /* 완료된 대화를 기록에 저장/갱신 */
     } catch(e){
       if (myGen !== chatGen) return;      /* 폐기된 대화의 오류는 무시 */
       aEl.classList.add('err');
@@ -7206,7 +7245,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       if (shot){ pendingShot = shot; renderAttach(); }  /* 첨부 이미지 복구 */
     } finally {
       busy = false; sendBtn.disabled = false;
-      body.scrollTop = body.scrollHeight;
+      followBottom();
       input.focus();
     }
   }
@@ -7219,7 +7258,112 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     setTimeout(function(){ input.focus(); }, 220);
   }
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
-  function newChat(){ chatGen++; convo = []; clearAttach(); showHint(); input.value = ''; autosize(); input.focus(); }
+  function newChat(){ persistCurrent(); chatGen++; convo = []; curSessId = null; clearAttach(); showHint(); input.value = ''; autosize(); autoFollow = true; syncFollowBtn(); input.focus(); }
+
+  /* ===================== 대화 기록(localStorage) ===================== */
+  var STORE_KEY = 'tsa.aiChats', MAX_SESS = 60;
+  function loadSessions(){ try { var a = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
+  function saveSessions(arr){
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(arr)); }
+    catch(e){ try { localStorage.setItem(STORE_KEY, JSON.stringify(arr.slice(-Math.floor(MAX_SESS / 2)))); } catch(_){} }
+  }
+  /* 저장용 정리: 이미지(base64)는 용량이 크므로 텍스트 표식으로 대체 */
+  function convoForStore(c){
+    return c.map(function(m){
+      var content = m.content;
+      if (Array.isArray(content)) content = content.map(function(b){ return b && b.type === 'image' ? { type: 'text', text: '[이미지 첨부]' } : b; });
+      return { role: m.role, content: content };
+    });
+  }
+  /* 메시지 content → 표시용 평문(화면참고 접두부 제거) */
+  function stripCtx(t){ return String(t || '').replace(/^\[현재[\s\S]*?\n\[질문\]\n/, ''); }
+  function textOf(content){
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) return content.filter(function(b){ return b && b.type === 'text'; }).map(function(b){ return b.text; }).join(' ');
+    return '';
+  }
+  function sessTitle(c){
+    for (var i = 0; i < c.length; i++){ if (c[i].role === 'user'){ var t = stripCtx(textOf(c[i].content)).replace(/\s+/g, ' ').trim(); if (t) return t.slice(0, 46); } }
+    return '새 대화';
+  }
+  function persistCurrent(){
+    if (!convo.length) return;
+    var arr = loadSessions();
+    if (!curSessId) curSessId = 'c' + Date.now();
+    var rec = { id: curSessId, ts: Date.now(), page: curPage(), title: sessTitle(convo), convo: convoForStore(convo) };
+    var idx = -1;
+    for (var i = 0; i < arr.length; i++){ if (arr[i] && arr[i].id === curSessId){ idx = i; break; } }
+    if (idx >= 0) arr.splice(idx, 1);
+    arr.push(rec);                      /* 최신을 맨 끝으로 */
+    if (arr.length > MAX_SESS) arr = arr.slice(arr.length - MAX_SESS);
+    saveSessions(arr);
+  }
+  function fmtTs(ts){
+    var d = new Date(ts);
+    function z(n){ return (n < 10 ? '0' : '') + n; }
+    return (d.getMonth() + 1) + '.' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+  }
+  /* 저장된 대화를 화면에 다시 그림 */
+  function renderConvo(c){
+    body.innerHTML = '';
+    c.forEach(function(m){
+      if (m.role === 'user'){
+        var hasImg = Array.isArray(m.content) && m.content.some(function(b){ return b && b.type === 'text' && b.text === '[이미지 첨부]'; });
+        var t = stripCtx(textOf(m.content)).trim();
+        var el = addMsg('user', t || (hasImg ? '(이미지 첨부)' : ''), null);
+        if (hasImg && t){ var note = document.createElement('div'); note.style.cssText = 'font-size:11px;opacity:.7;margin-top:4px'; note.textContent = '🖼 이미지 첨부됨'; el.appendChild(note); }
+      } else {
+        var a = addMsg('assistant', m.content || '');
+        addCopy(a, (function(txt){ return function(){ return txt; }; })(m.content || ''));
+      }
+    });
+    jumpBottom();
+  }
+  function openHistory(){
+    persistCurrent();              /* 현재 진행 중 대화도 먼저 저장 */
+    renderHistList();
+    $('#aiHistOv').classList.add('open');
+  }
+  function closeHistory(){ $('#aiHistOv').classList.remove('open'); }
+  function renderHistList(){
+    var listEl = $('#aiHistList');
+    var arr = loadSessions().slice().reverse();   /* 최신 먼저 */
+    if (!arr.length){ listEl.innerHTML = '<div class="empty">저장된 대화가 없습니다.<br>대화를 나누면 자동으로 여기에 쌓입니다.</div>'; return; }
+    listEl.innerHTML = '';
+    arr.forEach(function(s){
+      var it = document.createElement('div');
+      it.className = 'histItem'; it.dataset.id = s.id;
+      var pg = PAGES[s.page] ? '<span class="pg">' + mdEsc(PAGES[s.page]) + '</span>' : '';
+      it.innerHTML = '<div class="ic"><div class="ti">' + mdEsc(s.title || '새 대화') + '</div>' +
+        '<div class="mt">' + pg + '<span>' + fmtTs(s.ts) + '</span></div></div>' +
+        '<button class="del" type="button" title="삭제" aria-label="삭제">🗑</button>';
+      it.addEventListener('click', function(e){
+        if (e.target.closest('.del')){ e.stopPropagation(); deleteSession(s.id); return; }
+        loadSession(s.id);
+      });
+      listEl.appendChild(it);
+    });
+  }
+  function loadSession(id){
+    var arr = loadSessions(), s = null;
+    for (var i = 0; i < arr.length; i++){ if (arr[i] && arr[i].id === id){ s = arr[i]; break; } }
+    if (!s){ renderHistList(); return; }
+    persistCurrent();           /* 보던 대화 저장 후 전환 */
+    chatGen++;                  /* 진행 중 응답 차단 */
+    convo = (s.convo || []).map(function(m){ return { role: m.role, content: m.content }; });
+    curSessId = s.id;
+    clearAttach();
+    renderConvo(convo);
+    closeHistory();
+    if (typeof toast === 'function') toast('이전 대화를 불러왔습니다 — 이어서 질문할 수 있습니다.');
+  }
+  function deleteSession(id){
+    if (!confirm('이 대화 기록을 삭제할까요?')) return;
+    var arr = loadSessions().filter(function(s){ return s && s.id !== id; });
+    saveSessions(arr);
+    if (curSessId === id) curSessId = null;
+    renderHistList();
+  }
 
   function autosize(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
 
