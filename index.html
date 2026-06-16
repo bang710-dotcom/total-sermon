@@ -475,7 +475,7 @@ html[data-theme="light"] .dupbox .d,html[data-theme="sepia"] .dupbox .d{border-t
 html[data-theme="light"] .okbox,    html[data-theme="sepia"] .okbox{background:#e6f3ec}
 
 /* ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획 전용) ============ */
-:root{--aip-w:380px}
+:root{--aip-w:380px;--aip-w0:380px}
 #aiFab{position:fixed;left:22px;bottom:24px;z-index:130;display:none;align-items:center;gap:8px;
   background:linear-gradient(135deg,var(--accent),#9db4ff);color:#0c1020;border:none;border-radius:99px;
   padding:13px 18px;font-size:14.5px;font-weight:800;font-family:inherit;cursor:pointer;
@@ -502,10 +502,15 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
 #aiResetW{display:none}
 #aiResetW.show{display:flex}
 @media (max-width:760px){.aiResize{display:none}}
-/* 데스크탑: 대화창은 본문을 밀어내지 않고 그 위를 '덮는다'(오버레이).
-   너비를 늘려도 다른 영역을 가릴 뿐 레이아웃을 밀지 않는다. */
+/* 데스크탑: 대화창이 열리면 본문을 '기본 너비(--aip-w0)만큼만' 오른쪽으로 밀어
+   왼쪽에 버려지는 여백이 없게 한다. 그 너비를 넘어 더 늘리면 마진은 그대로라
+   초과분이 본문 위를 덮는다(오버레이). */
+@media (min-width:900px) and (hover:hover){
+  #app{transition:margin .22s ease}
+  body.aiChatOpen #app{max-width:none;margin-left:calc(var(--aip-w0) + 28px);margin-right:16px}
+}
 .aiHd{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:13px 14px;border-bottom:1px solid var(--line);background:var(--card2)}
-.aiHd .ttl{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:7px}
+.aiHd .ttl{font-size:14.5px;font-weight:800;display:flex;flex-direction:column;align-items:flex-start;gap:0;line-height:1.15;flex:0 0 auto;white-space:nowrap}
 .aiHd .ttl b{color:var(--accent)}
 .aiHd .sp{flex:1}
 .aiHd select{width:auto;flex:0 0 auto;font-size:12.5px;padding:6px 8px;border-radius:8px;font-weight:600}
@@ -6885,7 +6890,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 </button>
 <div id="aiPanel" role="dialog" aria-modal="false" aria-label="설교 대화">
   <div class="aiHd">
-    <span class="ttl"><b>설교</b> 대화</span>
+    <span class="ttl"><b>설교</b><span>대화</span></span>
     <span class="sp"></span>
     <select id="aiModel" title="모델 선택">
       <option value="claude-opus-4-8">Opus 4.8 · 최고 성능</option>
