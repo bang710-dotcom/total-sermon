@@ -5513,6 +5513,8 @@ async function scanRequests(quiet){
         if (savedTo) toast('완성 원고 저장: ' + savedTo);
       }
       else if (j['상태'] === '완료' && j['요청유형'] !== '예화이미지OCR' && j['요청유형'] !== '묵상집등록' && j['요청유형'] !== '설교요약' && j['요청유형'] !== '시리즈묵상' && j['요청유형'] !== '시리즈설교' && !j['산출물기록']) {
+        /* 코워크 이미지 단계가 전환표를 확정했으면 설교 레코드(파일맵.trans)에 보관 — 카드원고가 재사용 */
+        if (j['이미지전환표'] && (j['설교'] || {})['ID']) storeTransIfEmpty(j['설교']['ID'], j['이미지전환표']);
         await apiPost({ action: 'add', sheet: 'outputs', data: {
           '설교ID': (j['설교'] || {})['ID'] || '', '유형': j['요청유형'], '상태': '완료',
           '링크': '', '비고': (j['결과파일'] ? '결과: ' + j['결과파일'] + ' / ' : '') + '요청: ' + entry.name
@@ -6766,7 +6768,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v132';
+var APP_VER = 'v133';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
