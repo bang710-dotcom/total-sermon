@@ -2324,24 +2324,21 @@ function docxFileName(meta){
     (meta['제목'] || '무제') + (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
   return name.replace(/[\\/:*?"<>|]/g, '_') + '.docx';
 }
-function saveDocxBlob(blob, fname, dateStr){
+async function saveDocxBlob(blob, fname, dateStr){
   if (dirHandle) {
-    var year = (dateStr || '').slice(0, 4) || String(new Date().getFullYear());
-    return dirHandle.queryPermission({ mode: 'readwrite' }).then(function(p){
-      if (p === 'granted') return 'granted';
-      return dirHandle.requestPermission({ mode: 'readwrite' });
-    }).then(function(p){
-      if (p !== 'granted') throw new Error('폴더 접근 권한이 거부되었습니다.');
-      return dirHandle.getDirectoryHandle(year + '년', { create: true });
-    }).then(function(yd){
-      return yd.getFileHandle(fname, { create: true });
-    }).then(function(fh){
-      return fh.createWritable();
-    }).then(function(w){
-      return w.write(blob).then(function(){ return w.close(); });
-    }).then(function(){
-      toast('저장 완료: ' + dirHandle.name + '/' + (dateStr || '').slice(0, 4) + '년/' + fname);
-    });
+    try {
+      var year = (dateStr || '').slice(0, 4) || String(new Date().getFullYear());
+      var p = await dirHandle.queryPermission({ mode: 'readwrite' });
+      if (p !== 'granted') p = await dirHandle.requestPermission({ mode: 'readwrite' });
+      if (p === 'granted') {
+        var yd = await dirHandle.getDirectoryHandle(year + '년', { create: true });
+        var fh = await yd.getFileHandle(fname, { create: true });
+        var w = await fh.createWritable();
+        await w.write(blob); await w.close();
+        toast('저장 완료: ' + dirHandle.name + '/' + year + '년/' + fname);
+        return;
+      }
+    } catch (e) { /* 권한 만료·쓰기 실패 → 아래 다운로드로 폴백 */ }
   }
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2349,7 +2346,6 @@ function saveDocxBlob(blob, fname, dateStr){
   a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
   toast('다운로드 폴더에 저장: ' + fname);
-  return Promise.resolve();
 }
 
 /* ── 설교계획 내보내기 버튼 DOM 업데이트 ── */
@@ -3718,9 +3714,11 @@ async function saveToLtc(blob, fname, ref){
   /* LTC 폴더 미지정이면 설교 폴더 연도 방식으로 폴백 */
   var tok = await refToken(ref);
   if (!ltcHandle || !tok) return null;
-  if (await ltcHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
-    if (await ltcHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') return null;
-  }
+  try {
+    if (await ltcHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+      if (await ltcHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') return null;
+    }
+  } catch (e) { return null; }   /* 활성화 만료 등으로 권한 요청 불가 → 폴백(설교폴더/다운로드) */
   var bd = await findBookDir(ltcHandle, tok.ko, true);
   var w = await (await bd.getFileHandle(fname, { create: true })).createWritable();
   await w.write(blob);
@@ -6802,7 +6800,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v136';
+var APP_VER = 'v137';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
