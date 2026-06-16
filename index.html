@@ -2243,16 +2243,20 @@ function parasFromText(meta, bodyText, style){
   if (style !== '카드원고' && meta['본문']) paras.push({ text: meta['본문'], bold: true });
   paras.push({ text: '' });
   var allowInd = style !== '카드원고';
+  function lastBlank(){ return !paras.length || String(paras[paras.length - 1].text || '').trim() === ''; }
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
     var conv = toLeadRefQuote(l);                 /* 옛 형식(후행 괄호) → 새 형식으로 강제 */
     var converted = conv !== l;
     if (converted) l = conv.trim();
     var isHead = /^\d+\s*[.)]\s/.test(l);
+    var isConc = /^말씀을\s*정리/.test(l);          /* 결론 표지 */
     var isEx = /^ex\)/i.test(l);
-    var isQuote = !isHead && !isEx && refQuoteRe().test(l);   /* 성경 인용 → 빨간 볼드 */
-    paras.push({ text: converted ? l : line, bold: isHead || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
-      ind: !!(allowInd && l && !isHead && !isEx && !isQuote) /* 일반 단락만 첫 줄 들여쓰기 */ });
+    var isQuote = !isHead && !isConc && !isEx && refQuoteRe().test(l);   /* 성경 인용 → 빨간 볼드 */
+    /* 대지·결론 앞에 한 줄 띄기(서론 아래·대지 사이·결론 전). 이미 빈 줄이면 중복 안 함 */
+    if ((isHead || isConc) && l && !lastBlank()) paras.push({ text: '' });
+    paras.push({ text: converted ? l : line, bold: isHead || isConc || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
+      ind: !!(allowInd && l && !isHead && !isConc && !isEx && !isQuote) /* 일반 단락만 첫 줄 들여쓰기 */ });
   });
   return { paras: paras, st: st };
 }
@@ -6734,7 +6738,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v131';
+var APP_VER = 'v132';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
