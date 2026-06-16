@@ -491,6 +491,17 @@ body.aiChatOpen #aiFab{display:none}
   display:flex;flex-direction:column;transform:translateX(calc(-100% - 24px));transition:transform .22s ease;
   visibility:hidden}
 #aiPanel.open{transform:translateX(0);visibility:visible}
+/* 우측 경계 드래그 핸들 — 패널 너비 조절 */
+.aiResize{position:absolute;top:0;right:0;bottom:0;width:9px;cursor:col-resize;z-index:14;
+  display:flex;align-items:center;justify-content:flex-end}
+.aiResize::before{content:'';width:3px;height:46px;border-radius:3px;background:var(--line);margin-right:2px;transition:background .12s}
+.aiResize:hover::before{background:var(--accent)}
+body.aiResizing{cursor:col-resize;user-select:none}
+body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
+/* 너비 초기화 버튼 — 기본 너비가 아닐 때만 표시 */
+#aiResetW{display:none}
+#aiResetW.show{display:flex}
+@media (max-width:760px){.aiResize{display:none}}
 /* 데스크탑: 대화가 열리면 본문 전체를 오른쪽으로 밀어 작성창을 가리지 않음 */
 @media (min-width:900px) and (hover:hover){
   #app{transition:margin .22s ease}
@@ -6884,6 +6895,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       <option value="claude-sonnet-4-6">Sonnet 4.6 · 균형</option>
       <option value="claude-haiku-4-5-20251001">Haiku 4.5 · 빠름</option>
     </select>
+    <button class="nu" id="aiResetW" type="button" title="대화창 너비 초기화" aria-label="대화창 너비 초기화">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 7 4 12 9 17"/><polyline points="15 7 20 12 15 17"/></svg>
+    </button>
     <button class="nu" id="aiHist" type="button" title="대화 기록" aria-label="대화 기록">
       <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
     </button>
@@ -6900,6 +6914,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     <label><input type="checkbox" id="aiCtxOn" checked> 현재 화면 참고</label>
     <span class="tag" id="aiCtxTag"></span>
   </div>
+  <div class="aiResize" id="aiResize" title="드래그하여 너비 조절 · 더블클릭 시 초기화"></div>
   <div class="aiBody" id="aiBody"></div>
   <button class="aiToBottom" id="aiToBottom" type="button" title="맨 아래로" aria-label="맨 아래로">
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
