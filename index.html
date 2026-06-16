@@ -6618,8 +6618,8 @@ function openPreview(contentHtml, exportFn){
   closePrev();
   var ov = document.createElement('div');
   ov.id = 'prevOv';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(60,60,60,0.92);overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:16px;-webkit-overflow-scrolling:touch';
-  var bar = '<div id="prevBar" style="width:100%;max-width:720px;display:flex;gap:8px;margin-bottom:12px;position:sticky;top:0;z-index:1;flex-wrap:wrap;background:rgba(45,45,45,0.96);padding:8px;border-radius:8px">' +
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(60,60,60,0.92);overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch';
+  var bar = '<div id="prevBar" style="width:100%;max-width:720px;display:flex;gap:8px;margin-bottom:12px;position:sticky;top:env(safe-area-inset-top);z-index:1;flex-wrap:wrap;background:rgba(45,45,45,0.96);padding:8px;border-radius:8px">' +
     '<button onclick="closePrev()" style="background:#444;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">× 닫기</button>' +
     '<button onclick="window.print()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">🖨 인쇄</button>';
   if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">DOCX 내보내기</button>';
@@ -6702,7 +6702,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v129';
+var APP_VER = 'v130';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
