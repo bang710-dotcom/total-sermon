@@ -1901,11 +1901,24 @@ $$('#c_style .chip').forEach(function(ch){
   ch.addEventListener('click', function(){
     var from = state.compose.style;
     var to = ch.dataset.v;
-    state.compose.style = to;
+    if (from === to) { setStyleChips(); return; }
     var c = state.compose;
+    /* 자유원고 ↔ 구조 전환만 내용이 변환(손실 가능)된다. 이 경계를 넘을 때,
+       시트에 저장 안 된 변경이 있으면 현재 형식 그대로 한 번 자동 저장한 뒤 넘어간다.
+       제목이 없어 자동 저장이 불가하면 경고로 확인받는다. */
+    var crossesFree = (from === '자유원고') !== (to === '자유원고');
+    if (crossesFree && composeHasAnyContent() && composeDirty()) {
+      if (collectCompose()['제목']) {
+        var r = doSaveCompose();          /* 현재(전환 전) 형식으로 직렬화·저장 */
+        if (r === false) return;          /* 저장 단계에서 사용자가 취소 → 전환 중단 */
+      } else if (!confirm('아직 시트에 저장하지 않았습니다. 제목이 없어 자동 저장할 수 없어요.\n형식을 바꾸면 변환 과정에서 내용이 일부 사라질 수 있습니다. 그래도 계속할까요?')) {
+        return;
+      }
+    }
     if (from === '자유원고' && to !== '자유원고') {
       /* 자유원고 → 구조: 자유원고 내용을 파싱 규칙에 맞춰 구조(서론·대지·결론)로 반영.
          실패(번호 대지 없음)하면 기존 구조를 보존하고, 비어 있으면 요약본 뼈대를 시도. */
+      state.compose.style = to;
       if (c.free.trim()) {
         if (parseFreeToStructure()) toast('자유원고 내용을 구조에 맞춰 반영했습니다 — 칸별로 확인·수정하세요.');
         else if (!structHasContent(c) && parseSummaryToStructure()) toast('요약본을 뼈대로 불러왔습니다.');
@@ -1914,12 +1927,16 @@ $$('#c_style .chip').forEach(function(ch){
       }
       renderPoints();
     } else if (to === '자유원고' && from !== '자유원고') {
-      /* 구조 → 자유: 구조에 작성된 내용을 자유원고로 합쳐 보이게 한다.
-         구조가 비어 있을 때만(불러온 원문 등) 기존 자유원고를 보존. */
+      /* 구조 → 자유: 구조 내용을 자유원고로 조립. assembleText는 현재 스타일을 보므로
+         스타일을 바꾸기 "전에" 조립해야 구조가 제대로 옮겨진다(이전엔 먼저 바꿔 빈 free를 반환하던 버그). */
       if (structHasContent(c)) {
         var t = assembleText();
         if (t.trim()) c.free = t;
       }
+      state.compose.style = to;
+    } else {
+      /* 구조 ↔ 구조(기본↔카드): 변환 없음 */
+      state.compose.style = to;
     }
     setStyleChips(); renderEditor();
   });
@@ -2044,6 +2061,10 @@ function collectCompose(){
   data['원고유형'] = state.compose.style || '기본원고';
   return data;
 }
+/* 시트 저장본과 비교용 서명 — 토글 등에서 미저장 변경 감지 */
+function composeSig(){ try { return JSON.stringify(collectCompose()); } catch (e) { return ''; } }
+function composeDirty(){ return composeSig() !== state.savedSig; }
+function composeHasAnyContent(){ var c = state.compose; return !!((c.free || '').trim()) || structHasContent(c); }
 function clearCompose(){
   state.editing = null;
   state.versionOf = null;
@@ -2053,6 +2074,7 @@ function clearCompose(){
   $('#c_dupCheck').innerHTML = '';
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
+  state.savedSig = composeSig();
 }
 function editSermonFill(id){
   var s = findSermon(id);
@@ -2082,6 +2104,7 @@ function editSermonFill(id){
     toast('요약본을 뼈대로 불러왔습니다 — 풀텍스트는 [자유원고] 또는 결론 아래 [전체 원고 보기]에서.');
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
+  state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
   showPage('compose');
 }
@@ -2139,15 +2162,16 @@ function cwRender(){
   if (cat) cat.addEventListener('change', cwRender);
   if (q) q.addEventListener('input', cwRender);
 })();
-$('#c_save').addEventListener('click', function(){
+/* 작성 내용을 시트에 저장. 반환: Promise=저장 진행 / null=제목없음(불가) / false=사용자 취소 */
+function doSaveCompose(){
   var data = collectCompose();
-  if (!data['제목']) { toast('제목을 입력해 주세요.'); return; }
+  if (!data['제목']) { toast('제목을 입력해 주세요.'); return null; }
   if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
   /* 새버전: 원본과 날짜·제목이 같으면 산출물 파일명이 겹쳐 원본 파일을 덮어쓰게 됨 — 경고 */
   if (state.versionOf && !state.editing) {
     var org = findSermon(state.versionOf);
     if (org && docxFileName(org) === docxFileName(data) &&
-        !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return;
+        !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return false;
   }
   var body;
   if (state.editing) {
@@ -2156,14 +2180,17 @@ $('#c_save').addEventListener('click', function(){
   } else {
     body = { action: 'add', sheet: 'sermons', data: data };
   }
-  submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료')).then(function(id){
+  state.savedSig = composeSig();   /* 저장 시점 = 깨끗한 상태로 표시 */
+  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료')).then(function(id){
     if (id && typeof id === 'string' && !state.editing) {
       state.editing = id;
       state.versionOf = null;
       updateComposeBadge(); refreshReqBtns();
     }
+    return id;
   });
-});
+}
+$('#c_save').addEventListener('click', function(){ doSaveCompose(); });
 
 /* ===================== DOCX 내보내기 ===================== */
 var dirHandle = null;  /* DOCX 저장 (아이클라우드 01 Sermons — 설교 원본·카드원고) */
