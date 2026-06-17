@@ -2519,6 +2519,9 @@ function parasFromText(meta, bodyText, style){
   paras.push({ text: '' });
   var allowInd = style !== '카드원고';
   function lastBlank(){ return !paras.length || String(paras[paras.length - 1].text || '').trim() === ''; }
+  function trailBlanks(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
+  function ensureBlanks(n){ while (trailBlanks() < n) paras.push({ text: '' }); }
+  var inConc = false;
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
     if (/^\((?:대지\s*)?내용\)/.test(l)) {        /* 구조 보존용 마커 — 출력엔 찍지 않음 */
@@ -2533,8 +2536,9 @@ function parasFromText(meta, bodyText, style){
     var isConc = /^말씀을\s*정리/.test(l);          /* 결론 표지 */
     var isEx = /^ex\)/i.test(l);
     var isQuote = !isHead && !isConc && !isEx && refQuoteRe().test(l);   /* 성경 인용 → 빨간 볼드 */
-    /* 대지·결론 앞에 한 줄 띄기(서론 아래·대지 사이·결론 전). 이미 빈 줄이면 중복 안 함 */
-    if ((isHead || isConc) && l && !lastBlank()) paras.push({ text: '' });
+    /* 본문 대지 앞엔 두 줄 띄기, 결론 표지 앞엔 한 줄. 결론 안의 대지 재열은 띄우지 않음 */
+    if (isConc && l) { ensureBlanks(1); inConc = true; }
+    else if (isHead && !inConc && l) ensureBlanks(2);
     paras.push({ text: converted ? l : line, bold: isHead || isConc || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
       ind: !!(allowInd && l && !isHead && !isConc && !isEx && !isQuote) /* 일반 단락만 첫 줄 들여쓰기 */ });
   });
@@ -2560,11 +2564,14 @@ function parasFromCompose(meta, c){
     paras.push({ text: t, bold: !!b, color: col, ind: !!ind });
   }
   function blank(){ if (!paras.length || String(paras[paras.length - 1].text || '').trim()) paras.push({ text: '' }); } /* 섹션 사이 한 줄 (중복 빈줄 방지) */
+  function trailB(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
+  function blank2(){ while (trailB() < 2) paras.push({ text: '' }); } /* 대지 위 두 줄 띄기 */
   /* 서론 */
   if (c.intro.trim()) { c.intro.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
   /* 대지 */
   c.points.forEach(function(p, i){
     if (!pHasContent(p)) return;
+    blank2(); /* 대지 위 두 줄 띄기 */
     push((i + 1) + '. ' + (p.text || '').trim(), true);
     blank(); /* 명제와 첫 블록 사이 한 줄 */
     pBlocks(p).forEach(function(b){
