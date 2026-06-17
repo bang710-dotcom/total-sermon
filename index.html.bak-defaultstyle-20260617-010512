@@ -2212,9 +2212,9 @@ function editSermonFill(id){
   state.editing = null;
   state.versionOf = id;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
-  /* 기존 설교는 저장된 원고유형 우선, 없으면 기본원고로 불러옴 */
+  /* 기존 설교는 저장된 원고유형 우선, 없으면 자유원고로 불러옴 */
   var c = newCompose();
-  c.style = s['원고유형'] || '기본원고';
+  c.style = s['원고유형'] || '자유원고';
   c.free = s['원고텍스트'] || '';
   c.sum = s['요약본'] || '';
   var dj = djParse(String(s['대지'] || ''));
