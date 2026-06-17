@@ -1403,6 +1403,26 @@ window.searchTag = function(tag){
 };
 function findSermon(id){ return state.data.sermons.filter(function(x){ return x['ID'] === id; })[0]; }
 /* 원고텍스트는 목록(슬림)에서 빠져 있어 필요 시 지연 로드. 이미 있으면 즉시 반환. */
+/* ── 시트 내용 로딩 시각효과 (카드 클릭 → 불러오는 중) ── */
+var _loadT = null;
+function showLoad(msg){
+  clearTimeout(_loadT);
+  _loadT = setTimeout(function(){
+    var ov = document.getElementById('loadOv');
+    if (!ov){ ov = document.createElement('div'); ov.id = 'loadOv'; ov.innerHTML = '<span class="bigspin"></span><span class="ltxt"></span>'; document.body.appendChild(ov); }
+    ov.querySelector('.ltxt').textContent = msg || '불러오는 중…';
+    ov.style.display = 'flex';
+  }, 130);   /* 캐시된(즉시) 로드에서는 깜빡임 없이 넘어가도록 약간 지연 */
+}
+function hideLoad(){ clearTimeout(_loadT); var ov = document.getElementById('loadOv'); if (ov) ov.style.display = 'none'; }
+function markCardLoading(el){ if (!el || !el.classList) return function(){}; el.classList.add('cardLoading'); return function(){ el.classList.remove('cardLoading'); }; }
+/* 카드 클릭 → 시트 로드 → 콜백. 누름 카드 표시 + 전체 오버레이를 일관되게 처리 */
+function loadSermonThen(id, el, msg, done){
+  var unmark = markCardLoading(el);
+  showLoad(msg || '설교를 불러오는 중…');
+  return ensureText(id).then(function(s){ try { done(s); } finally { unmark(); hideLoad(); } })
+    .catch(function(){ unmark(); hideLoad(); toast('불러오기에 실패했습니다. 다시 시도해 주세요.'); });
+}
 function ensureText(id){
   var s = findSermon(id);
   if (!s) return Promise.resolve(null);
@@ -1558,7 +1578,9 @@ function openDetail(kind, id){
     var txt = String(s['원고텍스트'] || '');
     var hasSum = !!String(s['요약본'] || '').trim();
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">';
-    if (!txt) html += '<div class="empty">저장된 원고 텍스트가 없습니다.</div>';
+    if (!txt) html += s._txt
+      ? '<div class="empty">저장된 원고 텍스트가 없습니다.</div>'
+      : '<div class="libLoading" style="padding:30px 0"><span class="bigspin"></span><span class="ltxt">원고를 불러오는 중…</span></div>';
     else if (!hasSum) html += '<details class="sumbox" open><summary>원고 전문</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
     else html += '<details class="sumbox"><summary>원고 전문 펼쳐보기</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
   } else {
@@ -2247,7 +2269,7 @@ function editSermonFill(id){
   showPage('compose');
 }
 /* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
-window.editSermon = function(id){ ensureText(id).then(function(){ editSermonFill(id); }); };
+window.editSermon = function(id){ loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
 $('#c_new').addEventListener('click', function(){
   var c = state.compose;
   var hasContent = c.free.trim() || c.intro.trim() || c.points.some(function(p){ return pStructFilled(p); });
@@ -2258,8 +2280,8 @@ $('#c_new').addEventListener('click', function(){
 /* ── 진행중인 설교(구상·연구·작성중) 검색·이어쓰기 ── */
 var CW_INPROGRESS = { '구상/연구': 1, '작성중': 1, '구상': 1, '연구': 1 /* 구버전 호환 */ };
 /* 설교를 직접 수정 모드로 불러와 이어 작업 (저장 시 같은 행 업데이트) */
-window.resumeSermon = function(id){
-  ensureText(id).then(function(){
+window.resumeSermon = function(id, el){
+  loadSermonThen(id, el, '설교를 불러오는 중…', function(){
     editSermonFill(id);             /* 내용 로드 (+ compose 화면 전환) */
     state.editing = id; state.versionOf = null;  /* 새버전이 아니라 직접 수정으로 */
     updateComposeBadge(); refreshReqBtns();
@@ -2287,7 +2309,7 @@ function cwRender(){
   }
   box.innerHTML = '<div class="cnt" style="margin:0 2px 7px;color:var(--dim);font-size:12.5px">' + list.length + '개</div>' +
     list.slice(0, 60).map(function(s){
-    return '<div class="item" style="cursor:pointer;padding:10px 12px;margin-bottom:6px" onclick="resumeSermon(\'' + esc(s['ID']) + '\')">' +
+    return '<div class="item" style="cursor:pointer;padding:10px 12px;margin-bottom:6px" onclick="resumeSermon(\'' + esc(s['ID']) + '\', this)">' +
       '<div class="meta"><span class="badge b-state">' + esc(s['상태']) + '</span>' +
       (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
       (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') + '</div>' +
@@ -6168,7 +6190,7 @@ $('#c_export').addEventListener('click', function(){
   saveComposeFinal(data);                 /* 내보내기 시 최종본 시트 반영 + 상태 승격 */
 });
 window.exportSermonDocx = function(id){
-  ensureText(id).then(function(s){ if (s) exportSermonDocxNow(id); });
+  loadSermonThen(id, null, '원고를 불러오는 중…', function(s){ if (s) exportSermonDocxNow(id); });
 };
 function exportSermonDocxNow(id){
   var s = findSermon(id);
@@ -7053,7 +7075,7 @@ function closePrev(){
   window._pvEx = null;
 }
 window.previewSermon = function(id){
-  ensureText(id).then(function(s){ if (s) previewSermonNow(id); });
+  loadSermonThen(id, null, '원고를 불러오는 중…', function(s){ if (s) previewSermonNow(id); });
 };
 function previewSermonNow(id){
   var s = findSermon(id);
