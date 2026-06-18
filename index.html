@@ -1127,11 +1127,12 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
 <script>
 'use strict';
 /* ===================== 상태 ===================== */
-var LS = { settings: 'tsa.settings', data: 'tsa.data', queue: 'tsa.queue' };
+var LS = { settings: 'tsa.settings', data: 'tsa.data', queue: 'tsa.queue', autoImg: 'tsa.autoImg' };
 var state = {
   settings: load(LS.settings) || { url: '', token: '' },
   data: { sermons: [], ideas: [], outputs: [], fetchedAt: null }, /* IndexedDB에서 비동기 로드 */
   queue: load(LS.queue) || [],
+  autoImg: load(LS.autoImg) || {}, /* 프롬프트 완성되면 자동으로 프록시 이미지 생성할 설교 ID */
   scope: 'all', inboxFilter: '새것', ideaType: '예화',
   editing: null, lastTerms: [], importRows: []
 };
@@ -5942,6 +5943,7 @@ async function scanRequests(quiet){
     else if (!quiet) toast('요청함 — 대기 ' + waiting + '건 · 진행중 ' + working + '건');
   } catch (e) { if (!quiet) toast('요청함 확인 실패: ' + e.message); }
   finally { scanRequests._busy = false; }
+  maybeAutoGenImages(); /* 프롬프트가 막 완성된 설교가 있으면 프록시로 이미지 자동 생성 */
 }
 /* 버튼 작동 중 표시: 스피너 + 비활성화 (중복 클릭 방지) */
 function withBusy(btn, label, fn){
@@ -6595,17 +6597,48 @@ async function findImageDoc(meta){
   }
   return best;   /* 없으면 null */
 }
-async function generateSermonImageSet(id, meta){
+function setAutoImg(id){ state.autoImg = state.autoImg || {}; state.autoImg[id] = true; save(LS.autoImg, state.autoImg); }
+function clearAutoImg(id){ if (state.autoImg && state.autoImg[id]) { delete state.autoImg[id]; save(LS.autoImg, state.autoImg); } }
+/* 자동 플래그가 달린 설교들: 이미지자료(프롬프트)가 준비됐으면 프록시로 이미지 자동 생성.
+   scanRequests(요청함 상태 확인/동기화) 직후에 호출 — 사용자 추가 클릭 없이 이어진다. */
+function maybeAutoGenImages(){
+  var flags = state.autoImg || {}, ids = Object.keys(flags).filter(function(k){ return flags[k]; });
+  if (!ids.length) return;
+  var pc = imgProxyCfg();
+  if (!(pc.url && pc.token && canFolderSave())) return;
+  if (maybeAutoGenImages._busy) return; maybeAutoGenImages._busy = true;
+  (async function(){
+    try {
+      for (var i = 0; i < ids.length; i++){
+        var id = ids[i], s = findSermon(id);
+        if (!s) { clearAutoImg(id); continue; }
+        var doc = null;
+        try { doc = await findImageDoc(s); } catch (e) { continue; }
+        if (!doc) continue;            /* 프롬프트 아직 — 다음 확인 때 재시도 */
+        clearAutoImg(id);
+        toast('이미지자료 준비됨 — 「' + (s['제목'] || id) + '」 이미지를 생성합니다.');
+        var meta = s;
+        try { var ls = await ensureText(id); if (ls) meta = ls; } catch (e) {}
+        await generateSermonImageSet(id, meta, { auto: true });
+      }
+    } finally { maybeAutoGenImages._busy = false; }
+  })();
+}
+async function generateSermonImageSet(id, meta, opts){
+  opts = opts || {};
   try {
     var doc = await findImageDoc(meta);
-    /* 이미지자료가 아직 없으면: 전환표시본·이미지자료부터 만들도록 [이미지생성] 요청을
-       요청함에 넣어 Cowork 전체 체인(전환표시본 → 이미지자료 → 이미지세트)을 진행한다(이전 동작). */
+    /* 이미지자료가 아직 없으면: Cowork에 '이미지프롬프트'만 맡겨 전환표시본·이미지자료를 만들고,
+       이 설교를 자동 플래그에 올린다 → 프롬프트 완성이 감지되면 앱이 프록시로 이미지를
+       자동 생성한다(이미지는 언제나 프록시로 일관, 사용자 추가 클릭 없음). */
     if (!doc) {
+      if (opts.auto) return;          /* 자동 호출인데 아직 없음 → 다음 확인 때 재시도 */
       toast('이미지전환표시본 설교원고와 이미지자료(프롬프트)부터 생성한 후 이미지를 생성합니다.');
-      writeRequestFile('이미지생성', meta);
+      writeRequestFile('이미지프롬프트', meta);
+      if (meta['ID']) setAutoImg(meta['ID']);
       return;
     }
-    if (!confirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) return;
+    if (!opts.auto && !confirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) return;
     toast('이미지자료 읽는 중…');
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
     var f = await doc.entry.getFile();
