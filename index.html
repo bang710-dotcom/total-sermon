@@ -6401,10 +6401,27 @@ function imgProxyCfg(){
   var s = state.settings || {};
   return { url: String(s.proxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
 }
+/* 데스크탑(File System Access API)에서만 폴더 저장 가능. iOS 사파리 등은 미지원 → 화면 저장. */
+function canFolderSave(){ return !!(xHandle && window.FileSystemHandle); }
+function b64ToBlob(b64, type){
+  var bin = atob(b64), len = bin.length, u8 = new Uint8Array(len);
+  for (var i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type: type || 'image/png' });
+}
+async function saveImageToResults(b64, fname){
+  if (!canFolderSave()) throw new Error('no-folder');
+  await xPerm();
+  var dir = await xHandle.getDirectoryHandle('_claude_결과함', { create: true });
+  var fh = await dir.getFileHandle(fname, { create: true });
+  var w = await fh.createWritable();
+  await w.write(b64ToBlob(b64)); await w.close();
+  return fname;
+}
 async function genSermonImage(opts){
   var c = imgProxyCfg();
   if (!c.url || !c.token) throw new Error('설정 탭에서 이미지 프록시 URL과 토큰을 먼저 입력해 주세요.');
-  var body = { jobType: opts.jobType || 'background', prompt: String(opts.prompt || ''), aspectRatio: opts.aspectRatio || '16:9', n: 1 };
+  /* inline:true → 프록시가 base64 바이트로 반환(파일 저장·만료/CORS 회피) */
+  var body = { jobType: opts.jobType || 'background', prompt: String(opts.prompt || ''), aspectRatio: opts.aspectRatio || '16:9', n: 1, inline: true };
   if (opts.provider) body.provider = opts.provider;
   if (opts.model) body.model = opts.model;
   var r = await fetch(c.url + '/generate', {
@@ -6417,11 +6434,13 @@ async function genSermonImage(opts){
   if (!j.ok) throw new Error(j.error || ('HTTP ' + r.status));
   var im = (j.images || [])[0];
   if (!im) throw new Error('이미지가 없습니다.');
-  return { src: im.format === 'b64' ? ('data:image/png;base64,' + im.data) : im.data, provider: j.provider, model: j.model, format: im.format };
+  var b64 = im.format === 'b64' ? im.data : null;
+  return { src: b64 ? ('data:image/png;base64,' + b64) : im.data, b64: b64, provider: j.provider, model: j.model, format: im.format };
 }
 (function(){
   var btn = document.getElementById('imgProxyGen');
   if (!btn) return;
+  function p2(n){ return ('0' + n).slice(-2); }
   btn.addEventListener('click', function(){
     var out = document.getElementById('imgProxyOut');
     var prompt = (document.getElementById('imgProxyPrompt') || {}).value || '';
@@ -6430,16 +6449,39 @@ async function genSermonImage(opts){
     if (!prompt.trim()) { toast('프롬프트를 입력해 주세요.'); return; }
     btn.disabled = true;
     out.innerHTML = '<div class="cnt">생성 중… (배경 약 10~20초)</div>';
-    genSermonImage({ jobType: jobType, prompt: prompt, aspectRatio: ar }).then(function(res){
-      out.innerHTML = '<div class="cnt">' + res.provider + ' · ' + res.model + '</div>';
+    /* 폴더 권한은 '클릭 직후'(user activation 살아있을 때) 미리 확보한다.
+       생성이 10~20초 걸려 그 뒤 requestPermission하면 활성화가 만료돼 저장이 막힌다. */
+    var wantSave = canFolderSave();
+    var canSave = false, res0;
+    var permP = wantSave ? xPerm().then(function(){ return true; }, function(){ return false; }) : Promise.resolve(false);
+    permP.then(function(ok){
+      canSave = ok;
+      return genSermonImage({ jobType: jobType, prompt: prompt, aspectRatio: ar });
+    }).then(function(res){
+      res0 = res;
+      var d = new Date();
+      var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes());
+      var fname = '이미지_' + jobType + '_' + stamp + '.png';
+      if (res.b64 && canSave) {
+        return saveImageToResults(res.b64, fname)
+          .then(function(){ return { saved: fname }; }, function(e){ return { err: (e && e.message) || String(e) }; });
+      }
+      if (wantSave) return { err: '폴더 권한이 없어 저장하지 못했습니다 (작성 탭/설정에서 claude-exchange 폴더를 연결해 주세요).' };
+      return { mobile: true };
+    }).then(function(info){
+      var note = info.saved ? '결과함 저장됨: ' + info.saved + ' · [아웃풋]에서 확인'
+               : info.err ? '저장 실패: ' + info.err
+               : '이미지를 길게 눌러 사진/파일로 저장하세요';
+      out.innerHTML = '<div class="cnt">' + res0.provider + ' · ' + res0.model + ' — ' + note + '</div>';
       var img = document.createElement('img');
-      img.src = res.src; img.style.cssText = 'max-width:100%;border-radius:10px;margin-top:6px;display:block';
+      img.src = res0.src; img.style.cssText = 'max-width:100%;border-radius:10px;margin-top:6px;display:block';
       out.appendChild(img);
       var a = document.createElement('a');
-      a.href = res.src; a.download = 'sermon-image.png'; a.target = '_blank';
+      a.href = res0.src; a.download = (info.saved || 'sermon-image.png'); a.target = '_blank';
       a.textContent = '원본 열기 / 저장'; a.className = 'linkbtn';
       a.style.cssText = 'display:inline-block;margin-top:8px';
       out.appendChild(a);
+      if (info.saved) toast('결과함 저장: ' + info.saved);
     }).catch(function(e){
       out.innerHTML = '<div class="cnt" style="color:#e66">실패: ' + (e.message || e) + '</div>';
     }).then(function(){ btn.disabled = false; });
@@ -7214,7 +7256,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v151';
+var APP_VER = 'v154';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
