@@ -1014,31 +1014,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <label>리더스앱 업로드 토큰</label>
         <input type="text" id="setLaToken" placeholder="리더스앱 시트 setup 실행 시 로그의 토큰">
         <div class="cnt" style="margin-top:6px">리더스앱 통합시트에 배포한 업로드 웹앱 주소·토큰을 넣으면, [LTC 교재 / 리더스앱 업로드] 버튼이 파일을 받는 대신 <b>시트에 바로 한 줄 추가</b>합니다. 비워두면 기존처럼 TSV 파일을 내려받습니다.</div>
-        <label style="margin-top:14px">설교 이미지 프록시 URL (Cloudflare Worker — 선택)</label>
-        <input type="url" id="setProxyUrl" placeholder="https://sermon-image-proxy.계정.workers.dev">
-        <label>이미지 프록시 토큰 (APP_TOKEN)</label>
-        <input type="text" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
-        <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다(배경=Flux / 제목 텍스트=Nano Banana Pro). 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
-      </div>
-      <div class="card">
-        <label>🎨 설교 이미지 생성 (프록시 연결 테스트)</label>
-        <textarea id="imgProxyPrompt" rows="3" placeholder="예) 검은 배경에 한 줄기 따뜻한 빛, 영화적, 글자 없음"></textarea>
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-          <select id="imgProxyJob">
-            <option value="background">배경 (Flux klein)</option>
-            <option value="background-hero">배경·고급 (Flux max)</option>
-            <option value="text">제목 텍스트 (Nano Banana Pro)</option>
-          </select>
-          <select id="imgProxyAR">
-            <option value="16:9">16:9</option>
-            <option value="9:16">9:16</option>
-            <option value="1:1">1:1</option>
-            <option value="4:3">4:3</option>
-          </select>
-          <button class="btn sub" id="imgProxyGen">생성</button>
-        </div>
-        <div id="imgProxyOut" style="margin-top:10px"></div>
       </div>
       <div class="card">
         <button class="btn sub" id="syncBtn">지금 동기화</button>
