@@ -3626,6 +3626,79 @@ window.requestCardPdf = function(){
   generateCardPdf(state.editing || '', m);
 };
 
+/* ===================== 인앱 이미지자료(프롬프트 DOCX) 생성 (2단계) ===================== */
+var LED_TAIL = 'Strong dark vignette on all edges, left and right sides fading completely into pure black with smooth gradient, all bright elements concentrated in the central area, edges seamlessly dissolving into the surrounding darkness so the image appears intentionally framed within a larger black space. Deep black background. Widescreen 16:9.';
+var P_IMGDATA = [
+  '너는 영락교회 대학부 설교의 "설교 이미지 자료(컷별 LED 배경 프롬프트)"를 만든다. 입력(설교 원고+메타, 있으면 기존전환표)을 받아 컷 목록을 JSON으로만 출력한다. 설명·코드펜스 금지.',
+  '출력: {"cuts":[{"n":1,"type":"표지|일반|본문","role":"한국어 역할 한 줄","ko":"한국어 설명 1~2문장","en":"영문 장면 묘사","anchor":"전환 직후 단락/인용 첫 30자","deriveFrom":N}]}',
+  '전환표 규칙: #1=표지(설교 대표 이미지). #2부터 연속 번호. 본문 시작에 #2(일반). 각 대지 선언·주요 단락 시작과 결론 앞에 일반 전환. 모든 성경 인용 직전에 "본문" 컷. 입력에 "기존전환표"가 있으면 그 n·종류·순서를 그대로 따른다.',
+  'type 의미: 표지(#1만), 일반(분위기 배경 — 새 영문 프롬프트 작성), 본문(성경 텍스트 얹을 배경 — 새로 만들지 않고 "직전 일반 이미지의 파생본"이다. en은 빈 문자열, deriveFrom=직전 일반 컷 번호).',
+  'en(일반·표지만): 그 단락의 정서를 상징하는 장면. 시네마틱 회화풍(cinematic painterly), 극적 명암(dramatic chiaroscuro), 사람 얼굴 없음·글자 없음(no visible faces, no text). 1~2문장. ※ "deep black background / vignette / 16:9" 같은 LED 마무리 문구는 절대 쓰지 마라(시스템이 자동 추가). 오직 장면 묘사.',
+  'role=한국어 역할(예: "서론 — …", "1대지 선언 — …", "본문 — 요 7:17"). ko=한국어 설명 1~2문장. anchor=그 전환이 들어갈 위치(원고에서 전환 직후 단락/인용 첫 30자 그대로).',
+  '원고 내용에 충실하라. 컷 수는 보통 표지 포함 18~24장.'
+].join('\n');
+async function aiImgData(meta){
+  var prevTrans = meta['ID'] ? sermonTrans(meta['ID']) : null;
+  var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'], '날짜': meta['날짜'], '원고': meta['원고텍스트'] };
+  if (prevTrans) inp['기존전환표'] = prevTrans;
+  var out = await callClaude(P_IMGDATA, JSON.stringify(inp), 32000, aiTick('이미지자료(프롬프트)'));
+  var j = aiJson(out);
+  return (j && Array.isArray(j.cuts)) ? j.cuts : (Array.isArray(j) ? j : []);
+}
+function buildImgDataDocx(D, meta, cuts){
+  var FONT = { ascii: '함초롬바탕', eastAsia: '함초롬바탕', hAnsi: '함초롬바탕' };
+  function P(text, run, after){ return new D.Paragraph({ spacing: { line: 300, after: after || 40 }, children: [new D.TextRun(Object.assign({ text: text }, run || {}))] }); }
+  var series = meta['예배구분'] || '대학부';
+  var gen = cuts.filter(function(c){ return c.type !== '본문'; });
+  var scr = cuts.filter(function(c){ return c.type === '본문'; });
+  var ch = [];
+  ch.push(P(series + ' — 설교 이미지 자료', { bold: true, size: 32 }));
+  ch.push(P('「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || ''), { size: 28 }));
+  ch.push(P((meta['날짜'] || '') + ' · 영락교회 대학부', { size: 24, color: '555555' }, 120));
+  ch.push(P('■ 이미지 구성 안내', { bold: true, size: 24 }));
+  ch.push(P('· 총 ' + cuts.length + '장 = 표지 1장 + 전환 ' + (cuts.length - 1) + '장', { size: 22 }));
+  ch.push(P('· 일반 이미지 ' + (gen.length - 1) + '장: ' + gen.filter(function(c){ return c.n !== 1; }).map(function(c){ return '#' + c.n; }).join(' '), { size: 22 }));
+  ch.push(P('· 본문 이미지 ' + scr.length + '장: ' + scr.map(function(c){ return '#' + c.n; }).join(' ') + ' — 새로 생성하지 않고 직전 일반 이미지의 파생본(채도↓·밝기↓·블러)', { size: 22 }));
+  ch.push(P('· LED 처리 공통: 좌우 완전 페이드 + 네 모서리 비네트 + 중앙 집중, 깊은 검정 배경, 16:9.', { size: 22 }, 160));
+  cuts.forEach(function(c){
+    ch.push(P((c.type === '본문' ? '본문 이미지 #' : '이미지 #') + c.n, { bold: true, size: 26 }, 20));
+    ch.push(P('【역할】 ' + (c.role || ''), { bold: true, size: 22 }, 10));
+    ch.push(P('【한국어 설명】 ' + (c.ko || ''), { size: 22 }, 10));
+    if (c.type === '본문') {
+      ch.push(P('직전 이미지 #' + (c.deriveFrom || '') + '의 파생본 — 채도↓·밝기↓·블러 (derive_scripture_bg.py)', { size: 20, color: '777777' }, 140));
+    } else {
+      var en = String(c.en || '').trim();
+      if (en && !/[.]$/.test(en)) en += '.';
+      ch.push(P((en ? en + ' ' : '') + LED_TAIL, { size: 20 }, 140));
+    }
+  });
+  function mm(v){ return Math.round(v * 56.6929); }
+  return new D.Document({ styles: { default: { document: { run: { font: FONT, size: 22 } } } },
+    sections: [{ properties: { page: { size: { width: mm(210), height: mm(297) }, margin: { top: mm(15), bottom: mm(15), left: mm(15), right: mm(15) } } }, children: ch }] });
+}
+async function generateImgData(id, meta){
+  try {
+    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    var cuts = await aiImgData(meta);
+    if (!cuts.length) throw new Error('컷 응답 형식 오류');
+    setGenStage('이미지자료 — 문서 저장 중…');
+    var D = await ensureDocxLib();
+    var blob = await D.Packer.toBlob(buildImgDataDocx(D, meta, cuts));
+    var ymd = String(meta['날짜'] || '').replace(/-/g, '');
+    var titleSafe = String(meta['제목'] || '설교').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+    await saveBlobToResults(blob, ymd + '_' + titleSafe + '_이미지자료.docx');
+    if (id) { try { storeTransIfEmpty(id, cuts.filter(function(c){ return c.n !== 1; }).map(function(c){ return { n: c.n, t: c.type === '본문' ? '본문' : '일반', a: String(c.anchor || '').slice(0, 30) }; })); } catch (e) {} }
+    hideGenOverlay(); renderSyncState();
+    toast('이미지자료(프롬프트) 저장 완료 — [아웃풋]에서 확인. 이어서 [배경 이미지 생성] 가능.');
+  } catch (e) { hideGenOverlay(); toast('이미지자료 실패: ' + (e.message || e)); }
+}
+window.requestImgData = function(){
+  var m = (typeof collectCompose === 'function') ? collectCompose() : {};
+  if (state.editing) m['ID'] = state.editing;
+  generateImgData(state.editing || '', m);
+};
+
 /* LTC 교재 데이터 생성 (TSV와 공유) */
 async function aiLtcData(meta){
   var key = meta['ID'] || meta['제목'] || '';
