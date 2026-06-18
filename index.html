@@ -6582,7 +6582,9 @@ function parseImageDoc(text){
 async function findImageDoc(meta){
   if (!canFolderSave()) throw new Error('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.');
   await xPerm();
-  var dir = await xHandle.getDirectoryHandle('_claude_결과함');
+  var dir;
+  try { dir = await xHandle.getDirectoryHandle('_claude_결과함'); }
+  catch (e) { return null; }   /* 결과함 자체가 아직 없음 → 이미지자료도 없음 */
   var ymd = String(meta['날짜'] || '').replace(/-/g, '');
   var best = null;
   for await (var e of dir.values()){
@@ -6591,12 +6593,18 @@ async function findImageDoc(meta){
     var f = await e.getFile();
     if (!best || f.lastModified > best.m) best = { m: f.lastModified, entry: e, name: e.name };
   }
-  if (!best) throw new Error('이미지자료 문서를 찾지 못했습니다 — 먼저 [이미지프롬프트]로 만들어 주세요.');
-  return best;
+  return best;   /* 없으면 null */
 }
 async function generateSermonImageSet(id, meta){
   try {
     var doc = await findImageDoc(meta);
+    /* 이미지자료가 아직 없으면: 전환표시본·이미지자료부터 만들도록 [이미지생성] 요청을
+       요청함에 넣어 Cowork 전체 체인(전환표시본 → 이미지자료 → 이미지세트)을 진행한다(이전 동작). */
+    if (!doc) {
+      toast('이미지전환표시본 설교원고와 이미지자료(프롬프트)부터 생성한 후 이미지를 생성합니다.');
+      writeRequestFile('이미지생성', meta);
+      return;
+    }
     if (!confirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) return;
     toast('이미지자료 읽는 중…');
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
@@ -7409,7 +7417,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v156';
+var APP_VER = 'v157';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
