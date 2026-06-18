@@ -3476,7 +3476,7 @@ var P_CARDDECK = [
   '- {"type":"point","label":"첫째","text":"대지 한 문장","bg":{...}}',
   'run = {"t":"텍스트","e":null|"strong"|"green"} — strong=핵심 강조(남색 굵게), green=결론/제목성 한 줄(초록 굵게).',
   'bg(배경 전환 표시): 일반 이미지 전환 시작 카드 {"kind":"전환","n":N}; 같은 배경 이어지는 카드 {"kind":"계속"}; 성경 인용 카드 {"kind":"본문"}.',
-  '★줄바꿈: lines는 줄 배열이다. 줄바꿈은 "문장 끝"과 "큰 의미 단위(주요 절 경계)"에서만 한다. 쉼표마다 잘게 끊지 말 것 — 한 줄을 카드 폭만큼 넉넉히 채운다(한 줄 약 30~36자). 줄 수를 최소화한다(너무 잘게 끊으면 왼쪽으로 치우치고 자주 넘겨야 해서 나쁘다). 어구 중간에서 절대 끊지 않고 "/" 기호 금지.',
+  '★줄바꿈: lines는 줄 배열이다. 줄바꿈은 "문장 끝"과 "큰 의미 단위(주요 절 경계)"에서만 한다. 쉼표마다 잘게 끊지 말 것 — 한 줄을 카드 폭이 허용하는 만큼 가득 채운다(한 줄 약 24~27자, 폭을 채우되 넘기지 않게). 줄 수를 최소화한다(너무 잘게 끊으면 왼쪽으로 치우치고 자주 넘겨야 해서 나쁘다). 어구 중간에서 절대 끊지 않고 "/" 기호 금지.',
   '분할: 표지=1장. 일반 이미지 전환마다 새 카드(첫 카드 bg=전환#N, 이어지는 카드 bg=계속). 성경 인용은 항상 단독 scripture 카드(bg=본문). 대지 선언(첫째/둘째/…)은 단독 point 카드. 한 body 카드 줄 수 합계 11줄 이하로 넉넉히 담되 — 넘으면 다음 "계속" 카드로. 너무 잘게 나누지 말 것. 전체 25~38장 내외.',
   '입력에 "기존전환표"(배열 [{n,t,a}])가 있으면 그 번호·종류·순서를 그대로 따른다.',
   '강조 매핑: 본문 핵심 어구·대지 리드=strong(남색). 핵심 결론/제목 키워드=green. 성경 장절 인라인 언급=strong.',
@@ -3504,7 +3504,7 @@ var CARD_CSS = ".cdk-card{width:1240px;height:840px;position:relative;overflow:h
  + ".cdk-card .topbar .trans{color:#9A9AB8;font-weight:500}"
  + ".cdk-card.body .blk{margin-top:36px}"
  + ".cdk-card.body .blk:first-of-type{margin-top:54px}"
- + ".cdk-card.body .ln{color:#1A1C4A;font-size:42px;line-height:1.5}"
+ + ".cdk-card.body .ln{color:#1A1C4A;font-size:40px;line-height:1.5}"
  + ".cdk-card b{color:#2E3191;font-weight:800}.cdk-card b.g{color:#2AA78E}"
  + ".cdk-card .foot-r{color:#C9C5D6;font-size:25px;margin-top:auto;text-align:right;font-weight:500}"
  + ".cdk-card.scr .row{display:flex;justify-content:space-between;align-items:center;margin-top:28px}"
@@ -3536,8 +3536,9 @@ function cardBgText(bg){
   if (bg.kind === '본문') return '+ 본문 · 같은 배경';
   return '';
 }
+var CARD_FOOTER = '복음의 능력으로 춤추라';   /* 올해 표어 — Opus 출력과 무관하게 항상 이 값으로 */
 function renderCardDeckHtml(deck){
-  var m = deck.meta || {}, foot = esc(m.footer || ''), html = '';
+  var m = deck.meta || {}, foot = esc(CARD_FOOTER), html = '';
   (deck.cards || []).forEach(function(c){
     if (c.type === 'cover'){
       var title = esc(m.title || ''), kw = m.titleKeyword || '';
@@ -7628,7 +7629,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v160';
+var APP_VER = 'v161';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
