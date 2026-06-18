@@ -6387,12 +6387,64 @@ $('#saveSermon').addEventListener('click', function(){
 
 $('#saveSettings').addEventListener('click', function(){
   state.settings = { url: $('#setUrl').value.trim(), token: $('#setToken').value.trim(), claudeKey: $('#setClaude').value.trim(),
-    laUrl: $('#setLaUrl').value.trim(), laToken: $('#setLaToken').value.trim() };
+    laUrl: $('#setLaUrl').value.trim(), laToken: $('#setLaToken').value.trim(),
+    proxyUrl: ($('#setProxyUrl') ? $('#setProxyUrl').value.trim() : (state.settings && state.settings.proxyUrl) || ''),
+    proxyToken: ($('#setProxyToken') ? $('#setProxyToken').value.trim() : (state.settings && state.settings.proxyToken) || '') };
   save(LS.settings, state.settings);
   toast('설정 저장됨');
   api({ action: 'ping' }).then(function(){ toast('연결 성공! 동기화를 시작합니다.'); return sync(); })
     .catch(function(e){ toast('연결 확인 실패: ' + e.message); });
 });
+
+/* ===== 설교 이미지 생성 (Cloudflare 프록시) — 자체완결 모듈 (1단계: 단일 생성) ===== */
+function imgProxyCfg(){
+  var s = state.settings || {};
+  return { url: String(s.proxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
+}
+async function genSermonImage(opts){
+  var c = imgProxyCfg();
+  if (!c.url || !c.token) throw new Error('설정 탭에서 이미지 프록시 URL과 토큰을 먼저 입력해 주세요.');
+  var body = { jobType: opts.jobType || 'background', prompt: String(opts.prompt || ''), aspectRatio: opts.aspectRatio || '16:9', n: 1 };
+  if (opts.provider) body.provider = opts.provider;
+  if (opts.model) body.model = opts.model;
+  var r = await fetch(c.url + '/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-app-token': c.token },
+    body: JSON.stringify(body)
+  });
+  var j;
+  try { j = await r.json(); } catch (e) { throw new Error('응답 파싱 실패 (HTTP ' + r.status + ')'); }
+  if (!j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  var im = (j.images || [])[0];
+  if (!im) throw new Error('이미지가 없습니다.');
+  return { src: im.format === 'b64' ? ('data:image/png;base64,' + im.data) : im.data, provider: j.provider, model: j.model, format: im.format };
+}
+(function(){
+  var btn = document.getElementById('imgProxyGen');
+  if (!btn) return;
+  btn.addEventListener('click', function(){
+    var out = document.getElementById('imgProxyOut');
+    var prompt = (document.getElementById('imgProxyPrompt') || {}).value || '';
+    var jobType = (document.getElementById('imgProxyJob') || {}).value || 'background';
+    var ar = (document.getElementById('imgProxyAR') || {}).value || '16:9';
+    if (!prompt.trim()) { toast('프롬프트를 입력해 주세요.'); return; }
+    btn.disabled = true;
+    out.innerHTML = '<div class="cnt">생성 중… (배경 약 10~20초)</div>';
+    genSermonImage({ jobType: jobType, prompt: prompt, aspectRatio: ar }).then(function(res){
+      out.innerHTML = '<div class="cnt">' + res.provider + ' · ' + res.model + '</div>';
+      var img = document.createElement('img');
+      img.src = res.src; img.style.cssText = 'max-width:100%;border-radius:10px;margin-top:6px;display:block';
+      out.appendChild(img);
+      var a = document.createElement('a');
+      a.href = res.src; a.download = 'sermon-image.png'; a.target = '_blank';
+      a.textContent = '원본 열기 / 저장'; a.className = 'linkbtn';
+      a.style.cssText = 'display:inline-block;margin-top:8px';
+      out.appendChild(a);
+    }).catch(function(e){
+      out.innerHTML = '<div class="cnt" style="color:#e66">실패: ' + (e.message || e) + '</div>';
+    }).then(function(){ btn.disabled = false; });
+  });
+})();
 $('#syncBtn').addEventListener('click', function(){ sync(); });
 $('#fullSyncBtn').addEventListener('click', function(){ fullResync(); });
 
@@ -7185,6 +7237,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   $('#setClaude').value = state.settings.claudeKey || '';
   if ($('#setLaUrl')) $('#setLaUrl').value = state.settings.laUrl || '';
   if ($('#setLaToken')) $('#setLaToken').value = state.settings.laToken || '';
+  if ($('#setProxyUrl')) $('#setProxyUrl').value = state.settings.proxyUrl || '';
+  if ($('#setProxyToken')) $('#setProxyToken').value = state.settings.proxyToken || '';
   $('#page-search').classList.add('on');
   $('#smDate').value = new Date().toISOString().slice(0, 10);
   $('#c_date').value = new Date().toISOString().slice(0, 10);
