@@ -809,6 +809,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         </div>
         <div class="toolrow desktop-only" style="margin-top:6px">
           <button class="btn sub mini" id="c_cardpdf"><span>🧪 카드 디자인<br>PDF (테스트)</span></button>
+          <button class="btn sub mini" id="c_imgdata"><span>🧪 이미지자료<br>(테스트)</span></button>
         </div>
         <div class="toolrow" style="margin-top:6px">
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
@@ -6475,6 +6476,13 @@ if (_cpb) _cpb.addEventListener('click', function(){
   if (!String(m['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
   generateCardPdf(state.editing || '', m);
 });
+var _idb = document.getElementById('c_imgdata');
+if (_idb) _idb.addEventListener('click', function(){
+  var m = collectCompose();
+  if (state.editing) m['ID'] = state.editing;
+  if (!String(m['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+  generateImgData(state.editing || '', m);
+});
 window.exportSermonDocx = function(id){
   loadSermonThen(id, null, '원고를 불러오는 중…', function(s){ if (s) exportSermonDocxNow(id); });
 };
@@ -7703,7 +7711,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v162';
+var APP_VER = 'v163';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
