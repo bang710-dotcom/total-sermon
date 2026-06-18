@@ -3804,7 +3804,7 @@ function djHtml(dj, ctx){
   return arr.map(function(d, i){
     return '<div style="margin-top:4px"><b>' + (i + 1) + '. ' + linkifyRefs(d['문'] || '', ctx) + '</b>' +
       (d['근거'] ? '<div style="color:var(--dim);font-size:12px;margin-left:14px">근거 — ' + linkifyRefs(d['근거'], ctx) + '</div>' : '') +
-      (d['적용'] ? '<div style="color:var(--text);font-size:12px;margin-left:14px">적용 — ' + linkifyRefs(d['적용'], ctx) + '</div>' : '') + '</div>';
+      (d['적용'] ? '<div style="color:var(--accent);font-size:12px;margin-left:14px">적용 — ' + linkifyRefs(d['적용'], ctx) + '</div>' : '') + '</div>';
   }).join('');
 }
 function optEdit(o){
@@ -5704,7 +5704,7 @@ function spDawnHtml(){
       var card =
         '<div style="margin:8px 0 10px;padding:11px 13px;border:1.5px solid var(--accent);border-radius:10px;background:rgba(124,154,255,.08)">' +
         '<div style="margin-bottom:5px"><b style="font-size:14px">' + esc(src['제목'] || '') + '</b> <span style="color:var(--accent2);font-size:13px">' + linkifyRefs(src['본문'] || '') + '</span></div>' +
-        (hymn ? '<div style="font-size:12.5px;color:var(--text);margin-bottom:3px">🎵 ' + esc(hymn) + '</div>' : '') +
+        (hymn ? '<div style="font-size:12.5px;color:var(--accent);margin-bottom:3px">🎵 ' + esc(hymn) + '</div>' : '') +
         '<div style="font-size:13px;margin-bottom:3px">' + linkifyRefs(src['핵심메시지'] || ed['핵심메시지'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
         ((src['주제근거'] || ed['주제근거']) ? '<div style="color:var(--dim);font-size:12px;margin-bottom:3px">근거 — ' + linkifyRefs(src['주제근거'] || ed['주제근거'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' : '') +
         '<div style="font-size:12.5px;margin-top:5px">' + djHtml(src['대지'] || ed['대지'], brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
@@ -5714,7 +5714,7 @@ function spDawnHtml(){
           '<summary style="cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
           esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + linkifyRefs(o['본문'] || '') + '</span></summary>' +
           '<div style="padding:8px 11px;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;font-size:13px;line-height:1.5">' +
-          (o['찬송'] ? '<div style="color:var(--text);font-size:12px;margin-bottom:2px">🎵 ' + esc(o['찬송']) + '</div>' : '') +
+          (o['찬송'] ? '<div style="color:var(--accent);font-size:12px;margin-bottom:2px">🎵 ' + esc(o['찬송']) + '</div>' : '') +
           linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) +
           '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></div></details>';
       }).join('');
