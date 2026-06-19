@@ -6619,6 +6619,11 @@ async function refreshCascBtns(id){
   if (!btns.length) return;
   var meta = id ? findSermon(id) : (state.editing ? findSermon(state.editing) : null);
   var done = {};
+  /* 산출물 시트 기록(검색·상세창과 동일 출처) */
+  var dt = (id && typeof doneTypes === 'function') ? doneTypes(id) : {};
+  if (dt['카드원고']) done.card = true;
+  if (dt['카드PDF']) done.cardpdf = true;
+  if (dt['이미지생성']) done.bgimg = true;
   if (id && state.assets[id] && state.assets[id]['카드원고'] && state.assets[id]['카드원고'].ok) done.card = true;
   if (meta && canFolderSave()) {
     try {
