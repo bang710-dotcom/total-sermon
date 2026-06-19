@@ -1231,21 +1231,33 @@ function similarity(a, b){
 }
 
 /* ===================== API ===================== */
+/* Apps Script 웹앱은 요청을 직렬·락으로 처리한다. 동시에 여러 요청(저장+동기화+산출물 기록)이 겹치면
+   락 경합으로 일부 쓰기가 조용히 유실된다. 모든 시트 요청을 한 줄로 직렬화해 동시요청 충돌을 막는다. */
+var _netChain = Promise.resolve();
+function _netRun(fn){
+  var run = _netChain.then(fn, fn);                 /* 앞 호출 성공/실패와 무관하게 이어서 실행 */
+  _netChain = run.then(function(){}, function(){});  /* 체인은 항상 살아있게 유지 */
+  return run;
+}
 function api(params){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
   var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
-  return fetch(s.url + '?token=' + encodeURIComponent(s.token) + '&' + qs)
-    .then(function(r){ return r.json(); })
-    .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
+  return _netRun(function(){
+    return fetch(s.url + '?token=' + encodeURIComponent(s.token) + '&' + qs)
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
+  });
 }
 function apiPost(body){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
   body.token = s.token;
-  return fetch(s.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
-    .then(function(r){ return r.json(); })
-    .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
+  return _netRun(function(){
+    return fetch(s.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
+  });
 }
 
 /* ── 델타 동기화 머지 ── */
@@ -6681,7 +6693,7 @@ async function runCascade(target, id, meta){
     }
     toast('완료 — [아웃풋]에서 확인');
   } catch (e) { toast('생성 실패: ' + (e.message || e)); }
-  finally { cascHide(); renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
+  finally { cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
   b.addEventListener('click', function(){
@@ -7956,7 +7968,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v174';
+var APP_VER = 'v175';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
