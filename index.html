@@ -2318,17 +2318,45 @@ $('#editorPane').addEventListener('input', function(e){
 });
 
 /* ----- 구조화 도구: 칩 → 자유원고에 구조화 코드 삽입 (클릭=커서 줄 / 드래그=드롭 줄) ----- */
-/* 코드는 항상 '그 줄 맨 앞'에 들어간다(파서가 줄 머리 토큰을 읽으므로). */
+/* 코드는 항상 '그 줄 맨 앞'에 들어간다(파서가 줄 머리 토큰을 읽으므로).
+   삽입 시 화면이 튀지 않도록 textarea·스크롤 컨테이너·창의 스크롤 위치를 보존한다. */
+function scrollParentOf(el){
+  var p = el && el.parentElement;
+  while (p) {
+    var oy = getComputedStyle(p).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+    p = p.parentElement;
+  }
+  return null;
+}
 function insertStructCode(code, off){
   var ta = $('#editorPane .edFree');
   if (!ta) return;
   var v = ta.value;
-  if (off == null || off < 0 || off > v.length) off = ta.selectionStart;
+  if (off == null || off < 0 || off > v.length) off = ta.selectionStart || 0;
   var ls = v.lastIndexOf('\n', off - 1) + 1;        /* 커서가 있는 줄의 시작 */
-  ta.value = v.slice(0, ls) + code + v.slice(ls);
-  state.compose.free = ta.value;
   var cur = ls + code.length;
-  ta.focus(); ta.setSelectionRange(cur, cur);
+  /* 변경 전 스크롤 위치 저장 */
+  var taTop = ta.scrollTop, pageY = window.pageYOffset || 0;
+  var sp = scrollParentOf(ta), spTop = sp ? sp.scrollTop : 0;
+  try {
+    ta.focus({ preventScroll: true });
+    if (typeof ta.setRangeText === 'function') {
+      ta.setSelectionRange(ls, ls);
+      ta.setRangeText(code, ls, ls, 'end');          /* value 통째 교체 없이 삽입 → 스크롤 점프 방지 */
+    } else {
+      ta.value = v.slice(0, ls) + code + v.slice(ls);
+      ta.setSelectionRange(cur, cur);
+    }
+  } catch (e) {
+    ta.value = v.slice(0, ls) + code + v.slice(ls);
+    try { ta.focus({ preventScroll: true }); ta.setSelectionRange(cur, cur); } catch (_) {}
+  }
+  state.compose.free = ta.value;
+  /* 저장해 둔 스크롤 위치 복원 — 화면이 그대로 머문다 */
+  ta.scrollTop = taTop;
+  if (sp) sp.scrollTop = spTop;
+  if ((window.pageYOffset || 0) !== pageY) window.scrollTo(0, pageY);
   ta.dispatchEvent(new Event('input', { bubbles: true }));
 }
 var _skDragCode = null;
@@ -8177,7 +8205,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v179';
+var APP_VER = 'v180';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
