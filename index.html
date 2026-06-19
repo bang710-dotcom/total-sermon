@@ -6622,14 +6622,11 @@ async function refreshCascBtns(id){
       if (await xHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
         var dir = await xHandle.getDirectoryHandle('_claude_결과함');
         var base = imgDataNames(meta).base;
-        for await (var e of dir.values()) {
-          if (e.kind !== 'file' || e.name.indexOf(base) !== 0) continue;
-          var n = e.name;
-          if (/_카드디자인\.pdf$/i.test(n)) done.cardpdf = true;
-          if (n.indexOf('이미지전환표시본') >= 0) done.trans = true;
-          if (n.indexOf('이미지자료') >= 0) done.imgdata = true;
-          if (/백스테이지.*\.zip$/i.test(n)) done.bgimg = true;
-        }
+        async function has(name){ try { await dir.getFileHandle(name); return true; } catch (e) { return false; } }
+        if (await has(sermonFileBase(meta, '카드원고') + '.pdf')) done.cardpdf = true;
+        if (await has(base + '_설교원고_이미지전환표시본.docx')) done.trans = true;
+        if (await has(base + '_이미지자료.docx')) done.imgdata = true;
+        for await (var e of dir.values()) { if (e.kind === 'file' && e.name.indexOf(base) === 0 && /백스테이지.*\.zip$/i.test(e.name)) { done.bgimg = true; break; } }
       }
     } catch (e) {}
   }
@@ -7939,7 +7936,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v168';
+var APP_VER = 'v169';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
