@@ -2365,9 +2365,7 @@ function editSermonFill(id){
   state.editing = null;
   state.versionOf = id;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
-  /* 기존 설교는 저장된 원고유형 우선, 없으면 기본원고로 불러옴 */
   var c = newCompose();
-  c.style = s['원고유형'] || '기본원고';
   c.free = s['원고텍스트'] || '';
   c.sum = s['요약본'] || '';
   var dj = djParse(String(s['대지'] || ''));
@@ -2375,15 +2373,19 @@ function editSermonFill(id){
   c.points = dj.length ? dj.map(function(d, i){ return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '', ill: (ills[i] || '').split(' / ')[0] || '' }); }) : [newPoint()];
   if (!dj.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ return normPoint({ ill: t.split(' / ')[0] || t }); });
   state.compose = c;
-  /* 구조형 원고(기본·카드)는 저장된 풀텍스트를 구조로 파싱해 세부내용(내용·예화·적용)까지 복원.
-     컬럼(대지·예화)만으로는 명제·예화제목만 살아나 세부내용이 누락되던 문제 해결. */
-  if ((c.style === '기본원고' || c.style === '카드원고') && c.free.trim()) {
-    parseFreeToStructure(); /* 성공 시 본문까지 채움; 번호 대지가 없어 실패하면 컬럼 기반 유지 */
+  /* 원고가 있는 설교를 새버전으로 불러올 때는 자유원고로 시작(요청).
+     구조도 미리 파싱해 채워, [기본원고]로 전환하면 세부내용(내용·예화·적용)까지 바로 보이게 한다.
+     번호/대지 마커가 없어 파싱이 실패하면 컬럼(대지·예화) 기반 구조를 유지한다. */
+  if (c.free.trim()) {
+    c.style = '자유원고';
+    parseFreeToStructure();
   }
-  /* 요약본이 있으면 곧바로 기본원고 구조(뼈대)로 연다 — 풀텍스트는 [자유원고]·[전체 원고 보기] */
-  else if (!s['원고유형'] && String(c.sum || '').trim() && parseSummaryToStructure()) {
+  /* 풀텍스트가 없고 요약본만 있으면 기본원고 뼈대로 연다. */
+  else if (String(c.sum || '').trim() && parseSummaryToStructure()) {
     c.style = '기본원고';
     toast('요약본을 뼈대로 불러왔습니다 — 풀텍스트는 [자유원고] 또는 결론 아래 [전체 원고 보기]에서.');
+  } else {
+    c.style = s['원고유형'] || '기본원고';
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   state.savedSig = composeSig();
@@ -2674,26 +2676,33 @@ function parasFromText(meta, bodyText, style){
   function lastBlank(){ return !paras.length || String(paras[paras.length - 1].text || '').trim() === ''; }
   function trailBlanks(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
   function ensureBlanks(n){ while (trailBlanks() < n) paras.push({ text: '' }); }
-  var inConc = false;
+  var inConc = false, headNo = 0;
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
-    if (/^\((?:대지\s*)?내용\)/.test(l)) {        /* 구조 보존용 마커 — 출력엔 찍지 않음 */
-      l = l.replace(/^\((?:대지\s*)?내용\)\s*/, '');
-      if (!l) return;
-      line = l;
+    if (!l) { paras.push({ text: '' }); return; }      /* 빈 줄은 그대로 유지(간격) */
+    /* ── 구조화 코드 토큰은 출력에 찍지 않는다(서식만 적용) ── */
+    if (/^\(서론\)/.test(l)) { l = l.replace(/^\(서론\)\s*/, ''); if (!l) return; }
+    if (/^\((?:대지\s*)?내용\)/.test(l)) { l = l.replace(/^\((?:대지\s*)?내용\)\s*/, ''); if (!l) return; }
+    if (/^\(적용\)/.test(l)) { l = l.replace(/^\(적용\)\s*/, ''); if (!l) return; }
+    var isHead = false;
+    if (/^\(대지\)\s*/.test(l)) { headNo++; l = headNo + '. ' + l.replace(/^\(대지\)\s*/, '').trim(); isHead = true; }
+    else if (/^\d+\s*[.)]\s/.test(l)) { isHead = true; var mn = l.match(/^(\d+)/); if (mn) headNo = +mn[1]; }
+    var isEx = false;
+    if (/^\(예화\)\s*/.test(l)) { l = l.replace(/^\(예화\)\s*/, '').trim(); if (!l) return; isEx = true; }
+    else if (/^ex\)/i.test(l)) { isEx = true; }
+    var isConc = false;
+    if (/^\(결론\)/.test(l)) { isConc = true; l = l.replace(/^\(결론\)\s*/, '').trim() || '말씀을 정리합니다.'; }
+    else if (/^말씀을\s*정리/.test(l)) { isConc = true; }
+    if (!isHead && !isEx && !isConc) {
+      var conv = toLeadRefQuote(l);                 /* 옛 형식(후행 괄호) → 새 형식으로 강제 */
+      if (conv !== l) l = conv.trim();
     }
-    var conv = toLeadRefQuote(l);                 /* 옛 형식(후행 괄호) → 새 형식으로 강제 */
-    var converted = conv !== l;
-    if (converted) l = conv.trim();
-    var isHead = /^\d+\s*[.)]\s/.test(l);
-    var isConc = /^말씀을\s*정리/.test(l);          /* 결론 표지 */
-    var isEx = /^ex\)/i.test(l);
     var isQuote = !isHead && !isConc && !isEx && refQuoteRe().test(l);   /* 성경 인용 → 빨간 볼드 */
     /* 본문 대지 앞엔 두 줄 띄기, 결론 표지 앞엔 한 줄. 결론 안의 대지 재열은 띄우지 않음 */
-    if (isConc && l) { ensureBlanks(1); inConc = true; }
-    else if (isHead && !inConc && l) ensureBlanks(2);
-    paras.push({ text: converted ? l : line, bold: isHead || isConc || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
-      ind: !!(allowInd && l && !isHead && !isConc && !isEx && !isQuote) /* 일반 단락만 첫 줄 들여쓰기 */ });
+    if (isConc) { ensureBlanks(1); inConc = true; }
+    else if (isHead && !inConc) ensureBlanks(2);
+    paras.push({ text: l, bold: isHead || isConc || isEx || isQuote, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
+      ind: !!(allowInd && !isHead && !isConc && !isEx && !isQuote) /* 일반 단락만 첫 줄 들여쓰기 */ });
   });
   return { paras: paras, st: st };
 }
