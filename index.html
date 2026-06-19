@@ -2317,6 +2317,55 @@ $('#editorPane').addEventListener('input', function(e){
   $('#' + id).addEventListener('input', debounce(updateAutoBits, 150));
 });
 
+/* ----- 구조화 도구: 칩 → 자유원고에 구조화 코드 삽입 (클릭=커서 줄 / 드래그=드롭 줄) ----- */
+/* 코드는 항상 '그 줄 맨 앞'에 들어간다(파서가 줄 머리 토큰을 읽으므로). */
+function insertStructCode(code, off){
+  var ta = $('#editorPane .edFree');
+  if (!ta) return;
+  var v = ta.value;
+  if (off == null || off < 0 || off > v.length) off = ta.selectionStart;
+  var ls = v.lastIndexOf('\n', off - 1) + 1;        /* 커서가 있는 줄의 시작 */
+  ta.value = v.slice(0, ls) + code + v.slice(ls);
+  state.compose.free = ta.value;
+  var cur = ls + code.length;
+  ta.focus(); ta.setSelectionRange(cur, cur);
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+}
+var _skDragCode = null;
+$('#editorPane').addEventListener('click', function(e){
+  var chip = e.target.closest('.skChip');
+  if (!chip) return;
+  insertStructCode(chip.dataset.code || '');
+});
+$('#editorPane').addEventListener('dragstart', function(e){
+  var chip = e.target.closest('.skChip');
+  if (!chip) return;
+  _skDragCode = chip.dataset.code || '';
+  try { e.dataTransfer.setData('text/plain', _skDragCode); e.dataTransfer.effectAllowed = 'copy'; } catch (x) {}
+});
+$('#editorPane').addEventListener('dragend', function(){ _skDragCode = null; });
+$('#editorPane').addEventListener('dragover', function(e){
+  if (!_skDragCode) return;
+  var ta = e.target.closest('.edFree'); if (!ta) return;
+  e.preventDefault();                               /* 칩 드래그일 때만 드롭 허용(네이티브 텍스트 삽입 차단) */
+  try { e.dataTransfer.dropEffect = 'copy'; } catch (x) {}
+  ta.classList.add('skDragOver');
+});
+$('#editorPane').addEventListener('dragleave', function(e){
+  var ta = e.target.closest('.edFree'); if (ta) ta.classList.remove('skDragOver');
+});
+$('#editorPane').addEventListener('drop', function(e){
+  if (!_skDragCode) return;
+  var ta = e.target.closest('.edFree'); if (!ta) return;
+  e.preventDefault();
+  ta.classList.remove('skDragOver');
+  var off = null;
+  if (document.caretPositionFromPoint) { var pos = document.caretPositionFromPoint(e.clientX, e.clientY); if (pos) off = pos.offset; }
+  else if (document.caretRangeFromPoint) { var r = document.caretRangeFromPoint(e.clientX, e.clientY); if (r) off = r.startOffset; }
+  insertStructCode(_skDragCode, off);               /* 드롭 위치를 못 구하면 현재 커서 줄에 삽입 */
+  _skDragCode = null;
+});
+
 /* ----- 원고 조립·저장 ----- */
 function assembleText(){
   var c = state.compose;
@@ -8128,7 +8177,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v178';
+var APP_VER = 'v179';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
