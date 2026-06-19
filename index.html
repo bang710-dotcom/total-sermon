@@ -6885,61 +6885,89 @@ function maybeAutoGenImages(){
     } finally { maybeAutoGenImages._busy = false; }
   })();
 }
+/* 성구 배경 프롬프트 템플릿(실측 확정) — {장절}/{성구}만 치환 */
+var SCRIPTURE_TEMPLATE = [
+  '순수한 검은 배경에 매우 은은한 작은 따뜻한 빛(중앙 하단의 부드러운 주황빛 글로우)과 부드러운 비네트, 미니멀하고 고요한 분위기. 모니터·TV·액자 같은 물체 없이 배경 그림 자체.',
+  '화면 위쪽에서 1/3 높이 영역, 좌우로는 가운데 전체 폭의 5/6 영역 폭을 사용하는 텍스트로 왼쪽 정렬.',
+  '첫 줄에 흰색으로 왼쪽 정렬하여 장절 "{장절}", 그 아래 같은 서체·같은 크기로 큰 따옴표 안에 성구:',
+  '"{성구}"',
+  '성구는 설정한 가로 폭을 채우며 2줄(긴 절은 3줄)로 표기하되 줄바꿈 시 어절이 끊어지지 않게.',
+  '글씨체는 흰색의 신성하고 세련된 붓글씨 느낌. 글자 높이와 줄간격이 1:1이 되며 성구가 그 줄 수 안에 들어갈 수 있는 작은 폰트크기. 16:9 가로.'
+].join('\n');
+function scripturePrompt(ref, verse){ return SCRIPTURE_TEMPLATE.replace('{장절}', ref || '').replace('{성구}', verse || ''); }
+function imgDataNames(meta){
+  var ymd = String(meta['날짜'] || '').replace(/-/g, '');
+  var titleSafe = String(meta['제목'] || '설교').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+  var base = ymd + '_' + titleSafe;
+  return { base: base, json: base + '_이미지자료.json', docx: base + '_이미지자료.docx' };
+}
+async function loadCutsSidecar(meta){
+  if (!canFolderSave()) return null;
+  var dir;
+  try { await xPerm(); dir = await xHandle.getDirectoryHandle('_claude_결과함'); } catch (e) { return null; }
+  try {
+    var f = await (await dir.getFileHandle(imgDataNames(meta).json)).getFile();
+    var j = JSON.parse(await f.text());
+    return Array.isArray(j.cuts) ? j.cuts : (Array.isArray(j) ? j : null);
+  } catch (e) { return null; }
+}
+/* 컷을 JSON(이미지 생성용)+DOCX(사람 확인용)으로 저장 + 전환표 보관 */
+async function saveImgDataArtifacts(id, meta, cuts){
+  var nm = imgDataNames(meta);
+  await saveBlobToResults(new Blob([JSON.stringify({ cuts: cuts }, null, 1)], { type: 'application/json' }), nm.json);
+  var D = await ensureDocxLib();
+  var blob = await D.Packer.toBlob(buildImgDataDocx(D, meta, cuts));
+  await saveBlobToResults(blob, nm.docx);
+  if (id) { try { storeTransIfEmpty(id, cuts.filter(function(c){ return c.n !== 1; }).map(function(c){ return { n: c.n, t: c.type === '본문' ? '본문' : '일반', a: String(c.anchor || '').slice(0, 30) }; })); } catch (e) {} }
+}
+/* 컷 배열로 실제 이미지 세트 생성: 일반/표지=Flux 배경(+표준 비네트·밝기보정), 본문=Gemini 성구 배경 */
+async function generateImageSetFromCuts(id, meta, cuts){
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  var out = new window.JSZip(), made = 0, fail = [];
+  for (var i = 0; i < cuts.length; i++){
+    var c = cuts[i], isScr = (c.type === '본문');
+    var tag = (isScr ? '본문_' : '') + '#' + ('0' + c.n).slice(-2);
+    setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (' + tag + ')');
+    try {
+      var blob;
+      if (isScr){
+        var res = await genSermonImage({ jobType: 'text', prompt: scripturePrompt(c.ref, c.verse), aspectRatio: '16:9' });
+        if (!res.b64) { fail.push('#' + c.n + '(URL응답)'); continue; }
+        blob = b64ToBlob(res.b64);
+      } else {
+        var p = (String(c.en || '').trim() ? c.en.trim() + ' ' : '') + LED_TAIL;
+        var res2 = await genSermonImage({ jobType: 'background', prompt: p, aspectRatio: '16:9' });
+        if (!res2.b64) { fail.push('#' + c.n + '(URL응답)'); continue; }
+        blob = await canvasToBlob(processGeneral(await loadImgEl(res2.src)));
+      }
+      out.file(tag + '.png', blob); made++;
+    } catch (e2) { fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
+  }
+  if (!made) throw new Error('생성 실패: ' + (fail.join(', ') || '알 수 없음'));
+  setGenStage('압축·저장 중… (' + made + '장)');
+  var nm = imgDataNames(meta);
+  var blobZ = await out.generateAsync({ type: 'blob', compression: 'STORE' });
+  await saveBlobToResults(blobZ, nm.base + '_백스테이지_' + made + '장.zip');
+  hideGenOverlay(); renderSyncState();
+  if (id) { try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '이미지생성', '상태': '완료', '링크': '', '비고': '앱 직접 생성(' + made + '장)' } }); } catch (e) {} }
+  toast('이미지 세트 저장 완료 — ' + made + '장' + (fail.length ? (' · 실패 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
+  if (fail.length) console.warn('이미지 생성 실패 컷:', fail);
+}
 async function generateSermonImageSet(id, meta, opts){
   opts = opts || {};
   try {
-    var doc = await findImageDoc(meta);
-    /* 이미지자료가 아직 없으면: Cowork에 '이미지프롬프트'만 맡겨 전환표시본·이미지자료를 만들고,
-       이 설교를 자동 플래그에 올린다 → 프롬프트 완성이 감지되면 앱이 프록시로 이미지를
-       자동 생성한다(이미지는 언제나 프록시로 일관, 사용자 추가 클릭 없음). */
-    if (!doc) {
-      if (opts.auto) return;          /* 자동 호출인데 아직 없음 → 다음 확인 때 재시도 */
-      toast('이미지전환표시본 설교원고와 이미지자료(프롬프트)부터 생성한 후 이미지를 생성합니다.');
-      writeRequestFile('이미지프롬프트', meta);
-      if (meta['ID']) setAutoImg(meta['ID']);
-      return;
+    if (!canFolderSave()) { if (!opts.auto) toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    if (!String(meta['원고텍스트'] || '').trim()) { if (!opts.auto) toast('원고를 먼저 작성해 주세요.'); return; }
+    var cuts = await loadCutsSidecar(meta);   /* 이미 만든 컷이 있으면 재사용(손실 없는 JSON) */
+    if (!cuts) {
+      setGenStage('이미지자료(프롬프트) 생성 중…');
+      cuts = await aiImgData(meta);
+      if (cuts && cuts.length) await saveImgDataArtifacts(id, meta, cuts);
     }
+    if (!cuts || !cuts.length) throw new Error('컷 생성 실패');
     if (!opts.auto && !confirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) return;
-    toast('이미지자료 읽는 중…');
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-    var f = await doc.entry.getFile();
-    var zipIn = await window.JSZip.loadAsync(await f.arrayBuffer());
-    var docFile = zipIn.file('word/document.xml');
-    if (!docFile) throw new Error('문서 본문을 찾을 수 없습니다');
-    var cuts = parseImageDoc(docxXmlToText(await docFile.async('string')));
-    if (!cuts.length) { toast('컷을 찾지 못했습니다 (문서 형식 확인).'); return; }
-    var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [];
-    for (var i = 0; i < cuts.length; i++){
-      var c = cuts[i];
-      var tag = (c.scripture ? '본문_' : '') + '#' + ('0' + c.n).slice(-2);
-      toast('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (' + tag + ')');
-      try {
-        if (c.scripture){
-          if (!lastCanvas) { fail.push('#' + c.n + '(파생원본없음)'); continue; }
-          out.file(tag + '.png', await deriveScriptureBg(lastCanvas));
-        } else {
-          var res = await genSermonImage({ jobType: 'background', prompt: c.prompt, aspectRatio: '16:9' });
-          if (!res.b64) { fail.push('#' + c.n + '(URL응답)'); continue; }
-          var img0 = await loadImgEl(res.src);
-          lastCanvas = processGeneral(img0);            /* 표준 비네트 + 밝기 품질보정 */
-          out.file(tag + '.png', await canvasToBlob(lastCanvas));
-        }
-        made++;
-      } catch (e2) { fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
-    }
-    if (!made) { toast('생성 실패: ' + (fail.join(', ') || '알 수 없음')); return; }
-    toast('압축·저장 중… (' + made + '장)');
-    var base = doc.name.replace(/\.docx$/i, '').replace(/_?이미지자료.*$/, '');
-    var fname = base + '_백스테이지_' + made + '장.zip';
-    var blob = await out.generateAsync({ type: 'blob', compression: 'STORE' });
-    var rdir = await xHandle.getDirectoryHandle('_claude_결과함', { create: true });
-    var fh = await rdir.getFileHandle(fname, { create: true });
-    var w = await fh.createWritable(); await w.write(blob); await w.close();
-    toast('완료: ' + fname + ' — ' + made + '장' + (fail.length ? (' · 실패 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
-    if (fail.length) console.warn('이미지 생성 실패 컷:', fail);
-  } catch (e) {
-    toast('이미지 세트 생성 실패: ' + (e.message || e));
-  }
+    await generateImageSetFromCuts(id, meta, cuts);
+  } catch (e) { hideGenOverlay(); toast('이미지 세트 생성 실패: ' + (e.message || e)); }
 }
 
 $('#syncBtn').addEventListener('click', function(){ sync(); });
