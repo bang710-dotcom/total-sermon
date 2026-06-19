@@ -4308,6 +4308,7 @@ function refreshReqBtns(){
     b.classList.toggle('req', st === 'req');
     b.innerHTML = '<span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">●</span>' : st === 'req' ? '<span class="ck">▲</span>' : '');
   });
+  if (typeof refreshCascBtns === 'function') { try { refreshCascBtns(state.editing); } catch (e) {} }
 }
 
 function permFor(h, guide){
@@ -6569,37 +6570,85 @@ async function saveImgDataDocxFile(meta, cuts){
   var D = await ensureDocxLib();
   await saveBlobToResults(await D.Packer.toBlob(buildImgDataDocx(D, meta, cuts)), imgDataNames(meta).docx);
 }
-/* 어느 노드를 눌러도 그 가지의 상위 + 뿌리(DOCX원고)를 순서대로 생성. total=양쪽 가지 전부. */
+/* 캐스케이드 단계 목록(러너의 실행 순서와 동일) */
+function cascStepList(target){
+  var inA = (target === 'card' || target === 'cardpdf' || target === 'total');
+  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
+  var s = [{ label: 'DOCX 원고' }];
+  if (inA) { s.push({ label: '카드 원고' }); if (target === 'cardpdf' || target === 'total') s.push({ label: '카드 디자인 PDF' }); }
+  if (inB) { s.push({ label: '이미지 컷(전환표)' }); s.push({ label: '이미지 전환표시본' }); if (target === 'imgdata' || target === 'bgimg' || target === 'total') s.push({ label: '이미지 프롬프트' }); if (target === 'bgimg' || target === 'total') s.push({ label: '배경 이미지' }); }
+  return s;
+}
+function cascShow(steps){
+  window._cascOn = true;
+  var box = $('#cascSteps');
+  if (box) box.innerHTML = steps.map(function(s, i){ return '<span class="cstep" data-i="' + i + '">' + (i + 1) + '. ' + esc(s.label) + '</span>'; }).join('<span class="carrow">→</span>');
+  var cn = $('#cascNow'); if (cn) cn.textContent = '';
+  var ov = $('#cascOverlay'); if (ov) ov.classList.add('on');
+}
+function cascStep(i, detail){
+  var box = $('#cascSteps');
+  if (box) Array.prototype.forEach.call(box.querySelectorAll('.cstep'), function(el){ var x = +el.dataset.i; el.classList.toggle('done', x < i); el.classList.toggle('cur', x === i); });
+  var cn = $('#cascNow'); if (cn && detail !== undefined) cn.textContent = detail;
+}
+function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov) ov.classList.remove('on'); }
+/* 새 캐스케이드 버튼에 산출물 존재 여부(● 완료) 표시 — 결과함 스캔(권한 있을 때만, 프롬프트 없음) */
+async function refreshCascBtns(id){
+  var btns = $$('#composeMeta [data-casc]');
+  if (!btns.length) return;
+  var meta = id ? findSermon(id) : (state.editing ? findSermon(state.editing) : null);
+  var done = {};
+  if (id && state.assets[id] && state.assets[id]['카드원고'] && state.assets[id]['카드원고'].ok) done.card = true;
+  if (meta && canFolderSave()) {
+    try {
+      if (await xHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
+        var dir = await xHandle.getDirectoryHandle('_claude_결과함');
+        var base = imgDataNames(meta).base;
+        for await (var e of dir.values()) {
+          if (e.kind !== 'file' || e.name.indexOf(base) !== 0) continue;
+          var n = e.name;
+          if (/_카드디자인\.pdf$/i.test(n)) done.cardpdf = true;
+          if (n.indexOf('이미지전환표시본') >= 0) done.trans = true;
+          if (n.indexOf('이미지자료') >= 0) done.imgdata = true;
+          if (/백스테이지.*\.zip$/i.test(n)) done.bgimg = true;
+        }
+      }
+    } catch (e) {}
+  }
+  btns.forEach(function(b){ b.classList.toggle('casc-done', !!done[b.dataset.casc]); });
+}
+/* 어느 노드를 눌러도 그 가지의 상위 + 뿌리(DOCX원고)를 순서대로 생성. total=양쪽 가지 전부. 전용 스테퍼 오버레이 유지. */
 async function runCascade(target, id, meta){
+  if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+  if (target !== 'docx' && !canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+  if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
+  var inA = (target === 'card' || target === 'cardpdf' || target === 'total');
+  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
+  var k = 0;
+  cascShow(cascStepList(target));
   try {
-    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
-    if (target !== 'docx' && !canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
-    if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
-    var inA = (target === 'card' || target === 'cardpdf' || target === 'total');
-    var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
-    setGenStage('① 설교 원고 DOCX 내보내는 중…');
-    exportManuscriptDocx(meta);
+    cascStep(k++, '설교 원고 DOCX 내보내는 중…'); exportManuscriptDocx(meta);
     if (inA) {
-      setGenStage('카드 원고 생성 중…');
-      await aiCardScript(id, meta);
+      cascStep(k++, '카드 원고 집필 중…'); await aiCardScript(id, meta);
       if (target === 'cardpdf' || target === 'total') {
-        setGenStage('카드 디자인 PDF — 조판 중…');
+        cascStep(k++, '카드 디자인 PDF 조판 중…');
         var deck = await aiCardDeck(meta);
-        if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, docxFileName(meta).replace(/\.docx$/i, '') + '_카드디자인.pdf'); }
+        if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, imgDataNames(meta).base + '_카드디자인.pdf'); }
       }
     }
     if (inB) {
+      cascStep(k++, '이미지 컷(전환표) 생성 중…');
       var cuts = await ensureCuts(id, meta);
       if (!cuts || !cuts.length) throw new Error('이미지 컷 생성 실패');
-      setGenStage('이미지 전환표시본 생성 중…');
+      cascStep(k++, '이미지 전환표시본 생성 중…');
       var body = await aiTransDoc(meta, cuts);
       if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).base + '_설교원고_이미지전환표시본.docx'); }
-      if (target === 'imgdata' || target === 'bgimg' || target === 'total') { setGenStage('이미지자료(프롬프트) 저장 중…'); await saveImgDataDocxFile(meta, cuts); }
-      if (target === 'bgimg' || target === 'total') { await generateImageSetFromCuts(id, meta, cuts); return; }
+      if (target === 'imgdata' || target === 'bgimg' || target === 'total') { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); await saveImgDataDocxFile(meta, cuts); }
+      if (target === 'bgimg' || target === 'total') { cascStep(k++, '배경 이미지 생성 중…'); await generateImageSetFromCuts(id, meta, cuts); }
     }
-    hideGenOverlay(); renderSyncState();
     toast('완료 — [아웃풋]에서 확인');
-  } catch (e) { hideGenOverlay(); toast('생성 실패: ' + (e.message || e)); }
+  } catch (e) { toast('생성 실패: ' + (e.message || e)); }
+  finally { cascHide(); renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
   b.addEventListener('click', function(){
@@ -7872,7 +7921,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v167';
+var APP_VER = 'v168';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
