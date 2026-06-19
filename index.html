@@ -3386,6 +3386,12 @@ function aiMarkDone(id, type, note){
   saveData(); refreshReqBtns();
   if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
 }
+/* 산출물 1건을 로컬(즉시 ●)+시트(영구) 양쪽에 기록 — 버튼 상태는 시트 기준이므로 둘 다 남긴다 */
+async function markOutput(id, type, note){
+  if (!id) return;
+  aiMarkDone(id, type, note || '앱 직접 생성');
+  try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': type, '상태': '완료', '링크': '', '비고': note || '앱 직접 생성' } }); } catch (e) {}
+}
 /* ── 2단계 직결: 카드원고 · LTC교재 · 리더스앱TSV ── */
 var P_CARD = [
 '당신은 영락대학부 주일 설교 카드원고(가로버전, 화면 설교용) 집필 비서다. 입력(JSON)의 초고·대지·예화를 완성 카드원고로 발전시킨다.',
@@ -6621,6 +6627,7 @@ async function refreshCascBtns(id){
   var done = {};
   /* 산출물 시트 기록(검색·상세창과 동일 출처) */
   var dt = (id && typeof doneTypes === 'function') ? doneTypes(id) : {};
+  if (dt['원고DOCX']) done.docx = true;
   if (dt['카드원고']) done.card = true;
   if (dt['카드PDF']) done.cardpdf = true;
   if (dt['이미지전환표시본']) done.trans = true;
@@ -6652,13 +6659,13 @@ async function runCascade(target, id, meta){
   var k = 0;
   cascShow(cascStepList(target));
   try {
-    cascStep(k++, '설교 원고 DOCX 내보내는 중…'); exportManuscriptDocx(meta);
+    cascStep(k++, '설교 원고 DOCX 내보내는 중…'); exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기');
     if (inA) {
       cascStep(k++, '카드 원고 집필 중…'); await aiCardScript(id, meta);
       if (target === 'cardpdf' || target === 'total') {
         cascStep(k++, '카드 디자인 PDF 조판 중…');
         var deck = await aiCardDeck(meta);
-        if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '카드원고') + '.pdf'); if (id) aiMarkDone(id, '카드PDF', '앱 직접 생성'); }
+        if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '카드원고') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); }
       }
     }
     if (inB) {
@@ -6667,8 +6674,8 @@ async function runCascade(target, id, meta){
       if (!cuts || !cuts.length) throw new Error('이미지 컷 생성 실패');
       cascStep(k++, '이미지 전환표시본 생성 중…');
       var body = await aiTransDoc(meta, cuts);
-      if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); if (id) aiMarkDone(id, '이미지전환표시본', '앱 직접 생성'); }
-      if (target === 'imgdata' || target === 'bgimg' || target === 'total') { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); await saveImgDataDocxFile(meta, cuts); if (id) aiMarkDone(id, '이미지프롬프트', '앱 직접 생성'); }
+      if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); }
+      if (target === 'imgdata' || target === 'bgimg' || target === 'total') { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); }
       if (target === 'bgimg' || target === 'total') { cascStep(k++, '배경 이미지 생성 중…'); await generateImageSetFromCuts(id, meta, cuts); }
     }
     toast('완료 — [아웃풋]에서 확인');
@@ -7948,7 +7955,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v172';
+var APP_VER = 'v173';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
