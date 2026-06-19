@@ -3476,7 +3476,7 @@ async function aiCardScript(id, meta){
     if (id && !prevTrans) storeTransIfEmpty(id, extractTransTable(arr));   /* 카드원고가 첫 산출물이면 이 표가 기준 */
     var D = await ensureDocxLib();
     var blob = await D.Packer.toBlob(buildCardDocx(D, meta, arr));
-    await saveDocxBlob(blob, '카드원고_' + docxFileName(meta), meta['날짜']);
+    await saveDocxBlob(blob, sermonFileBase(meta, '카드원고') + '.docx', meta['날짜']);
     if (id) {
       await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '카드원고', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
       aiMarkDone(id, '카드원고', 'Opus API 직결');
@@ -3795,7 +3795,7 @@ async function generateTransDoc(id, meta){
     setGenStage('전환표시본 — 문서 저장 중…');
     var D = await ensureDocxLib();
     var blob = await D.Packer.toBlob(buildTransDocx(D, meta, body));
-    await saveBlobToResults(blob, imgDataNames(meta).base + '_설교원고_이미지전환표시본.docx');
+    await saveBlobToResults(blob, imgDataNames(meta).trans);
     hideGenOverlay(); renderSyncState();
     toast('이미지전환표시본 저장 완료 — [아웃풋]에서 확인.');
   } catch (e) { hideGenOverlay(); toast('전환표시본 실패: ' + (e.message || e)); }
@@ -4493,8 +4493,8 @@ async function checkAssets(id){
     try { ydir = await dirHandle.getDirectoryHandle(year); } catch (e) {}
     if (ydir) { for await (var e of ydir.values()) { if (e.kind === 'file') names[e.name] = true; } }
     function hit(n){ return names[n] ? { ok: true, hit: { dir: ydir, name: n } } : null; }
-    a['원고작성'] = hit(base);
-    a['카드원고'] = hit('카드원고_' + base);
+    a['원고작성'] = hit(sermonFileBase(s, s['원고유형'] || '기본원고') + '.docx');
+    a['카드원고'] = hit(sermonFileBase(s, '카드원고') + '.docx');
     if (!ltcHandle) { /* LTC 폴더 미지정 — 설교 폴더 연도 방식 폴백 */
       a['LTC교재'] = hit('LTC교재_' + base);
       a['리더스앱업로드'] = hit('리더스앱_' + baseTxt);
@@ -6536,7 +6536,7 @@ $('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.
 function exportDocxParas(meta, built, namePrefix){
   ensureDocxLib().then(function(D){
     return D.Packer.toBlob(buildDocxParas(D, built.paras, built.st)).then(function(blob){
-      return saveDocxBlob(blob, (namePrefix || '') + docxFileName(meta), meta['날짜']);
+      return saveDocxBlob(blob, sermonFileBase(meta, meta['원고유형'] || '기본원고') + '.docx', meta['날짜']);
     });
   }).catch(function(e){ toast('내보내기 실패: ' + e.message); });
 }
@@ -6621,12 +6621,12 @@ async function refreshCascBtns(id){
     try {
       if (await xHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
         var dir = await xHandle.getDirectoryHandle('_claude_결과함');
-        var base = imgDataNames(meta).base;
+        var nm = imgDataNames(meta);
         async function has(name){ try { await dir.getFileHandle(name); return true; } catch (e) { return false; } }
         if (await has(sermonFileBase(meta, '카드원고') + '.pdf')) done.cardpdf = true;
-        if (await has(base + '_설교원고_이미지전환표시본.docx')) done.trans = true;
-        if (await has(base + '_이미지자료.docx')) done.imgdata = true;
-        for await (var e of dir.values()) { if (e.kind === 'file' && e.name.indexOf(base) === 0 && /백스테이지.*\.zip$/i.test(e.name)) { done.bgimg = true; break; } }
+        if (await has(nm.trans)) done.trans = true;
+        if (await has(nm.docx)) done.imgdata = true;
+        for await (var e of dir.values()) { if (e.kind === 'file' && e.name.indexOf(nm.backstagePrefix) === 0 && /\.zip$/i.test(e.name)) { done.bgimg = true; break; } }
       }
     } catch (e) {}
   }
@@ -6657,7 +6657,7 @@ async function runCascade(target, id, meta){
       if (!cuts || !cuts.length) throw new Error('이미지 컷 생성 실패');
       cascStep(k++, '이미지 전환표시본 생성 중…');
       var body = await aiTransDoc(meta, cuts);
-      if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).base + '_설교원고_이미지전환표시본.docx'); }
+      if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); }
       if (target === 'imgdata' || target === 'bgimg' || target === 'total') { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); await saveImgDataDocxFile(meta, cuts); }
       if (target === 'bgimg' || target === 'total') { cascStep(k++, '배경 이미지 생성 중…'); await generateImageSetFromCuts(id, meta, cuts); }
     }
@@ -7093,10 +7093,12 @@ var SCRIPTURE_TEMPLATE = [
 ].join('\n');
 function scripturePrompt(ref, verse){ return SCRIPTURE_TEMPLATE.replace('{장절}', ref || '').replace('{성구}', verse || ''); }
 function imgDataNames(meta){
-  var ymd = String(meta['날짜'] || '').replace(/-/g, '');
-  var titleSafe = String(meta['제목'] || '설교').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
-  var base = ymd + '_' + titleSafe;
-  return { base: base, json: base + '_이미지자료.json', docx: base + '_이미지자료.docx' };
+  return {
+    json: sermonFileBase(meta, '이미지자료') + '.json',
+    docx: sermonFileBase(meta, '이미지자료') + '.docx',
+    trans: sermonFileBase(meta, '이미지전환표시본') + '.docx',
+    backstagePrefix: sermonFileBase(meta, '백스테이지')
+  };
 }
 async function loadCutsSidecar(meta){
   if (!canFolderSave()) return null;
@@ -7144,7 +7146,7 @@ async function generateImageSetFromCuts(id, meta, cuts){
   setGenStage('압축·저장 중… (' + made + '장)');
   var nm = imgDataNames(meta);
   var blobZ = await out.generateAsync({ type: 'blob', compression: 'STORE' });
-  await saveBlobToResults(blobZ, nm.base + '_백스테이지_' + made + '장.zip');
+  await saveBlobToResults(blobZ, nm.backstagePrefix + '_' + made + '장.zip');
   hideGenOverlay(); renderSyncState();
   if (id) { try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '이미지생성', '상태': '완료', '링크': '', '비고': '앱 직접 생성(' + made + '장)' } }); } catch (e) {} }
   toast('이미지 세트 저장 완료 — ' + made + '장' + (fail.length ? (' · 실패 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
