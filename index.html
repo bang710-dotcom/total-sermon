@@ -6543,7 +6543,7 @@ $('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.
 })();
 
 function exportDocxParas(meta, built, namePrefix){
-  ensureDocxLib().then(function(D){
+  return ensureDocxLib().then(function(D){
     return D.Packer.toBlob(buildDocxParas(D, built.paras, built.st)).then(function(blob){
       return saveDocxBlob(blob, sermonFileBase(meta, meta['원고유형'] || '기본원고') + '.docx', meta['날짜']);
     });
@@ -6581,8 +6581,9 @@ $('#c_preview').addEventListener('click', function(){
 /* ===================== 산출물 캐스케이드 (DOCX원고 뿌리 → 카드/이미지 가지 → Total) ===================== */
 function exportManuscriptDocx(meta){
   var prefix = state.compose.style === '카드원고' ? '카드원고_' : '';
-  exportDocxParas(meta, parasFromCompose(meta, state.compose), prefix);
+  var p = exportDocxParas(meta, parasFromCompose(meta, state.compose), prefix);
   saveComposeFinal(meta);                 /* 최종본 시트 반영 + 상태 승격 */
+  return p;                               /* 파일 저장 완료를 기다릴 수 있게 프라미스 반환 */
 }
 async function saveCutsSidecar(id, meta, cuts){
   await saveBlobToResults(new Blob([JSON.stringify({ cuts: cuts }, null, 1)], { type: 'application/json' }), imgDataNames(meta).json);
@@ -6659,7 +6660,7 @@ async function runCascade(target, id, meta){
   var k = 0;
   cascShow(cascStepList(target));
   try {
-    cascStep(k++, '설교 원고 DOCX 내보내는 중…'); exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기');
+    cascStep(k++, '설교 원고 DOCX 내보내는 중…'); await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기');
     if (inA) {
       cascStep(k++, '카드 원고 집필 중…'); await aiCardScript(id, meta);
       if (target === 'cardpdf' || target === 'total') {
