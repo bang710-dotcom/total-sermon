@@ -6542,6 +6542,13 @@ if (_idb) _idb.addEventListener('click', function(){
   if (!String(m['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
   generateImgData(state.editing || '', m);
 });
+var _tdb = document.getElementById('c_transdoc');
+if (_tdb) _tdb.addEventListener('click', function(){
+  var m = collectCompose();
+  if (state.editing) m['ID'] = state.editing;
+  if (!String(m['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+  generateTransDoc(state.editing || '', m);
+});
 window.exportSermonDocx = function(id){
   loadSermonThen(id, null, '원고를 불러오는 중…', function(s){ if (s) exportSermonDocxNow(id); });
 };
@@ -7798,7 +7805,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v165';
+var APP_VER = 'v166';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
