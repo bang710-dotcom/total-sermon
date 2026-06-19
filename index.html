@@ -2006,65 +2006,74 @@ function cwBlockMove(srcI, srcBi, dstI, dstIdx){
     if (h){ e.preventDefault(); cwBlockDelete(+h.dataset.i, +h.dataset.bi); }
   });
 })();
-/* 자유원고 텍스트 → 구조(서론/대지 내용·예화·적용/결론) 역파싱
-   assembleText의 규칙(번호 대지, ex), (적용), "말씀을 정리합니다")을 그대로 되돌린다 */
+/* ── 구조화 코드(구조화 도구 칩) ──
+   자유원고에 끼워 넣는 '코드'. 앱은 이걸 읽어 구조로 나누고, 내보내기 때는 코드 토큰을 찍지 않는다.
+   대지 명제=(대지)[또는 1.], 예화=(예화)[또는 ex)], 결론=(결론)[또는 "말씀을 정리"]. */
+function isStructHead(l){ return /^\s*\d+\s*[.)]\s/.test(l) || /^\s*\(대지\)\s*/.test(l); }
+function structHeadProp(l){
+  if (/^\s*\(대지\)\s*/.test(l)) return l.replace(/^\s*\(대지\)\s*/, '').trim();
+  return l.replace(/^\s*\d+\s*[.)]\s*/, '').trim();
+}
+function isStructConc(l){ return l.indexOf('말씀을 정리') >= 0 || /^\s*\(결론\)/.test(l); }
+/* 내보내기용: 줄 맨 앞 구조화 코드 토큰만 제거(내용은 보존). 서식 판단은 호출부에서 따로. */
+function stripStructCode(l){
+  return String(l).replace(/^\s*\((?:서론|대지|대지\s*내용|내용|예화|적용|결론)\)\s*/, '');
+}
+
+/* 자유원고 텍스트 → 구조(서론/대지 내용·예화·적용/결론) 역파싱 — 단일 패스.
+   기존 토큰(번호 대지, ex), (대지 내용), (적용), "말씀을 정리")과
+   새 구조화 코드((서론)(대지)(예화)(결론)) 모두 인식한다. 번호/대지 마커가 하나도 없으면 false. */
 function parseFreeToStructure(){
   var c = state.compose;
   var txt = String(c.free || '').replace(/\r/g, '');
   if (!txt.trim()) return false;
   var lines = txt.split('\n');
-  var headIdx = [];
-  lines.forEach(function(l, i){ if (/^\s*\d+\s*[.)]\s/.test(l)) headIdx.push(i); });
-  if (!headIdx.length) return false; /* 번호 대지 없는 텍스트는 구조 해체 불가 — 전체를 서론에 붓지 않는다 */
-  var concIdx = -1;
-  for (var ci = headIdx[0] + 1; ci < lines.length; ci++) {
-    if (lines[ci].indexOf('말씀을 정리') >= 0) { concIdx = ci; break; }
+  var firstHead = -1, concIdx = -1;
+  for (var i = 0; i < lines.length; i++) {
+    if (firstHead < 0 && isStructHead(lines[i])) firstHead = i;
+    if (firstHead >= 0 && concIdx < 0 && i > firstHead && isStructConc(lines[i])) concIdx = i;
   }
-  var endBody = concIdx >= 0 ? concIdx : lines.length;
-  var heads = headIdx.filter(function(i){ return i < endBody; });
-  if (!heads.length) { c.intro = txt.trim(); return true; }
-  c.intro = lines.slice(0, heads[0]).join('\n').replace(/\n+$/, '').trim();
-  var pts = [];
+  if (firstHead < 0) return false; /* 대지 마커 없는 텍스트는 구조 해체 불가 — 원본 보존 */
+  var bodyEnd = concIdx >= 0 ? concIdx : lines.length;
   function jt(a){
+    a = a.slice(0);
     while (a.length && !a[0].trim()) a.shift();
     while (a.length && !a[a.length - 1].trim()) a.pop();
     return a.join('\n');
   }
-  heads.forEach(function(h, k){
-    var end = k + 1 < heads.length ? heads[k + 1] : endBody;
-    var p = { text: lines[h].replace(/^\s*\d+\s*[.)]\s*/, '').trim(), blocks: [], apply: '' };
-    var bodyAcc = [], curIll = null, applyAcc = [], mode = 'body';
-    function flushBody(){ var t = jt(bodyAcc); if (t) p.blocks.push(newBodyBlock(t)); bodyAcc = []; }
-    function flushIll(){ if (curIll) { curIll.illBody = jt(curIll._b); delete curIll._b; p.blocks.push(curIll); curIll = null; } }
-    for (var i = h + 1; i < end; i++) {
-      var l = lines[i];
-      if (/^\s*(▶|【)/.test(l)) continue; /* 이미지 전환 바 등은 건너뜀 */
-      var exm = l.match(/^\s*ex\)\s*(.*)$/i);
-      if (exm) { flushBody(); flushIll(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
-      var cm = l.match(/^\s*\((?:대지\s*)?내용\)\s*(.*)$/);
-      if (cm) { flushBody(); flushIll(); mode = 'body'; if (cm[1].trim()) bodyAcc.push(cm[1]); continue; }
-      var am = l.match(/^\s*\(적용\)\s*(.*)$/);
-      if (am) { flushBody(); flushIll(); mode = 'apply'; if (am[1].trim()) applyAcc.push(am[1]); continue; }
-      if (mode === 'ill' && curIll) curIll._b.push(l);
-      else if (mode === 'apply') applyAcc.push(l);
-      else bodyAcc.push(l);
-    }
-    flushBody(); flushIll();
-    p.apply = jt(applyAcc);
-    if (!p.blocks.length) p.blocks = [newBodyBlock('')];
-    pts.push(p);
-  });
+  c.intro = jt(lines.slice(0, firstHead).map(function(l){ return l.replace(/^\s*\(서론\)\s*/, ''); }));
+  var pts = [], cur = null, bodyAcc = [], curIll = null, applyAcc = [], mode = 'body';
+  function flushBody(){ if (cur) { var t = jt(bodyAcc); if (t) cur.blocks.push(newBodyBlock(t)); } bodyAcc = []; }
+  function flushIll(){ if (cur && curIll) { curIll.illBody = jt(curIll._b); delete curIll._b; cur.blocks.push(curIll); } curIll = null; }
+  function closePoint(){ if (cur) { flushBody(); flushIll(); cur.apply = jt(applyAcc); if (!cur.blocks.length) cur.blocks = [newBodyBlock('')]; pts.push(cur); } cur = null; bodyAcc = []; curIll = null; applyAcc = []; mode = 'body'; }
+  for (var j = firstHead; j < bodyEnd; j++) {
+    var l = lines[j];
+    if (isStructHead(l)) { closePoint(); cur = { text: structHeadProp(l), blocks: [], apply: '' }; mode = 'body'; continue; }
+    if (/^\s*(▶|【)/.test(l)) continue; /* 이미지 전환 바 등은 건너뜀 */
+    var exm = l.match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
+    if (exm) { flushBody(); flushIll(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
+    var cm = l.match(/^\s*\((?:대지\s*)?내용\)\s*(.*)$/);
+    if (cm) { flushBody(); flushIll(); mode = 'body'; if (cm[1].trim()) bodyAcc.push(cm[1]); continue; }
+    var am = l.match(/^\s*\(적용\)\s*(.*)$/);
+    if (am) { flushBody(); flushIll(); mode = 'apply'; if (am[1].trim()) applyAcc.push(am[1]); continue; }
+    var sm = l.match(/^\s*\(서론\)\s*(.*)$/); if (sm) l = sm[1];
+    if (mode === 'ill' && curIll) curIll._b.push(l);
+    else if (mode === 'apply') applyAcc.push(l);
+    else bodyAcc.push(l);
+  }
+  closePoint();
   if (pts.length) c.points = pts;
   if (concIdx >= 0) {
-    c.concIntro = lines[concIdx].trim();
+    var ch = lines[concIdx];
+    c.concIntro = /^\s*\(결론\)/.test(ch) ? (ch.replace(/^\s*\(결론\)\s*/, '').trim() || '말씀을 정리합니다.') : ch.trim();
     var concL = [];
-    for (var j = concIdx + 1; j < lines.length; j++) {
-      if (/^\s*\d+\s*[.)]\s/.test(lines[j])) continue; /* 결론의 대지 반복 줄은 자동 생성됨 */
-      concL.push(lines[j]);
+    for (var k = concIdx + 1; k < lines.length; k++) {
+      if (isStructHead(lines[k])) continue; /* 결론의 대지 반복 줄은 자동 생성됨 */
+      concL.push(lines[k]);
     }
     while (concL.length && !concL[0].trim()) concL.shift();
     while (concL.length && !concL[concL.length - 1].trim()) concL.pop();
-    var msg = $('#c_msg').value.trim();
+    var msg = ($('#c_msg') && $('#c_msg').value.trim()) || '';
     if (msg && concL.length && concL[concL.length - 1].trim() === msg) {
       concL.pop(); /* 핵심메시지 줄은 자동 생성됨 */
       while (concL.length && !concL[concL.length - 1].trim()) concL.pop();
