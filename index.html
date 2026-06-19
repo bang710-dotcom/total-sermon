@@ -810,6 +810,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <div class="toolrow desktop-only" style="margin-top:6px">
           <button class="btn sub mini" id="c_cardpdf"><span>🧪 카드 디자인<br>PDF (테스트)</span></button>
           <button class="btn sub mini" id="c_imgdata"><span>🧪 이미지자료<br>(테스트)</span></button>
+          <button class="btn sub mini" id="c_transdoc"><span>🧪 전환표시본<br>(테스트)</span></button>
         </div>
         <div class="toolrow" style="margin-top:6px">
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
@@ -3694,6 +3695,68 @@ window.requestImgData = function(){
   var m = (typeof collectCompose === 'function') ? collectCompose() : {};
   if (state.editing) m['ID'] = state.editing;
   generateImgData(state.editing || '', m);
+};
+
+/* ===================== 인앱 이미지전환표시본 DOCX 생성 (2단계-b) ===================== */
+var P_TRANSDOC = [
+  '너는 설교 원고에 "이미지 전환 바"를 삽입한 「이미지전환표시본」을 만든다. 입력은 설교 원고 전문(원고)과 전환표(전환표: [{n,type,anchor}]).',
+  '출력은 JSON 객체 하나: {"body":"전환 바가 삽입된 원고 전문(여러 줄)"}. 설명·코드펜스 금지.',
+  '원고 본문은 한 글자도 바꾸지 마라(요약·수정·생략 금지). 성경 인용문도 원문 그대로. 오직 전환 바 줄만 새로 끼워 넣는다.',
+  '전환 바 형식: 일반 컷 → "▶ 이미지 #N 전환 ◀", 본문 컷 → "▶ 본문 이미지 #N 전환 ◀". 표지(#1)는 바 없음.',
+  '각 전환 바는 전환표의 그 컷 anchor가 가리키는 단락/인용 "직전"에 한 줄로 온다. 번호·종류·순서는 전환표를 그대로 따른다(새로 만들거나 빼지 마라).',
+  '문단 구분은 줄바꿈(\\n)으로 유지한다.'
+].join('\n');
+async function aiTransDoc(meta, cuts){
+  var table = cuts.filter(function(c){ return c.n >= 2; }).map(function(c){ return { n: c.n, type: c.type, anchor: c.anchor || '' }; });
+  var out = await callClaude(P_TRANSDOC, JSON.stringify({ 원고: meta['원고텍스트'], 전환표: table }), 32000, aiTick('전환표시본'));
+  var j = aiJson(out);
+  return (j && typeof j.body === 'string') ? j.body : (typeof j === 'string' ? j : '');
+}
+function buildTransDocx(D, meta, body){
+  var FONT = { ascii: '맑은 고딕', eastAsia: '맑은 고딕', hAnsi: '맑은 고딕' };
+  function pt(v){ return Math.round(v * 20); }
+  function mm(v){ return Math.round(v * 56.6929); }
+  var refRe = new RegExp('^\\s*(' + BOOKS + ')\\s*\\d+[:장]');
+  var barRe = /^\s*▶.*◀\s*$/;
+  var titleLine = (meta['예배구분'] ? meta['예배구분'] + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
+  var ch = [new D.Paragraph({ spacing: { line: 360, after: 200 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 32, color: 'C00000' })] })];
+  String(body || '').split('\n').forEach(function(line){
+    var t = line.replace(/\s+$/, '').trim();
+    if (!t) return;
+    if (barRe.test(t)) {
+      ch.push(new D.Paragraph({ shading: { type: D.ShadingType.CLEAR, fill: 'B12121' }, alignment: D.AlignmentType.CENTER, spacing: { line: 360, before: 160, after: 160 }, children: [new D.TextRun({ text: t, bold: true, color: 'FFFFFF', size: 26 })] }));
+    } else if (refRe.test(t)) {
+      ch.push(new D.Paragraph({ spacing: { line: 360, after: 80 }, children: [new D.TextRun({ text: t, bold: true, color: 'C00000', size: 26 })] }));
+    } else {
+      ch.push(new D.Paragraph({ spacing: { line: 360, after: 80 }, indent: { firstLine: mm(8) }, children: [new D.TextRun({ text: t, size: 26 })] }));
+    }
+  });
+  return new D.Document({ styles: { default: { document: { run: { font: FONT, size: 26 } } } },
+    sections: [{ properties: { page: { size: { width: pt(612), height: pt(822) }, margin: { top: mm(18), bottom: mm(18), left: mm(16), right: mm(16), header: mm(8), footer: mm(8) } } },
+      headers: { default: new D.Header({ children: [new D.Paragraph({ alignment: D.AlignmentType.RIGHT, children: [new D.TextRun({ children: [D.PageNumber.CURRENT], size: 18 })] })] }) },
+      children: ch }] });
+}
+async function generateTransDoc(id, meta){
+  try {
+    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    var cuts = await loadCutsSidecar(meta);
+    if (!cuts) { setGenStage('이미지자료(전환표) 생성 중…'); cuts = await aiImgData(meta); if (cuts && cuts.length) await saveImgDataArtifacts(id, meta, cuts); }
+    if (!cuts || !cuts.length) throw new Error('전환표 생성 실패');
+    var body = await aiTransDoc(meta, cuts);
+    if (!body.trim()) throw new Error('전환표시본 본문 생성 실패');
+    setGenStage('전환표시본 — 문서 저장 중…');
+    var D = await ensureDocxLib();
+    var blob = await D.Packer.toBlob(buildTransDocx(D, meta, body));
+    await saveBlobToResults(blob, imgDataNames(meta).base + '_설교원고_이미지전환표시본.docx');
+    hideGenOverlay(); renderSyncState();
+    toast('이미지전환표시본 저장 완료 — [아웃풋]에서 확인.');
+  } catch (e) { hideGenOverlay(); toast('전환표시본 실패: ' + (e.message || e)); }
+}
+window.requestTransDoc = function(){
+  var m = (typeof collectCompose === 'function') ? collectCompose() : {};
+  if (state.editing) m['ID'] = state.editing;
+  generateTransDoc(state.editing || '', m);
 };
 
 /* LTC 교재 데이터 생성 (TSV와 공유) */
