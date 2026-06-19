@@ -3647,7 +3647,7 @@ function sermonFileBase(meta, type){
   var loc = san(meta['예배구분'] || '대학부');
   var title = san(meta['제목'] || '');
   var ref = san(String(meta['본문'] || '').replace(/:/g, '_'));
-  var ser = String(meta['시리즈'] || '').trim(), serP = '';
+  var ser = String(meta['시리즈'] || (meta['ID'] && typeof findSermon === 'function' && findSermon(meta['ID']) ? (findSermon(meta['ID'])['시리즈'] || '') : '') || '').trim(), serP = '';
   if (ser) { var mm = ser.match(/^(.*?)\s*\(?\s*(\d+)\s*회?\)?\s*$/); serP = mm ? (mm[1].replace(/\s+/g, '') + mm[2]) : ser.replace(/\s+/g, ''); }
   var titlePart = (serP ? serP + '_' : '') + title;
   return san(d + ' ' + type) + '_' + loc + '_' + titlePart + '_' + ref;
@@ -7938,7 +7938,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v169';
+var APP_VER = 'v170';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
