@@ -5556,10 +5556,7 @@ function spSermonHtml(){
       '<b style="font-size:15px">' + wSeq(w, wi) + '주차</b>' +
       '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
-      (!confirmed && !w.skip ? '<span style="margin-left:auto;flex:0 0 auto;display:flex;gap:6px;align-items:center">' +
-        '<button class="btn sub" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation()" style="width:auto;font-size:12px;padding:5px 10px" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
-        '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' +
-        '</span>' : '') +
+      (!confirmed && !w.skip ? '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 주 등록</label></div>' +
@@ -5712,17 +5709,6 @@ $('#seriesPane').addEventListener('click', async function(e){
     try { await confirmSermonWeek(wi); }
     catch (err) { toast('확정 실패: ' + err.message); }
     finally { delete wc.dataset.busy; wc.innerHTML = ow; renderSeriesPane(); }
-    return;
-  }
-  /* 이 회차만 주제 선택지 재생성 */
-  var wrg = e.target.closest('[data-act="weekRegen"]');
-  if (wrg) {
-    if (wrg.dataset.busy) return;
-    var wiR = +wrg.dataset.w;
-    var wR = (state.series.sermon.weeks || [])[wiR];
-    if (!wR) return;
-    if (!confirm('이 회차의 주제 선택지를 새로 생성합니다.\n현재 이 회차의 선택지·수정 내용은 교체됩니다. 계속할까요?')) return;
-    await aiRegenWeek(wiR, wrg);
     return;
   }
   /* 설교주제 다시 선택 */
@@ -6113,10 +6099,7 @@ function spDawnHtml(){
       '<b style="font-size:15px">' + dayLabel + '</b>' +
       (isSun ? '<span class="badge b-idea">주일</span>' : '') +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
-      (!confirmed && !w.skip ? '<span style="margin-left:auto;flex:0 0 auto;display:flex;gap:6px;align-items:center">' +
-        '<button class="btn sub" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation()" style="width:auto;font-size:12px;padding:5px 10px" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
-        '<button class="btn sub" data-act="weekConfirm" data-w="' + wi + '" onclick="event.stopPropagation()" style="flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' +
-        '</span>' : '') +
+      (!confirmed && !w.skip ? '<button class="btn sub" data-act="weekConfirm" data-w="' + wi + '" onclick="event.stopPropagation()" style="margin-left:auto;flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' : '') +
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 날 등록</label></div>' +
