@@ -2137,19 +2137,26 @@ $$('#c_style .chip').forEach(function(ch){
          실패(번호 대지 없음)하면 기존 구조를 보존하고, 비어 있으면 요약본 뼈대를 시도. */
       state.compose.style = to;
       if (c.free.trim()) {
-        if (parseFreeToStructure()) toast('자유원고 내용을 구조에 맞춰 반영했습니다 — 칸별로 확인·수정하세요.');
+        if (parseFreeToStructure()) toast('자유원고 내용을 구조에 맞춰 반영했습니다 — 칸별로 확인·수정하세요. (구조를 고치지 않으면 자유원고로 돌아올 때 원본이 복원됩니다)');
         else if (!structHasContent(c) && parseSummaryToStructure()) toast('요약본을 뼈대로 불러왔습니다.');
       } else if (!structHasContent(c)) {
         parseSummaryToStructure();
       }
       renderPoints();
+      /* 원본 자유원고와 '방금 파싱된 구조'의 서명을 보관 → 왕복 시 무손실 복원에 사용 */
+      c._freeSnap = c.free;
+      c._structSnapSig = structSig();
     } else if (to === '자유원고' && from !== '자유원고') {
-      /* 구조 → 자유: 구조 내용을 자유원고로 조립. assembleText는 현재 스타일을 보므로
-         스타일을 바꾸기 "전에" 조립해야 구조가 제대로 옮겨진다(이전엔 먼저 바꿔 빈 free를 반환하던 버그). */
-      if (structHasContent(c)) {
+      /* 구조 → 자유: 자유원고에서 넘어온 뒤 구조를 '손대지 않았다면' 원본 자유원고를 그대로 복원(무손실).
+         구조를 수정했다면(서명 변경) 구조 내용을 자유원고로 다시 조립한다.
+         (assembleText는 현재 스타일을 보므로 스타일을 바꾸기 전에 조립.) */
+      if (c._freeSnap != null && c._structSnapSig != null && structSig() === c._structSnapSig) {
+        c.free = c._freeSnap;
+      } else if (structHasContent(c)) {
         var t = assembleText();
         if (t.trim()) c.free = t;
       }
+      c._freeSnap = null; c._structSnapSig = null;
       state.compose.style = to;
     } else {
       /* 구조 ↔ 구조(기본↔카드): 변환 없음 */
@@ -8073,7 +8080,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v177';
+var APP_VER = 'v178';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
