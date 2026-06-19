@@ -194,11 +194,6 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .sumbox summary{cursor:pointer;font-size:13.5px;font-weight:700;color:var(--accent)}
 .sumbox .fulltext strong{color:inherit}
 .sumbox .fulltext .exb,.sumbox .fulltext strong.exb{color:#4C94D8;font-weight:700}
-.plegend{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
-.plegend th,.plegend td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top;word-break:keep-all}
-.plegend th{background:var(--card2);color:var(--text);font-weight:700;white-space:nowrap}
-.plegend td:nth-child(1){white-space:nowrap;color:var(--accent2);font-weight:700}
-.plegend code{background:var(--card2);border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:12px;color:var(--accent);font-weight:700;white-space:nowrap}
 .kv{font-size:13.5px;margin:7px 0;display:flex;gap:8px}
 .kv .k{color:var(--dim);flex:0 0 70px}
 .kv .v{white-space:pre-wrap;word-break:break-word}
@@ -2168,31 +2163,11 @@ function ta(k, pi, pk, rows, ph, val, cls, bi){
   return '<textarea class="edTa' + (cls ? ' ' + cls : '') + '" rows="' + rows + '" placeholder="' + esc(ph) + '" ' +
     attrs + '>' + esc(val) + '</textarea>';
 }
-/* 자유원고 → 기본원고 파싱 표기 범례 (parseFreeToStructure 규칙과 1:1 대응) */
-var FREE_PARSE_LEGEND =
-  '<details class="sumbox" style="margin-top:10px">' +
-  '<summary>파싱 표기 범례 — 기본원고로 깔끔히 나누려면</summary>' +
-  '<div style="margin-top:8px;font-size:12.5px;line-height:1.6">' +
-  '<div style="color:var(--dim);margin-bottom:8px">아래 표기를 <b>줄 맨 앞</b>에 넣어두면, [기본원고]로 전환할 때 서론·대지·예화·적용·결론으로 정확히 나뉩니다.</div>' +
-  '<table class="plegend">' +
-  '<tr><th>구분</th><th>표기</th><th>설명</th></tr>' +
-  '<tr><td>서론</td><td>표기 없음</td><td>첫 대지 번호 줄 <b>앞</b>의 모든 내용이 서론이 됩니다.</td></tr>' +
-  '<tr><td>대지 명제</td><td><code>1.</code> · <code>1)</code></td><td>줄 맨 앞 숫자+점(또는 괄호)+공백 뒤에 대지 명제를 씁니다.</td></tr>' +
-  '<tr><td>대지 내용</td><td><code>(대지 내용)</code> · <code>(내용)</code></td><td>첫 본문은 표기 없이도 인식됩니다. 예화 뒤에 본문을 다시 이어 쓸 때만 이 표기로 시작하세요.</td></tr>' +
-  '<tr><td>예화</td><td><code>ex)</code></td><td>그 줄은 예화 제목, 다음 줄들은 예화 내용으로 들어갑니다.</td></tr>' +
-  '<tr><td>적용</td><td><code>(적용)</code></td><td>그 줄부터 그 대지의 적용·실천 칸으로 들어갑니다.</td></tr>' +
-  '<tr><td>결론</td><td><code>말씀을 정리합니다</code></td><td>이 문구가 든 줄부터 결론, 그 아래 줄들이 결론 내용이 됩니다.</td></tr>' +
-  '<tr><td>무시</td><td><code>▶</code> · <code>【</code></td><td>이미지 전환 표시 줄은 파싱에서 제외됩니다.</td></tr>' +
-  '</table>' +
-  '<div style="color:var(--warn);margin-top:8px">번호 대지(<code>1.</code> …)가 <b>하나도 없으면</b> 구조로 나누지 않고 원본을 그대로 둡니다. 또한 기본원고에서 내용을 고치지 않았다면, 자유원고로 돌아올 때 <b>원본이 그대로 복원</b>됩니다.</div>' +
-  '</div></details>';
-
 function renderEditor(){
   var c = state.compose;
   var html = '<div class="edHeader"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div></div>';
   if (c.style === '자유원고') {
     html += ta('free', 0, '', 4, '여기에 자유롭게 원고를 작성하세요. 워드로 내보낼 때는 기본원고 서식이 적용됩니다.', c.free, 'edFree');
-    html += FREE_PARSE_LEGEND;
   } else {
     html += '<div class="edSec"><div class="edLabel">서론</div>' + ta('intro', 0, '', 5, '서론을 작성하세요', c.intro) + '</div>';
     c.points.forEach(function(p, i){
@@ -2318,18 +2293,6 @@ function collectCompose(){
 /* 시트 저장본과 비교용 서명 — 토글 등에서 미저장 변경 감지 */
 function composeSig(){ try { return JSON.stringify(collectCompose()); } catch (e) { return ''; } }
 function composeDirty(){ return composeSig() !== state.savedSig; }
-/* 구조(서론·대지·예화·적용·결론)만의 서명 — 자유↔기본 왕복 시 '구조를 손댔는지' 판별용.
-   pBlocks로 정규화해 렌더 시 추가되는 임시 필드 영향 없이 안정적으로 비교한다. */
-function structSig(){
-  var c = state.compose;
-  try {
-    var pts = (c.points || []).map(function(p){
-      return { t: (p.text || ''), a: (p.apply || ''),
-        b: pBlocks(p).map(function(x){ return [x.type || '', x.body || '', x.ill || '', x.illBody || '']; }) };
-    });
-    return JSON.stringify([c.intro || '', c.concIntro || '', c.concBody || '', pts]);
-  } catch (e) { return ''; }
-}
 function composeHasAnyContent(){ var c = state.compose; return !!((c.free || '').trim()) || structHasContent(c); }
 function clearCompose(){
   state.editing = null;
