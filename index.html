@@ -215,6 +215,17 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 @keyframes genDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
 #genOverlay .genSub{font-size:13.5px;color:var(--dim);line-height:1.7;margin-bottom:14px}
 #genOverlay .genCount{font-size:13px;font-weight:700;color:var(--accent);min-height:1.2em}
+#cascOverlay{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(6,8,13,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#cascOverlay.on{display:flex;animation:fade .18s ease}
+#cascOverlay .cascCard{text-align:center;max-width:600px;width:100%;padding:32px 28px;border-radius:22px;background:rgba(22,26,34,.95);border:1px solid rgba(127,196,255,.35);box-shadow:0 18px 60px rgba(0,0,0,.5)}
+#cascOverlay .cascSteps{display:flex;flex-wrap:wrap;gap:7px 5px;justify-content:center;align-items:center;margin:4px 0 18px}
+#cascOverlay .cstep{font-size:13px;color:var(--dim);padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.14)}
+#cascOverlay .cstep.done{color:#79d3a6;border-color:rgba(121,211,166,.5)}
+#cascOverlay .cstep.cur{color:#fff;background:var(--accent);border-color:var(--accent);font-weight:800}
+#cascOverlay .carrow{color:var(--dim);font-size:11px}
+#cascOverlay .cascNow{font-size:17px;font-weight:800;color:#fff;min-height:1.4em;line-height:1.4}
+#cascOverlay .cascHint{font-size:12px;color:var(--dim);margin-top:12px}
+.btn[data-casc].casc-done::after{content:' ●';color:#2e9d68;font-size:11px;vertical-align:1px}
 /* ── 시트 재동기화 중 흐림 처리 ── */
 .page{transition:opacity .32s ease}
 .page.stale{opacity:.38;pointer-events:none}
@@ -1131,6 +1142,14 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
     <div class="genTitle"><span id="genTitleTxt">생성 중</span><span class="dots"></span></div>
     <div class="genSub" id="genSub">잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.</div>
     <div class="genCount" id="genCount"></div>
+  </div>
+</div>
+<div id="cascOverlay">
+  <div class="cascCard">
+    <div class="genRing"></div>
+    <div class="cascSteps" id="cascSteps"></div>
+    <div class="cascNow" id="cascNow"></div>
+    <div class="cascHint">생성하는 동안 화면을 이동하면 중단됩니다.</div>
   </div>
 </div>
 <div id="syncBanner"><span class="sbRing"></span><span>최신 시트로 동기화 중입니다…</span></div>
@@ -3165,6 +3184,7 @@ var GEN_MSG = {
 };
 var GEN_SUB_AI = '잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.';
 function showGenOverlay(label){
+  if (window._cascOn) return;   /* 캐스케이드 중엔 전용 오버레이가 위에서 유지 — 깜빡임 방지 */
   var el = $('#genOverlay'); if (!el) return;
   var t = $('#genTitleTxt'); if (t) t.textContent = GEN_MSG[label] || (label + ' 생성 중');
   var sb = $('#genSub'); if (sb) sb.innerHTML = GEN_SUB_AI;
@@ -3176,6 +3196,7 @@ function updateGenOverlay(n){
   c.textContent = '받는 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자';
 }
 function hideGenOverlay(){
+  if (window._cascOn) return;   /* 캐스케이드 중엔 내부 hide 무시 — 전용 오버레이 유지 */
   var el = $('#genOverlay'); if (el) el.classList.remove('on');
 }
 
@@ -3468,6 +3489,7 @@ async function aiCardScript(id, meta){
 /* ===================== 카드 디자인 PDF (1단계) ===================== */
 /* 작업중 오버레이 단계 메시지 직접 설정(현재 어느 과정인지 표시) */
 function setGenStage(text){
+  if (window._cascOn) { var cn = $('#cascNow'); if (cn) cn.textContent = text; return; }  /* 캐스케이드 중엔 진행 텍스트로 라우팅 */
   var el = $('#genOverlay'); if (el) el.classList.add('on');
   var t = $('#genTitleTxt'); if (t) t.textContent = text;
   var sb = $('#genSub'); if (sb) sb.innerHTML = '';
