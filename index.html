@@ -820,8 +820,9 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <label>키워드</label><input type="text" id="c_kw" placeholder="쉼표로 구분">
         <label>비고</label><input type="text" id="c_note">
         <div class="toolrow">
-          <button class="btn sub" id="c_new">새 설교</button>
-          <button class="btn" id="c_save">시트에 저장</button>
+          <button class="btn sub" id="c_new">새로 작성</button>
+          <button class="btn" id="c_save">저장</button>
+          <button class="btn sub" id="c_saveAs">새 설교로<br>저장</button>
         </div>
         <div class="toolrow">
           <button class="btn sub" id="c_preview">미리보기</button>
@@ -2583,6 +2584,24 @@ function doSaveCompose(){
   });
 }
 $('#c_save').addEventListener('click', function(){ doSaveCompose(); });
+/* 다른 이름으로 저장(Save As) — 편집 중이든 아니든 항상 새 행으로 등록(원본 보존).
+   저장 후에는 새로 만든 사본을 편집하는 상태로 전환(이후 [저장]은 사본을 갱신). */
+function doSaveAsNew(){
+  var data = collectCompose();
+  if (!data['제목']) { toast('제목을 입력해 주세요.'); return null; }
+  if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
+  /* 원본과 날짜·제목·본문이 같으면 산출물 파일명이 겹쳐 원본 파일을 덮어씀 — 경고 */
+  var src = state.editing ? findSermon(state.editing) : (state.versionOf ? findSermon(state.versionOf) : null);
+  if (src && docxFileName(src) === docxFileName(data) &&
+      !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
+  delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
+  state.savedSig = composeSig();
+  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)').then(function(id){
+    if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
+    return id;
+  });
+}
+(function(){ var b = $('#c_saveAs'); if (b) b.addEventListener('click', function(){ doSaveAsNew(); }); })();
 /* 작성 화면에서 Cmd/Ctrl + S = 시트에 저장 (브라우저 저장 대화상자 차단) */
 document.addEventListener('keydown', function(e){
   if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 's' || e.key === 'S')) {
@@ -8206,7 +8225,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v180';
+var APP_VER = 'v181';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
