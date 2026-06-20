@@ -2602,11 +2602,11 @@ function doSaveAsNew(){
   });
 }
 (function(){ var b = $('#c_saveAs'); if (b) b.addEventListener('click', function(){ doSaveAsNew(); }); })();
-/* 작성 화면에서 Cmd/Ctrl + S = 시트에 저장 (브라우저 저장 대화상자 차단) */
+/* 작성 화면에서 Cmd/Ctrl + S = 저장 / +Shift = 새 설교로 저장 (브라우저 저장 대화상자 차단) */
 document.addEventListener('keydown', function(e){
   if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 's' || e.key === 'S')) {
     var cp = document.getElementById('page-compose');
-    if (cp && cp.classList.contains('on')) { e.preventDefault(); doSaveCompose(); }
+    if (cp && cp.classList.contains('on')) { e.preventDefault(); if (e.shiftKey) doSaveAsNew(); else doSaveCompose(); }
   }
 });
 
@@ -8225,7 +8225,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v181';
+var APP_VER = 'v182';
 var _appH = 0;
 function setAppHeight(){
   var h = window.innerHeight;
