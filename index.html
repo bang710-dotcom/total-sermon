@@ -5738,13 +5738,14 @@ function spSermonHtml(){
     var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
     var confirmed = !w.skip && w.done && w.sig === weekSig(w);
     var sumTitle = w.skip ? '제외됨' : esc(ed['제목'] || (selO && selO['제목']) || '미선택');
+    var sumRef = w.skip ? '' : esc(ed['본문'] || (selO && selO['본문']) || '');
     var badge = w.skip ? '' : confirmed ? ' <span class="badge b-state">확정됨</span>'
       : (w.done ? ' <span class="badge" style="color:var(--warn)">변경됨·재확정 필요</span>' : '');
     var summary = '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0">' +
       (confirmed ? '<span style="font-size:14px;color:var(--accent);flex-shrink:0">✓</span>' : '') +
       '<b style="font-size:15px">' + wSeq(w, wi) + '주차</b>' +
       '<span class="cnt">' + esc(w['주일']) + ' (주일)</span>' +
-      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
+      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + (sumRef ? '<span style="color:var(--dim);font-size:12px;font-weight:500;flex-shrink:0">' + sumRef + '</span>' : '') + badge +
       (!confirmed && !w.skip ? '<span style="margin-left:auto;flex:0 0 auto;display:flex;gap:6px;align-items:center">' +
         '<button class="btn sub" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation()" style="width:auto;font-size:12px;padding:5px 10px" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
         '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' +
@@ -6343,13 +6344,14 @@ function spDawnHtml(){
     var isSun = (w['요일'] === '일') || wi === 0;
     var dayLabel = esc(mdOf(w['주일'])) + ' (' + esc(w['요일'] || wdOf(w['주일'])) + ')';
     var sumTitle = w.skip ? '제외됨' : esc(ed['제목'] || (selO && selO['제목']) || '미선택');
+    var sumRef = w.skip ? '' : esc(ed['본문'] || (selO && selO['본문']) || '');
     var badge = w.skip ? '' : confirmed ? ' <span class="badge b-state">확정됨</span>'
       : (w.done ? ' <span class="badge" style="color:var(--warn)">변경됨·재확정 필요</span>' : '');
     var summary = '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0">' +
       (confirmed ? '<span style="font-size:14px;color:var(--accent);flex-shrink:0">✓</span>' : '') +
       '<b style="font-size:15px">' + dayLabel + '</b>' +
       (isSun ? '<span class="badge b-idea">주일</span>' : '') +
-      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + badge +
+      '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:13px;font-weight:600">' + sumTitle + '</span>' + (sumRef ? '<span style="color:var(--dim);font-size:12px;font-weight:500;flex-shrink:0">' + sumRef + '</span>' : '') + badge +
       (!confirmed && !w.skip ? '<span style="margin-left:auto;flex:0 0 auto;display:flex;gap:6px;align-items:center">' +
         '<button class="btn sub" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation()" style="width:auto;font-size:12px;padding:5px 10px" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
         '<button class="btn sub" data-act="weekConfirm" data-w="' + wi + '" onclick="event.stopPropagation()" style="flex:0 0 auto;width:auto;font-size:12px;padding:5px 10px">확정 →</button>' +
@@ -8225,7 +8227,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v184';
+var APP_VER = 'v185';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
