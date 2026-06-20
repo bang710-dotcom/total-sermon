@@ -8225,17 +8225,31 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v182';
+var APP_VER = 'v183';
 var _appH = 0;
+/* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
+   키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
+   하단 탭바까지 키보드 위로 끌려 올라오고, 애니메이션 중 오보고로 과도하게 솟구친다.
+   고정해 두면 키보드가 앱을 '덮기만' 하고, 입력창은 #main 네이티브 스크롤로 보이며,
+   입력창 아래 내용은 스크롤로 닿을 수 있다(사용자 요청). */
+var _kbLock = false;
 function setAppHeight(){
+  if (_kbLock) return;              /* 키보드 떠 있는 동안 높이 고정 */
   var h = window.innerHeight;
   if (h !== _appH) { _appH = h; document.documentElement.style.setProperty('--app-h', h + 'px'); }
 }
+document.addEventListener('focusin', function(e){
+  var t = e.target;
+  if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) _kbLock = true;
+});
+document.addEventListener('focusout', function(){
+  _kbLock = false;                 /* 키보드 내려간 뒤 실제 높이로 복원(애니메이션 여유 두고 재측정) */
+  [150, 400, 800].forEach(function(t){ setTimeout(setAppHeight, t); });
+});
 ['resize', 'orientationchange', 'pageshow', 'focus'].forEach(function(ev){ window.addEventListener(ev, setAppHeight); });
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', setAppHeight);
-  window.visualViewport.addEventListener('scroll', setAppHeight);
-}
+/* visualViewport는 키보드로도 resize가 발생하므로 _kbLock으로 걸러진다.
+   scroll(키보드가 뷰포트를 밀어 올릴 때 연속 발생)은 더 이상 구독하지 않는다. */
+if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
 document.addEventListener('touchstart', setAppHeight, { passive: true });
 /* iOS 초기 오보고 대비: 첫 3초간 250ms 간격으로 재측정 */
 (function(){ var n = 0; var iv = setInterval(function(){ setAppHeight(); if (++n >= 12) clearInterval(iv); }, 250); })();
