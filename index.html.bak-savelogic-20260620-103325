@@ -1644,7 +1644,7 @@ function openDetail(kind, id){
     if (doneList.length) html += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
       doneList.map(function(t){ return esc(REQ_LABELS[t] || t) + ' ✓'; }).join(' · ') + '</span></div>';
     html += '<div class="toolrow">' +
-      '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">수정하기</button>' +
+      '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">새버전으로<br>수정</button>' +
       '<button class="btn sub" onclick="previewSermon(\'' + esc(s['ID']) + '\')">미리보기</button>' +
       '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX<br>내보내기</button></div>';
     state.detailId = s['ID'];
@@ -2468,10 +2468,9 @@ function clearCompose(){
 function editSermonFill(id){
   var s = findSermon(id);
   if (!s) return;
-  /* 수정하기: 원본을 직접 불러와 수정 — [저장]하면 같은 행 업데이트(원본 갱신).
-     원본을 보존하고 사본을 만들려면 작성화면의 [새 설교로 저장]을 쓴다. */
-  state.editing = id;
-  state.versionOf = null;
+  /* 새버전 모드: 불러오기만 — 저장하면 새 설교로 등록 (원본 보존) */
+  state.editing = null;
+  state.versionOf = id;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
   var c = newCompose();
   c.free = s['원고텍스트'] || '';
@@ -2481,7 +2480,7 @@ function editSermonFill(id){
   c.points = dj.length ? dj.map(function(d, i){ return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '', ill: (ills[i] || '').split(' / ')[0] || '' }); }) : [newPoint()];
   if (!dj.length && ills.filter(Boolean).length) c.points = ills.filter(Boolean).map(function(t){ return normPoint({ ill: t.split(' / ')[0] || t }); });
   state.compose = c;
-  /* 원고가 있는 설교를 불러올 때는 자유원고로 시작(요청).
+  /* 원고가 있는 설교를 새버전으로 불러올 때는 자유원고로 시작(요청).
      구조도 미리 파싱해 채워, [기본원고]로 전환하면 세부내용(내용·예화·적용)까지 바로 보이게 한다.
      번호/대지 마커가 없어 파싱이 실패하면 컬럼(대지·예화) 기반 구조를 유지한다. */
   if (c.free.trim()) {
@@ -7602,7 +7601,7 @@ function renderLibRow(s){
       (paths ? '<div style="margin-top:6px">' + paths + '</div>' : '<div class="cnt" style="margin-top:6px">연결된 파일 정보 없음</div>') +
       '<div class="toolrow" style="margin-top:9px">' +
         '<button class="btn sub" onclick="previewSermon(\'' + id + '\')">미리보기</button>' +
-        '<button class="btn sub" onclick="editSermon(\'' + id + '\')">수정하기</button>' +
+        '<button class="btn sub" onclick="editSermon(\'' + id + '\')">새버전 수정</button>' +
         '<button class="btn gold desktop-only" onclick="exportSermonDocx(\'' + id + '\')">DOCX 내보내기</button>' +
       '</div>' +
     '</div></details>';
