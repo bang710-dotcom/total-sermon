@@ -1984,25 +1984,40 @@ function illCard(it){
     + ((it.bibleRefs && it.bibleRefs.length) ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + esc(it.bibleRefs.join('  ·  ')) + '</div>' : '')
     + '<div style="margin-top:6px"><button class="linkbtn illInsert" data-illid="' + esc(it.id) + '">＋ 이 예화를 대지에 삽입</button></div></details>';
 }
+function illNormLib(it){ return { key:'lib:'+it.id, src:'lib', category:it.category||'', title:it.title||'', message:it.message||'', story:it.story||'', refs:it.bibleRefs||[] }; }
+function illNormInbox(d){ var story=String(d['내용']||'').trim(); return { key:'inbox:'+d['ID'], src:'inbox', category:'내 인박스', title:d['제목']||illFirstLine(story), message:d['강조메시지']||'', story:story, refs:String(d['관련본문']||'').split(/;\s*/).filter(Boolean) }; }
 function renderRefIllust(){
   var box = $('#c_illust'); if (!box) return;
   var iv = refToInterval($('#c_ref').value);
   if (!iv){ box.innerHTML = ''; return; }
   illustLoad().then(function(){
-    var m = {};
+    var m = {};  /* key -> {lvl, it(정규화)} */
     ILLUST.intervals.forEach(function(x){
       if (x.idx !== iv.idx) return;
       var lvl = (x.lo <= iv.hi && iv.lo <= x.hi) ? 2 : 1;
-      if (!m[x.it.id] || lvl > m[x.it.id].lvl) m[x.it.id] = { lvl: lvl, it: x.it };
+      var key = 'lib:' + x.it.id;
+      if (!m[key] || lvl > m[key].lvl) m[key] = { lvl: lvl, it: illNormLib(x.it) };
+    });
+    (state.data.ideas || []).forEach(function(d){
+      if (d['유형'] !== '예화' || !String(d['내용'] || '').trim()) return;
+      var best = 0;
+      String(d['관련본문'] || '').split(/;\s*/).forEach(function(r){
+        var iv2 = refToInterval(r); if (!iv2 || iv2.idx !== iv.idx) return;
+        var lvl = (iv2.lo <= iv.hi && iv.lo <= iv2.hi) ? 2 : 1; if (lvl > best) best = lvl;
+      });
+      if (best){ var key = 'inbox:' + d['ID']; if (!m[key] || best > m[key].lvl) m[key] = { lvl: best, it: illNormInbox(d) }; }
     });
     var same = [], book = [];
-    Object.keys(m).forEach(function(id){ (m[id].lvl === 2 ? same : book).push(m[id].it); });
+    Object.keys(m).forEach(function(k){ (m[k].lvl === 2 ? same : book).push(m[k].it); });
     if (!same.length && !book.length){ box.innerHTML = ''; return; }  /* 연결 예화가 있을 때만 패널 노출 */
+    ILLUST.refMap = {}; same.concat(book).forEach(function(it){ ILLUST.refMap[it.key] = it; });
+    function inboxFirst(a, b){ return (a.src === 'inbox' ? 0 : 1) - (b.src === 'inbox' ? 0 : 1); }
+    same.sort(inboxFirst); book.sort(inboxFirst);
     var html = '<div class="pastbox"><h4>📚 연결 예화'
       + (same.length ? ' · 본문 겹침 ' + same.length : '')
       + (book.length ? ' · 같은 책 ' + book.length : '') + '</h4>';
-    if (same.length) html += '<div class="pastSec">이 본문(장·절)에 연결된 예화</div>' + same.slice(0, 8).map(illCard).join('');
-    if (book.length) html += '<div class="pastSec">같은 책의 다른 본문 예화</div>' + book.slice(0, 6).map(illCard).join('');
+    if (same.length) html += '<div class="pastSec">이 본문(장·절)에 연결된 예화</div>' + same.slice(0, 8).map(illCardU).join('');
+    if (book.length) html += '<div class="pastSec">같은 책의 다른 본문 예화</div>' + book.slice(0, 6).map(illCardU).join('');
     html += '</div>';
     box.innerHTML = html;
   }).catch(function(){ box.innerHTML = '<div class="cnt" style="margin:6px 2px">연결 예화 데이터를 불러오지 못했습니다.</div>'; });
@@ -2011,9 +2026,9 @@ function renderRefIllust(){
   var ref = $('#c_ref'); if (ref) ref.addEventListener('input', debounce(renderRefIllust, 250));
   var box = $('#c_illust');
   if (box) box.addEventListener('click', function(e){
-    var b = e.target.closest && e.target.closest('.illInsert'); if (!b) return;
+    var b = e.target.closest && e.target.closest('.illInsertU'); if (!b) return;
     e.preventDefault();
-    var it = ILLUST.byId && ILLUST.byId[b.getAttribute('data-illid')]; if (!it) return;
+    var it = ILLUST.refMap && ILLUST.refMap[b.getAttribute('data-illkey')]; if (!it) return;
     var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
     var target = pts[pts.length - 1];
     target.blocks = target.blocks || [];
