@@ -1913,8 +1913,9 @@ function openStudy(ref){
 function studyWordDetail(codesStr){
   var seen = {}, uniq = [];
   String(codesStr || '').split(',').forEach(function(c){ if (c && !seen[c]){ seen[c] = 1; uniq.push(c); } });
-  if (!uniq.length){ $('#studyDetail').innerHTML = ''; return; }
-  $('#studyDetail').innerHTML = uniq.map(function(code){
+  var det = $('#studyDetail');
+  if (!uniq.length){ det.innerHTML = STUDY_HINT; return; }
+  det.innerHTML = uniq.map(function(code){
     var L = STUDY.lex && STUDY.lex[code];
     var head = '<span class="sorig">' + (L ? esc(L.w) : '') + '</span> <span class="strans">' + (L ? esc(L.t) : '') + '</span> <span class="scode">' + esc(code) + '</span>';
     return '<div class="sworddef"><div class="swh">' + head + '</div>'
@@ -1922,6 +1923,8 @@ function studyWordDetail(codesStr){
       + '<button class="btn sub mini sconc" type="button" data-conc="' + esc(code) + '">이 원어가 쓰인 다른 본문 보기</button>'
       + '<div class="sconcOut" id="sconc-' + esc(code) + '"></div></div>';
   }).join('');
+  det.scrollTop = 0;
+  if (window.matchMedia && window.matchMedia('(max-width:720px)').matches){ try { det.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
 }
 function studyConcordance(code){
   if (STUDY.conc[code]) return STUDY.conc[code];
