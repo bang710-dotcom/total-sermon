@@ -182,6 +182,12 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .dupbox .d{padding:5px 0;border-top:1px dashed #4a3a33}
 .dupbox .d:first-of-type{border-top:none}
 .okbox{border:1px solid var(--ok);background:#1b2a20;border-radius:10px;padding:9px 12px;margin-top:10px;font-size:13px;color:var(--ok)}
+.pastbox{border:1px solid var(--accent);background:var(--card2);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13px}
+.pastbox h4{color:var(--accent);font-size:13px;margin-bottom:6px}
+.pastbox .pastSec{color:var(--dim);font-size:11.5px;margin:7px 0 2px}
+.pastbox .d{padding:4px 0;border-top:1px dashed var(--line)}
+.pastbox .pastSec + .d{border-top:none}
+.pastbox .refPastOpen:hover{color:var(--accent)}
 .row2{display:flex;gap:9px}.row2>*{flex:1;min-width:0}
 /* iOS에서 date 입력칸이 고유 폭으로 옆 칸을 침범하는 것 방지 */
 input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;min-height:46px;display:block}
