@@ -898,6 +898,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <label>본문</label><input type="text" id="c_ref" placeholder="로마서 5:1-11">
         <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="c_study" type="button" style="flex:0 0 auto">📖 본문 연구</button></div>
         <div id="c_refPast"></div>
+        <div id="c_illust"></div>
         <div class="row2">
           <div><label>시리즈</label><input type="text" id="c_series"></div>
           <div><label>순번</label><input type="number" id="c_seriesNo" min="1"></div>
@@ -1788,6 +1789,7 @@ function openDetail(kind, id){
     html += '<div class="meta" style="font-size:12.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
       '<span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['ID']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
       (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
+      (d['제목'] ? '<div style="font-weight:800;font-size:17px;margin-bottom:8px">' + esc(d['제목']) + '</div>' : '') +
       (d['강조메시지'] ? '<div class="kv" style="margin-bottom:8px"><span class="k">강조메시지</span><span class="v" style="color:var(--accent);font-weight:600">' + hl(d['강조메시지'], terms) + '</span></div>' : '') +
       '<div class="fulltext">' + hl(d['내용'], terms) + '</div>';
     [['출처', d['출처']], ['관련본문', d['관련본문']], ['키워드', d['키워드']]].forEach(function(kv){
@@ -1913,6 +1915,76 @@ function renderRefPast(){
   if (box) box.addEventListener('click', function(e){
     var t = e.target.closest && e.target.closest('[data-refpast]');
     if (t){ var id = t.getAttribute('data-refpast'); if (id) try { window.previewSermon(id); } catch (err) {} }
+  });
+})();
+
+/* ===================== 연결 예화 추천 (본문 기준, 무AI) ===================== */
+/* illustrations.json(867 강화 예화)을 본문 책·장·절로 매칭해 추천. byBook 역색인 대신 절구간 교집합으로 정밀 매칭. */
+var ILLUST = { items: null, intervals: null, byId: null, _p: null };
+function illustLoad(){
+  if (ILLUST._p) return ILLUST._p;
+  ILLUST._p = fetch('illustrations.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function(j){
+    ILLUST.items = j.items; ILLUST.byId = {};
+    var bm = devoBookIdxMap(), ivs = [];
+    j.items.forEach(function(it){
+      ILLUST.byId[it.id] = it;
+      if (!it.enhanced) return;
+      (it.bibleRefsParsed || []).forEach(function(p){
+        if (!p || !p.book) return; var idx = bm[p.book]; if (idx == null) return;
+        var ch = p.chapter || 1;
+        ivs.push({ idx: idx, lo: ch * 1000 + (p.v1 || 1), hi: ch * 1000 + (p.v2 || p.v1 || 999), it: it });
+      });
+    });
+    ILLUST.intervals = ivs; return ILLUST;
+  });
+  return ILLUST._p;
+}
+function illCard(it){
+  return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
+    + '<summary style="cursor:pointer;list-style:none"><span class="badge b-idea">' + esc(it.category || '') + '</span> <b>' + esc(it.title || '') + '</b>'
+    + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
+    + '<div class="fulltext" style="margin-top:7px">' + esc(it.story || '') + '</div>'
+    + ((it.bibleRefs && it.bibleRefs.length) ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + esc(it.bibleRefs.join('  ·  ')) + '</div>' : '')
+    + '<div style="margin-top:6px"><button class="linkbtn illInsert" data-illid="' + esc(it.id) + '">＋ 이 예화를 대지에 삽입</button></div></details>';
+}
+function renderRefIllust(){
+  var box = $('#c_illust'); if (!box) return;
+  var iv = refToInterval($('#c_ref').value);
+  if (!iv){ box.innerHTML = ''; return; }
+  illustLoad().then(function(){
+    var m = {};
+    ILLUST.intervals.forEach(function(x){
+      if (x.idx !== iv.idx) return;
+      var lvl = (x.lo <= iv.hi && iv.lo <= x.hi) ? 2 : 1;
+      if (!m[x.it.id] || lvl > m[x.it.id].lvl) m[x.it.id] = { lvl: lvl, it: x.it };
+    });
+    var same = [], book = [];
+    Object.keys(m).forEach(function(id){ (m[id].lvl === 2 ? same : book).push(m[id].it); });
+    if (!same.length && !book.length){
+      box.innerHTML = '<div class="cnt" style="margin:6px 2px">📚 ' + esc(BOOK_FULL[iv.idx]) + ' 본문에 연결된 예화가 없습니다.</div>'; return;
+    }
+    var html = '<div class="pastbox"><h4>📚 연결 예화'
+      + (same.length ? ' · 본문 겹침 ' + same.length : '')
+      + (book.length ? ' · 같은 책 ' + book.length : '') + '</h4>';
+    if (same.length) html += '<div class="pastSec">이 본문(장·절)에 연결된 예화</div>' + same.slice(0, 8).map(illCard).join('');
+    if (book.length) html += '<div class="pastSec">같은 책의 다른 본문 예화</div>' + book.slice(0, 6).map(illCard).join('');
+    html += '</div>';
+    box.innerHTML = html;
+  }).catch(function(){ box.innerHTML = '<div class="cnt" style="margin:6px 2px">연결 예화 데이터를 불러오지 못했습니다.</div>'; });
+}
+(function(){
+  var ref = $('#c_ref'); if (ref) ref.addEventListener('input', debounce(renderRefIllust, 250));
+  var box = $('#c_illust');
+  if (box) box.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.illInsert'); if (!b) return;
+    e.preventDefault();
+    var it = ILLUST.byId && ILLUST.byId[b.getAttribute('data-illid')]; if (!it) return;
+    var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
+    var target = pts[pts.length - 1];
+    target.blocks = target.blocks || [];
+    target.blocks.push(newIllBlock(it.title || '', it.story || ''));
+    renderPoints(); renderEditor();
+    toast('예화 「' + (it.title || '') + '」를 ' + pts.length + '번 대지에 삽입했습니다.');
   });
 })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
@@ -3077,6 +3149,7 @@ function clearCompose(){
   $('#c_state').value = '구상/연구';
   $('#c_dupCheck').innerHTML = '';
   var rp = $('#c_refPast'); if (rp) rp.innerHTML = '';
+  var ril = $('#c_illust'); if (ril) ril.innerHTML = '';
   var rf = $('#ptReframe'); if (rf) rf.innerHTML = '';
   var ap = $('#ptApply'); if (ap) ap.innerHTML = '';
   state.compose = newCompose();
