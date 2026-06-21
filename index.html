@@ -195,7 +195,12 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .rfItem:first-of-type{border-top:none}
 .rfOrig{font-weight:600;color:var(--text);margin-bottom:4px}
 .rfLine{display:flex;gap:6px;align-items:flex-start;line-height:1.55;margin-top:3px}
-.rfTag{flex:0 0 auto;font-size:11px;color:#fff;background:var(--accent);border-radius:5px;padding:1px 6px;margin-top:2px}
+.rfTag{flex:0 0 auto;font-size:11px;color:#fff;background:var(--accent);border-radius:5px;padding:1px 6px;margin-top:2px;white-space:nowrap}
+.apBox{border-color:var(--accent2)}
+.apBox .rfHd{color:var(--accent2)}
+.rfTag.apY{background:#3b82a6}
+.rfTag.apM{background:#5b8a3b}
+.rfTag.apO{background:#9a6a3b}
 .row2{display:flex;gap:9px}.row2>*{flex:1;min-width:0}
 /* iOS에서 date 입력칸이 고유 폭으로 옆 칸을 침범하는 것 방지 */
 input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;min-height:46px;display:block}
@@ -887,8 +892,9 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <label>대지 · 예화 (회색 ↑↓=대지 이동 · 파란 ↑↓=내부 순서 · ＋예화 추가)</label>
         <div id="pointList"></div>
         <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
-        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:0 0 auto">✦ 대지 보강 (재정의·대조)</button></div>
+        <div class="toolrow" style="margin-top:6px;gap:6px;flex-wrap:wrap"><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:0 0 auto">✦ 대지 보강 (재정의·대조)</button><button class="btn sub mini" id="ptApplyBtn" type="button" style="flex:0 0 auto">✦ 적용 강화 (세대별 결단)</button></div>
         <div id="ptReframe"></div>
+        <div id="ptApply"></div>
         <div id="c_dupCheck"></div>
         <label>키워드</label><input type="text" id="c_kw" placeholder="쉼표로 구분">
         <label>비고</label><input type="text" id="c_note">
@@ -1959,6 +1965,7 @@ async function studyAiSynth(){
   var R = STUDY.range; if (!R) return;
   var key = studyRangeKey();
   try {
+    await studyLoad();
     var net = await studyLoadNet(R.idx).catch(function(){ return null; });
     var com = await studyLoadCom(R.idx).catch(function(){ return null; });
     var ctx = studyGatherContext();
@@ -2125,7 +2132,7 @@ var P_REFRAME = [
 function composePoints(){
   return (state.compose.points || []).map(function(p){
     var body = pBlocks(p).filter(function(b){ return b.type !== 'ill'; }).map(function(b){ return String(b.body || '').trim(); }).filter(Boolean).join(' ');
-    return { 문: String(p.text || '').trim(), 근거: body };
+    return { 문: String(p.text || '').trim(), 근거: body, 적용: String(p.apply || '').trim() };
   }).filter(function(d){ return d.문; });
 }
 async function aiReframe(){
@@ -2146,6 +2153,34 @@ async function aiReframe(){
   } catch (e){ toast('대지 보강 실패: ' + e.message); }
 }
 (function(){ var b = $('#ptReframeBtn'); if (b) b.addEventListener('click', aiReframe); })();
+
+/* ===================== 적용 강화: 세대별 결단 (AI) ===================== */
+var P_APPLY = [
+'당신은 영락교회 담임 설교자(목사님)의 적용을 벼리는 비서다. 입력(JSON: 본문·핵심메시지·대지[{문,적용}])의 각 대지 메시지를, 청년·장년·노년 세 세대가 각자 자기 삶의 자리에서 받아 결단할 수 있는 적용으로 떨어뜨린다.',
+'★원칙(필수): 적용은 프로그램·행사·캠페인·과제 목록이 아니다. "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 자기화 메시지다. 추상적 관념이 아니라 오늘 실행 가능한 구체적 행동·태도로 착지한다.',
+'세대 결: 청년=진로·관계·정체성·불안 / 장년=일·가정·책임·소진 / 노년=마무리·유산·관계 회복·신앙의 깊이. 결은 다르되 메시지의 핵심은 같게.',
+'출력은 반드시 JSON 배열만(설명·코드펜스 금지), 입력 대지 순서·개수 그대로:',
+'[{"문":"입력 원대지 그대로","청년":"한 문장","장년":"한 문장","노년":"한 문장"}]',
+'각 한 문장, 날카롭고 구체적으로, 구어체 높임말. 한국어.'].join('\n');
+async function aiApplyGen(){
+  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 적용 강화를 쓸 수 있습니다.'); return; }
+  var pts = composePoints();
+  if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
+  try {
+    var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts };
+    var out = await callClaude(P_APPLY, JSON.stringify(input), 6000, aiTick('적용 강화'));
+    var arr = aiJson(out);
+    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">세대별 결단 적용 <small>· 메시지는 같게, 삶의 자리만 다르게</small></div>'
+      + arr.map(function(d, i){
+        return '<div class="rfItem"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
+          + (d.청년 ? '<div class="rfLine"><span class="rfTag apY">청년</span><span>' + esc(d.청년) + '</span></div>' : '')
+          + (d.장년 ? '<div class="rfLine"><span class="rfTag apM">장년</span><span>' + esc(d.장년) + '</span></div>' : '')
+          + (d.노년 ? '<div class="rfLine"><span class="rfTag apO">노년</span><span>' + esc(d.노년) + '</span></div>' : '') + '</div>';
+      }).join('') + '</div>';
+  } catch (e){ toast('적용 강화 실패: ' + e.message); }
+}
+(function(){ var b = $('#ptApplyBtn'); if (b) b.addEventListener('click', aiApplyGen); })();
 
 /* ===================== 인박스 ===================== */
 function renderInbox(){
@@ -2856,6 +2891,7 @@ function clearCompose(){
   $('#c_dupCheck').innerHTML = '';
   var rp = $('#c_refPast'); if (rp) rp.innerHTML = '';
   var rf = $('#ptReframe'); if (rf) rf.innerHTML = '';
+  var ap = $('#ptApply'); if (ap) ap.innerHTML = '';
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   state.savedSig = composeSig();
@@ -2893,6 +2929,7 @@ function editSermonFill(id){
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   renderRefPast();
   var rf2 = $('#ptReframe'); if (rf2) rf2.innerHTML = '';
+  var ap2 = $('#ptApply'); if (ap2) ap2.innerHTML = '';
   state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
   showPage('compose');
