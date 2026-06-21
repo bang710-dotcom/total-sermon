@@ -1157,6 +1157,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
           <select id="illCat"><option value="">전체 카테고리</option></select>
           <span class="cnt" id="illCount"></span>
         </div>
+        <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto">📥 인박스 예화 라이브러리 편입 신청</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
       </div>
       <div id="illResults"></div>
     </section>
@@ -2107,6 +2108,27 @@ function renderIllLib(){
     toast('예화 「' + (it.title || '') + '」를 작성 중 설교 ' + pts.length + '번 대지에 삽입했습니다. (작성 화면에서 확인)');
   });
 })();
+
+/* 인박스 예화 → 라이브러리 정식 편입 '신청' (상태=편입대기 로 표시). 실제 편입(번들 재생성)은 Cowork 변환기/예약작업이 수행. */
+async function requestFoldInbox(){
+  var targets = (state.data.ideas || []).filter(function(d){
+    return d['유형'] === '예화' && String(d['강조메시지'] || '').trim() && d['상태'] !== '편입됨' && d['상태'] !== '편입대기';
+  });
+  if (!targets.length){ toast('편입 신청할 새 예화가 없습니다 (이미 모두 신청/편입됨).'); return; }
+  if (!confirm('강화된 인박스 예화 ' + targets.length + '건을 라이브러리 편입 대기로 표시합니다.\n실제 편입(번들 반영)은 Cowork 일괄 작업에서 진행됩니다. 진행할까요?')) return;
+  var btn = $('#foldInboxBtn'); if (btn) btn.disabled = true;
+  var ok = 0;
+  for (var i = 0; i < targets.length; i++){
+    var d = targets[i];
+    var h = $('#foldInboxHint'); if (h) h.textContent = '신청 중… ' + (i + 1) + '/' + targets.length;
+    try { await apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '상태': '편입대기' } }); d['상태'] = '편입대기'; ok++; } catch (e) {}
+  }
+  saveData(); renderInbox(); renderIllLib();
+  var h2 = $('#foldInboxHint'); if (h2) h2.textContent = '편입대기 ' + ok + '건 — Cowork에서 "인박스 예화 편입해줘" 또는 예약작업으로 라이브러리에 반영됩니다.';
+  if (btn) btn.disabled = false;
+  toast('편입 신청 완료: ' + ok + '건');
+}
+(function(){ var b = $('#foldInboxBtn'); if (b) b.addEventListener('click', requestFoldInbox); })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
 var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, com: {}, range: null, tab: 'orig', lastCodes: null, tr: {}, versions: ['NKRV'], split: false };
 /* 번역본 레지스트리 — 개역개정은 동봉(nkrv-strong), 나머지는 배포 성경앱에서 fetch */
