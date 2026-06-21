@@ -320,6 +320,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stAiSec h4{margin:0 0 6px;font-size:12.5px;color:var(--accent);font-weight:700}
 .stAiBody{font-size:13px;line-height:1.65;color:var(--text)}
 .stWhy{margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--dim)}
+.hbSec{margin-bottom:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.hbSec>summary{padding:7px 10px;background:var(--card2);cursor:pointer;font-weight:600;font-size:12.5px;color:var(--accent)}
+.hbBody{padding:9px 11px;font-size:13px;line-height:1.65}
+.hbSub{display:block;margin:8px 0 3px;color:var(--accent2);font-weight:700}
 @media (max-width:720px){
   .studyBody{flex-direction:column;overflow-y:auto}
   .studyText{flex:0 0 auto;border-right:none;border-bottom:1px solid var(--line);max-height:42vh}
@@ -1949,6 +1953,17 @@ function studyRenderNotes(list, emptyMsg){
   if (!list.length) return '<div class="cnt">' + emptyMsg + '</div>';
   return list.map(function(o){ return '<div class="stVnote"><span class="stvr">' + esc(o.ref) + '</span>' + stMd(o.text) + '</div>'; }).join('');
 }
+function studyRenderHolman(d){
+  if (!d || !d.chapters || !d.chapters[0] || !d.chapters[0][0]) return '<div class="cnt">이 책의 Holman 핸드북 내용이 없습니다.</div>';
+  var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
+  return secs.map(function(sec){
+    var nl = sec.indexOf('\n');
+    var title = (nl >= 0 ? sec.slice(0, nl) : sec).replace(/^#+\s*/, '').trim();
+    var body = nl >= 0 ? sec.slice(nl + 1).trim() : '';
+    var bodyHtml = esc(body).replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    return '<details class="hbSec" open><summary>' + esc(title) + '</summary><div class="hbBody">' + bodyHtml + '</div></details>';
+  }).join('');
+}
 /* ── 본문연구 AI 정리 (원어·NET·호크마를 근거로 Opus 요약) ── */
 var P_STUDYSYN = [
 '당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·개역개정 절들·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석)을 읽고 목사님 설교 방법에 맞춰 정리한다.',
@@ -2070,6 +2085,12 @@ function studyRenderPane(){
     pane.innerHTML = '<div class="cnt">호크마 주석을 불러오는 중…</div>';
     studyLoadCom(R.idx).then(function(d){ if (STUDY.tab === 'com') pane.innerHTML = studyRenderNotes(studyVerseList(d), '이 구간에는 주석이 없습니다.'); })
       .catch(function(e){ if (STUDY.tab === 'com') pane.innerHTML = '<div class="stWarn">호크마 주석을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ')이 배포되어 있고 주석 접근(CORS)이 허용돼야 합니다. (' + esc(e.message) + ')</span></div>'; });
+    return;
+  }
+  if (STUDY.tab === 'holman'){
+    pane.innerHTML = '<div class="cnt">Holman 핸드북을 불러오는 중…</div>';
+    studyLoadHolman(R.idx).then(function(d){ if (STUDY.tab === 'holman') pane.innerHTML = studyRenderHolman(d); })
+      .catch(function(e){ if (STUDY.tab === 'holman') pane.innerHTML = '<div class="stWarn">Holman 핸드북을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ') 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
     return;
   }
   if (STUDY.tab === 'ai'){
