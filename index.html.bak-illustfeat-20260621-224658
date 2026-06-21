@@ -1120,7 +1120,6 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <span class="chip" data-v="보류">보류</span>
         <span class="chip" data-v="">전체</span>
       </div>
-      <div class="toolrow" style="margin-bottom:10px"><button class="btn sub mini" id="enhanceIdeasBtn" type="button" style="flex:0 0 auto">✦ 강화 안 된 예화 일괄 강화</button><span class="cnt" id="enhanceIdeasHint" style="margin-left:8px"></span></div>
       <div id="inboxList"></div>
     </section>
 
@@ -1563,7 +1562,7 @@ function submit(body, okMsg){
 
 /* ===================== 검색 ===================== */
 var SERMON_FIELDS = ['제목','본문','시리즈','핵심메시지','대지','예화','키워드','원고텍스트','예배구분','요약본'];
-var IDEA_FIELDS = ['내용','출처','관련본문','키워드','유형','강조메시지','원문','제목'];
+var IDEA_FIELDS = ['내용','출처','관련본문','키워드','유형','강조메시지','원문'];
 
 function hl(text, terms, clip){
   var t = String(text || '');
@@ -2065,66 +2064,6 @@ function kStem(w){
 }
 /* 내용어 코드(기능어 제외)만 추린다 — 밑줄·단어상세 대상 */
 function contentCodes(codes){ return (codes || []).filter(function(c){ return !ORIG_FUNC_SKIP[c]; }); }
-/* 성경앱 이식: 코드→개역개정 단어 매핑(고유명사·핵심어), 능동/피동 형태확장, 사전 키워드 추출 */
-var KO_MORPH = { "나누":["나뉘"],"나뉘":["나누"],"이루":["이루어"],"세우":["세워"],"채우":["차"],"열":["열리"],"닫":["닫히"],"가르":["갈라","갈리"],"모으":["모여","모이"],"나오":["내"],"드러":["드러나"],"비추":["비침"],"번성":["번성하"],"주관":["주관하"],"다스":["다스리"] };
-var STRONG_TO_KO = {
-  "H3068":["여호와"],"H3069":["여호와"],"H3050":["야","여호와"],"H410":["하나님"],"H430":["하나님"],
-  "H53":["압살롬"],"H74":["아브넬"],"H85":["아브라함"],"H121":["아담"],"H175":["아론"],"H452":["엘리야"],"H477":["엘리사"],"H2332":["하와"],"H3083":["요나단"],"H3097":["요압"],"H3130":["요셉"],"H3290":["야곱"],"H3327":["이삭"],"H4317":["미가엘"],"H4872":["모세"],"H5146":["노아"],"H5166":["느헤미야"],"H6547":["바로"],"H7586":["사울"],"H8010":["솔로몬"],
-  "H894":["바벨론","바벨"],"H1035":["베들레헴"],"H3063":["유다"],"H3383":["요단"],"H3389":["예루살렘"],"H3405":["여리고"],"H3478":["이스라엘"],"H3667":["가나안"],"H4714":["애굽"],"H6726":["시온"],
-  "H1":["아버지"],"H251":["형제"],"H269":["자매","누이"],"H519":["여종"],"H802":["아내","여자"],"H1285":["언약"],"H1697":["말씀"],"H2617":["인자","인애"],"H3117":["날"],"H3820":["마음"],"H4687":["계명"],"H5030":["선지자"],"H5315":["혼","목숨"],"H5650":["종"],"H5769":["영원"],"H6310":["입"],"H6440":["앞","얼굴"],"H6918":["거룩"],"H6944":["거룩","성"],"H7307":["영","바람"],"H922":["공허"],"H7965":["평강","평화"],"H8451":["율법"],
-  "G11":["아브라함"],"G76":["아담"],"G207":["아굴라"],"G2385":["야고보"],"G2424":["예수"],"G2491":["요한"],"G3137":["마리아"],"G3138":["마가"],"G3323":["메시야"],"G3530":["니고데모"],"G3972":["바울"],"G4074":["베드로"],"G4252":["브리스길라"],"G4545":["사무엘"],"G4613":["시몬"],"G4736":["스데반"],"G5376":["빌립"],
-  "G116":["아테네"],"G490":["안디옥"],"G1056":["갈릴리"],"G2419":["예루살렘"],"G2446":["요단"],"G2449":["유대"],"G2474":["이스라엘"],"G2455":["유다"],"G3109":["마게도냐"],"G3478":["나사렛"],"G5375":["빌립보"],
-  "G26":["사랑"],"G40":["거룩"],"G166":["영원"],"G932":["나라"],"G1343":["의"],"G1515":["평화","평강"],"G1680":["소망"],"G2316":["하나님"],"G2962":["주"],"G3056":["말씀"],"G3962":["아버지"],"G4102":["믿음"],"G4151":["영","성령"],"G4991":["구원"],"G5485":["은혜"],"G5547":["그리스도"]
-};
-var STUDY_REF_PAT = /[가-힣]{0,3}\([A-Za-z0-9]+\)\s*[\d:,\s]+/g;
-var KW_NOISE = {"또는":1,"직접":1,"목적":1,"표시":1,"강조":1,"관사":1,"전치사":1,"대명사":1,"어미":1,"접속사":1,"부사":1,"동사":1,"명사":1,"형용사":1,"관계":1,"지시":1,"의문":1,"감탄":1,"문자":1,"음역":1,"하나":1,"이것":1,"그것":1,"저것":1};
-var KW_ONE = {"땅":1,"영":1,"물":1,"빛":1,"밤":1,"낮":1,"피":1,"꿈":1,"씨":1,"뼈":1,"손":1,"발":1,"눈":1,"입":1,"귀":1,"옷":1,"집":1,"문":1,"길":1,"산":1,"강":1,"별":1,"달":1,"해":1,"불":1,"금":1,"은":1,"옥":1,"떡":1,"술":1,"왕":1,"종":1,"법":1,"죄":1,"복":1,"상":1,"벌":1,"신":1,"말":1,"글":1,"일":1,"때":1,"년":1,"날":1,"뜻":1,"힘":1,"잔":1,"병":1,"독":1,"성":1,"젖":1,"꿀":1,"뿔":1,"짐":1,"삯":1,"터":1};
-function lexKeywords(code){
-  var e = STUDY.lex && STUDY.lex[code]; if (!e || !e.d) return [];
-  var t = e.t || '';
-  var d = String(e.d).replace(STUDY_REF_PAT, '|').replace(/\d+[:：]\d+/g, '|').replace(/null\w*/g, '');
-  var kws = [];
-  d.split(/[,，|]/).forEach(function(p){
-    var seg = p.replace(/[()]/g, ' ');
-    (seg.match(/[가-힣]+/g) || []).forEach(function(pc){
-      var ok = (pc.length >= 2 && !KW_NOISE[pc]) || (pc.length === 1 && KW_ONE[pc]);
-      if (ok && pc !== t && kws.indexOf(pc) < 0) kws.push(pc);
-    });
-  });
-  return kws;
-}
-/* 한 덩어리(여러 어절+코드) 안에서 각 코드를 가장 잘 맞는 어절에만 밑줄 — 성경앱 subHit/stemHit 로컬판 */
-function studyMatchChunk(chunk, codes){
-  var words = chunk.split(/(\s+)/), wi = [];
-  for (var i = 0; i < words.length; i++) if (!/\s/.test(words[i]) && /[가-힣]/.test(words[i])) wi.push(i);
-  if (wi.length <= 1) return '<span class="swrd" data-codes="' + codes.join(',') + '">' + esc(chunk) + '</span>';
-  function findWord(cands){
-    var ext = cands.slice();
-    cands.forEach(function(c){ var a = KO_MORPH[c]; if (a) a.forEach(function(x){ if (ext.indexOf(x) < 0) ext.push(x); }); });
-    for (var ci = 0; ci < ext.length; ci++){ var cand = ext[ci]; if (!cand) continue;
-      for (var k = 0; k < wi.length; k++){ var w = words[wi[k]].replace(/[^가-힣]/g, '');
-        if (cand.length === 1){ if (w.charAt(0) === cand) return wi[k]; }
-        else if (w.indexOf(cand) >= 0) return wi[k]; } }
-    for (var cj = 0; cj < cands.length; cj++){ var cd = cands[cj]; if (cd.length < 3) continue; var cs = kStem(cd); if (cs.length < 2) continue; var pre = cs.substr(0, 2);
-      for (var wj = 0; wj < wi.length; wj++){ var ws = kStem(words[wi[wj]]); if (ws.length >= 2 && ws.substr(0, 2) === pre) return wi[wj]; } }
-    return -1;
-  }
-  var linked = {}, any = false;
-  codes.forEach(function(code){
-    var cands = (STRONG_TO_KO[code] || []).concat(lexKeywords(code));
-    if (!cands.length) return;
-    var pos = findWord(cands);
-    if (pos >= 0){ (linked[pos] = linked[pos] || []).push(code); any = true; }
-  });
-  if (!any) linked[wi[wi.length - 1]] = codes.slice();   /* 폴백: 덩어리 끝 어절(머리어)에 */
-  var out = '';
-  for (var x = 0; x < words.length; x++){
-    if (/\s/.test(words[x]) || !/[가-힣]/.test(words[x])){ out += esc(words[x]); continue; }
-    if (linked[x]) out += '<span class="swrd" data-codes="' + linked[x].join(',') + '">' + esc(words[x]) + '</span>';
-    else out += esc(words[x]);
-  }
-  return out;
-}
 /* 번역 분포 + 용례: 코드가 쓰인 절을 모으고, 그 코드가 붙은 한국어 어간을 집계 */
 function studyTransDist(code){
   if (STUDY.conc[code]) return STUDY.conc[code];
@@ -2170,7 +2109,7 @@ function openStudy(ref){
           if (!cc.length) return esc(t.w);   /* 코드 없거나 기능어뿐 → 밑줄 없음 */
           var lead = t.w.match(/^\s*/)[0], trail = t.w.match(/\s*$/)[0];
           var core = t.w.slice(lead.length, t.w.length - trail.length);
-          return esc(lead) + studyMatchChunk(core, cc) + esc(trail);
+          return esc(lead) + '<span class="swrd" data-codes="' + cc.join(',') + '">' + esc(core) + '</span>' + esc(trail);
         }).join('');
         html += '<div class="sv"><span class="svn">' + c + ':' + vi + '</span>' + inner + '</div>';
       }
@@ -4208,7 +4147,6 @@ async function buildIdeaData(raw, opt){
       data['강조메시지'] = e.강조메시지;
       if (e.연결성경본문) data['관련본문'] = opt['관련본문'] ? (opt['관련본문'] + '; ' + e.연결성경본문) : e.연결성경본문;
       data['원문'] = raw;
-      if (e.제목) data['제목'] = e.제목;
       if (!data['출처'] && e.출처) data['출처'] = e.출처;
       if (!data['키워드'] && e.키워드) data['키워드'] = e.키워드;
     } catch (err) {
