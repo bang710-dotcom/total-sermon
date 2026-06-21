@@ -297,6 +297,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stVnote{padding:7px 0;border-top:1px dashed var(--line);font-size:13px;line-height:1.65}
 .stVnote:first-child{border-top:none}
 .stVnote .stvr{color:var(--accent2);font-weight:700;margin-right:5px}
+.stWarn{color:var(--warn);font-size:13px;line-height:1.6}
 @media (max-width:720px){
   .studyBody{flex-direction:column;overflow-y:auto}
   .studyText{flex:0 0 auto;border-right:none;border-bottom:1px solid var(--line);max-height:42vh}
@@ -1874,8 +1875,10 @@ function renderRefPast(){
   });
 })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
-var STUDY = { nkrv: null, lex: null, xref: null, conc: {} };
+var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, com: {}, range: null, tab: 'orig', lastCodes: null };
+var COM_BASE = 'https://bible-7fi.pages.dev';   /* 호크마 주석 배포본 출처(성경앱) */
 var STUDY_HINT = '<div class="studyHint">왼쪽 본문에서 <b>한글 단어</b>를 누르면 여기에 원어·발음·뜻과 그 원어가 쓰인 다른 본문(용례)이 나옵니다.</div>';
+function stMd(t){ return esc(String(t || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>'); }
 function studyLoad(){
   if (STUDY._p) return STUDY._p;
   STUDY._p = Promise.all([
@@ -1884,6 +1887,32 @@ function studyLoad(){
     fetch('bible/strong-xref.json').then(function(r){ return r.json(); })
   ]).then(function(a){ STUDY.nkrv = a[0]; STUDY.lex = a[1]; STUDY.xref = a[2]; return STUDY; });
   return STUDY._p;
+}
+function studyLoadNet(idx){
+  if (STUDY.net[idx]) return Promise.resolve(STUDY.net[idx]);
+  return fetch('bible/netnotes/netnotes_' + ('0' + idx).slice(-2) + '.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.net[idx] = d; return d; });
+}
+function studyLoadCom(idx){
+  if (STUDY.com[idx]) return Promise.resolve(STUDY.com[idx]);
+  return fetch(COM_BASE + '/commentary/com_' + ('0' + idx).slice(-2) + '.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.com[idx] = d; return d; });
+}
+function studyVerseList(data){
+  /* STUDY.range 범위에서 (절번호, 텍스트) — 내용 있는 절만 */
+  var R = STUDY.range; if (!R || !data || !data.chapters) return [];
+  var r = R.r, out = [];
+  for (var c = r.c1; c <= r.c2; c++){
+    var arr = data.chapters[c - 1] || [];
+    var vs = (c === r.c1) ? r.v1 : 1;
+    var ve = (c === r.c2) ? Math.min(r.v2, arr.length) : arr.length;
+    for (var vi = vs; vi <= ve; vi++){ var t = arr[vi - 1]; if (t && String(t).trim()) out.push({ ref: c + ':' + vi, text: String(t) }); }
+  }
+  return out;
+}
+function studyRenderNotes(list, emptyMsg){
+  if (!list.length) return '<div class="cnt">' + emptyMsg + '</div>';
+  return list.map(function(o){ return '<div class="stVnote"><span class="stvr">' + esc(o.ref) + '</span>' + stMd(o.text) + '</div>'; }).join('');
 }
 function studyTokenizeVerse(v){
   /* "태초에[H7225] 하나님이[H430]…" → [{w:'태초에',codes:['H7225']},…]. 한 단어에 코드 여럿 가능. */
@@ -1899,14 +1928,16 @@ function studyTokenizeVerse(v){
 function openStudy(ref){
   var r = parseRange(String(ref || '').trim());
   if (!r){ toast('본문 형식을 인식하지 못했습니다 (예: 로마서 5:1-11)'); return; }
+  var idx = devoBookIdxMap()[r.book];
+  if (idx == null){ toast('성경 책을 인식하지 못했습니다: ' + r.book); return; }
   var ov = $('#studyOv'); if (!ov) return;
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
-  $('#studyTitle').textContent = ref + ' — 원어 연구';
+  STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null;
+  $('#studyTitle').textContent = ref + ' — 본문연구';
   $('#studyText').innerHTML = '<div class="cnt">원어 데이터를 불러오는 중…</div>';
-  $('#studyDetail').innerHTML = STUDY_HINT;
+  studySetTab('orig');
   studyLoad().then(function(){
-    var idx = devoBookIdxMap()[r.book];
-    var book = (idx != null && STUDY.nkrv) ? STUDY.nkrv.books[idx] : null;
+    var book = STUDY.nkrv ? STUDY.nkrv.books[idx] : null;
     if (!book){ $('#studyText').innerHTML = '<div class="cnt">이 본문의 원어 데이터를 찾지 못했습니다.</div>'; return; }
     var html = '';
     for (var c = r.c1; c <= r.c2; c++){
@@ -1925,12 +1956,40 @@ function openStudy(ref){
     $('#studyText').innerHTML = html || '<div class="cnt">해당 절을 찾지 못했습니다.</div>';
   }).catch(function(e){ $('#studyText').innerHTML = '<div class="cnt">불러오기 실패: ' + esc(e.message) + '</div>'; });
 }
+function studySetTab(tab){
+  STUDY.tab = tab;
+  var tabs = $('#stTabs');
+  if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-sttab') === tab); });
+  studyRenderPane();
+}
+function studyRenderPane(){
+  var pane = $('#stPane'); if (!pane) return;
+  var R = STUDY.range; if (!R){ pane.innerHTML = STUDY_HINT; return; }
+  if (STUDY.tab === 'net'){
+    pane.innerHTML = '<div class="cnt">NET 번역노트를 불러오는 중…</div>';
+    studyLoadNet(R.idx).then(function(d){ if (STUDY.tab === 'net') pane.innerHTML = studyRenderNotes(studyVerseList(d), '이 구간에는 NET 번역노트가 없습니다.'); })
+      .catch(function(e){ if (STUDY.tab === 'net') pane.innerHTML = '<div class="stWarn">NET 노트를 불러오지 못했습니다: ' + esc(e.message) + '</div>'; });
+    return;
+  }
+  if (STUDY.tab === 'com'){
+    pane.innerHTML = '<div class="cnt">호크마 주석을 불러오는 중…</div>';
+    studyLoadCom(R.idx).then(function(d){ if (STUDY.tab === 'com') pane.innerHTML = studyRenderNotes(studyVerseList(d), '이 구간에는 주석이 없습니다.'); })
+      .catch(function(e){ if (STUDY.tab === 'com') pane.innerHTML = '<div class="stWarn">호크마 주석을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ')이 배포되어 있고 주석 접근(CORS)이 허용돼야 합니다. (' + esc(e.message) + ')</span></div>'; });
+    return;
+  }
+  if (STUDY.lastCodes) studyWordDetailInto(pane, STUDY.lastCodes);
+  else pane.innerHTML = STUDY_HINT;
+}
 function studyWordDetail(codesStr){
+  STUDY.lastCodes = codesStr;
+  studySetTab('orig');
+  if (window.matchMedia && window.matchMedia('(max-width:720px)').matches){ try { $('#studyDetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
+}
+function studyWordDetailInto(pane, codesStr){
   var seen = {}, uniq = [];
   String(codesStr || '').split(',').forEach(function(c){ if (c && !seen[c]){ seen[c] = 1; uniq.push(c); } });
-  var det = $('#studyDetail');
-  if (!uniq.length){ det.innerHTML = STUDY_HINT; return; }
-  det.innerHTML = uniq.map(function(code){
+  if (!uniq.length){ pane.innerHTML = STUDY_HINT; return; }
+  pane.innerHTML = uniq.map(function(code){
     var L = STUDY.lex && STUDY.lex[code];
     var head = '<span class="sorig">' + (L ? esc(L.w) : '') + '</span> <span class="strans">' + (L ? esc(L.t) : '') + '</span> <span class="scode">' + esc(code) + '</span>';
     return '<div class="sworddef"><div class="swh">' + head + '</div>'
@@ -1938,8 +1997,7 @@ function studyWordDetail(codesStr){
       + '<button class="btn sub mini sconc" type="button" data-conc="' + esc(code) + '">이 원어가 쓰인 다른 본문 보기</button>'
       + '<div class="sconcOut" id="sconc-' + esc(code) + '"></div></div>';
   }).join('');
-  det.scrollTop = 0;
-  if (window.matchMedia && window.matchMedia('(max-width:720px)').matches){ try { det.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
+  pane.scrollTop = 0;
 }
 function studyConcordance(code){
   if (STUDY.conc[code]) return STUDY.conc[code];
@@ -1968,6 +2026,7 @@ function renderConc(code){
   var ov = $('#studyOv');
   if (ov) ov.addEventListener('click', function(e){
     if (e.target === ov || (e.target.closest && e.target.closest('#studyClose'))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
+    var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
     var cc = e.target.closest && e.target.closest('.sconc'); if (cc){ renderConc(cc.getAttribute('data-conc')); return; }
   });
