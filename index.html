@@ -1968,9 +1968,7 @@ function renderRefIllust(){
     });
     var same = [], book = [];
     Object.keys(m).forEach(function(id){ (m[id].lvl === 2 ? same : book).push(m[id].it); });
-    if (!same.length && !book.length){
-      box.innerHTML = '<div class="cnt" style="margin:6px 2px">📚 ' + esc(BOOK_FULL[iv.idx]) + ' 본문에 연결된 예화가 없습니다.</div>'; return;
-    }
+    if (!same.length && !book.length){ box.innerHTML = ''; return; }  /* 연결 예화가 있을 때만 패널 노출 */
     var html = '<div class="pastbox"><h4>📚 연결 예화'
       + (same.length ? ' · 본문 겹침 ' + same.length : '')
       + (book.length ? ' · 같은 책 ' + book.length : '') + '</h4>';
@@ -2284,8 +2282,9 @@ function studyTransDist(code){
     (b.chapters || []).forEach(function(ch, ci){
       ch.forEach(function(v, vi){
         if (v.indexOf('[' + code + ']') < 0) return;
-        verses.push({ ref: b.ko + ' ' + (ci + 1) + ':' + (vi + 1), text: String(v).replace(/\[[GH]\d+\]/g, '') });
-        studyTokenizeVerse(v).forEach(function(t){ if (t.codes.indexOf(code) >= 0){ var st = kStem(t.w); if (st){ dist[st] = (dist[st] || 0) + 1; total++; } } });
+        var stems = [];
+        studyTokenizeVerse(v).forEach(function(t){ if (t.codes.indexOf(code) >= 0){ var st = kStem(t.w); if (st){ dist[st] = (dist[st] || 0) + 1; total++; if (stems.indexOf(st) < 0) stems.push(st); } } });
+        verses.push({ ref: b.ko + ' ' + (ci + 1) + ':' + (vi + 1), text: String(v).replace(/\[[GH]\d+\]/g, ''), stems: stems });
       });
     });
   });
@@ -2293,6 +2292,28 @@ function studyTransDist(code){
   var R = { dist: arr, total: total, verses: verses };
   STUDY.conc[code] = R;
   return R;
+}
+/* 라벨 리더선 도넛 — 성경앱 labeledDonut 이식 */
+function studyDonut(segs, total, code){
+  var cx = 180, cy = 126, R = 64, sw = 30, C = 2 * Math.PI * R, off = 0, W = 360, H = 252;
+  function polar(rad, frac){ var a = 2 * Math.PI * frac; return { x: cx + rad * Math.sin(a), y: cy - rad * Math.cos(a) }; }
+  var ring = '', cum = 0, lab = [];
+  segs.forEach(function(s, si){
+    var f = s.n / total, len = C * f, mid = cum + f / 2;
+    ring += '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="' + s.color + '" stroke-width="' + sw + '" stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')"/>';
+    off += len;
+    if (si < 8 && s.w !== '기타'){ var p1 = polar(R + sw / 2, mid); lab.push({ s: s, p1: p1, y: p1.y, right: (Math.sin(2 * Math.PI * mid) >= 0), pct: Math.round(f * 100) }); }
+    cum += f;
+  });
+  function side(arr, isR){
+    arr.sort(function(a, b){ return a.y - b.y; }); var gap = 15, last = 14;
+    arr.forEach(function(o){ if (o.y < last) o.y = last; last = o.y + gap; });
+    var bot = H - 8; for (var i = arr.length - 1; i >= 0; i--){ if (arr[i].y > bot) arr[i].y = bot; bot = arr[i].y - gap; }
+    return arr.map(function(o){ var ex = isR ? (W - 6) : 6, lx2 = isR ? (cx + R + sw / 2 + 22) : (cx - R - sw / 2 - 22);
+      return '<polyline points="' + o.p1.x.toFixed(1) + ',' + o.p1.y.toFixed(1) + ' ' + lx2.toFixed(1) + ',' + o.y.toFixed(1) + ' ' + (isR ? (ex - 2) : (ex + 2)).toFixed(1) + ',' + o.y.toFixed(1) + '" fill="none" stroke="' + o.s.color + '" stroke-width="1.1" opacity=".75"/>'
+        + '<text class="stDonutLbl" x="' + ex + '" y="' + (o.y - 4).toFixed(1) + '" text-anchor="' + (isR ? 'end' : 'start') + '" data-stem="' + esc(o.s.w) + '" data-code="' + code + '">' + esc(o.s.w) + ' ' + o.pct + '%</text>'; }).join('');
+  }
+  return '<svg class="stDonut" viewBox="0 0 ' + W + ' ' + H + '" width="100%" preserveAspectRatio="xMidYMid meet">' + ring + side(lab.filter(function(o){ return !o.right; }), false) + side(lab.filter(function(o){ return o.right; }), true) + '</svg>';
 }
 function openStudy(ref){
   var r = parseRange(String(ref || '').trim());
@@ -2364,20 +2385,38 @@ function studyWordDetailInto(pane, codesStr){
 }
 function renderConc(code){
   var out = $('#sconc-' + code); if (!out) return;
-  if (out.innerHTML.trim()){ out.innerHTML = ''; return; }  /* 토글 */
+  if (out.innerHTML.trim()){ out.innerHTML = ''; STUDY.concFilter = null; return; }  /* 토글: 닫기 */
+  fillConc(code);
+}
+function fillConc(code){
+  var out = $('#sconc-' + code); if (!out) return;
   var R = studyTransDist(code);
   if (!R.verses.length){ out.innerHTML = '<div class="cnt">용례를 찾지 못했습니다.</div>'; return; }
-  var max = R.dist.length ? R.dist[0].count : 1;
-  var bars = R.dist.slice(0, 8).map(function(d){
-    var pct = R.total ? Math.round(d.count / R.total * 100) : 0;
-    return '<div class="tdRow"><span class="tdLab">' + esc(d.word) + '</span>'
-      + '<span class="tdBar"><span class="tdFill" style="width:' + Math.round(d.count / max * 100) + '%"></span></span>'
-      + '<span class="tdNum">' + d.count + ' · ' + pct + '%</span></div>';
-  }).join('');
-  out.innerHTML = '<div class="tdHd">번역 분포 <small>· 개역개정 · 표본 ' + R.total + '곳</small></div>' + bars
-    + '<div class="tdHd" style="margin-top:9px">이 원어가 쓰인 구절 — ' + R.verses.length + '곳</div>'
-    + R.verses.slice(0, 60).map(function(h){ return '<div class="sconcRow"><b>' + esc(h.ref) + '</b> ' + esc(h.text) + '</div>'; }).join('')
-    + (R.verses.length > 60 ? '<div class="cnt">…외 ' + (R.verses.length - 60) + '곳</div>' : '');
+  var top = R.dist.slice(0, 11), shown = 0; top.forEach(function(x){ shown += x.count; });
+  var segs = top.map(function(x, i){ return { w: x.word, n: x.count, color: DONUT_COLORS[i % DONUT_COLORS.length] }; });
+  if (R.total - shown > 0) segs.push({ w: '기타', n: R.total - shown, color: '#6b7280' });
+  var colorOf = {}; segs.forEach(function(s){ colorOf[s.w] = s.color; });
+  var filt = (STUDY.concFilter && STUDY.concFilter.code === code) ? STUDY.concFilter.stem : '';
+  var max = R.dist[0].count;
+  var rowArr = R.dist.map(function(x){
+    var pct = Math.round(x.count / R.total * 100), col = colorOf[x.word] || '#9aa0a6', on = (filt === x.word);
+    return '<button class="td2row' + (on ? ' on' : '') + '" type="button" data-stem="' + esc(x.word) + '" data-code="' + code + '">'
+      + '<span class="td2sw" style="background:' + col + '"></span><span class="td2w">' + esc(x.word) + '</span>'
+      + '<span class="td2bar"><i style="width:' + Math.max(3, Math.round(x.count / max * 100)) + '%;background:' + col + '"></i></span>'
+      + '<span class="td2n">' + x.count + ' · ' + pct + '%</span></button>';
+  });
+  var rest = rowArr.slice(5), fIdx = -1;
+  if (filt) for (var i = 0; i < R.dist.length; i++){ if (R.dist[i].word === filt){ fIdx = i; break; } }
+  var startOpen = (fIdx >= 5);
+  var list = '<div class="td2list">' + rowArr.slice(0, 5).join('') + (rest.length ? '<div class="td2rest"' + (startOpen ? '' : ' style="display:none"') + '>' + rest.join('') + '</div>' : '') + '</div>';
+  var more = rest.length ? '<button class="td2more" type="button" data-code="' + code + '">' + (startOpen ? '접기 ▴' : ('더보기 ' + rest.length + '개 ▾')) + '</button>' : '';
+  var vlist = filt ? R.verses.filter(function(v){ return v.stems.indexOf(filt) >= 0; }) : R.verses;
+  out.innerHTML = '<div class="tdHd">번역 분포 <small>· 개역개정 · 표본 ' + R.total + '곳</small></div>'
+    + '<div class="td2chart">' + studyDonut(segs, R.total, code) + '</div>' + list + more
+    + '<div class="td2note">표현을 누르면 그 번역이 쓰인 절만 표시' + (filt ? ' · <b>' + esc(filt) + '</b> 필터 켜짐(다시 누르면 해제)' : '') + '</div>'
+    + '<div class="tdHd" style="margin-top:9px">이 원어가 쓰인 구절 — ' + vlist.length + '곳</div>'
+    + vlist.slice(0, 60).map(function(h){ return '<div class="sconcRow"><b>' + esc(h.ref) + '</b> ' + esc(h.text) + '</div>'; }).join('')
+    + (vlist.length > 60 ? '<div class="cnt">…외 ' + (vlist.length - 60) + '곳</div>' : '');
 }
 (function(){
   var sb = $('#c_study');
@@ -2389,6 +2428,13 @@ function renderConc(code){
     var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
+    var mo = e.target.closest && e.target.closest('.td2more');
+    if (mo){ var cont = mo.parentNode, rest = cont.querySelector('.td2rest'); if (rest){ var op = rest.style.display !== 'none'; rest.style.display = op ? 'none' : ''; mo.textContent = op ? ('더보기 ' + rest.children.length + '개 ▾') : '접기 ▴'; } return; }
+    var ds = e.target.closest && e.target.closest('[data-stem]');
+    if (ds){ var dcode = ds.getAttribute('data-code'), dstem = ds.getAttribute('data-stem');
+      if (STUDY.concFilter && STUDY.concFilter.code === dcode && STUDY.concFilter.stem === dstem) STUDY.concFilter = null;
+      else STUDY.concFilter = { code: dcode, stem: dstem };
+      fillConc(dcode); return; }
     var cc = e.target.closest && e.target.closest('.sconc'); if (cc){ renderConc(cc.getAttribute('data-conc')); return; }
   });
   if (ov) ov.addEventListener('change', function(e){
