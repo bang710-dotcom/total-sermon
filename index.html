@@ -303,9 +303,17 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .brefBody .verse{margin-bottom:7px;line-height:1.7}
 #studyOv{position:fixed;inset:0;z-index:330;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
 #studyOv.on{display:flex;animation:fade .12s ease}
-.studyBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:1040px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.studyBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:1180px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .studyBody{display:flex;align-items:stretch;flex:1 1 auto;min-height:0;overflow:hidden}
-.studyText{flex:1 1 56%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;border-right:1px solid var(--line)}
+.studyText{flex:1 1 58%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;border-right:1px solid var(--line)}
+.stVerBar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:-4px 0 10px;position:sticky;top:-14px;background:var(--card);padding:8px 0;z-index:2}
+.stVerSel{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:13px}
+.stVerVs{color:var(--dim);font-size:13px}
+.stSplitBtn{margin-left:auto;flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent);border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12.5px;cursor:pointer}
+.stCols{display:flex;gap:0}
+.stCols.split{gap:14px}
+.stCols.split .stCol{flex:1 1 50%;min-width:0}
+.stCols.split .stCol:first-child{border-right:1px dashed var(--line);padding-right:14px}
 .studyDetail{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
 .stTabs{display:flex;gap:4px;padding:10px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--line)}
 .stTabs button{flex:0 0 auto;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:inherit;font-size:13px;padding:6px 9px 8px;cursor:pointer}
@@ -2382,6 +2390,12 @@ function renderConc(code){
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
     var cc = e.target.closest && e.target.closest('.sconc'); if (cc){ renderConc(cc.getAttribute('data-conc')); return; }
+  });
+  if (ov) ov.addEventListener('change', function(e){
+    var s = e.target.closest && e.target.closest('.stVerSel'); if (!s) return;
+    var vi = +s.getAttribute('data-vi');
+    STUDY.versions[vi] = s.value;
+    studyFillCol($('#studyText').querySelector('.stCol[data-vi="' + vi + '"]'), s.value);
   });
 })();
 
@@ -9168,7 +9182,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v191';
+var APP_VER = 'v193';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
