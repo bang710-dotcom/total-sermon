@@ -298,6 +298,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stVnote:first-child{border-top:none}
 .stVnote .stvr{color:var(--accent2);font-weight:700;margin-right:5px}
 .stWarn{color:var(--warn);font-size:13px;line-height:1.6}
+.stAiSec{margin-bottom:13px}
+.stAiSec h4{margin:0 0 6px;font-size:12.5px;color:var(--accent);font-weight:700}
+.stAiBody{font-size:13px;line-height:1.65;color:var(--text)}
+.stWhy{margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--dim)}
 @media (max-width:720px){
   .studyBody{flex-direction:column;overflow-y:auto}
   .studyText{flex:0 0 auto;border-right:none;border-bottom:1px solid var(--line);max-height:42vh}
@@ -1215,6 +1219,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
           <button type="button" data-sttab="orig" class="on">원어</button>
           <button type="button" data-sttab="net">NET 노트</button>
           <button type="button" data-sttab="com">호크마 주석</button>
+          <button type="button" data-sttab="ai">✦ AI 정리</button>
         </div>
         <div class="stPane" id="stPane"></div>
       </div>
@@ -1914,6 +1919,65 @@ function studyRenderNotes(list, emptyMsg){
   if (!list.length) return '<div class="cnt">' + emptyMsg + '</div>';
   return list.map(function(o){ return '<div class="stVnote"><span class="stvr">' + esc(o.ref) + '</span>' + stMd(o.text) + '</div>'; }).join('');
 }
+/* ── 본문연구 AI 정리 (원어·NET·호크마를 근거로 Opus 요약) ── */
+var P_STUDYSYN = [
+'당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·개역개정 절들·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석)을 읽고 목사님 설교 방법에 맞춰 정리한다.',
+'목사님 방법: ①한 단어를 깊이 판다(두나미스·아케다·하-니글로트처럼 결정적 원어 1~2개) ②1차 독자의 정황을 짧고 분명히 ③본문 자체의 구조·흐름을 빌려온다 ④본문의 절정 한 구절(클라이맥스)을 정확히 짚는다.',
+'출력은 반드시 JSON 객체만(설명·코드펜스 금지):',
+'{"핵심원어":[{"단어":"한글단어","원어":"히브리어/헬라어","발음":"...","스트롱":"H또는G번호","뜻":"한 문장","왜":"이 본문에서 이 단어를 깊이 팔 이유 1~2문장"}],"정황":"1차 독자의 상황·배경 2~3문장","구조":"본문 자체의 흐름·구조 2~3문장(가능하면 단락 구분)","클라이맥스":{"절":"책 장:절","이유":"이 절이 다른 절들을 호명하는 중심인 이유 1~2문장"}}',
+'핵심원어는 1~2개만. 입력의 원어후보·NET·호크마에서만 근거를 끌어오고 없는 사실을 지어내지 않는다. 호크마/NET가 비어 있으면 원어와 절 본문만으로 정리한다.',
+'한국어로, 통찰이 번뜩이되 간결하게. 설교 대지를 대신 쓰지 말고 "연구 재료"를 정리하는 데 집중한다.'].join('\n');
+function studyRangeKey(){ var R = STUDY.range; return R ? (R.idx + ':' + R.r.c1 + ':' + R.r.v1 + '-' + R.r.c2 + ':' + R.r.v2) : ''; }
+function studyGatherContext(){
+  var R = STUDY.range, r = R.r, book = STUDY.nkrv.books[R.idx];
+  var verses = [], wmap = {};
+  for (var c = r.c1; c <= r.c2; c++){
+    var arr = book.chapters[c - 1] || [];
+    var vs = (c === r.c1) ? r.v1 : 1, ve = (c === r.c2) ? Math.min(r.v2, arr.length) : arr.length;
+    for (var vi = vs; vi <= ve; vi++){
+      var raw = arr[vi - 1]; if (!raw) continue;
+      verses.push(c + ':' + vi + ' ' + String(raw).replace(/\[[HG]\d+\]/g, ''));
+      studyTokenizeVerse(raw).forEach(function(t){ var ko = t.w.trim(); t.codes.forEach(function(code){ if (!wmap[code]) wmap[code] = { 단어: ko, 스트롱: code, n: 0 }; wmap[code].n++; }); });
+    }
+  }
+  var words = Object.keys(wmap).map(function(code){ var L = STUDY.lex[code] || {}; var w = wmap[code]; return { 단어: w.단어, 스트롱: code, 원어: L.w || '', 발음: L.t || '', 뜻: String(L.d || '').slice(0, 80), 빈도: w.n }; });
+  words.sort(function(a, b){ return b.빈도 - a.빈도; });
+  return { 절: verses, 원어후보: words.slice(0, 40) };
+}
+async function studyAiSynth(){
+  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 AI 정리를 쓸 수 있습니다.'); return; }
+  var R = STUDY.range; if (!R) return;
+  var key = studyRangeKey();
+  try {
+    var net = await studyLoadNet(R.idx).catch(function(){ return null; });
+    var com = await studyLoadCom(R.idx).catch(function(){ return null; });
+    var ctx = studyGatherContext();
+    var input = {
+      본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''),
+      절: ctx.절, 원어후보: ctx.원어후보,
+      NET노트: net ? studyVerseList(net) : [],
+      호크마: com ? studyVerseList(com) : []
+    };
+    var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 8000, aiTick('본문연구 정리'));
+    STUDY.ai = STUDY.ai || {};
+    STUDY.ai[key] = aiJson(out);
+    if (STUDY.tab === 'ai') studyRenderPane();
+  } catch (e){ toast('본문연구 정리 실패: ' + e.message); }
+}
+function renderStudyAi(j){
+  var h = '';
+  if (j.핵심원어 && j.핵심원어.length){
+    h += '<div class="stAiSec"><h4>깊이 팔 핵심 원어</h4>' + j.핵심원어.map(function(w){
+      return '<div class="sworddef"><div class="swh"><span class="sorig">' + esc(w.원어 || '') + '</span> <span class="strans">' + esc(w.발음 || '') + '</span> <span class="scode">' + esc(w.스트롱 || '') + '</span></div>'
+        + '<div class="swd"><b>' + esc(w.단어 || '') + '</b> — ' + esc(w.뜻 || '') + '</div>'
+        + (w.왜 ? '<div class="stWhy">' + esc(w.왜) + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+  if (j.정황) h += '<div class="stAiSec"><h4>1차 독자 정황</h4><div class="stAiBody">' + stMd(j.정황) + '</div></div>';
+  if (j.구조) h += '<div class="stAiSec"><h4>본문 구조</h4><div class="stAiBody">' + stMd(j.구조) + '</div></div>';
+  if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) h += '<div class="stAiSec"><h4>클라이맥스 절</h4><div class="stAiBody"><b>' + esc(j.클라이맥스.절 || '') + '</b><br>' + stMd(j.클라이맥스.이유 || '') + '</div></div>';
+  return h || '<div class="cnt">결과가 비었습니다 — 다시 시도해 주세요.</div>';
+}
 function studyTokenizeVerse(v){
   /* "태초에[H7225] 하나님이[H430]…" → [{w:'태초에',codes:['H7225']},…]. 한 단어에 코드 여럿 가능. */
   var parts = String(v || '').split(/(\[[HG]\d+\])/).filter(function(x){ return x !== ''; });
@@ -1977,6 +2041,13 @@ function studyRenderPane(){
       .catch(function(e){ if (STUDY.tab === 'com') pane.innerHTML = '<div class="stWarn">호크마 주석을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ')이 배포되어 있고 주석 접근(CORS)이 허용돼야 합니다. (' + esc(e.message) + ')</span></div>'; });
     return;
   }
+  if (STUDY.tab === 'ai'){
+    var j = STUDY.ai && STUDY.ai[studyRangeKey()];
+    if (j){ pane.innerHTML = renderStudyAi(j) + '<button class="btn sub mini" id="stAiGen" type="button" style="margin-top:12px">↻ 다시 정리</button>'; return; }
+    pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 필요)</div>'
+      + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
+    return;
+  }
   if (STUDY.lastCodes) studyWordDetailInto(pane, STUDY.lastCodes);
   else pane.innerHTML = STUDY_HINT;
 }
@@ -2027,6 +2098,7 @@ function renderConc(code){
   if (ov) ov.addEventListener('click', function(e){
     if (e.target === ov || (e.target.closest && e.target.closest('#studyClose'))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
     var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
+    var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
     var cc = e.target.closest && e.target.closest('.sconc'); if (cc){ renderConc(cc.getAttribute('data-conc')); return; }
   });
