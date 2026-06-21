@@ -196,6 +196,11 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .rfOrig{font-weight:600;color:var(--text);margin-bottom:4px}
 .rfLine{display:flex;gap:6px;align-items:flex-start;line-height:1.55;margin-top:3px}
 .rfTag{flex:0 0 auto;font-size:11px;color:#fff;background:var(--accent);border-radius:5px;padding:1px 6px;margin-top:2px;white-space:nowrap}
+.rfFill{cursor:pointer;-webkit-user-select:none;user-select:none}
+.rfFill:hover{filter:brightness(1.12)}
+.rfFill:active{transform:translateY(1px)}
+.rfFill::after{content:' ＋';font-weight:700;opacity:.85}
+.rfVal{flex:1 1 auto;min-width:0}
 .apBox{border-color:var(--accent2)}
 .apBox .rfHd{color:var(--accent2)}
 .rfTag.apY{background:#3b82a6}
@@ -2132,29 +2137,67 @@ var P_REFRAME = [
 '[{"문":"입력 원대지 그대로","재정의":"~가 아니라 ~이다 한 문장","대조":"A: … / B: …"}]',
 '대지의 메시지를 바꾸지 말고 표현만 벼린다. 본문이 명시적으로 지지하는 범위 안에서. 짧고 날카롭게, 구어체 높임말. 한국어.'].join('\n');
 function composePoints(){
-  return (state.compose.points || []).map(function(p){
+  var out = [];
+  (state.compose.points || []).forEach(function(p, idx){
+    var text = String(p.text || '').trim(); if (!text) return;
     var body = pBlocks(p).filter(function(b){ return b.type !== 'ill'; }).map(function(b){ return String(b.body || '').trim(); }).filter(Boolean).join(' ');
-    return { 문: String(p.text || '').trim(), 근거: body, 적용: String(p.apply || '').trim() };
-  }).filter(function(d){ return d.문; });
+    out.push({ 문: text, 근거: body, 적용: String(p.apply || '').trim(), _i: idx });
+  });
+  return out;
+}
+/* ── 보강 제안 칩 → 작성칸 채우기 ── */
+function fillPointText(pidx, text){
+  var p = state.compose.points[pidx]; if (!p) return;
+  p.text = text; renderPoints(); renderEditor(); updateAutoBits();
+  toast('대지 ' + (pidx + 1) + ' 명제에 넣었습니다.');
+}
+function fillPointBody(pidx, text){
+  var p = state.compose.points[pidx]; if (!p) return;
+  var blk = pBlocks(p).filter(function(b){ return b.type !== 'ill'; })[0];
+  if (!blk){ p.blocks.unshift(newBodyBlock('')); blk = p.blocks[0]; }
+  blk.body = (blk.body ? blk.body.trim() + '\n' : '') + text;
+  renderPoints(); renderEditor(); updateAutoBits();
+  toast('대지 ' + (pidx + 1) + ' 내용에 넣었습니다.');
+}
+function fillPointApply(pidx, text){
+  var p = state.compose.points[pidx]; if (!p) return;
+  p.apply = (p.apply ? p.apply.trim() + '\n' : '') + text;
+  renderPoints(); renderEditor(); updateAutoBits();
+  toast('대지 ' + (pidx + 1) + ' 적용에 넣었습니다.');
+}
+function studyFillFromChip(e){
+  var t = e.target.closest && e.target.closest('.rfFill'); if (!t) return;
+  var item = t.closest('.rfItem'); if (!item) return;
+  var pidx = parseInt(item.getAttribute('data-pidx'), 10); if (isNaN(pidx)) return;
+  var valEl = t.nextElementSibling, val = valEl ? valEl.textContent.trim() : '';
+  if (!val) return;
+  var kind = t.getAttribute('data-fill');
+  if (kind === 'text') fillPointText(pidx, val);
+  else if (kind === 'body') fillPointBody(pidx, val);
+  else if (kind === 'apply') fillPointApply(pidx, (t.getAttribute('data-gen') ? t.getAttribute('data-gen') + ': ' : '') + val);
 }
 async function aiReframe(){
   if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 대지 보강을 쓸 수 있습니다.'); return; }
   var pts = composePoints();
   if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
   try {
-    var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts };
+    var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts.map(function(p){ return { 문: p.문, 근거: p.근거 }; }) };
     var out = await callClaude(P_REFRAME, JSON.stringify(input), 6000, aiTick('대지 보강'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
-    $('#ptReframe').innerHTML = '<div class="rfBox"><div class="rfHd">대지 보강 제안 <small>· 표현만 다듬은 것이니 그대로 또는 골라 쓰세요</small></div>'
+    $('#ptReframe').innerHTML = '<div class="rfBox"><div class="rfHd">대지 보강 제안 <small>· 칩을 누르면 해당 칸에 채워집니다</small></div>'
       + arr.map(function(d, i){
-        return '<div class="rfItem"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
-          + (d.재정의 ? '<div class="rfLine"><span class="rfTag">재정의</span><span>' + esc(d.재정의) + '</span></div>' : '')
-          + (d.대조 ? '<div class="rfLine"><span class="rfTag">대조</span><span>' + esc(d.대조) + '</span></div>' : '') + '</div>';
+        var pidx = pts[i] ? pts[i]._i : i;
+        return '<div class="rfItem" data-pidx="' + pidx + '"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
+          + (d.재정의 ? '<div class="rfLine"><span class="rfTag rfFill" data-fill="text">재정의</span><span class="rfVal">' + esc(d.재정의) + '</span></div>' : '')
+          + (d.대조 ? '<div class="rfLine"><span class="rfTag rfFill" data-fill="body">대조</span><span class="rfVal">' + esc(d.대조) + '</span></div>' : '') + '</div>';
       }).join('') + '</div>';
   } catch (e){ toast('대지 보강 실패: ' + e.message); }
 }
-(function(){ var b = $('#ptReframeBtn'); if (b) b.addEventListener('click', aiReframe); })();
+(function(){
+  var b = $('#ptReframeBtn'); if (b) b.addEventListener('click', aiReframe);
+  ['ptReframe', 'ptApply'].forEach(function(id){ var el = $('#' + id); if (el) el.addEventListener('click', studyFillFromChip); });
+})();
 
 /* ===================== 적용 강화: 세대별 결단 (AI) ===================== */
 var P_APPLY = [
@@ -2169,16 +2212,17 @@ async function aiApplyGen(){
   var pts = composePoints();
   if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
   try {
-    var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts };
+    var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts.map(function(p){ return { 문: p.문, 적용: p.적용 }; }) };
     var out = await callClaude(P_APPLY, JSON.stringify(input), 6000, aiTick('적용 강화'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
-    $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">세대별 결단 적용 <small>· 메시지는 같게, 삶의 자리만 다르게</small></div>'
+    $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">세대별 결단 적용 <small>· 칩을 누르면 그 대지 적용칸에 채워집니다</small></div>'
       + arr.map(function(d, i){
-        return '<div class="rfItem"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
-          + (d.청년 ? '<div class="rfLine"><span class="rfTag apY">청년</span><span>' + esc(d.청년) + '</span></div>' : '')
-          + (d.장년 ? '<div class="rfLine"><span class="rfTag apM">장년</span><span>' + esc(d.장년) + '</span></div>' : '')
-          + (d.노년 ? '<div class="rfLine"><span class="rfTag apO">노년</span><span>' + esc(d.노년) + '</span></div>' : '') + '</div>';
+        var pidx = pts[i] ? pts[i]._i : i;
+        return '<div class="rfItem" data-pidx="' + pidx + '"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
+          + (d.청년 ? '<div class="rfLine"><span class="rfTag apY rfFill" data-fill="apply" data-gen="청년">청년</span><span class="rfVal">' + esc(d.청년) + '</span></div>' : '')
+          + (d.장년 ? '<div class="rfLine"><span class="rfTag apM rfFill" data-fill="apply" data-gen="장년">장년</span><span class="rfVal">' + esc(d.장년) + '</span></div>' : '')
+          + (d.노년 ? '<div class="rfLine"><span class="rfTag apO rfFill" data-fill="apply" data-gen="노년">노년</span><span class="rfVal">' + esc(d.노년) + '</span></div>' : '') + '</div>';
       }).join('') + '</div>';
   } catch (e){ toast('적용 강화 실패: ' + e.message); }
 }
@@ -8820,7 +8864,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v189';
+var APP_VER = 'v190';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
