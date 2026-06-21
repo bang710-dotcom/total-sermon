@@ -1988,7 +1988,78 @@ function renderRefIllust(){
   });
 })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
-var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, com: {}, range: null, tab: 'orig', lastCodes: null };
+var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, com: {}, range: null, tab: 'orig', lastCodes: null, tr: {}, versions: ['NKRV'], split: false };
+/* 번역본 레지스트리 — 개역개정은 동봉(nkrv-strong), 나머지는 배포 성경앱에서 fetch */
+var TR_REG = [
+  { id: 'NKRV', name: '개역개정', file: '', ko: true, strong: true },
+  { id: 'KRV', name: '개역한글', file: 'krv.json', ko: true },
+  { id: 'RNKSV', name: '새번역', file: 'rnksv.json', ko: true, strong: true },
+  { id: 'CTB', name: '공동번역', file: 'ctb.json', ko: true },
+  { id: 'KLB', name: '현대인의성경', file: 'klb.json', ko: true },
+  { id: 'TKV', name: '현대어성경', file: 'tkv.json', ko: true },
+  { id: 'EB', name: '쉬운성경', file: 'eb.json', ko: true },
+  { id: 'KB', name: '우리말성경', file: 'kb.json', ko: true },
+  { id: 'KTB', name: '바른성경', file: 'ktb.json', ko: true },
+  { id: 'KKJV', name: '한글킹제임스', file: 'kkjv.json', ko: true },
+  { id: 'KJV', name: 'KJV', file: 'kjv.json', strong: true },
+  { id: 'ORIG', name: '원어', file: 'commentary/orig.json', strong: true, orig: true },
+  { id: 'NIV', name: 'NIV', file: 'niv.json', strong: true },
+  { id: 'ESV', name: 'ESV', file: 'esv.json' },
+  { id: 'NASB', name: 'NASB', file: 'nasb.json', strong: true },
+  { id: 'NET', name: 'NET', file: 'net.json', strong: true },
+  { id: 'NKJV', name: 'NKJV', file: 'nkjv.json' },
+  { id: 'NLT', name: 'NLT', file: 'nlt.json' }
+];
+var TR_MAP = {}; TR_REG.forEach(function(r){ TR_MAP[r.id] = r; });
+function studyLoadTr(vid){
+  if (vid === 'NKRV') return studyLoad().then(function(){ return STUDY.nkrv; });
+  if (STUDY.tr[vid]) return Promise.resolve(STUDY.tr[vid]);
+  var reg = TR_MAP[vid]; if (!reg) return Promise.reject(new Error('알 수 없는 번역본'));
+  return fetch(COM_BASE + '/' + reg.file).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.tr[vid] = d; return d; });
+}
+function studyVerseInner(verseText, reg){
+  if (reg.strong){
+    return studyTokenizeVerse(verseText).map(function(t){
+      if (!t.w.trim()) return esc(t.w);
+      var cc = reg.orig ? t.codes : contentCodes(t.codes);
+      if (!cc.length) return esc(t.w);
+      var lead = t.w.match(/^\s*/)[0], trail = t.w.match(/\s*$/)[0];
+      var core = t.w.slice(lead.length, t.w.length - trail.length);
+      if (reg.ko) return esc(lead) + studyMatchChunk(core, cc) + esc(trail);          /* 한국어: 덩어리 매칭 */
+      return esc(lead) + '<span class="swrd" data-codes="' + cc.join(',') + '">' + esc(core) + '</span>' + esc(trail);  /* 영어/원어: 어절 단위 */
+    }).join('');
+  }
+  return esc(String(verseText || '').replace(/\[[GH]\d+\]/g, ''));   /* 코드 없는 역본 */
+}
+function studyFillCol(colEl, vid){
+  if (!colEl) return;
+  colEl.innerHTML = '<div class="cnt">불러오는 중…</div>';
+  var R = STUDY.range; if (!R){ colEl.innerHTML = ''; return; }
+  studyLoadTr(vid).then(function(data){
+    var reg = TR_MAP[vid], book = data && data.books && data.books[R.idx];
+    if (!book){ colEl.innerHTML = '<div class="cnt">이 역본에 본문이 없습니다.</div>'; return; }
+    var r = R.r, html = '';
+    for (var c = r.c1; c <= r.c2; c++){
+      var verses = book.chapters[c - 1] || [];
+      var vs = (c === r.c1) ? r.v1 : 1, ve = (c === r.c2) ? Math.min(r.v2, verses.length) : verses.length;
+      for (var vi = vs; vi <= ve; vi++){ if (!verses[vi - 1]) continue;
+        html += '<div class="sv"><span class="svn">' + c + ':' + vi + '</span>' + studyVerseInner(verses[vi - 1], reg) + '</div>';
+      }
+    }
+    colEl.innerHTML = html || '<div class="cnt">해당 절을 찾지 못했습니다.</div>';
+  }).catch(function(e){ colEl.innerHTML = '<div class="stWarn">불러오지 못했습니다.<br><span class="cnt">성경앱 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
+}
+function studyRenderText(){
+  var host = $('#studyText'); if (!host) return;
+  function opts(sel){ return TR_REG.map(function(r){ return '<option value="' + r.id + '"' + (r.id === sel ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join(''); }
+  var bar = '<div class="stVerBar"><select class="stVerSel" data-vi="0">' + opts(STUDY.versions[0]) + '</select>';
+  if (STUDY.split) bar += '<span class="stVerVs">↔</span><select class="stVerSel" data-vi="1">' + opts(STUDY.versions[1] || 'RNKSV') + '</select>';
+  bar += '<button class="stSplitBtn" type="button">' + (STUDY.split ? '✕ 분할 해제' : '⊞ 2분할') + '</button></div>';
+  host.innerHTML = bar + '<div class="stCols' + (STUDY.split ? ' split' : '') + '"><div class="stCol" data-vi="0"></div>' + (STUDY.split ? '<div class="stCol" data-vi="1"></div>' : '') + '</div>';
+  studyFillCol(host.querySelector('.stCol[data-vi="0"]'), STUDY.versions[0]);
+  if (STUDY.split) studyFillCol(host.querySelector('.stCol[data-vi="1"]'), STUDY.versions[1] || 'RNKSV');
+}
 var COM_BASE = 'https://bible-7fi.pages.dev';   /* 호크마 주석 배포본 출처(성경앱) */
 var STUDY_HINT = '<div class="studyHint">왼쪽 본문에서 <b>한글 단어</b>를 누르면 여기에 원어·발음·뜻과 그 원어가 쓰인 다른 본문(용례)이 나옵니다.</div>';
 function stMd(t){ return esc(String(t || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>'); }
@@ -2224,31 +2295,8 @@ function openStudy(ref){
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null;
   $('#studyTitle').textContent = ref + ' — 본문연구';
-  $('#studyText').innerHTML = '<div class="cnt">원어 데이터를 불러오는 중…</div>';
   studySetTab('orig');
-  studyLoad().then(function(){
-    var book = STUDY.nkrv ? STUDY.nkrv.books[idx] : null;
-    if (!book){ $('#studyText').innerHTML = '<div class="cnt">이 본문의 원어 데이터를 찾지 못했습니다.</div>'; return; }
-    var html = '';
-    for (var c = r.c1; c <= r.c2; c++){
-      var verses = book.chapters[c - 1] || [];
-      var vs = (c === r.c1) ? r.v1 : 1;
-      var ve = (c === r.c2) ? Math.min(r.v2, verses.length) : verses.length;
-      for (var vi = vs; vi <= ve; vi++){
-        if (!verses[vi - 1]) continue;
-        var inner = studyTokenizeVerse(verses[vi - 1]).map(function(t){
-          if (!t.w.trim()) return esc(t.w);
-          var cc = contentCodes(t.codes);
-          if (!cc.length) return esc(t.w);   /* 코드 없거나 기능어뿐 → 밑줄 없음 */
-          var lead = t.w.match(/^\s*/)[0], trail = t.w.match(/\s*$/)[0];
-          var core = t.w.slice(lead.length, t.w.length - trail.length);
-          return esc(lead) + studyMatchChunk(core, cc) + esc(trail);
-        }).join('');
-        html += '<div class="sv"><span class="svn">' + c + ':' + vi + '</span>' + inner + '</div>';
-      }
-    }
-    $('#studyText').innerHTML = html || '<div class="cnt">해당 절을 찾지 못했습니다.</div>';
-  }).catch(function(e){ $('#studyText').innerHTML = '<div class="cnt">불러오기 실패: ' + esc(e.message) + '</div>'; });
+  studyRenderText();
 }
 function studySetTab(tab){
   STUDY.tab = tab;
@@ -2329,6 +2377,7 @@ function renderConc(code){
   var ov = $('#studyOv');
   if (ov) ov.addEventListener('click', function(e){
     if (e.target === ov || (e.target.closest && e.target.closest('#studyClose'))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
+    var sp = e.target.closest && e.target.closest('.stSplitBtn'); if (sp){ STUDY.split = !STUDY.split; if (STUDY.split && !STUDY.versions[1]) STUDY.versions[1] = (STUDY.versions[0] === 'RNKSV' ? 'NKRV' : 'RNKSV'); studyRenderText(); return; }
     var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
