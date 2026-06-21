@@ -827,6 +827,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         </div>
         <label>제목 *</label><input type="text" id="c_title">
         <label>본문</label><input type="text" id="c_ref" placeholder="로마서 5:1-11">
+        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="c_study" type="button" style="flex:0 0 auto">📖 원어 연구</button></div>
         <div id="c_refPast"></div>
         <div class="row2">
           <div><label>시리즈</label><input type="text" id="c_series"></div>
@@ -1166,6 +1167,16 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
   <div class="brefBox" role="dialog" aria-modal="true" aria-label="성경 본문">
     <div class="brefHd"><span class="t" id="brefTitle"></span><button class="x" id="brefClose" type="button" aria-label="닫기">✕</button></div>
     <div class="brefBody" id="brefBody"></div>
+  </div>
+</div>
+<div id="studyOv" aria-hidden="true">
+  <div class="studyBox" role="dialog" aria-modal="true" aria-label="본문 원어 연구">
+    <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="studyBody">
+      <div class="cnt" style="margin-bottom:8px">한글 단어를 누르면 원어·발음·뜻과 그 원어가 쓰인 다른 본문(용례)을 봅니다.</div>
+      <div id="studyText" class="studyText"></div>
+      <div id="studyDetail" class="studyDetail"></div>
+    </div>
   </div>
 </div>
 <div id="dragOverlay">
