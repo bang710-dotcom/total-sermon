@@ -885,7 +885,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         </div>
         <label>제목 *</label><input type="text" id="c_title">
         <label>본문</label><input type="text" id="c_ref" placeholder="로마서 5:1-11">
-        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="c_study" type="button" style="flex:0 0 auto">📖 원어 연구</button></div>
+        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="c_study" type="button" style="flex:0 0 auto">📖 본문 연구</button></div>
         <div id="c_refPast"></div>
         <div class="row2">
           <div><label>시리즈</label><input type="text" id="c_series"></div>
@@ -1240,6 +1240,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
           <button type="button" data-sttab="orig" class="on">원어</button>
           <button type="button" data-sttab="net">NET 노트</button>
           <button type="button" data-sttab="com">호크마 주석</button>
+          <button type="button" data-sttab="holman">Holman 핸드북</button>
           <button type="button" data-sttab="ai">✦ AI 정리</button>
         </div>
         <div class="stPane" id="stPane"></div>
@@ -1925,6 +1926,12 @@ function studyLoadCom(idx){
   if (STUDY.com[idx]) return Promise.resolve(STUDY.com[idx]);
   return fetch(COM_BASE + '/commentary/com_' + ('0' + idx).slice(-2) + '.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(d){ STUDY.com[idx] = d; return d; });
+}
+function studyLoadHolman(idx){
+  STUDY.holman = STUDY.holman || {};
+  if (STUDY.holman[idx]) return Promise.resolve(STUDY.holman[idx]);
+  return fetch(COM_BASE + '/commentary/holman_' + ('0' + idx).slice(-2) + '.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.holman[idx] = d; return d; });
 }
 function studyVerseList(data){
   /* STUDY.range 범위에서 (절번호, 텍스트) — 내용 있는 절만 */
