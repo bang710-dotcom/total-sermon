@@ -345,6 +345,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .sconcHd{font-size:12.5px;color:var(--accent);font-weight:600;margin:2px 0 5px}
 .sconcRow{font-size:12.5px;line-height:1.6;padding:3px 0;border-top:1px dashed var(--line)}
 .sconcRow b{color:var(--accent2);font-weight:600}
+.tdHd{font-size:12.5px;color:var(--accent);font-weight:600;margin-bottom:6px}
+.tdHd small{color:var(--dim);font-weight:400}
+.tdRow{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:12px}
+.tdLab{flex:0 0 56px;text-align:right;color:var(--text)}
+.tdBar{flex:1 1 auto;height:9px;background:var(--card2);border-radius:5px;overflow:hidden}
+.tdFill{display:block;height:100%;background:var(--accent2);border-radius:5px}
+.tdNum{flex:0 0 auto;color:var(--dim);white-space:nowrap}
 /* ── 커스텀 달력 날짜 선택기 (iOS 월-휠 피커 대체, 모든 기기 동일) ── */
 input[type=date]{cursor:pointer}
 #calOv{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
@@ -1982,7 +1989,7 @@ function studyGatherContext(){
     for (var vi = vs; vi <= ve; vi++){
       var raw = arr[vi - 1]; if (!raw) continue;
       verses.push(c + ':' + vi + ' ' + String(raw).replace(/\[[HG]\d+\]/g, ''));
-      studyTokenizeVerse(raw).forEach(function(t){ var ko = t.w.trim(); t.codes.forEach(function(code){ if (!wmap[code]) wmap[code] = { 단어: ko, 스트롱: code, n: 0 }; wmap[code].n++; }); });
+      studyTokenizeVerse(raw).forEach(function(t){ var ko = t.w.trim(); contentCodes(t.codes).forEach(function(code){ if (!wmap[code]) wmap[code] = { 단어: ko, 스트롱: code, n: 0 }; wmap[code].n++; }); });
     }
   }
   var words = Object.keys(wmap).map(function(code){ var L = STUDY.lex[code] || {}; var w = wmap[code]; return { 단어: w.단어, 스트롱: code, 원어: L.w || '', 발음: L.t || '', 뜻: String(L.d || '').slice(0, 80), 빈도: w.n }; });
@@ -2097,8 +2104,12 @@ function openStudy(ref){
       for (var vi = vs; vi <= ve; vi++){
         if (!verses[vi - 1]) continue;
         var inner = studyTokenizeVerse(verses[vi - 1]).map(function(t){
-          if (!t.w.trim() || !t.codes.length) return esc(t.w);
-          return '<span class="swrd" data-codes="' + t.codes.join(',') + '">' + esc(t.w) + '</span>';
+          if (!t.w.trim()) return esc(t.w);
+          var cc = contentCodes(t.codes);
+          if (!cc.length) return esc(t.w);   /* 코드 없거나 기능어뿐 → 밑줄 없음 */
+          var lead = t.w.match(/^\s*/)[0], trail = t.w.match(/\s*$/)[0];
+          var core = t.w.slice(lead.length, t.w.length - trail.length);
+          return esc(lead) + '<span class="swrd" data-codes="' + cc.join(',') + '">' + esc(core) + '</span>' + esc(trail);
         }).join('');
         html += '<div class="sv"><span class="svn">' + c + ':' + vi + '</span>' + inner + '</div>';
       }
@@ -2162,26 +2173,22 @@ function studyWordDetailInto(pane, codesStr){
   }).join('');
   pane.scrollTop = 0;
 }
-function studyConcordance(code){
-  if (STUDY.conc[code]) return STUDY.conc[code];
-  var re = new RegExp('\\[' + code + '\\]'), hits = [];
-  (STUDY.nkrv.books || []).forEach(function(b){
-    (b.chapters || []).forEach(function(ch, ci){
-      ch.forEach(function(v, vi){ if (re.test(v)) hits.push({ ref: b.ko + ' ' + (ci + 1) + ':' + (vi + 1), text: String(v).replace(/\[[HG]\d+\]/g, '') }); });
-    });
-  });
-  STUDY.conc[code] = hits;
-  return hits;
-}
 function renderConc(code){
   var out = $('#sconc-' + code); if (!out) return;
   if (out.innerHTML.trim()){ out.innerHTML = ''; return; }  /* 토글 */
-  var hits = studyConcordance(code);
-  if (!hits.length){ out.innerHTML = '<div class="cnt">용례를 찾지 못했습니다.</div>'; return; }
-  var L = STUDY.lex && STUDY.lex[code];
-  out.innerHTML = '<div class="sconcHd">' + (L ? esc(L.w) + ' · ' : '') + esc(code) + ' · 총 ' + hits.length + '곳</div>'
-    + hits.slice(0, 60).map(function(h){ return '<div class="sconcRow"><b>' + esc(h.ref) + '</b> ' + esc(h.text) + '</div>'; }).join('')
-    + (hits.length > 60 ? '<div class="cnt">…외 ' + (hits.length - 60) + '곳</div>' : '');
+  var R = studyTransDist(code);
+  if (!R.verses.length){ out.innerHTML = '<div class="cnt">용례를 찾지 못했습니다.</div>'; return; }
+  var max = R.dist.length ? R.dist[0].count : 1;
+  var bars = R.dist.slice(0, 8).map(function(d){
+    var pct = R.total ? Math.round(d.count / R.total * 100) : 0;
+    return '<div class="tdRow"><span class="tdLab">' + esc(d.word) + '</span>'
+      + '<span class="tdBar"><span class="tdFill" style="width:' + Math.round(d.count / max * 100) + '%"></span></span>'
+      + '<span class="tdNum">' + d.count + ' · ' + pct + '%</span></div>';
+  }).join('');
+  out.innerHTML = '<div class="tdHd">번역 분포 <small>· 개역개정 · 표본 ' + R.total + '곳</small></div>' + bars
+    + '<div class="tdHd" style="margin-top:9px">이 원어가 쓰인 구절 — ' + R.verses.length + '곳</div>'
+    + R.verses.slice(0, 60).map(function(h){ return '<div class="sconcRow"><b>' + esc(h.ref) + '</b> ' + esc(h.text) + '</div>'; }).join('')
+    + (R.verses.length > 60 ? '<div class="cnt">…외 ' + (R.verses.length - 60) + '곳</div>' : '');
 }
 (function(){
   var sb = $('#c_study');
@@ -8933,7 +8940,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v190';
+var APP_VER = 'v191';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
