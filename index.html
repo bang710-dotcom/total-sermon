@@ -188,6 +188,14 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .pastbox .d{padding:4px 0;border-top:1px dashed var(--line)}
 .pastbox .pastSec + .d{border-top:none}
 .pastbox .refPastOpen:hover{color:var(--accent)}
+.rfBox{border:1px solid var(--accent);background:var(--card2);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13px}
+.rfHd{color:var(--accent);font-weight:600;margin-bottom:7px}
+.rfHd small{color:var(--dim);font-weight:400}
+.rfItem{padding:7px 0;border-top:1px dashed var(--line)}
+.rfItem:first-of-type{border-top:none}
+.rfOrig{font-weight:600;color:var(--text);margin-bottom:4px}
+.rfLine{display:flex;gap:6px;align-items:flex-start;line-height:1.55;margin-top:3px}
+.rfTag{flex:0 0 auto;font-size:11px;color:#fff;background:var(--accent);border-radius:5px;padding:1px 6px;margin-top:2px}
 .row2{display:flex;gap:9px}.row2>*{flex:1;min-width:0}
 /* iOS에서 date 입력칸이 고유 폭으로 옆 칸을 침범하는 것 방지 */
 input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;min-height:46px;display:block}
@@ -879,6 +887,8 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <label>대지 · 예화 (회색 ↑↓=대지 이동 · 파란 ↑↓=내부 순서 · ＋예화 추가)</label>
         <div id="pointList"></div>
         <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
+        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:0 0 auto">✦ 대지 보강 (재정의·대조)</button></div>
+        <div id="ptReframe"></div>
         <div id="c_dupCheck"></div>
         <label>키워드</label><input type="text" id="c_kw" placeholder="쉼표로 구분">
         <label>비고</label><input type="text" id="c_note">
@@ -2104,6 +2114,39 @@ function renderConc(code){
   });
 })();
 
+/* ===================== 대지 보강: 재정의(reframe)·대조구조 (AI) ===================== */
+var P_REFRAME = [
+'당신은 영락교회 대학부 담임 설교자(목사님)의 대지 표현을 벼리는 비서다. 입력(JSON: 본문·핵심메시지·대지[{문,근거}])의 각 대지마다 목사님 시그니처 수사 두 가지를 제안한다.',
+'①재정의(reframe): 통념을 뒤집는 "~가 아니라 ~이다" 형식 한 문장(예: "행함은 신앙의 결과가 아닙니다. 행함은 신앙의 방법입니다").',
+'②대조(두 길): 청중이 둘 중 하나를 고르게 만드는 두 길의 대조 한 쌍.',
+'출력은 반드시 JSON 배열만(설명·코드펜스 금지), 입력 대지 순서·개수 그대로:',
+'[{"문":"입력 원대지 그대로","재정의":"~가 아니라 ~이다 한 문장","대조":"A: … / B: …"}]',
+'대지의 메시지를 바꾸지 말고 표현만 벼린다. 본문이 명시적으로 지지하는 범위 안에서. 짧고 날카롭게, 구어체 높임말. 한국어.'].join('\n');
+function composePoints(){
+  return (state.compose.points || []).map(function(p){
+    var body = pBlocks(p).filter(function(b){ return b.type !== 'ill'; }).map(function(b){ return String(b.body || '').trim(); }).filter(Boolean).join(' ');
+    return { 문: String(p.text || '').trim(), 근거: body };
+  }).filter(function(d){ return d.문; });
+}
+async function aiReframe(){
+  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 대지 보강을 쓸 수 있습니다.'); return; }
+  var pts = composePoints();
+  if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
+  try {
+    var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts };
+    var out = await callClaude(P_REFRAME, JSON.stringify(input), 6000, aiTick('대지 보강'));
+    var arr = aiJson(out);
+    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    $('#ptReframe').innerHTML = '<div class="rfBox"><div class="rfHd">대지 보강 제안 <small>· 표현만 다듬은 것이니 그대로 또는 골라 쓰세요</small></div>'
+      + arr.map(function(d, i){
+        return '<div class="rfItem"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
+          + (d.재정의 ? '<div class="rfLine"><span class="rfTag">재정의</span><span>' + esc(d.재정의) + '</span></div>' : '')
+          + (d.대조 ? '<div class="rfLine"><span class="rfTag">대조</span><span>' + esc(d.대조) + '</span></div>' : '') + '</div>';
+      }).join('') + '</div>';
+  } catch (e){ toast('대지 보강 실패: ' + e.message); }
+}
+(function(){ var b = $('#ptReframeBtn'); if (b) b.addEventListener('click', aiReframe); })();
+
 /* ===================== 인박스 ===================== */
 function renderInbox(){
   var f = state.inboxFilter;
@@ -2812,6 +2855,7 @@ function clearCompose(){
   $('#c_state').value = '구상/연구';
   $('#c_dupCheck').innerHTML = '';
   var rp = $('#c_refPast'); if (rp) rp.innerHTML = '';
+  var rf = $('#ptReframe'); if (rf) rf.innerHTML = '';
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   state.savedSig = composeSig();
@@ -2848,6 +2892,7 @@ function editSermonFill(id){
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   renderRefPast();
+  var rf2 = $('#ptReframe'); if (rf2) rf2.innerHTML = '';
   state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
   showPage('compose');
