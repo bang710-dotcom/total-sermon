@@ -1545,7 +1545,7 @@ function submit(body, okMsg){
 
 /* ===================== 검색 ===================== */
 var SERMON_FIELDS = ['제목','본문','시리즈','핵심메시지','대지','예화','키워드','원고텍스트','예배구분','요약본'];
-var IDEA_FIELDS = ['내용','출처','관련본문','키워드','유형'];
+var IDEA_FIELDS = ['내용','출처','관련본문','키워드','유형','강조메시지','원문'];
 
 function hl(text, terms, clip){
   var t = String(text || '');
@@ -1770,10 +1770,12 @@ function openDetail(kind, id){
     html += '<div class="meta" style="font-size:12.5px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
       '<span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['ID']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
       (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
+      (d['강조메시지'] ? '<div class="kv" style="margin-bottom:8px"><span class="k">강조메시지</span><span class="v" style="color:var(--accent);font-weight:600">' + hl(d['강조메시지'], terms) + '</span></div>' : '') +
       '<div class="fulltext">' + hl(d['내용'], terms) + '</div>';
     [['출처', d['출처']], ['관련본문', d['관련본문']], ['키워드', d['키워드']]].forEach(function(kv){
       if (kv[1]) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + esc(kv[1]) + '</span></div>';
     });
+    if (d['원문']) html += '<details class="sumbox" style="margin-top:10px"><summary>원문 보기 (강화 전)</summary><div class="fulltext" style="margin-top:6px;color:var(--dim)">' + esc(d['원문']) + '</div></details>';
     html += '<div style="margin-top:10px">' +
       ['검토','사용됨','보류','새것'].filter(function(st){ return st !== d['상태']; }).map(function(st){
         return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + st + '\');openDetail(\'idea\',\'' + d['ID'] + '\')">' + ro(st) + '</button>';
@@ -2192,8 +2194,9 @@ function renderInbox(){
   box.innerHTML = list.map(function(d){
     return '<div class="item" style="cursor:default"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
       (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
+      (d['강조메시지'] ? '<div class="snippet" style="color:var(--accent);font-weight:600">▶ ' + esc(d['강조메시지']) + '</div>' : '') +
       '<div class="snippet" style="color:var(--text)">' + esc(d['내용']) + '</div>' +
-      (d['관련본문'] ? '<div class="snippet">' + esc(d['관련본문']) + '</div>' : '') +
+      (d['관련본문'] ? '<div class="snippet">📖 ' + esc(d['관련본문']) + '</div>' : '') +
       '<div style="margin-top:7px">' +
       ['검토','사용됨','보류','새것'].filter(function(s){ return s !== d['상태']; }).map(function(s){
         return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + s + '\')">' + ro(s) + '</button>';
@@ -6990,10 +6993,15 @@ async function scanRequests(quiet){
         /* 이미지에서 정리된 예화들을 아이디어인박스에 등록 */
         var items = j['결과아이디어'] || [];
         for (var k = 0; k < items.length; k++) {
-          await apiPost({ action: 'add', sheet: 'ideas', data: {
-            '유형': '예화', '내용': items[k]['내용'] || '', '출처': items[k]['출처'] || '이미지 스캔',
-            '관련본문': items[k]['관련본문'] || '', '키워드': items[k]['키워드'] || '', '상태': '새것'
-          }});
+          var it = items[k];
+          var idea = {
+            '유형': '예화', '내용': it['내용'] || '', '출처': it['출처'] || '이미지 스캔',
+            '관련본문': it['관련본문'] || '', '키워드': it['키워드'] || '', '상태': '새것'
+          };
+          /* 코워크에서 강화한 경우(강화요청) 강조메시지·원문도 함께 기록 */
+          if (it['강조메시지']) idea['강조메시지'] = it['강조메시지'];
+          if (it['원문']) idea['원문'] = it['원문'];
+          await apiPost({ action: 'add', sheet: 'ideas', data: idea });
         }
         j['아이디어등록'] = true;
         var w0 = await entry.createWritable();
