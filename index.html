@@ -821,6 +821,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         </div>
         <label>제목 *</label><input type="text" id="c_title">
         <label>본문</label><input type="text" id="c_ref" placeholder="로마서 5:1-11">
+        <div id="c_refPast"></div>
         <div class="row2">
           <div><label>시리즈</label><input type="text" id="c_series"></div>
           <div><label>순번</label><input type="number" id="c_seriesNo" min="1"></div>
@@ -1770,6 +1771,50 @@ function checkDup(){
   if (state.ideaType !== '예화') { $('#dupCheck').innerHTML = ''; return; }
   renderDup($('#dupCheck'), $('#ideaContent').value.trim());
 }
+/* ===================== 본문 중복점검 (무AI: 같은 책·겹치는 장절 과거 설교) ===================== */
+function refToInterval(ref){
+  var r = parseRange(String(ref || '').trim()); if (!r) return null;
+  var idx = devoBookIdxMap()[r.book]; if (idx == null) return null;
+  return { idx: idx, lo: r.c1 * 1000 + r.v1, hi: r.c2 * 1000 + r.v2 };
+}
+function renderRefPast(){
+  var box = $('#c_refPast'); if (!box) return;
+  var iv = refToInterval($('#c_ref').value);
+  if (!iv){ box.innerHTML = ''; return; }
+  var cur = state.editing, same = [], book = [];
+  (state.data.sermons || []).forEach(function(s){
+    if (s['상태'] === '보관') return;
+    if (cur && s['ID'] === cur) return;
+    var iv2 = refToInterval(s['본문'] || ''); if (!iv2 || iv2.idx !== iv.idx) return;
+    (iv2.lo <= iv.hi && iv.lo <= iv2.hi ? same : book).push(s);
+  });
+  if (!same.length && !book.length){
+    box.innerHTML = '<div class="okbox">✓ ' + esc(BOOK_FULL[iv.idx]) + ' 본문으로 설교한 기록이 없습니다.</div>';
+    return;
+  }
+  function byD(a, b){ return String(b['날짜'] || '').localeCompare(String(a['날짜'] || '')); }
+  function row(s){
+    var d = s['날짜'] ? esc(s['날짜']) + ' · ' : '';
+    var sv = svcOf(s) ? esc(svcOf(s)) + ' · ' : '';
+    return '<div class="d"><span class="refPastOpen" data-refpast="' + esc(s['ID'] || '') + '" style="cursor:pointer">'
+      + d + sv + '<b>' + esc(s['본문'] || '') + '</b> 「' + esc(s['제목'] || '(제목 없음)') + '」</span></div>';
+  }
+  var html = '<div class="pastbox"><h4>이 본문 과거 설교'
+    + (same.length ? ' · 겹침 ' + same.length + '편' : '')
+    + (book.length ? ' · 같은 책 ' + book.length + '편' : '') + '</h4>';
+  if (same.length) html += '<div class="pastSec">장·절이 겹치는 설교</div>' + same.sort(byD).slice(0, 6).map(row).join('');
+  if (book.length) html += '<div class="pastSec">같은 책의 다른 본문</div>' + book.sort(byD).slice(0, 6).map(row).join('');
+  html += '</div>';
+  box.innerHTML = html;
+}
+(function(){
+  var ref = $('#c_ref'); if (ref) ref.addEventListener('input', debounce(renderRefPast, 200));
+  var box = $('#c_refPast');
+  if (box) box.addEventListener('click', function(e){
+    var t = e.target.closest && e.target.closest('[data-refpast]');
+    if (t){ var id = t.getAttribute('data-refpast'); if (id) try { window.previewSermon(id); } catch (err) {} }
+  });
+})();
 
 /* ===================== 인박스 ===================== */
 function renderInbox(){
@@ -2478,6 +2523,7 @@ function clearCompose(){
   $('#c_date').value = new Date().toISOString().slice(0, 10);
   $('#c_state').value = '구상/연구';
   $('#c_dupCheck').innerHTML = '';
+  var rp = $('#c_refPast'); if (rp) rp.innerHTML = '';
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   state.savedSig = composeSig();
@@ -2513,6 +2559,7 @@ function editSermonFill(id){
     c.style = s['원고유형'] || '기본원고';
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
+  renderRefPast();
   state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
   showPage('compose');
