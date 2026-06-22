@@ -3572,8 +3572,8 @@ function editSermonFill(id){
      구조도 미리 파싱해 채워, [기본원고]로 전환하면 세부내용(내용·예화·적용)까지 바로 보이게 한다.
      번호/대지 마커가 없어 파싱이 실패하면 컬럼(대지·예화) 기반 구조를 유지한다. */
   if (c.free.trim()) {
-    c.style = '자유원고';
-    parseFreeToStructure();
+    /* 원칙: 구조화된 설교는 기본원고로 연다. 번호/대지 마커가 없는(가져오기 DOCX 등) 미구조 텍스트만 자유원고로. */
+    c.style = parseFreeToStructure() ? '기본원고' : '자유원고';
   }
   /* 풀텍스트가 없고 요약본만 있으면 기본원고 뼈대로 연다. */
   else if (String(c.sum || '').trim() && parseSummaryToStructure()) {
