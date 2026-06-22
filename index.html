@@ -203,6 +203,7 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .rfVal{flex:1 1 auto;min-width:0}
 .apBox{border-color:var(--accent2)}
 .apBox .rfHd{color:var(--accent2)}
+.rfTag.apA{background:#7a5bb0}
 .rfTag.apY{background:#3b82a6}
 .rfTag.apM{background:#5b8a3b}
 .rfTag.apO{background:#9a6a3b}
@@ -2709,13 +2710,14 @@ async function aiApplyGen(){
     var out = await callClaude(P_APPLY, JSON.stringify(input), 6000, aiTick('적용 강화'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
-    $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">세대별 결단 적용 <small>· 칩을 누르면 그 대지 적용칸에 채워집니다</small></div>'
+    $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">적용·실천 강화 <small>· 적용=내 얘기로 느끼게(→내용) · 실천=세대별 결단(→적용칸)</small></div>'
       + arr.map(function(d, i){
-        var pidx = pts[i] ? pts[i]._i : i;
+        var pidx = pts[i] ? pts[i]._i : i, sil = d.실천 || {};
         return '<div class="rfItem" data-pidx="' + pidx + '"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
-          + (d.청년 ? '<div class="rfLine"><span class="rfTag apY rfFill" data-fill="apply" data-gen="청년">청년</span><span class="rfVal">' + esc(d.청년) + '</span></div>' : '')
-          + (d.장년 ? '<div class="rfLine"><span class="rfTag apM rfFill" data-fill="apply" data-gen="장년">장년</span><span class="rfVal">' + esc(d.장년) + '</span></div>' : '')
-          + (d.노년 ? '<div class="rfLine"><span class="rfTag apO rfFill" data-fill="apply" data-gen="노년">노년</span><span class="rfVal">' + esc(d.노년) + '</span></div>' : '') + '</div>';
+          + (d.적용 ? '<div class="rfLine"><span class="rfTag apA rfFill" data-fill="body">적용</span><span class="rfVal">' + esc(d.적용) + '</span></div>' : '')
+          + (sil.청년 ? '<div class="rfLine"><span class="rfTag apY rfFill" data-fill="apply" data-gen="청년">실천·청년</span><span class="rfVal">' + esc(sil.청년) + '</span></div>' : '')
+          + (sil.장년 ? '<div class="rfLine"><span class="rfTag apM rfFill" data-fill="apply" data-gen="장년">실천·장년</span><span class="rfVal">' + esc(sil.장년) + '</span></div>' : '')
+          + (sil.노년 ? '<div class="rfLine"><span class="rfTag apO rfFill" data-fill="apply" data-gen="노년">실천·노년</span><span class="rfVal">' + esc(sil.노년) + '</span></div>' : '') + '</div>';
       }).join('') + '</div>';
   } catch (e){ toast('적용 강화 실패: ' + e.message); }
 }
@@ -9405,7 +9407,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v194';
+var APP_VER = 'v200';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
