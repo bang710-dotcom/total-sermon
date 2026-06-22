@@ -345,6 +345,11 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .hbSec>summary{padding:7px 10px;background:var(--card2);cursor:pointer;font-weight:600;font-size:12.5px;color:var(--accent)}
 .hbBody{padding:9px 11px;font-size:13px;line-height:1.65}
 .hbSub{display:block;margin:8px 0 3px;color:var(--accent2);font-weight:700}
+.hbFeat{color:var(--accent);border-bottom:1px dotted var(--accent);cursor:pointer;font-weight:600}
+#featOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);padding:18px}
+#featOv.on{display:flex;animation:fade .12s ease}
+.featBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:680px;max-width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.featBody{padding:14px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch;font-size:13.5px;line-height:1.7}
 @media (max-width:720px){
   .studyBody{flex-direction:column;overflow-y:auto}
   .studyText{flex:0 0 auto;border-right:none;border-bottom:1px solid var(--line);max-height:42vh}
@@ -1322,6 +1327,12 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
     </div>
   </div>
 </div>
+<div id="featOv" aria-hidden="true">
+  <div class="featBox" role="dialog" aria-modal="true" aria-label="Holman 별항">
+    <div class="brefHd"><span class="t" id="featTitle"></span><button class="x" id="featClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="featBody" id="featBody"></div>
+  </div>
+</div>
 <div id="dragOverlay">
   <div class="dropMsg">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -2275,6 +2286,39 @@ function studyRenderNotes(list, emptyMsg){
   return list.map(function(o){ return '<div class="stVnote"><span class="stvr">' + esc(o.ref) + '</span>' + stMd(o.text) + '</div>'; }).join('');
 }
 var HB_DASH = '[-~–—‐-―]';  /* 하이픈·물결·엔/엠대시 등 */
+/* Holman 본문 렌더 — 이미지·성구링크·소제목·굵게 + {{feat:KEY|라벨}} 별항 링크 */
+function hbRenderBody(body){
+  var imgs = [];
+  var withImg = String(body || '').replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, src){
+    var url = /^https?:\/\//.test(src) ? src : (COM_BASE + '/' + String(src).replace(/^\.?\//, ''));
+    imgs.push({ url: url, alt: alt });
+    return '@@HBIMG' + (imgs.length - 1) + '@@';
+  });
+  var html = linkifyRefs(withImg);
+  html = html.replace(/@@HBIMG(\d+)@@/g, function(_, i){
+    var im = imgs[+i] || {};
+    return '<div style="margin:8px 0"><img src="' + (im.url || '') + '" alt="' + esc(im.alt || '') + '" style="max-width:100%;border-radius:8px" loading="lazy"></div>';
+  });
+  return html.replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+    .replace(/\{\{feat:([a-z0-9-]+)\|([^}]+)\}\}/g, '<a class="hbFeat" data-feat="$1">$2</a>')
+    .replace(/\n/g, '<br>');
+}
+/* Holman 별항(feature) — 배포 성경앱에서 1회 로드 후 캐시 */
+function studyLoadFeatures(){
+  if (STUDY.feats) return Promise.resolve(STUDY.feats);
+  return fetch(COM_BASE + '/commentary/holman_features.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.feats = d.features || {}; return STUDY.feats; });
+}
+function openFeat(id){
+  studyLoadFeatures().then(function(F){
+    var f = F[id]; if (!f){ toast('별항 내용을 찾을 수 없습니다.'); return; }
+    $('#featTitle').textContent = f.t || '';
+    $('#featBody').innerHTML = hbRenderBody(f.b || '');
+    $('#featBody').scrollTop = 0;
+    var ov = $('#featOv'); ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  }).catch(function(e){ toast('별항을 불러올 수 없습니다: ' + e.message); });
+}
 function studyRenderHolman(d){
   if (!d || !d.chapters || !d.chapters[0] || !d.chapters[0][0]) return '<div class="cnt">이 책의 Holman 핸드북 내용이 없습니다.</div>';
   var R = STUDY.range, tlo = -1, thi = -1;
@@ -2608,6 +2652,7 @@ function fillConc(code){
   if (ov) ov.addEventListener('click', function(e){
     if (e.target === ov || (e.target.closest && e.target.closest('#studyClose'))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
     var sp = e.target.closest && e.target.closest('.stSplitBtn'); if (sp){ STUDY.split = !STUDY.split; if (STUDY.split && !STUDY.versions[1]) STUDY.versions[1] = (STUDY.versions[0] === 'RNKSV' ? 'NKRV' : 'RNKSV'); studyRenderText(); return; }
+    var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }
     var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
@@ -2625,6 +2670,12 @@ function fillConc(code){
     var vi = +s.getAttribute('data-vi');
     STUDY.versions[vi] = s.value;
     studyFillCol($('#studyText').querySelector('.stCol[data-vi="' + vi + '"]'), s.value);
+  });
+  var fov = $('#featOv');
+  if (fov) fov.addEventListener('click', function(e){
+    if (e.target === fov || (e.target.closest && e.target.closest('#featClose'))){ fov.classList.remove('on'); fov.setAttribute('aria-hidden', 'true'); return; }
+    var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }   /* 중첩 별항 */
+    var rr = e.target.closest && e.target.closest('.dt-ref'); if (rr && typeof openRefPop === 'function'){ try { openRefPop(rr); } catch (er) {} }
   });
 })();
 
