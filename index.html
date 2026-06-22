@@ -9595,10 +9595,25 @@ $$('#inboxFilter .chip').forEach(function(c){
   });
 });
 
-/* 인박스 항목 클릭 → 상세(강화 스토리) 열기. 상태 버튼은 stopPropagation 으로 제외 */
+/* 인박스 항목의 강화 스토리를 모달로 표시 — 상세 패널(#detailPane)은 검색 페이지에만 있어
+   인박스 페이지에서는 보이지 않으므로, 인박스에서는 전체화면 미리보기 모달로 띄운다. */
+function inboxOpenIdea(id){
+  var d = findIdea(id); if (!d) { toast('항목을 찾지 못했습니다.'); return; }
+  var h = '';
+  if (d['제목']) h += '<h2 style="font-size:20pt;margin:0 0 10px;line-height:1.3">' + esc(d['제목']) + '</h2>';
+  h += '<div style="font-size:11pt;color:#888;margin-bottom:14px">' + esc(d['유형'] || '예화') + ' · ' + esc(d['등록일'] || '') + ' · ' + esc(d['상태'] || '') + '</div>';
+  if (d['강조메시지']) h += '<div style="font-weight:700;color:#2AA78E;margin-bottom:16px;line-height:1.6">▶ ' + esc(d['강조메시지']) + '</div>';
+  h += '<div style="white-space:pre-wrap;line-height:1.9">' + esc(d['내용'] || '') + '</div>';
+  if (d['관련본문']) h += '<div style="margin-top:18px;color:#3A3C66">📖 ' + esc(d['관련본문']) + '</div>';
+  if (d['출처']) h += '<div style="margin-top:6px;color:#888;font-size:12pt">출처: ' + esc(d['출처']) + '</div>';
+  if (d['키워드']) h += '<div style="margin-top:6px;color:#888;font-size:12pt">키워드: ' + esc(d['키워드']) + '</div>';
+  if (d['원문']) h += '<details style="margin-top:18px"><summary style="cursor:pointer;color:#888">원문 보기 (강화 전)</summary><div style="white-space:pre-wrap;color:#888;margin-top:8px;line-height:1.8">' + esc(d['원문']) + '</div></details>';
+  openPreview(h);
+}
+/* 인박스 항목 클릭 → 강화 스토리 모달. 상태 버튼(.linkbtn)은 제외 */
 (function(){ var box = $('#inboxList'); if (box) box.addEventListener('click', function(e){
   if (e.target.closest('.linkbtn')) return;
-  var it = e.target.closest('.idItem'); if (it && it.dataset.open) openDetail('idea', it.dataset.open);
+  var it = e.target.closest('.idItem'); if (it && it.dataset.open) inboxOpenIdea(it.dataset.open);
 }); })();
 
 /* 기존 인박스 예화 중 미강화(강조메시지 없음) 항목을 일괄 강화 (API 키 필요) */
