@@ -6088,8 +6088,9 @@ async function dirIf(handle){
 }
 /* LTC 폴더에서 성경 책 폴더 찾기 — 이름에 책명이 포함된 폴더(예: '고린도전후서'⊃'고린도전서') 우선, 없으면 생성 */
 async function findBookDir(handle, bookKo, create){
+  var want = String(bookKo || '').normalize('NFC');   /* 한글 폴더명 NFC/NFD 불일치 회피(macOS·Dropbox는 NFD 저장) */
   for await (var e of handle.values()) {
-    if (e.kind === 'directory' && e.name.indexOf(bookKo) >= 0) return e;
+    if (e.kind === 'directory' && e.name.normalize('NFC').indexOf(want) >= 0) return e;
   }
   return create ? await handle.getDirectoryHandle(bookKo, { create: true }) : null;
 }
