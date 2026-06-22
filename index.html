@@ -1372,7 +1372,9 @@ var state = {
   editing: null, lastTerms: [], importRows: []
 };
 function load(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
-function save(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ try { toast('기기 저장 실패(저장공간 부족). 동기화 설정을 확인해 주세요.'); } catch(_){} } }
+/* 부팅 시 IndexedDB의 data 로드가 끝나기 전에는 빈 state.data를 디스크에 덮어쓰지 않도록 하는 게이트 */
+var _dataLoaded = false;
 
 /* 대용량 설교 데이터는 IndexedDB에 저장 (localStorage 5MB 한도 회피) */
 function idb(){ return new Promise(function(res, rej){
@@ -1391,7 +1393,7 @@ function idbGet(key){ return idb().then(function(db){ return new Promise(functio
   var rq = tx.objectStore('kv').get(key);
   rq.onsuccess = function(){ res(rq.result); }; rq.onerror = function(){ rej(rq.error); };
 });});}
-function saveData(){ idbSet('data', state.data).catch(function(e){ toast('기기 저장 실패: ' + e); }); }
+function saveData(){ if (!_dataLoaded) return; idbSet('data', state.data).catch(function(e){ toast('기기 저장 실패: ' + e); }); }
 
 /* ===================== 유틸 ===================== */
 function $(s){ return document.querySelector(s); }
@@ -6074,16 +6076,20 @@ window.requestSermonOutput = function(id, type){
 };
 $$('#composeMeta [data-req]').forEach(function(b){
   b.addEventListener('click', function(){
+    if (b.dataset.busy === '1') return; /* 연타·중복요청 방지(오버레이가 뜨기 전 구간 포함) */
     var meta = collectCompose();
     if (!meta['제목'] && !meta['원고텍스트']) { toast('요청할 내용이 없습니다. 제목이나 원고를 먼저 작성해 주세요.'); return; }
+    var p;
     if (state.editing) {
       meta['ID'] = state.editing;
-      reqOrDownload(state.editing, b.dataset.req, meta);
+      p = reqOrDownload(state.editing, b.dataset.req, meta);
     } else if (aiKey() && AI_DIRECT[b.dataset.req]) {
-      ensureReqPerms(b.dataset.req).then(function(){ AI_DIRECT[b.dataset.req]('', meta); }); /* API 직결 (미저장 설교) — 권한 선확보 */
+      p = ensureReqPerms(b.dataset.req).then(function(){ return AI_DIRECT[b.dataset.req]('', meta); }); /* API 직결 (미저장 설교) — 권한 선확보 */
     } else {
-      writeRequestFile(b.dataset.req, meta);
+      p = writeRequestFile(b.dataset.req, meta);
     }
+    b.dataset.busy = '1'; b.disabled = true;
+    Promise.resolve(p).catch(function(){}).then(function(){ b.dataset.busy = ''; b.disabled = false; });
   });
 });
 
@@ -9689,6 +9695,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var old = load(LS.data);
     if (old) { old.outputs = old.outputs || []; old.devo = old.devo || []; old.devonotes = old.devonotes || []; state.data = old; localStorage.removeItem(LS.data); return idbSet('data', old); }
   }).catch(function(){}).then(function(){
+    _dataLoaded = true; /* 이 시점부터 saveData()가 디스크에 기록 허용(빈 데이터 덮어쓰기 방지) */
     normalizeSermonStatuses(); promotePreachedByDate(); /* 캐시 데이터 정규화·승격(메모리) */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); cwRender();
     /* 델타 동기화 기준점 복원(없으면 bootLoad가 전체 조회) */
