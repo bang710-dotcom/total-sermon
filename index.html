@@ -5527,8 +5527,17 @@ async function aiLeadersTsv(id, meta){
     var key = id || meta['제목'] || '';
     var tmpl = _ltcJson[key] || sermonLtcData(id);   /* 구조 가이드: 메모리 → 저장된 LTC 데이터 */
     var data = null, fromDocx = false;
-    /* 저장된 교재 DOCX가 있으면 그 내용(사용자 수정·공지사항 포함)을 우선 반영 */
-    try { if (tmpl) { var dd = await readLtcDocxData(meta, tmpl); if (dd) { data = dd; fromDocx = true; } } } catch (e) {}
+    /* 저장된 교재 DOCX에서 사용자 수정·공지사항이 발견되면, 반영할지 확인 후 우선 적용 */
+    try {
+      if (tmpl) {
+        var dd = await readLtcDocxData(meta, tmpl);
+        if (dd && ltcContentSig(dd) !== ltcContentSig(tmpl)) {
+          if (confirm('저장된 교재 DOCX에서 수정 사항(본문 수정·공지사항 등)이 발견되었습니다.\n수정 사항을 포함해서 업로드할까요?\n\n[확인] 수정 반영 · [취소] 원래 생성본으로 업로드')) {
+            data = dd; fromDocx = true;
+          }
+        }
+      }
+    } catch (e) {}
     if (!data) data = tmpl;
     if (!data) { toast('LTC 교재 내용을 먼저 생성합니다…'); data = await aiLtcData(meta); }
     else _ltcJson[key] = data;
@@ -9838,7 +9847,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v213';
+var APP_VER = 'v214';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
