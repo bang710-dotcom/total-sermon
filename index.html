@@ -5533,10 +5533,16 @@ async function aiLeadersTsv(id, meta){
     try {
       if (tmpl) {
         var dd = await readLtcDocxData(meta, tmpl);
-        if (dd && ltcContentSig(dd) !== ltcContentSig(tmpl)) {
-          if (confirm('저장된 교재 DOCX에서 수정 사항(본문 수정·공지사항 등)이 발견되었습니다.\n수정 사항을 포함해서 업로드할까요?\n\n[확인] 수정 반영 · [취소] 원래 생성본으로 업로드')) {
-            data = dd; fromDocx = true;
+        if (dd) {
+          if (ltcContentSig(dd) !== ltcContentSig(tmpl)) {
+            if (confirm('저장된 교재 DOCX에서 수정 사항(본문 수정·공지사항 등)이 발견되었습니다.\n수정 사항을 포함해서 업로드할까요?\n\n[확인] 수정 반영 · [취소] 원래 생성본으로 업로드')) {
+              data = dd; fromDocx = true;
+            }
           }
+          /* dd는 있으나 내용이 같으면(수정 없음) 조용히 원본 사용 */
+        } else if (canFolderSave()) {
+          /* 폴더는 연결됐는데 교재 DOCX를 못 찾음 → 수정이 반영되지 않음을 알림 */
+          toast('교재 DOCX를 찾지 못해 원래 생성본으로 업로드합니다 — DOCX 수정은 반영되지 않습니다. 파일명·저장 폴더를 확인하세요(파일: ' + ltcFileName(meta) + ').');
         }
       }
     } catch (e) {}
