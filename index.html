@@ -2251,18 +2251,31 @@ function studyRenderNotes(list, emptyMsg){
   if (!list.length) return '<div class="cnt">' + emptyMsg + '</div>';
   return list.map(function(o){ return '<div class="stVnote"><span class="stvr">' + esc(o.ref) + '</span>' + stMd(o.text) + '</div>'; }).join('');
 }
+var HB_DASH = '[-~–—‐-―]';  /* 하이픈·물결·엔/엠대시 등 */
 function studyRenderHolman(d){
   if (!d || !d.chapters || !d.chapters[0] || !d.chapters[0][0]) return '<div class="cnt">이 책의 Holman 핸드북 내용이 없습니다.</div>';
   var R = STUDY.range, tlo = -1, thi = -1;
   if (R && R.r){ tlo = R.r.c1 * 1000 + R.r.v1; thi = R.r.c2 * 1000 + R.r.v2; }
   function secRange(title){
-    var m = title.match(/(\d+)\s*:\s*(\d+)(?:\s*[-~]\s*(?:(\d+)\s*:\s*)?(\d+))?/);
+    var m = title.match(new RegExp('(\\d+)\\s*:\\s*(\\d+)(?:\\s*' + HB_DASH + '\\s*(?:(\\d+)\\s*:\\s*)?(\\d+))?'));
     if (m){ var c1=+m[1], v1=+m[2], c2=m[3]?+m[3]:c1, v2=m[4]?+m[4]:v1; return { lo:c1*1000+v1, hi:c2*1000+v2 }; }
-    m = title.match(/(\d+)\s*장\s*[-~]\s*(\d+)\s*장/) || title.match(/(\d+)\s*[-~]\s*(\d+)\s*장/);
+    m = title.match(new RegExp('(\\d+)\\s*장\\s*' + HB_DASH + '\\s*(\\d+)\\s*장')) || title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*장'));
     if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
     m = title.match(/(\d+)\s*장/);
     if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
     return null;
+  }
+  function hbBody(body){
+    /* 마크다운 이미지 → 토큰(이후 esc 회피) */
+    var withImg = String(body).replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, src){
+      var url = /^https?:\/\//.test(src) ? src : (COM_BASE + '/' + String(src).replace(/^\.?\//, ''));
+      return 'IMG' + url + '' + alt + '';
+    });
+    var html = linkifyRefs(withImg);  /* 성경 표기 클릭 가능 + esc */
+    html = html.replace(/IMG([^]+)([^]*)/g, function(_, url, alt){
+      return '<div style="margin:8px 0"><img src="' + url + '" alt="' + esc(alt) + '" style="max-width:100%;border-radius:8px" loading="lazy"></div>';
+    });
+    return html.replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
   var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
   var parsed = secs.map(function(sec){
@@ -2275,9 +2288,8 @@ function studyRenderHolman(d){
   });
   var anyHit = parsed.some(function(p){ return p.hit; });
   return parsed.map(function(p){
-    var bodyHtml = esc(p.body).replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
     var open = anyHit ? p.hit : true;  /* 매칭 구간만 펼침. 매칭 없으면 전부 펼침(폴백) */
-    return '<details class="hbSec' + (p.hit ? ' hbHit' : '') + '"' + (open ? ' open' : '') + '><summary>' + esc(p.title) + '</summary><div class="hbBody">' + bodyHtml + '</div></details>';
+    return '<details class="hbSec' + (p.hit ? ' hbHit' : '') + '"' + (open ? ' open' : '') + '><summary>' + esc(p.title) + '</summary><div class="hbBody">' + hbBody(p.body) + '</div></details>';
   }).join('');
 }
 /* ── 본문연구 AI 정리 (원어·NET·호크마를 근거로 Opus 요약) ── */
@@ -4089,7 +4101,7 @@ function loadBook(n){
 }
 /* "요한복음 1:19-34" / "요한복음 1:43-2:12" / "요한복음 21" 파싱 */
 function parseRange(s){
-  var m = String(s || '').trim().match(/^(.+?)\s+(\d+)(?::(\d+))?(?:\s*[-~]\s*(?:(\d+):)?(\d+))?$/);
+  var m = String(s || '').trim().match(/^(.+?)\s+(\d+)(?::(\d+))?(?:\s*[-~–—‐-―]\s*(?:(\d+):)?(\d+))?$/);
   if (!m) return null;
   var c1 = +m[2];
   if (!m[3]) { /* 시작 절 없음 → 장 단위. 둘째 숫자는 끝 절이 아니라 끝 '장' (예: "다니엘 3-4" = 3~4장) */
@@ -4124,8 +4136,8 @@ function renderScripture(range){
 var BREF_RE = null;
 function buildBrefRe(){
   /* 책이름 포함 전체표기  또는  괄호 안 '장:절(-절)' 바로참조 */
-  return new RegExp('(' + BOOKS + ')\\s*\\d+(?:\\s*[:장]\\s*\\d+(?:\\s*[-~]\\s*(?:\\d+\\s*[:장]\\s*)?\\d+)?)?' +
-    '|\\(\\s*\\d+\\s*[:장]\\s*\\d+(?:\\s*[-~]\\s*\\d+)?\\s*\\)', 'g');
+  return new RegExp('(' + BOOKS + ')\\s*\\d+(?:\\s*[:장]\\s*\\d+(?:\\s*[-~–—‐-―]\\s*(?:\\d+\\s*[:장]\\s*)?\\d+)?)?' +
+    '|\\(\\s*\\d+\\s*[:장]\\s*\\d+(?:\\s*[-~–—‐-―]\\s*\\d+)?\\s*\\)', 'g');
 }
 function brefBook(ref){ var r = parseRange(String(ref || '').trim()); return r ? r.book : ''; }
 /* text를 esc하면서 성경 표기를 클릭 가능한 span으로 감싼다.
