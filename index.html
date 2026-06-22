@@ -3483,7 +3483,7 @@ function assembleText(){
   c.points.forEach(function(p, i){
     if (!pHasContent(p)) return;
     L.push((i + 1) + '. ' + (p.text || '').trim());
-    var seenIll = false;
+    var needCmark = false;   /* 직전 블록이 예화/적용이면, 뒤따르는 본문은 (대지 내용) 마커로 구분 */
     /* 모든 블록은 앞에 빈 줄 한 개로 구분 — 명제·예화·내용·적용 사이 한 줄 띄기 */
     pBlocks(p).forEach(function(b){
       if (b.type === 'ill') {
@@ -3491,15 +3491,17 @@ function assembleText(){
         L.push('');
         if ((b.ill || '').trim()) L.push('ex) ' + b.ill.trim());
         if ((b.illBody || '').trim()) L.push(b.illBody.trim());
-        seenIll = true;
+        needCmark = true;
       } else if (b.type === 'apply') {
         if (!(b.apply || '').trim()) return;
         L.push('');
         L.push('(적용) ' + b.apply.trim());
+        needCmark = true;
       } else if ((b.body || '').trim()) {
         L.push('');
-        if (seenIll) L.push('(대지 내용)');   /* 예화 뒤 본문은 마커로 구분 — 재불러올 때 예화에 합쳐지지 않게 */
+        if (needCmark) L.push('(대지 내용)');   /* 예화·적용 뒤 본문은 마커로 구분 — 재불러올 때 합쳐지지 않게 */
         L.push(b.body.trim());
+        needCmark = false;
       }
     });
     L.push('');   /* 대지 사이 한 줄 */
@@ -9517,7 +9519,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v202';
+var APP_VER = 'v203';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
