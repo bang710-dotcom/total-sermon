@@ -1627,7 +1627,10 @@ function flushQueue(){
   q.forEach(function(item){
     chain = chain.then(function(){
       return apiPost(item).then(function(){
-        state.queue.shift(); save(LS.queue, state.queue);
+        /* 위치(shift) 대신 처리한 항목 자체를 제거 — 전송 중 submit이 새 항목을 push해도 잘못 제거되지 않음 */
+        var i = state.queue.indexOf(item);
+        if (i >= 0) state.queue.splice(i, 1);
+        save(LS.queue, state.queue);
       });
     });
   });
@@ -5853,9 +5856,11 @@ function writeRequestFile(type, meta){
   var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes());
   var fname = '요청_' + (meta['ID'] || '신규') + '_' + type + '_' + stamp + '.json';
   var payload = { '요청유형': type, '상태': '대기', '요청일시': d.toISOString().slice(0, 16).replace('T', ' '), '설교': meta };
-  xPerm().then(function(){
+  var _dir = null;
+  return xPerm().then(function(){
     return xHandle.getDirectoryHandle('_claude_요청함', { create: true });
   }).then(function(dir){
+    _dir = dir;
     return dir.getFileHandle(fname, { create: true });
   }).then(function(fh){
     return fh.createWritable();
@@ -5870,7 +5875,11 @@ function writeRequestFile(type, meta){
     }
     renderSyncState(); /* 좌측 하단에 처리 대기 표시 */
     toast('요청함에 저장: ' + REQ_LABELS[type] + ' — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
-  }).catch(function(e){ toast('요청 저장 실패: ' + e.message); });
+  }).catch(function(e){
+    /* 쓰기 도중 실패 시 남은 부분/빈 파일 제거 — 다음 스캔에서 깨진 JSON이 조용히 무시되는 것 방지 */
+    if (_dir && _dir.removeEntry) { try { var rp = _dir.removeEntry(fname); if (rp && rp.catch) rp.catch(function(){}); } catch (_) {} }
+    toast('요청 저장 실패: ' + e.message);
+  });
 }
 /* 설교 ID+유형의 완료 결과 파일을 결과함에서 직접 내려받기 (성공 시 true) */
 async function dlReqResult(sermonId, type){
@@ -9675,7 +9684,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v208';
+var APP_VER = 'v209';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
