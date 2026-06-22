@@ -2768,25 +2768,36 @@ var C_META = { '날짜':'c_date','예배구분':'c_service','제목':'c_title','
 /* 대지 내부 블록: body=대지 내용, ill=예화(제목+내용). 순서 자유 변경 가능. 적용(apply)은 대지 맨 아래 고정 */
 function newBodyBlock(b){ return { type: 'body', body: b || '' }; }
 function newIllBlock(t, b){ return { type: 'ill', ill: t || '', illBody: b || '' }; }
-function newPoint(){ return { text: '', blocks: [newBodyBlock('')], apply: '' }; }
-/* 구모델({body,ill,illBody}) → 신모델(blocks) 정규화 */
+function newApplyBlock(a){ return { type: 'apply', apply: a || '' }; }
+function newPoint(){ return { text: '', blocks: [newBodyBlock(''), newApplyBlock('')] }; }
+/* 구모델({body,ill,illBody,apply}) → 신모델(blocks; 적용도 블록) 정규화 */
 function normPoint(p){
   if (!p) return newPoint();
   if (Array.isArray(p.blocks)) {
     if (!p.blocks.length) p.blocks = [newBodyBlock('')];
-    /* 예화만 있고 본문(내용) 블록이 없으면 맨 앞에 빈 본문 블록 보강 — 대지 본문 작성칸이 사라지는 문제 방지 */
-    else if (!p.blocks.some(function(b){ return b.type !== 'ill'; })) p.blocks.unshift(newBodyBlock(''));
-    p.text = p.text || ''; p.apply = p.apply || '';
+    /* 본문(내용) 블록이 하나도 없으면 맨 앞에 빈 본문 블록 보강 */
+    else if (!p.blocks.some(function(b){ return b.type === 'body'; })) p.blocks.unshift(newBodyBlock(''));
+    /* 레거시 p.apply(문자열) → 적용 블록으로 1회 이관 */
+    if ((p.apply || '').trim() && !p.blocks.some(function(b){ return b.type === 'apply'; })) p.blocks.push(newApplyBlock(p.apply));
+    if ('apply' in p) delete p.apply;
+    p.text = p.text || '';
     return p;
   }
   var blocks = [newBodyBlock(p.body || '')];
   if ((p.ill && p.ill.trim()) || (p.illBody && p.illBody.trim())) blocks.push(newIllBlock(p.ill, p.illBody));
-  return { text: p.text || '', blocks: blocks, apply: p.apply || '' };
+  if ((p.apply || '').trim()) blocks.push(newApplyBlock(p.apply));
+  return { text: p.text || '', blocks: blocks };
 }
 function pBlocks(p){ return (p && Array.isArray(p.blocks)) ? p.blocks : []; }
 function pIllTitles(p){ return pBlocks(p).filter(function(b){ return b.type === 'ill'; }).map(function(b){ return (b.ill || '').trim(); }).filter(Boolean); }
+/* 적용 블록(레거시 p.apply 포함) 텍스트 합치기 — 읽기 전용 헬퍼 */
+function pApplyText(p){
+  var a = pBlocks(p).filter(function(b){ return b.type === 'apply'; }).map(function(b){ return (b.apply || '').trim(); }).filter(Boolean);
+  if (p && (p.apply || '').trim()) a.push(String(p.apply).trim());
+  return a.join('\n');
+}
 /* 대지 본문/예화/적용 중 채워진 내용이 있는가 (명제는 제외) */
-function pStructFilled(p){ return pBlocks(p).some(function(b){ return (b.body || '').trim() || (b.ill || '').trim() || (b.illBody || '').trim(); }) || (p && (p.apply || '').trim()); }
+function pStructFilled(p){ return pBlocks(p).some(function(b){ return (b.body || '').trim() || (b.ill || '').trim() || (b.illBody || '').trim() || (b.apply || '').trim(); }) || (p && (p.apply || '').trim()); }
 /* 명제 포함, 무언가라도 작성됐는가 */
 function pHasContent(p){ return p && ((p.text || '').trim() || pStructFilled(p)); }
 /* 구조(서론·대지·결론)에 작성된 내용이 하나라도 있는가 */
