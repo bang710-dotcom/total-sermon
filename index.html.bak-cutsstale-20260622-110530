@@ -5305,7 +5305,8 @@ async function generateTransDoc(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
     if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
-    var cuts = await ensureCuts(id, meta);
+    var cuts = await loadCutsSidecar(meta);
+    if (!cuts) { setGenStage('이미지자료(전환표) 생성 중…'); cuts = await aiImgData(meta); if (cuts && cuts.length) await saveImgDataArtifacts(id, meta, cuts); }
     if (!cuts || !cuts.length) throw new Error('전환표 생성 실패');
     var body = await aiTransDoc(meta, cuts);
     if (!body.trim()) throw new Error('전환표시본 본문 생성 실패');
@@ -8317,33 +8318,13 @@ function exportManuscriptDocx(meta){
   saveComposeFinal(meta);                 /* 최종본 시트 반영 + 상태 승격 */
   return p;                               /* 파일 저장 완료를 기다릴 수 있게 프라미스 반환 */
 }
-/* 원고 서명 — 전환표(이미지 컷 앵커)가 '어느 원고' 기준으로 만들어졌는지 비교용.
-   공백 정규화 후 길이+간이해시. 원고가 바뀌면 값이 달라진다. */
-function manuscriptSig(meta){
-  var t = String((meta && meta['원고텍스트']) || '').replace(/\s+/g, ' ').trim();
-  var h = 0; for (var i = 0; i < t.length; i++){ h = (h * 31 + t.charCodeAt(i)) | 0; }
-  return t.length + ':' + (h >>> 0).toString(36);
-}
 async function saveCutsSidecar(id, meta, cuts){
-  await saveBlobToResults(new Blob([JSON.stringify({ cuts: cuts, origSig: manuscriptSig(meta) }, null, 1)], { type: 'application/json' }), imgDataNames(meta).json);
+  await saveBlobToResults(new Blob([JSON.stringify({ cuts: cuts }, null, 1)], { type: 'application/json' }), imgDataNames(meta).json);
   if (id) { try { storeTransIfEmpty(id, cuts.filter(function(c){ return c.n !== 1; }).map(function(c){ return { n: c.n, t: c.type === '본문' ? '본문' : '일반', a: String(c.anchor || '').slice(0, 30) }; })); } catch (e) {} }
 }
 async function ensureCuts(id, meta){
-  var raw = await loadCutsSidecarRaw(meta);
-  if (raw && raw.cuts && raw.cuts.length) {
-    /* 전환표가 만들어진 뒤 원고가 바뀌었으면 재생성 여부 확인 (origSig가 있는 경우에만 비교 — 구버전 사이드카는 그냥 사용) */
-    if (raw.origSig && raw.origSig !== manuscriptSig(meta)) {
-      if (confirm('원고가 전환표를 만든 이후로 바뀌었습니다.\n전환표(이미지 컷 위치)를 다시 만들까요?\n\n[확인] 다시 생성 · [취소] 기존 전환표 사용')) {
-        setGenStage('이미지 컷(전환표) 다시 생성 중…');
-        var fresh = await aiImgData(meta);
-        if (fresh && fresh.length) { await saveCutsSidecar(id, meta, fresh); return fresh; }
-      }
-    }
-    return raw.cuts;
-  }
-  setGenStage('이미지 컷(전환표) 생성 중…');
-  var cuts = await aiImgData(meta);
-  if (cuts && cuts.length) await saveCutsSidecar(id, meta, cuts);
+  var cuts = await loadCutsSidecar(meta);
+  if (!cuts) { setGenStage('이미지 컷(전환표) 생성 중…'); cuts = await aiImgData(meta); if (cuts && cuts.length) await saveCutsSidecar(id, meta, cuts); }
   return cuts;
 }
 async function saveImgDataDocxFile(meta, cuts){
@@ -8877,22 +8858,20 @@ function imgDataNames(meta){
     backstagePrefix: sermonFileBase(meta, '백스테이지')
   };
 }
-async function loadCutsSidecarRaw(meta){
+async function loadCutsSidecar(meta){
   if (!canFolderSave()) return null;
   var dir;
   try { await xPerm(); dir = await xHandle.getDirectoryHandle('_claude_결과함'); } catch (e) { return null; }
   try {
     var f = await (await dir.getFileHandle(imgDataNames(meta).json)).getFile();
     var j = JSON.parse(await f.text());
-    var cuts = Array.isArray(j.cuts) ? j.cuts : (Array.isArray(j) ? j : null);
-    return cuts ? { cuts: cuts, origSig: (j && j.origSig) || '' } : null;
+    return Array.isArray(j.cuts) ? j.cuts : (Array.isArray(j) ? j : null);
   } catch (e) { return null; }
 }
-async function loadCutsSidecar(meta){ var r = await loadCutsSidecarRaw(meta); return r ? r.cuts : null; }
 /* 컷을 JSON(이미지 생성용)+DOCX(사람 확인용)으로 저장 + 전환표 보관 */
 async function saveImgDataArtifacts(id, meta, cuts){
   var nm = imgDataNames(meta);
-  await saveBlobToResults(new Blob([JSON.stringify({ cuts: cuts, origSig: manuscriptSig(meta) }, null, 1)], { type: 'application/json' }), nm.json);
+  await saveBlobToResults(new Blob([JSON.stringify({ cuts: cuts }, null, 1)], { type: 'application/json' }), nm.json);
   var D = await ensureDocxLib();
   var blob = await D.Packer.toBlob(buildImgDataDocx(D, meta, cuts));
   await saveBlobToResults(blob, nm.docx);
@@ -9824,7 +9803,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v213';
+var APP_VER = 'v212';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
