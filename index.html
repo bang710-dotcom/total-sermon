@@ -2000,7 +2000,7 @@ function renderRefIllust(){
       if (!m[key] || lvl > m[key].lvl) m[key] = { lvl: lvl, it: illNormLib(x.it) };
     });
     (state.data.ideas || []).forEach(function(d){
-      if (d['유형'] !== '예화' || !String(d['내용'] || '').trim()) return;
+      if (d['유형'] !== '예화' || d['상태'] === '편입됨' || !String(d['내용'] || '').trim()) return;
       var best = 0;
       String(d['관련본문'] || '').split(/;\s*/).forEach(function(r){
         var iv2 = refToInterval(r); if (!iv2 || iv2.idx !== iv.idx) return;
@@ -2051,6 +2051,7 @@ function illUnified(){
     });
   }
   (state.data.ideas || []).forEach(function(d){ if (d['유형'] !== '예화') return;
+    if (d['상태'] === '편입됨') return;  /* 라이브러리에 편입됨 — 인박스 출처 중복 방지 */
     var story = String(d['내용'] || '').trim(); if (!story) return;
     out.push({ key: 'inbox:' + d['ID'], src: 'inbox', category: '내 인박스', title: d['제목'] || illFirstLine(story),
       message: d['강조메시지'] || '', story: story, refs: String(d['관련본문'] || '').split(/;\s*/).filter(Boolean), keywords: d['키워드'] || '' });
@@ -2684,7 +2685,7 @@ async function aiApplyGen(){
 /* ===================== 인박스 ===================== */
 function renderInbox(){
   var f = state.inboxFilter;
-  var list = state.data.ideas.filter(function(d){ return !f || d['상태'] === f; });
+  var list = state.data.ideas.filter(function(d){ if (d['상태'] === '편입됨') return false; return !f || d['상태'] === f; });
   list.sort(function(a, b){ return b['ID'] < a['ID'] ? -1 : 1; });
   var box = $('#inboxList');
   if (!list.length) { box.innerHTML = '<div class="empty">해당 항목이 없습니다.</div>'; return; }
