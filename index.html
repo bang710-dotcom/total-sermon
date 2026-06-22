@@ -2905,7 +2905,14 @@ function renderInbox(){
       (d['강조메시지'] ? '<div class="snippet" style="color:var(--accent);font-weight:600">▶ ' + esc(d['강조메시지']) + '</div>' : '') +
       (isIll && d['강조메시지'] ? '' : '<div class="snippet" style="color:var(--text)">' + esc(d['내용']) + '</div>') +
       (d['관련본문'] ? '<div class="snippet">📖 ' + esc(d['관련본문']) + '</div>' : '') +
-      (isIll && d['강조메시지'] ? '<div class="snippet" style="color:var(--dim);font-size:12px">… 클릭하면 강화 스토리를 봅니다</div>' : '') +
+      (isIll && d['강조메시지'] ? '<div class="snippet idHint" style="color:var(--dim);font-size:12px">… 클릭하면 강화 스토리를 봅니다</div>' : '') +
+      (isIll && d['강조메시지'] ?
+        '<div class="idDetail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">' +
+          '<div class="snippet" style="color:var(--text);white-space:pre-wrap;line-height:1.85">' + esc(d['내용'] || '') + '</div>' +
+          (d['출처'] ? '<div class="snippet" style="color:var(--dim)">출처: ' + esc(d['출처']) + '</div>' : '') +
+          (d['키워드'] ? '<div class="snippet" style="color:var(--dim)">키워드: ' + esc(d['키워드']) + '</div>' : '') +
+          (d['원문'] ? '<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--dim);font-size:12px">원문 보기 (강화 전)</summary><div class="snippet" style="color:var(--dim);white-space:pre-wrap">' + esc(d['원문']) + '</div></details>' : '') +
+        '</div>' : '') +
       '<div style="margin-top:7px">' +
       ['검토','사용됨','보류','새것'].filter(function(s){ return s !== d['상태']; }).map(function(s){
         return '<button class="linkbtn" onclick="event.stopPropagation();setIdeaState(\'' + d['ID'] + '\',\'' + s + '\')">' + ro(s) + '</button>';
@@ -9596,25 +9603,14 @@ $$('#inboxFilter .chip').forEach(function(c){
   });
 });
 
-/* 인박스 항목의 강화 스토리를 모달로 표시 — 상세 패널(#detailPane)은 검색 페이지에만 있어
-   인박스 페이지에서는 보이지 않으므로, 인박스에서는 전체화면 미리보기 모달로 띄운다. */
-function inboxOpenIdea(id){
-  var d = findIdea(id); if (!d) { toast('항목을 찾지 못했습니다.'); return; }
-  var h = '';
-  if (d['제목']) h += '<h2 style="font-size:20pt;margin:0 0 10px;line-height:1.3">' + esc(d['제목']) + '</h2>';
-  h += '<div style="font-size:11pt;color:#888;margin-bottom:14px">' + esc(d['유형'] || '예화') + ' · ' + esc(d['등록일'] || '') + ' · ' + esc(d['상태'] || '') + '</div>';
-  if (d['강조메시지']) h += '<div style="font-weight:700;color:#2AA78E;margin-bottom:16px;line-height:1.6">▶ ' + esc(d['강조메시지']) + '</div>';
-  h += '<div style="white-space:pre-wrap;line-height:1.9">' + esc(d['내용'] || '') + '</div>';
-  if (d['관련본문']) h += '<div style="margin-top:18px;color:#3A3C66">📖 ' + esc(d['관련본문']) + '</div>';
-  if (d['출처']) h += '<div style="margin-top:6px;color:#888;font-size:12pt">출처: ' + esc(d['출처']) + '</div>';
-  if (d['키워드']) h += '<div style="margin-top:6px;color:#888;font-size:12pt">키워드: ' + esc(d['키워드']) + '</div>';
-  if (d['원문']) h += '<details style="margin-top:18px"><summary style="cursor:pointer;color:#888">원문 보기 (강화 전)</summary><div style="white-space:pre-wrap;color:#888;margin-top:8px;line-height:1.8">' + esc(d['원문']) + '</div></details>';
-  openPreview(h);
-}
-/* 인박스 항목 클릭 → 강화 스토리 모달. 상태 버튼(.linkbtn)은 제외 */
+/* 인박스 항목 클릭 → 그 자리에서 강화 스토리 펼침/접힘. 상태 버튼(.linkbtn)·펼친 내부 클릭은 제외 */
 (function(){ var box = $('#inboxList'); if (box) box.addEventListener('click', function(e){
-  if (e.target.closest('.linkbtn')) return;
-  var it = e.target.closest('.idItem'); if (it && it.dataset.open) inboxOpenIdea(it.dataset.open);
+  if (e.target.closest('.linkbtn') || e.target.closest('.idDetail')) return;
+  var it = e.target.closest('.idItem'); if (!it) return;
+  var det = it.querySelector('.idDetail'); if (!det) return;
+  var open = det.style.display !== 'none';
+  det.style.display = open ? 'none' : 'block';
+  var hint = it.querySelector('.idHint'); if (hint) hint.textContent = open ? '… 클릭하면 강화 스토리를 봅니다' : '▲ 접으려면 클릭';
 }); })();
 
 /* 기존 인박스 예화 중 미강화(강조메시지 없음) 항목을 일괄 강화 (API 키 필요) */
@@ -9905,7 +9901,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v225';
+var APP_VER = 'v226';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
