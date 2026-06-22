@@ -4103,6 +4103,14 @@ function docxFileName(meta){
     (meta['제목'] || '무제') + (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
   return name.replace(/[\\/:*?"<>|]/g, '_') + '.docx';
 }
+/* LTC 교재 파일명 — 일반 원고와 달리 '원고유형'(자유원고/기본원고 등)을 넣지 않고,
+   날짜 뒤를 밑줄로 구분한다. 예: LTC교재_20260628_대학부_순종이 시선을 드러냅니다. 요 7_14-24.docx */
+function ltcFileName(meta){
+  var ymd = (meta['날짜'] || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  var name = 'LTC교재_' + ymd + '_' + (meta['예배구분'] ? meta['예배구분'] + '_' : '') +
+    (meta['제목'] || '무제') + (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
+  return name.replace(/[\\/:*?"<>|]/g, '_') + '.docx';
+}
 async function saveDocxBlob(blob, fname, dateStr){
   if (dirHandle) {
     try {
@@ -5389,9 +5397,9 @@ async function aiLtc(id, meta){
       sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 900 } } }, children: ch }]
     });
     var blob = await D.Packer.toBlob(doc);
-    var ltcRel = await saveToLtc(blob, 'LTC교재_' + docxFileName(meta), meta['본문']);
+    var ltcRel = await saveToLtc(blob, ltcFileName(meta), meta['본문']);
     if (!ltcRel) {
-      await saveDocxBlob(blob, 'LTC교재_' + docxFileName(meta), meta['날짜']);
+      await saveDocxBlob(blob, ltcFileName(meta), meta['날짜']);
     }
     if (id) {
       await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': 'LTC교재', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
@@ -6013,7 +6021,7 @@ async function checkAssets(id){
     a['원고작성'] = hit(sermonFileBase(s, s['원고유형'] || '기본원고') + '.docx');
     a['카드원고'] = hit(sermonFileBase(s, '카드원고') + '.docx');
     if (!ltcHandle) { /* LTC 폴더 미지정 — 설교 폴더 연도 방식 폴백 */
-      a['LTC교재'] = hit('LTC교재_' + base);
+      a['LTC교재'] = hit(ltcFileName(s));
       a['리더스앱업로드'] = hit('리더스앱_' + baseTxt);
     }
   } else a.__noDir = true;
@@ -6023,7 +6031,7 @@ async function checkAssets(id){
       var bd = tokL ? await findBookDir(ltcHandle, tokL.ko, false) : null;
       var namesL = {};
       if (bd) { for await (var e8 of bd.values()) { if (e8.kind === 'file') namesL[e8.name] = true; } }
-      a['LTC교재'] = namesL['LTC교재_' + base] ? { ok: true, hit: { dir: bd, name: 'LTC교재_' + base } } : null;
+      a['LTC교재'] = namesL[ltcFileName(s)] ? { ok: true, hit: { dir: bd, name: ltcFileName(s) } } : null;
       a['리더스앱업로드'] = namesL['리더스앱_' + baseTxt] ? { ok: true, hit: { dir: bd, name: '리더스앱_' + baseTxt } } : null;
     } catch (e) {}
   } else if (ltcHandle) a.__noDir = true;
@@ -9684,7 +9692,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v209';
+var APP_VER = 'v210';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
