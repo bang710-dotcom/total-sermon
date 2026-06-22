@@ -2066,7 +2066,7 @@ function illCardU(it){
     + '<summary style="cursor:pointer;list-style:none"><span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
-    + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + esc(it.refs.join('  ·  ')) + '</div>' : '')
+    + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
     + '<div style="margin-top:6px"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button></div></details>';
 }
 function renderIllLib(){
@@ -2253,13 +2253,31 @@ function studyRenderNotes(list, emptyMsg){
 }
 function studyRenderHolman(d){
   if (!d || !d.chapters || !d.chapters[0] || !d.chapters[0][0]) return '<div class="cnt">이 책의 Holman 핸드북 내용이 없습니다.</div>';
+  var R = STUDY.range, tlo = -1, thi = -1;
+  if (R && R.r){ tlo = R.r.c1 * 1000 + R.r.v1; thi = R.r.c2 * 1000 + R.r.v2; }
+  function secRange(title){
+    var m = title.match(/(\d+)\s*:\s*(\d+)(?:\s*[-~]\s*(?:(\d+)\s*:\s*)?(\d+))?/);
+    if (m){ var c1=+m[1], v1=+m[2], c2=m[3]?+m[3]:c1, v2=m[4]?+m[4]:v1; return { lo:c1*1000+v1, hi:c2*1000+v2 }; }
+    m = title.match(/(\d+)\s*장\s*[-~]\s*(\d+)\s*장/) || title.match(/(\d+)\s*[-~]\s*(\d+)\s*장/);
+    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
+    m = title.match(/(\d+)\s*장/);
+    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
+    return null;
+  }
   var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
-  return secs.map(function(sec){
+  var parsed = secs.map(function(sec){
     var nl = sec.indexOf('\n');
     var title = (nl >= 0 ? sec.slice(0, nl) : sec).replace(/^#+\s*/, '').trim();
     var body = nl >= 0 ? sec.slice(nl + 1).trim() : '';
-    var bodyHtml = esc(body).replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
-    return '<details class="hbSec" open><summary>' + esc(title) + '</summary><div class="hbBody">' + bodyHtml + '</div></details>';
+    var rg = secRange(title);
+    var hit = (tlo >= 0 && rg && rg.lo <= thi && tlo <= rg.hi);
+    return { title: title, body: body, hit: hit };
+  });
+  var anyHit = parsed.some(function(p){ return p.hit; });
+  return parsed.map(function(p){
+    var bodyHtml = esc(p.body).replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    var open = anyHit ? p.hit : true;  /* 매칭 구간만 펼침. 매칭 없으면 전부 펼침(폴백) */
+    return '<details class="hbSec' + (p.hit ? ' hbHit' : '') + '"' + (open ? ' open' : '') + '><summary>' + esc(p.title) + '</summary><div class="hbBody">' + bodyHtml + '</div></details>';
   }).join('');
 }
 /* ── 본문연구 AI 정리 (원어·NET·호크마를 근거로 Opus 요약) ── */
@@ -2491,7 +2509,7 @@ function studyRenderPane(){
   }
   if (STUDY.tab === 'holman'){
     pane.innerHTML = '<div class="cnt">Holman 핸드북을 불러오는 중…</div>';
-    studyLoadHolman(R.idx).then(function(d){ if (STUDY.tab === 'holman') pane.innerHTML = studyRenderHolman(d); })
+    studyLoadHolman(R.idx).then(function(d){ if (STUDY.tab === 'holman'){ pane.innerHTML = studyRenderHolman(d); var hit = pane.querySelector('.hbHit'); if (hit && hit.scrollIntoView) hit.scrollIntoView({ block: 'start' }); } })
       .catch(function(e){ if (STUDY.tab === 'holman') pane.innerHTML = '<div class="stWarn">Holman 핸드북을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ') 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
     return;
   }
