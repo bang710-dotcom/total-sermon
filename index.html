@@ -1157,7 +1157,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
           <select id="illCat"><option value="">전체 카테고리</option></select>
           <span class="cnt" id="illCount"></span>
         </div>
-        <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto">📥 인박스 예화 라이브러리 편입 신청</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
+        <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto">📥 인박스 예화 라이브러리로 편입</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
       </div>
       <div id="illResults"></div>
     </section>
@@ -1986,7 +1986,7 @@ function illCard(it){
     + '<div style="margin-top:6px"><button class="linkbtn illInsert" data-illid="' + esc(it.id) + '">＋ 이 예화를 대지에 삽입</button></div></details>';
 }
 function illNormLib(it){ return { key:'lib:'+it.id, src:'lib', category:it.category||'', title:it.title||'', message:it.message||'', story:it.story||'', refs:it.bibleRefs||[] }; }
-function illNormInbox(d){ var story=String(d['내용']||'').trim(); return { key:'inbox:'+d['ID'], src:'inbox', category:'내 인박스', title:d['제목']||illFirstLine(story), message:d['강조메시지']||'', story:story, refs:String(d['관련본문']||'').split(/;\s*/).filter(Boolean) }; }
+function illNormInbox(d){ var story=String(d['내용']||'').trim(); var folded=(d['상태']==='편입됨'); return { key:'inbox:'+d['ID'], src: folded?'lib':'inbox', category: folded?'인박스 편입':'내 인박스', title:d['제목']||illFirstLine(story), message:d['강조메시지']||'', story:story, refs:String(d['관련본문']||'').split(/;\s*/).filter(Boolean) }; }
 function renderRefIllust(){
   var box = $('#c_illust'); if (!box) return;
   var iv = refToInterval($('#c_ref').value);
@@ -2000,7 +2000,7 @@ function renderRefIllust(){
       if (!m[key] || lvl > m[key].lvl) m[key] = { lvl: lvl, it: illNormLib(x.it) };
     });
     (state.data.ideas || []).forEach(function(d){
-      if (d['유형'] !== '예화' || d['상태'] === '편입됨' || !String(d['내용'] || '').trim()) return;
+      if (d['유형'] !== '예화' || !String(d['내용'] || '').trim()) return;
       var best = 0;
       String(d['관련본문'] || '').split(/;\s*/).forEach(function(r){
         var iv2 = refToInterval(r); if (!iv2 || iv2.idx !== iv.idx) return;
@@ -2050,10 +2050,13 @@ function illUnified(){
         message: it.message || '', story: it.story || '', refs: it.bibleRefs || [], keywords: it.keywords || '' });
     });
   }
+  var libT = {}; out.forEach(function(x){ libT[String(x.title).trim()] = 1; });
   (state.data.ideas || []).forEach(function(d){ if (d['유형'] !== '예화') return;
-    if (d['상태'] === '편입됨') return;  /* 라이브러리에 편입됨 — 인박스 출처 중복 방지 */
     var story = String(d['내용'] || '').trim(); if (!story) return;
-    out.push({ key: 'inbox:' + d['ID'], src: 'inbox', category: '내 인박스', title: d['제목'] || illFirstLine(story),
+    var folded = (d['상태'] === '편입됨');
+    var title = d['제목'] || illFirstLine(story);
+    if (folded && libT[String(title).trim()]) return;  /* 번들에 이미 있으면 생략(중복 방지) */
+    out.push({ key: 'inbox:' + d['ID'], src: folded ? 'lib' : 'inbox', category: folded ? '인박스 편입' : '내 인박스', title: title,
       message: d['강조메시지'] || '', story: story, refs: String(d['관련본문'] || '').split(/;\s*/).filter(Boolean), keywords: d['키워드'] || '' });
   });
   return out;
@@ -2110,24 +2113,25 @@ function renderIllLib(){
   });
 })();
 
-/* 인박스 예화 → 라이브러리 정식 편입 '신청' (상태=편입대기 로 표시). 실제 편입(번들 재생성)은 Cowork 변환기/예약작업이 수행. */
+/* 인박스 예화 → 라이브러리로 즉시 편입. 상태를 '편입됨'으로 바꾸면 인박스 리스트에서 사라지고
+   예화 도서관·연결예화에는 라이브러리(인박스 편입) 항목으로 계속 남는다. 터미널·재배포 불필요. */
 async function requestFoldInbox(){
   var targets = (state.data.ideas || []).filter(function(d){
-    return d['유형'] === '예화' && String(d['강조메시지'] || '').trim() && d['상태'] !== '편입됨' && d['상태'] !== '편입대기';
+    return d['유형'] === '예화' && String(d['강조메시지'] || '').trim() && d['상태'] !== '편입됨';
   });
-  if (!targets.length){ toast('편입 신청할 새 예화가 없습니다 (이미 모두 신청/편입됨).'); return; }
-  if (!confirm('강화된 인박스 예화 ' + targets.length + '건을 라이브러리 편입 대기로 표시합니다.\n실제 편입(번들 반영)은 Cowork 일괄 작업에서 진행됩니다. 진행할까요?')) return;
+  if (!targets.length){ toast('편입할 예화가 없습니다 (강화된 인박스 예화가 이미 모두 편입됨).'); return; }
+  if (!confirm('강화된 인박스 예화 ' + targets.length + '건을 라이브러리로 편입합니다.\n인박스 리스트에서는 사라지고, 예화 도서관·연결예화에서 계속 쓸 수 있습니다. 진행할까요?')) return;
   var btn = $('#foldInboxBtn'); if (btn) btn.disabled = true;
   var ok = 0;
   for (var i = 0; i < targets.length; i++){
     var d = targets[i];
-    var h = $('#foldInboxHint'); if (h) h.textContent = '신청 중… ' + (i + 1) + '/' + targets.length;
-    try { await apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '상태': '편입대기' } }); d['상태'] = '편입대기'; ok++; } catch (e) {}
+    var h = $('#foldInboxHint'); if (h) h.textContent = '편입 중… ' + (i + 1) + '/' + targets.length;
+    try { await apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '상태': '편입됨' } }); d['상태'] = '편입됨'; ok++; } catch (e) {}
   }
   saveData(); renderInbox(); renderIllLib();
-  var h2 = $('#foldInboxHint'); if (h2) h2.textContent = '편입대기 ' + ok + '건 — Cowork에서 "인박스 예화 편입해줘" 또는 예약작업으로 라이브러리에 반영됩니다.';
+  var h2 = $('#foldInboxHint'); if (h2) h2.textContent = '라이브러리 편입 완료 ' + ok + '건 (인박스에서 숨김 · 도서관에서 열람·사용).';
   if (btn) btn.disabled = false;
-  toast('편입 신청 완료: ' + ok + '건');
+  toast('라이브러리 편입 완료: ' + ok + '건');
 }
 (function(){ var b = $('#foldInboxBtn'); if (b) b.addEventListener('click', requestFoldInbox); })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
