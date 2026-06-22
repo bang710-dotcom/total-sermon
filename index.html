@@ -5411,11 +5411,112 @@ async function aiLtc(id, meta){
   } catch (e) { renderSyncState(); toast('LTC 교재 실패: ' + e.message); }
 }
 
+/* ── 생성·저장된 LTC 교재 DOCX 되읽기 (사용자 수정·공지사항 반영) ──
+   구조(섹션/박스/요약/나눔 개수·정답 빈칸 제목)는 저장된 LTC JSON(tmpl)을 가이드로 쓰고,
+   각 칸의 '텍스트'는 DOCX의 현재 내용으로 덮어쓴다. 파일이 없거나 형식이 안 맞으면 null 반환 → 기존 JSON 사용. */
+async function ltcDocxFileHandle(meta){
+  var fname = ltcFileName(meta);
+  try {
+    var tok = await refToken(meta['본문']);
+    if (ltcHandle && tok && await dirIf(ltcHandle)) {
+      var bd = await findBookDir(ltcHandle, tok.ko, false);
+      if (bd) { try { return await bd.getFileHandle(fname); } catch (e) {} }
+    }
+  } catch (e) {}
+  try {
+    if (dirHandle && await dirIf(dirHandle)) {
+      var yr = (String(meta['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
+      var yd = await dirHandle.getDirectoryHandle(yr);
+      try { return await yd.getFileHandle(fname); } catch (e) {}
+    }
+  } catch (e) {}
+  return null;
+}
+function parseLtcSections(lines, tmplSecs){
+  var groups = [], expect = 1, cur = null;
+  lines.forEach(function(p){
+    var hm = p.match(/^(\d+)\.\s/);
+    if (hm && parseInt(hm[1], 10) === expect) { cur = { head: p, body: [] }; groups.push(cur); expect++; }
+    else if (cur) cur.body.push(p);
+  });
+  if (!groups.length) return null;
+  return groups.map(function(g, k){
+    var t = tmplSecs[k] || {};
+    var body = g.body.slice();
+    var sharing = t.sharing || '';
+    var shIdx = body.findIndex(function(p){ return /^✦\s*나눔\s*:/.test(p); });
+    if (shIdx >= 0) { sharing = body[shIdx].replace(/^✦\s*나눔\s*:\s*/, '').trim(); body = body.slice(0, shIdx); }
+    var tBoxes = Array.isArray(t.boxes) ? t.boxes : [];
+    var firstBox = body.findIndex(function(p){ return /^\[[\s\S]*\]$/.test(p.trim()); });
+    var paras, boxes = [], summary = t.summary || '';
+    if (firstBox < 0 || !tBoxes.length) {
+      paras = body.slice();
+    } else {
+      paras = body.slice(0, firstBox);
+      var idx = firstBox;
+      for (var bi = 0; bi < tBoxes.length && idx < body.length; bi++){
+        if (!/^\[[\s\S]*\]$/.test(body[idx].trim())) break;
+        var bt = body[idx].trim().replace(/^\[\s*/, '').replace(/\s*\]$/, '');
+        idx++;
+        var nL = (Array.isArray(tBoxes[bi].lines) ? tBoxes[bi].lines.length : 0) || 0;
+        boxes.push({ title: bt, lines: body.slice(idx, idx + nL) });
+        idx += nL;
+      }
+      var rem = body.slice(idx);
+      if (rem.length) summary = rem.join(' ').trim();
+    }
+    return {
+      title: t.title || g.head.replace(/^\d+\.\s*/, ''),   /* 정답 빈칸 제목은 원본(tmpl) 유지 */
+      paras: paras.length ? paras : (t.paras || []),
+      boxes: boxes.length ? boxes : tBoxes,
+      summary: summary,
+      sharing: sharing
+    };
+  });
+}
+function parseLtcParas(paras, tmpl){
+  if (!tmpl || !Array.isArray(tmpl.sections)) return null;
+  var iGbs = paras.findIndex(function(p){ return /^●\s*함께 생각해보기/.test(p); });
+  var iNot = paras.findIndex(function(p){ return /^●\s*공지사항/.test(p); });
+  if (iGbs < 0 || iNot < 0 || iNot < iGbs) return null;
+  var iRead = paras.findIndex(function(p){ return /오늘 본문을 함께 읽어봅시다/.test(p); });
+  var secLines = paras.slice(iRead >= 0 ? iRead + 1 : 0, iGbs);
+  var gbsLines = paras.slice(iGbs + 1, iNot).filter(function(p){ return !/^※/.test(p); });
+  var notLines = paras.slice(iNot + 1);
+  var sections = parseLtcSections(secLines, tmpl.sections);
+  if (!sections || !sections.length) return null;
+  var gbs = gbsLines.map(function(p, k){
+    var m = p.match(/^\d+\.\s*\[([^\]]*)\]\s*([\s\S]*)$/);
+    if (m) return { category: m[1].trim(), text: m[2].trim() };
+    var m2 = p.match(/^\d+\.\s*([\s\S]*)$/);
+    return { category: (tmpl.gbs && tmpl.gbs[k] && tmpl.gbs[k].category) || '', text: (m2 ? m2[1] : p).trim() };
+  }).filter(function(q){ return q.text; });
+  if (!gbs.length && Array.isArray(tmpl.gbs)) gbs = tmpl.gbs;
+  var notices = notLines.map(function(p){ var m = p.match(/^\d+\.\s*([\s\S]*)$/); return (m ? m[1] : p).trim(); })
+    .filter(Boolean).filter(function(t){ return t !== '공지사항을 입력해 주세요.'; });
+  return { sections: sections, gbs: gbs, notices: notices };
+}
+async function readLtcDocxData(meta, tmpl){
+  if (!tmpl) return null;
+  var fh = await ltcDocxFileHandle(meta);
+  if (!fh) return null;
+  if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  var f = await fh.getFile();
+  var zip = await window.JSZip.loadAsync(await f.arrayBuffer());
+  var docp = zip.file('word/document.xml'); if (!docp) return null;
+  var xml = await docp.async('string');
+  var paras = docxXmlToText(xml).split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  return parseLtcParas(paras, tmpl);
+}
 /* 리더스앱 TSV (탭 6개 한 줄, G열 TRUE) */
 async function aiLeadersTsv(id, meta){
   try {
     var key = id || meta['제목'] || '';
-    var data = _ltcJson[key] || sermonLtcData(id);   /* 메모리 → 저장된 LTC 데이터(세션 끊겨도 페어 유지) */
+    var tmpl = _ltcJson[key] || sermonLtcData(id);   /* 구조 가이드: 메모리 → 저장된 LTC 데이터 */
+    var data = null, fromDocx = false;
+    /* 저장된 교재 DOCX가 있으면 그 내용(사용자 수정·공지사항 포함)을 우선 반영 */
+    try { if (tmpl) { var dd = await readLtcDocxData(meta, tmpl); if (dd) { data = dd; fromDocx = true; } } } catch (e) {}
+    if (!data) data = tmpl;
     if (!data) { toast('LTC 교재 내용을 먼저 생성합니다…'); data = await aiLtcData(meta); }
     else _ltcJson[key] = data;
     var sc = await scriptureArr(meta['본문']);
@@ -5464,7 +5565,7 @@ async function aiLeadersTsv(id, meta){
       aiMarkDone(id, '리더스앱업로드', 'Opus API 직결');
     }
     renderSyncState();
-    toast(uploaded ? '리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.');
+    toast((fromDocx ? '저장된 교재 DOCX의 수정·공지 반영 · ' : '') + (uploaded ? '리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.'));
   } catch (e) { renderSyncState(); toast('리더스앱 파일 실패: ' + e.message); }
 }
 
@@ -9702,7 +9803,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v211';
+var APP_VER = 'v212';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
