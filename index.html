@@ -6137,19 +6137,29 @@ window.requestSermonOutput = function(id, type){
 $$('#composeMeta [data-req]').forEach(function(b){
   b.addEventListener('click', function(){
     if (b.dataset.busy === '1') return; /* 연타·중복요청 방지(오버레이가 뜨기 전 구간 포함) */
-    var meta = collectCompose();
-    if (!meta['제목'] && !meta['원고텍스트']) { toast('요청할 내용이 없습니다. 제목이나 원고를 먼저 작성해 주세요.'); return; }
-    var p;
-    if (state.editing) {
-      meta['ID'] = state.editing;
-      p = reqOrDownload(state.editing, b.dataset.req, meta);
-    } else if (aiKey() && AI_DIRECT[b.dataset.req]) {
-      p = ensureReqPerms(b.dataset.req).then(function(){ return AI_DIRECT[b.dataset.req]('', meta); }); /* API 직결 (미저장 설교) — 권한 선확보 */
-    } else {
-      p = writeRequestFile(b.dataset.req, meta);
+    var meta0 = collectCompose();
+    if (!meta0['제목'] && !meta0['원고텍스트']) { toast('요청할 내용이 없습니다. 제목이나 원고를 먼저 작성해 주세요.'); return; }
+    /* 작성 화면: 저장하지 않은 변경이 있으면 저장 여부를 먼저 확인 — 산출물이 '저장한 최종본' 기준으로 만들어지도록 */
+    var pre = Promise.resolve(true);
+    if (composeDirty()) {
+      if (!confirm('저장하지 않은 변경이 있습니다.\n저장한 내용을 기준으로 생성합니다.\n\n[확인] 저장하고 생성 · [취소] 중단')) return;
+      var r = doSaveCompose();
+      if (r === null || r === false) return; /* 제목 없음 / 사용자 취소 → 중단 */
+      pre = Promise.resolve(r).then(function(){ return true; });
     }
     b.dataset.busy = '1'; b.disabled = true;
-    Promise.resolve(p).catch(function(){}).then(function(){ b.dataset.busy = ''; b.disabled = false; });
+    pre.then(function(ok){
+      if (!ok) return;
+      var meta = collectCompose(); /* 저장 후 최신 상태로 재수집(새 설교면 state.editing이 채워짐) */
+      if (state.editing) {
+        meta['ID'] = state.editing;
+        return reqOrDownload(state.editing, b.dataset.req, meta);
+      } else if (aiKey() && AI_DIRECT[b.dataset.req]) {
+        return ensureReqPerms(b.dataset.req).then(function(){ return AI_DIRECT[b.dataset.req]('', meta); }); /* API 직결 (미저장 설교) — 권한 선확보 */
+      } else {
+        return writeRequestFile(b.dataset.req, meta);
+      }
+    }).catch(function(){}).then(function(){ b.dataset.busy = ''; b.disabled = false; });
   });
 });
 
