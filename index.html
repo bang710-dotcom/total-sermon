@@ -2840,7 +2840,15 @@ function renderPoints(){
       if (b.type === 'ill') {
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
           '<span class="blkTag illTag">ex)</span>' +
-          '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)"></div>';
+          '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
+          '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="이 위치에 맞는 예화 추천·생성">AI</button></div>';
+      }
+      if (b.type === 'apply') {
+        var ap = (b.apply || '').replace(/\s+/g, ' ').trim();
+        var aprev = ap ? '<span class="blkBodyPrev">' + esc(ap.slice(0, 30)) + (ap.length > 30 ? '…' : '') + '</span>'
+                       : '<span class="blkHint">적용 — 오른쪽에서 작성</span>';
+        return '<div class="ptBlk applyBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
+          '<span class="blkTag applyTag">적용</span>' + aprev + '</div>';
       }
       var bp = (b.body || '').replace(/\s+/g, ' ').trim();
       var prev = bp ? '<span class="blkBodyPrev">' + esc(bp.slice(0, 30)) + (bp.length > 30 ? '…' : '') + '</span>'
@@ -2856,7 +2864,8 @@ function renderPoints(){
       '<button class="ptBtn" data-act="del" data-i="' + i + '" title="대지 삭제">✕</button></div>' +
       '<div class="ptBlocks">' + blk + '</div>' +
       '<div class="ptAddRow"><button class="linkbtn addBody" data-i="' + i + '">＋ 내용 추가</button>' +
-      '<button class="linkbtn addIll" data-i="' + i + '">＋ 예화 추가</button></div>' +
+      '<button class="linkbtn addIll" data-i="' + i + '">＋ 예화 추가</button>' +
+      '<button class="linkbtn addApply" data-i="' + i + '">＋ 적용 추가</button></div>' +
       '</div>';
   }).join('');
 }
@@ -2897,7 +2906,18 @@ $('#pointList').addEventListener('click', function(e){
   if (ab) {
     var bp = state.compose.points[+ab.dataset.i];
     if (bp) { bp.blocks.push(newBodyBlock('')); renderPoints(); renderEditor(); }
+    return;
   }
+  /* ⑤ 적용 블록 추가 */
+  var aa = e.target.closest('.addApply');
+  if (aa) {
+    var pp = state.compose.points[+aa.dataset.i];
+    if (pp) { pp.blocks.push(newApplyBlock('')); renderPoints(); renderEditor(); }
+    return;
+  }
+  /* ⑥ 예화 위치 맞춤 AI 추천·생성 */
+  var iai = e.target.closest('.ptIllAi');
+  if (iai) { aiIllustration(+iai.dataset.i, +iai.dataset.bi); return; }
 });
 $('#addPoint').addEventListener('click', function(){
   state.compose.points.push(newPoint());
@@ -2908,9 +2928,9 @@ $('#addPoint').addEventListener('click', function(){
 function cwBlockDelete(i, bi){
   var p = state.compose.points[i]; if (!p) return;
   var bl = p.blocks, b = bl[bi]; if (!b) return;
-  var isIll = b.type === 'ill';
-  var hasC = isIll ? ((b.ill || '').trim() || (b.illBody || '').trim()) : (b.body || '').trim();
-  if (hasC && !confirm((isIll ? '이 예화를' : '이 내용 블록을') + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
+  var lbl = b.type === 'ill' ? '이 예화를' : b.type === 'apply' ? '이 적용 블록을' : '이 내용 블록을';
+  var hasC = b.type === 'ill' ? ((b.ill || '').trim() || (b.illBody || '').trim()) : b.type === 'apply' ? (b.apply || '').trim() : (b.body || '').trim();
+  if (hasC && !confirm(lbl + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
   bl.splice(bi, 1);
   if (!bl.length) bl.push(newBodyBlock(''));
   renderPoints(); renderEditor();
@@ -3043,17 +3063,18 @@ function parseFreeToStructure(){
   var pts = [], cur = null, bodyAcc = [], curIll = null, applyAcc = [], mode = 'body';
   function flushBody(){ if (cur) { var t = jt(bodyAcc); if (t) cur.blocks.push(newBodyBlock(t)); } bodyAcc = []; }
   function flushIll(){ if (cur && curIll) { curIll.illBody = jt(curIll._b); delete curIll._b; cur.blocks.push(curIll); } curIll = null; }
-  function closePoint(){ if (cur) { flushBody(); flushIll(); cur.apply = jt(applyAcc); if (!cur.blocks.length) cur.blocks = [newBodyBlock('')]; pts.push(cur); } cur = null; bodyAcc = []; curIll = null; applyAcc = []; mode = 'body'; }
+  function flushApply(){ if (cur) { var t = jt(applyAcc); if (t) cur.blocks.push(newApplyBlock(t)); } applyAcc = []; }
+  function closePoint(){ if (cur) { flushBody(); flushIll(); flushApply(); if (!cur.blocks.length) cur.blocks = [newBodyBlock('')]; pts.push(cur); } cur = null; bodyAcc = []; curIll = null; applyAcc = []; mode = 'body'; }
   for (var j = firstHead; j < bodyEnd; j++) {
     var l = lines[j];
-    if (isStructHead(l)) { closePoint(); cur = { text: structHeadProp(l), blocks: [], apply: '' }; mode = 'body'; continue; }
+    if (isStructHead(l)) { closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue; }
     if (/^\s*(▶|【)/.test(l)) continue; /* 이미지 전환 바 등은 건너뜀 */
     var exm = l.match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
-    if (exm) { flushBody(); flushIll(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
+    if (exm) { flushBody(); flushIll(); flushApply(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
     var cm = l.match(/^\s*\((?:대지\s*)?내용\)\s*(.*)$/);
-    if (cm) { flushBody(); flushIll(); mode = 'body'; if (cm[1].trim()) bodyAcc.push(cm[1]); continue; }
+    if (cm) { flushBody(); flushIll(); flushApply(); mode = 'body'; if (cm[1].trim()) bodyAcc.push(cm[1]); continue; }
     var am = l.match(/^\s*\(적용\)\s*(.*)$/);
-    if (am) { flushBody(); flushIll(); mode = 'apply'; if (am[1].trim()) applyAcc.push(am[1]); continue; }
+    if (am) { flushBody(); flushIll(); flushApply(); mode = 'apply'; if (am[1].trim()) applyAcc.push(am[1]); continue; }
     var sm = l.match(/^\s*\(서론\)\s*(.*)$/); if (sm) l = sm[1];
     if (mode === 'ill' && curIll) curIll._b.push(l);
     else if (mode === 'apply') applyAcc.push(l);
@@ -3094,7 +3115,7 @@ function parseSummaryToStructure(){
     if (h) {
       var tag = h[1];
       if (tag.indexOf('서론') === 0) cur = { k: 'intro' };
-      else if (tag.indexOf('대지') === 0) { var p = { text: smd(h[2]), blocks: [], apply: '' }; pts.push(p); cur = { k: 'pt', p: p, cb: null }; }
+      else if (tag.indexOf('대지') === 0) { var p = { text: smd(h[2]), blocks: [] }; pts.push(p); cur = { k: 'pt', p: p, cb: null, ab: null }; }
       else cur = { k: 'conc' };
       return;
     }
@@ -3108,7 +3129,9 @@ function parseSummaryToStructure(){
       cur.p.blocks.push(newIllBlock(smd(seg[0]), seg.length > 1 ? smd(seg.slice(1).join(' — ')) : ''));
       cur.cb = null; /* 예화 뒤 이어지는 본문은 새 내용 블록으로 (순서 보존) */
     } else if (/^적용\s*[:：]/.test(sm)) {
-      cur.p.apply = (cur.p.apply ? cur.p.apply + '\n' : '') + sm.replace(/^적용\s*[:：]\s*/, '');
+      if (!cur.ab) { cur.ab = newApplyBlock(''); cur.p.blocks.push(cur.ab); }
+      cur.ab.apply = (cur.ab.apply ? cur.ab.apply + '\n' : '') + sm.replace(/^적용\s*[:：]\s*/, '');
+      cur.cb = null;
     } else {
       if (!cur.cb) { cur.cb = newBodyBlock(''); cur.p.blocks.push(cur.cb); }
       cur.cb.body = (cur.cb.body ? cur.cb.body + '\n' : '') + sm;
@@ -3233,13 +3256,18 @@ function renderEditor(){
     c.points.forEach(function(p, i){
       p = normPoint(p); c.points[i] = p;
       var illTot = p.blocks.filter(function(b){ return b.type === 'ill'; }).length;
-      var bodyTot = p.blocks.length - illTot;
-      var illN = 0, bodyN = 0;
+      var applyTot = p.blocks.filter(function(b){ return b.type === 'apply'; }).length;
+      var bodyTot = p.blocks.length - illTot - applyTot;
+      var illN = 0, bodyN = 0, applyN = 0;
       var inner = p.blocks.map(function(b, bi){
         if (b.type === 'ill') {
           illN++;
           return '<div class="edEx" data-x="' + i + '.' + bi + '"></div>' +
             '<div class="edLabel" style="margin-top:8px">예화' + (illTot > 1 ? ' ' + illN : '') + '</div>' + ta(null, i, 'illBody', 4, '예화 세부 내용', b.illBody, null, bi);
+        }
+        if (b.type === 'apply') {
+          applyN++;
+          return '<div class="edLabel applyLbl" style="margin-top:8px">적용' + (applyTot > 1 ? ' ' + applyN : '') + '</div>' + ta(null, i, 'apply', 3, '적용 — 청중이 "내 얘기다" 느끼게 (실천은 그 다음 칸/줄)', b.apply, null, bi);
         }
         bodyN++;
         return '<div class="edLabel" style="margin-top:8px">내용' + (bodyTot > 1 ? ' ' + bodyN : '') + '</div>' + ta(null, i, 'body', 5, '대지 내용을 풀어 쓰세요', b.body, null, bi);
@@ -3247,7 +3275,6 @@ function renderEditor(){
       html += '<div class="edPoint">' +
         '<div class="edPointTitle" data-h="' + i + '"></div>' +
         inner +
-        '<div class="edLabel" style="margin-top:8px">적용</div>' + ta(null, i, 'apply', 3, '적용·실천', p.apply) +
         '</div>';
     });
     html += '<div class="edPoint"><div class="edPointTitle">결론</div>' +
