@@ -2631,8 +2631,8 @@ function composePoints(){
   var out = [];
   (state.compose.points || []).forEach(function(p, idx){
     var text = String(p.text || '').trim(); if (!text) return;
-    var body = pBlocks(p).filter(function(b){ return b.type !== 'ill'; }).map(function(b){ return String(b.body || '').trim(); }).filter(Boolean).join(' ');
-    out.push({ 문: text, 근거: body, 적용: String(p.apply || '').trim(), _i: idx });
+    var body = pBlocks(p).filter(function(b){ return b.type === 'body'; }).map(function(b){ return String(b.body || '').trim(); }).filter(Boolean).join(' ');
+    out.push({ 문: text, 근거: body, 적용: pApplyText(p), _i: idx });
   });
   return out;
 }
@@ -2652,7 +2652,10 @@ function fillPointBody(pidx, text){
 }
 function fillPointApply(pidx, text){
   var p = state.compose.points[pidx]; if (!p) return;
-  p.apply = (p.apply ? p.apply.trim() + '\n' : '') + text;
+  var aps = pBlocks(p).filter(function(b){ return b.type === 'apply'; });
+  var blk = aps[aps.length - 1];
+  if (!blk){ blk = newApplyBlock(''); p.blocks.push(blk); }
+  blk.apply = (blk.apply ? blk.apply.trim() + '\n' : '') + text;
   renderPoints(); renderEditor(); updateAutoBits();
   toast('대지 ' + (pidx + 1) + ' 적용에 넣었습니다.');
 }
@@ -3428,13 +3431,16 @@ function assembleText(){
         if ((b.ill || '').trim()) L.push('ex) ' + b.ill.trim());
         if ((b.illBody || '').trim()) L.push(b.illBody.trim());
         seenIll = true;
+      } else if (b.type === 'apply') {
+        if (!(b.apply || '').trim()) return;
+        L.push('');
+        L.push('(적용) ' + b.apply.trim());
       } else if ((b.body || '').trim()) {
         L.push('');
         if (seenIll) L.push('(대지 내용)');   /* 예화 뒤 본문은 마커로 구분 — 재불러올 때 예화에 합쳐지지 않게 */
         L.push(b.body.trim());
       }
     });
-    if ((p.apply || '').trim()) { L.push(''); L.push('(적용) ' + p.apply.trim()); }
     L.push('');   /* 대지 사이 한 줄 */
   });
   L.push(c.concIntro.trim() || '말씀을 정리합니다.');
@@ -3464,7 +3470,7 @@ function structSig(){
   try {
     var pts = (c.points || []).map(function(p){
       return { t: (p.text || ''), a: (p.apply || ''),
-        b: pBlocks(p).map(function(x){ return [x.type || '', x.body || '', x.ill || '', x.illBody || '']; }) };
+        b: pBlocks(p).map(function(x){ return [x.type || '', x.body || '', x.ill || '', x.illBody || '', x.apply || '']; }) };
     });
     return JSON.stringify([c.intro || '', c.concIntro || '', c.concBody || '', pts]);
   } catch (e) { return ''; }
@@ -3891,9 +3897,10 @@ function parasFromCompose(meta, c){
         if ((b.ill || '').trim()) push('ex) ' + b.ill.trim(), true, EX_BLUE);
         if ((b.illBody || '').trim()) b.illBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
         blank(); /* 블록 사이 한 줄 */
+      } else if (b.type === 'apply') {
+        if ((b.apply || '').trim()) { push('(적용)', true); b.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
       } else if ((b.body || '').trim()) { b.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
     });
-    if ((p.apply || '').trim()) { push('(적용)', true); p.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
     blank(); /* 대지 사이 한 줄 (blank()는 중복 빈줄 방지) */
   });
   /* 결론 */
@@ -9807,6 +9814,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
               if (b.type === 'ill') {
                 var ill = [String(b.ill || '').trim(), String(b.illBody || '').trim()].filter(Boolean).join(' — ');
                 if (ill) seg.push('  예화: ' + ill);
+              } else if (b.type === 'apply') {
+                if (String(b.apply || '').trim()) seg.push('  적용: ' + String(b.apply).trim());
               } else if (String(b.body || '').trim()) seg.push('  내용: ' + String(b.body).trim());
             });
             if (String(p.apply || '').trim()) seg.push('  적용: ' + String(p.apply).trim());
