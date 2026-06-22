@@ -2288,20 +2288,7 @@ function studyRenderHolman(d){
     if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
     return null;
   }
-  function hbBody(body){
-    var imgs = [];
-    var withImg = String(body).replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, src){
-      var url = /^https?:\/\//.test(src) ? src : (COM_BASE + '/' + String(src).replace(/^\.?\//, ''));
-      imgs.push({ url: url, alt: alt });
-      return '@@HBIMG' + (imgs.length - 1) + '@@';
-    });
-    var html = linkifyRefs(withImg);
-    html = html.replace(/@@HBIMG(\d+)@@/g, function(_, i){
-      var im = imgs[+i] || {};
-      return '<div style="margin:8px 0"><img src="' + (im.url || '') + '" alt="' + esc(im.alt || '') + '" style="max-width:100%;border-radius:8px" loading="lazy"></div>';
-    });
-    return html.replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
-  }
+  var hbBody = hbRenderBody;
   var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
   var parsed = secs.map(function(sec){
     var nl = sec.indexOf('\n');
