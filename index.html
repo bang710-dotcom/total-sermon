@@ -3629,6 +3629,13 @@ function structSig(){
   } catch (e) { return ''; }
 }
 function composeHasAnyContent(){ var c = state.compose; return !!((c.free || '').trim()) || structHasContent(c); }
+/* 작성 버퍼를 비우거나 다른 항목으로 교체하기 전, 미저장 변경이 있으면 확인.
+   true=진행 가능, false=사용자가 취소. 빈 작성칸이거나 저장된 상태 그대로면 조용히 통과. */
+function confirmDiscardCompose(msg){
+  if (!composeHasAnyContent()) return true;
+  if (!composeDirty()) return true;
+  return confirm(msg || '작성 중인 내용이 저장되지 않았습니다. 버리고 진행할까요?');
+}
 function clearCompose(){
   state.editing = null;
   state.versionOf = null;
@@ -3683,11 +3690,9 @@ function editSermonFill(id){
   showPage('compose');
 }
 /* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
-window.editSermon = function(id){ loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
+window.editSermon = function(id){ if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 불러올까요?')) return; loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
 $('#c_new').addEventListener('click', function(){
-  var c = state.compose;
-  var hasContent = c.free.trim() || c.intro.trim() || c.points.some(function(p){ return pStructFilled(p); });
-  if (hasContent && !confirm('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
+  if (!confirmDiscardCompose('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
   clearCompose();
 });
 
@@ -3695,6 +3700,7 @@ $('#c_new').addEventListener('click', function(){
 var CW_INPROGRESS = { '구상/연구': 1, '작성중': 1, '구상': 1, '연구': 1 /* 구버전 호환 */ };
 /* 설교를 직접 수정 모드로 불러와 이어 작업 (저장 시 같은 행 업데이트) */
 window.resumeSermon = function(id, el){
+  if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 이어쓸까요?')) return;
   loadSermonThen(id, el, '설교를 불러오는 중…', function(){
     editSermonFill(id);             /* 내용 로드 (+ compose 화면 전환) */
     state.editing = id; state.versionOf = null;  /* 새버전이 아니라 직접 수정으로 */
@@ -4477,16 +4483,32 @@ function saveDevoNote(){
   else body = { action: 'add', sheet: 'devonotes', data: data };
   submit(body, '묵상 저장 완료');
 }
+/* 현재 묵상 화면 입력칸의 값(트림) */
+function devoCurInputs(){
+  var o = {};
+  DEVO_FIELDS.forEach(function(k){ var el = document.querySelector('[data-devo="' + k + '"]'); o[k] = el ? el.value.trim() : ''; });
+  return o;
+}
+/* 입력칸이 있고 저장본과 달라졌으면 미저장 변경으로 본다 */
+function confirmLeaveDevo(){
+  if (!document.querySelector('[data-devo]')) return true;
+  var cur = devoCurInputs();
+  if (!DEVO_FIELDS.some(function(k){ return cur[k]; })) return true; /* 모두 비어있으면 통과 */
+  var saved = devoNoteFor(devoState.date) || {};
+  var dirty = DEVO_FIELDS.some(function(k){ return cur[k] !== String(saved[k] || '').trim(); });
+  if (!dirty) return true;
+  return confirm('묵상 답안이 저장되지 않았습니다. 버리고 이동할까요?');
+}
 function shiftDevoDate(days){
   var d = new Date(devoState.date + 'T12:00:00');
   d.setDate(d.getDate() + days);
   devoState.date = d.toISOString().slice(0, 10);
   renderDevo();
 }
-$('#devoPrev').addEventListener('click', function(){ shiftDevoDate(-1); });
-$('#devoNext').addEventListener('click', function(){ shiftDevoDate(1); });
-$('#devoToday').addEventListener('click', function(){ devoState.date = new Date().toISOString().slice(0, 10); renderDevo(); });
-$('#devoDate').addEventListener('change', function(){ if (this.value) { devoState.date = this.value; renderDevo(); } });
+$('#devoPrev').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(-1); });
+$('#devoNext').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(1); });
+$('#devoToday').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; devoState.date = new Date().toISOString().slice(0, 10); renderDevo(); });
+$('#devoDate').addEventListener('change', function(){ if (!this.value) return; if (!confirmLeaveDevo()) { this.value = devoState.date; return; } devoState.date = this.value; renderDevo(); });
 
 /* ===================== Claude API 직결 (Opus 4.8) =====================
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
@@ -5731,6 +5753,7 @@ async function archiveOccOptions(O){
 window.occPick = function(i){
   var O = state.occ, o = O.opts[i];
   if (!o) return;
+  if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 개요로 시작할까요?')) return;
   clearCompose();
   if (O.date) $('#c_date').value = O.date;
   $('#c_title').value = o['제목'] || '';
@@ -8769,6 +8792,9 @@ $('#fullSyncBtn').addEventListener('click', function(){ fullResync(); });
 /* ===================== 페이지 전환 ===================== */
 function showPage(name){
   if (!name) return; /* data-page 없는 버튼(예: 더보기)으로 인한 빈 화면 방지 */
+  /* 작성 화면을 떠날 때 미저장 변경이 있으면 확인(취소 시 현재 화면 유지) */
+  var _curPage = ((document.querySelector('.page.on') || {}).id || '').replace('page-', '');
+  if (_curPage === 'compose' && name !== 'compose' && !confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 화면을 이동할까요?')) return;
   $$('.page').forEach(function(p){ p.classList.remove('on'); });
   var pg = $('#page-' + name);
   if (pg) pg.classList.add('on');
