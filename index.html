@@ -2266,14 +2266,16 @@ function studyRenderHolman(d){
     return null;
   }
   function hbBody(body){
-    /* 마크다운 이미지 → 토큰(이후 esc 회피) */
+    var imgs = [];
     var withImg = String(body).replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, src){
       var url = /^https?:\/\//.test(src) ? src : (COM_BASE + '/' + String(src).replace(/^\.?\//, ''));
-      return 'IMG' + url + '' + alt + '';
+      imgs.push({ url: url, alt: alt });
+      return '@@HBIMG' + (imgs.length - 1) + '@@';
     });
-    var html = linkifyRefs(withImg);  /* 성경 표기 클릭 가능 + esc */
-    html = html.replace(/IMG([^]+)([^]*)/g, function(_, url, alt){
-      return '<div style="margin:8px 0"><img src="' + url + '" alt="' + esc(alt) + '" style="max-width:100%;border-radius:8px" loading="lazy"></div>';
+    var html = linkifyRefs(withImg);
+    html = html.replace(/@@HBIMG(\d+)@@/g, function(_, i){
+      var im = imgs[+i] || {};
+      return '<div style="margin:8px 0"><img src="' + (im.url || '') + '" alt="' + esc(im.alt || '') + '" style="max-width:100%;border-radius:8px" loading="lazy"></div>';
     });
     return html.replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   }
