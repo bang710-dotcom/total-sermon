@@ -306,10 +306,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #illOv.on{display:flex;animation:fade .12s ease}
 .illBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:620px;max-width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .illOvBody{padding:12px 14px;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.illOpt{display:block;width:100%;text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:9px;cursor:pointer;font-family:inherit}
-.illOpt:hover{border-color:var(--accent)}
+.illOpt{display:block;width:100%;text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:9px;font-family:inherit}
 .illOptT{font-weight:700;font-size:14px;color:var(--accent2);margin-bottom:4px}
 .illOptB{font-size:13px;line-height:1.6;color:var(--text)}
+.illOptAct{display:flex;gap:7px;margin-top:9px}
+.illOptAct .btn{flex:0 0 auto}
+.illDoneBtn{color:var(--ok)!important;border-color:var(--ok)!important;opacity:1!important}
+.illOvFoot{position:sticky;bottom:0;background:var(--card);padding:10px 0 2px;display:flex;justify-content:flex-end;border-top:1px solid var(--line);margin-top:4px}
 #studyOv{position:fixed;inset:0;z-index:330;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
 #studyOv.on{display:flex;animation:fade .12s ease}
 .studyBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:1180px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
@@ -2773,21 +2776,47 @@ async function aiIllustration(i, bi){
 }
 function illPick(i, bi, role, arr){
   var ov = $('#illOv'); if (!ov) return;
-  $('#illOvTitle').textContent = (role === 'apply' ? '적용 강화' : '본문 이해') + ' 예화 추천 — 하나를 누르면 이 예화 칸에 채워집니다';
-  $('#illOvBody').innerHTML = arr.map(function(d, k){ return '<button class="illOpt" type="button" data-k="' + k + '"><div class="illOptT">' + esc(d.제목 || '') + '</div><div class="illOptB">' + esc(d.내용 || '') + '</div></button>'; }).join('');
-  ILL_PEND = { i: i, bi: bi, arr: arr };
+  $('#illOvTitle').textContent = (role === 'apply' ? '적용 강화' : '본문 이해') + ' 예화 추천 — 여러 개 추가하거나 도서관에 저장하세요';
+  $('#illOvBody').innerHTML = arr.map(function(d, k){
+    return '<div class="illOpt" data-k="' + k + '">'
+      + '<div class="illOptT">' + esc(d.제목 || '') + '</div>'
+      + '<div class="illOptB">' + esc(d.내용 || '') + '</div>'
+      + '<div class="illOptAct"><button class="btn sub mini illAdd" type="button" data-k="' + k + '">＋ 원고에 추가</button>'
+      + '<button class="btn sub mini illSave" type="button" data-k="' + k + '">📚 도서관 저장</button></div>'
+      + '</div>';
+  }).join('') + '<div class="illOvFoot"><button class="btn" id="illDone" type="button">완료</button></div>';
+  ILL_PEND = { i: i, bi: bi, arr: arr, added: {}, saved: {}, usedExisting: false, lastBi: bi };
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+}
+function illAddToManuscript(k, btn){
+  if (!ILL_PEND || ILL_PEND.added[k]) return;
+  var p = state.compose.points[ILL_PEND.i]; if (!p) return;
+  var d = ILL_PEND.arr[k], bi, cur = pBlocks(p)[ILL_PEND.bi];
+  if (!ILL_PEND.usedExisting && cur && cur.type === 'ill' && !(cur.ill || '').trim() && !(cur.illBody || '').trim()){
+    cur.ill = d.제목 || ''; cur.illBody = d.내용 || ''; bi = ILL_PEND.bi; ILL_PEND.usedExisting = true;
+  } else {
+    p.blocks.splice(ILL_PEND.lastBi + 1, 0, newIllBlock(d.제목 || '', d.내용 || '')); bi = ILL_PEND.lastBi + 1;
+  }
+  ILL_PEND.lastBi = bi; ILL_PEND.added[k] = true;
+  renderPoints(); renderEditor();
+  btn.textContent = '추가됨 ✓'; btn.disabled = true; btn.classList.add('illDoneBtn');
+}
+function illSaveToLibrary(k, btn){
+  if (!ILL_PEND || ILL_PEND.saved[k]) return;
+  var d = ILL_PEND.arr[k];
+  btn.disabled = true; btn.textContent = '저장 중…';
+  var data = { '유형': '예화', '제목': d.제목 || '', '내용': d.내용 || '', '출처': 'AI 예화 추천', '관련본문': $('#c_ref').value.trim(), '상태': '새것' };
+  submit({ action: 'add', sheet: 'ideas', data: data }, '예화 도서관에 저장 완료').then(function(){
+    if (ILL_PEND) ILL_PEND.saved[k] = true;
+    btn.textContent = '저장됨 ✓'; btn.classList.add('illDoneBtn');
+  }).catch(function(e){ btn.disabled = false; btn.textContent = '📚 도서관 저장'; toast('저장 실패: ' + ((e && e.message) || e)); });
 }
 (function(){
   var ov = $('#illOv'); if (!ov) return;
   ov.addEventListener('click', function(e){
-    if (e.target === ov || (e.target.closest && e.target.closest('#illOvClose'))){ ov.classList.remove('on'); ILL_PEND = null; return; }
-    var op = e.target.closest && e.target.closest('.illOpt');
-    if (op && ILL_PEND){
-      var d = ILL_PEND.arr[+op.dataset.k], p = state.compose.points[ILL_PEND.i], b = p && pBlocks(p)[ILL_PEND.bi];
-      if (b && b.type === 'ill'){ b.ill = d.제목 || ''; b.illBody = d.내용 || ''; renderPoints(); renderEditor(); toast('예화를 채웠습니다.'); }
-      ov.classList.remove('on'); ILL_PEND = null;
-    }
+    if (e.target === ov || (e.target.closest && (e.target.closest('#illOvClose') || e.target.closest('#illDone')))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); ILL_PEND = null; return; }
+    var addB = e.target.closest && e.target.closest('.illAdd'); if (addB){ illAddToManuscript(+addB.dataset.k, addB); return; }
+    var saveB = e.target.closest && e.target.closest('.illSave'); if (saveB){ illSaveToLibrary(+saveB.dataset.k, saveB); return; }
   });
 })();
 
@@ -9519,7 +9548,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v203';
+var APP_VER = 'v204';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
