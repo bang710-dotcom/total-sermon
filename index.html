@@ -5359,8 +5359,9 @@ async function aiLtc(id, meta){
     function P(opts){ ch.push(new D.Paragraph(opts)); }
     function R(t, o){ o = o || {}; return new D.TextRun({ text: t, bold: o.b, italics: o.i, size: o.s || 21, color: o.c }); }
     var dateB = ltcSaturday(meta['날짜']);
+    var seqLtc = String(meta['시리즈순번'] || '').trim();   /* 헤더는 장(章)이 아니라 시리즈 회차(순번) 기준 — 없으면 본문 장으로 폴백 */
     P({ shading: { type: D.ShadingType.CLEAR, fill: '1F3864' }, spacing: { after: 160 }, indent: { left: 240 },
-      children: [R('영락대학부 LTC', { b: 1, c: 'FFFFFF', s: 24 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(dateB, { c: 'FFFFFF', s: 22 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(sc.bk.ko + ' ' + sc.range.c1, { c: 'FFFFFF', s: 22 })] });
+      children: [R('영락대학부 LTC', { b: 1, c: 'FFFFFF', s: 24 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(dateB, { c: 'FFFFFF', s: 22 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(sc.bk.ko + ' ' + (seqLtc || sc.range.c1), { c: 'FFFFFF', s: 22 })] });
     P({ alignment: D.AlignmentType.CENTER, spacing: { after: 40 }, children: [R('- ' + (meta['본문'] || '') + ' -', { s: 20, c: '555555' })] });
     P({ alignment: D.AlignmentType.CENTER, spacing: { after: 160 }, children: [R('"' + (meta['제목'] || '') + '"', { b: 1, s: 32 })] });
     P({ spacing: { after: 160 }, children: [R('오늘 본문을 함께 읽어봅시다. (개역개정)  - ' + (meta['본문'] || '') + ' -', { b: 1 })] });
@@ -5506,6 +5507,19 @@ async function readLtcDocxData(meta, tmpl){
   var xml = await docp.async('string');
   var paras = docxXmlToText(xml).split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
   return parseLtcParas(paras, tmpl);
+}
+/* LTC 데이터의 '내용 서명' — 본문/박스/요약/나눔/GBS/공지의 텍스트만 정규화해 비교용.
+   제목(정답 빈칸)·구조 개수는 제외 — DOCX 되읽기에서 tmpl을 그대로 따르는 부분이라 차이 판단에 부적절. */
+function ltcContentSig(d){
+  if (!d) return '';
+  var secs = (d.sections || []).map(function(s){
+    return [(s.paras || []).join('¶'),
+      (s.boxes || []).map(function(b){ return (b.title || '') + '|' + (b.lines || []).join('¶'); }).join('‖'),
+      (s.summary || ''), (s.sharing || '')].join('§');
+  }).join('§§');
+  var gbs = (d.gbs || []).map(function(g){ return (g.category || '') + '|' + (g.text || ''); }).join('§');
+  var nts = (d.notices || []).join('§');
+  return [secs, gbs, nts].join('###').replace(/\s+/g, ' ').trim();
 }
 /* 리더스앱 TSV (탭 6개 한 줄, G열 TRUE) */
 async function aiLeadersTsv(id, meta){
