@@ -5557,13 +5557,13 @@ async function aiLeadersTsv(id, meta){
     var row = cols.join('\t');
     if (row.split('\t').length !== 7 || /[\r\n]/.test(row)) throw new Error('TSV 검증 실패');
     JSON.parse(es); /* E열 유효성 */
-    var uploaded = false, laUrl = (state.settings || {}).laUrl, laToken = (state.settings || {}).laToken;
+    var uploaded = false, unpub = 0, laUrl = (state.settings || {}).laUrl, laToken = (state.settings || {}).laToken;
     if (laUrl && laToken && navigator.onLine) {   /* 설정돼 있으면 통합시트에 한 줄 직접 추가 */
       try {
         var rj = await fetch(laUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ token: laToken, action: 'append', cols: cols }) }).then(function(r){ return r.json(); });
         if (!rj || !rj.ok) throw new Error((rj && rj.error) || '업로드 응답 오류');
-        uploaded = true;
+        uploaded = true; unpub = (rj.data && rj.data.unpublished) || 0;
       } catch (ue) { toast('리더스앱 직접 업로드 실패 — 파일로 받습니다: ' + ue.message); }
     }
     if (!uploaded) {
@@ -5589,7 +5589,7 @@ async function aiLeadersTsv(id, meta){
       aiMarkDone(id, '리더스앱업로드', 'Opus API 직결');
     }
     renderSyncState();
-    toast((fromDocx ? '저장된 교재 DOCX의 수정·공지 반영 · ' : '') + (uploaded ? '리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' : ((!laUrl || !laToken) ? '리더스앱 업로드 URL/토큰이 설정에 없어 파일로 받았습니다 — 설정에 입력하면 바로 업로드됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.')));
+    toast((fromDocx ? '저장된 교재 DOCX의 수정·공지 반영 · ' : '') + (uploaded ? ('리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' + (unpub ? ' (이전 버전 ' + unpub + '건 게시 해제)' : '')) : ((!laUrl || !laToken) ? '리더스앱 업로드 URL/토큰이 설정에 없어 파일로 받았습니다 — 설정에 입력하면 바로 업로드됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.')));
   } catch (e) { renderSyncState(); toast('리더스앱 파일 실패: ' + e.message); }
 }
 
@@ -6225,7 +6225,7 @@ async function reqOrDownload(id, type, meta){
     /* 리더스앱업로드는 '다운로드 파일'이 아니라 '업로드 동작' — 완료 상태에서도 저장된 파일을 받는 대신 다시 업로드를 실행한다.
        (이렇게 해야 DOCX 수정 감지·직접 업로드가 동작한다. 통합시트는 새 행이 맨 위에 추가됨) */
     if (type === '리더스앱업로드') {
-      if (!confirm('이미 리더스앱에 업로드한 기록이 있습니다.\n다시 업로드하면 통합시트 맨 위에 새 행이 추가됩니다(기존 행은 시트에서 직접 정리하세요).\n\n다시 업로드할까요?')) return;
+      if (!confirm('지금 생성된 교재로 다시 업로드 할까요?\n시트에 올라가 있던 이전 버전은 게시여부가 자동으로 해제되고, 새 버전이 게시됩니다.')) return;
       if (aiKey()) { aiLeadersTsv(id, meta); return; }
       writeRequestFile(type, meta); return;
     }
@@ -9856,7 +9856,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v216';
+var APP_VER = 'v217';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
