@@ -1516,6 +1516,29 @@ function upsertById(arr, incoming){
 function _editingGuardId(){
   try { return (state.editing && composeDirty()) ? String(state.editing) : null; } catch(e){ return null; }
 }
+/* ── 동시 편집 충돌 감지(문제 4) ──
+   내가 한 설교를 미저장 편집 중일 때, 동기화로 들어온 같은 설교의 '시트 최신본'이
+   내가 편집을 시작한 기준본과 내용이 다르면 = 다른 기기가 그 설교를 바꿨다는 뜻.
+   덮어쓰지 않고 보호하되(state.editingGuard), 저장 전에 경고하고 '다른 기기 내용 보기'를 제공한다.
+   비교는 목록 응답에 들어오는 필드로만(원고텍스트는 목록에서 생략되므로 제외 — 한계). */
+var _CONFLICT_FIELDS = ['날짜','예배구분','시리즈','시리즈순번','제목','본문','상태','핵심메시지','대지','예화','키워드','비고','요약본','원고유형'];
+function _rowContentSig(r){
+  if (!r) return '';
+  return _CONFLICT_FIELDS.map(function(f){ return String(r[f] == null ? '' : r[f]); }).join('');
+}
+/* incomingRow(시트 최신본)를 현재 기준본(state.data의 같은 ID 행)과 비교해 다르면 충돌로 표시 */
+function _maybeFlagConflict(incomingRow, baseRow){
+  try {
+    if (!incomingRow) return;
+    var base = baseRow || (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(incomingRow['ID']); })[0];
+    if (!base) return;
+    if (_rowContentSig(incomingRow) === _rowContentSig(base)) return;   /* 의미있는 변경 없음(자기 저장 에코 등) */
+    var isNew = !state.remoteConflict || _rowContentSig(state.remoteConflict) !== _rowContentSig(incomingRow);
+    state.remoteConflict = incomingRow;
+    try { updateComposeBadge(); } catch(e){}
+    if (isNew) { try { toast('이 설교가 다른 기기에서 수정되었습니다 — 저장 전에 덮어쓰기 여부를 확인합니다.'); } catch(e){} }
+  } catch(e){}
+}
 function mergeDelta(d){
   var keepId = _editingGuardId();
   DELTA_KEYS.forEach(function(k){
@@ -1529,7 +1552,11 @@ function mergeDelta(d){
         return !(String(o['ID'] || '') === '' && seen[(o['설교ID'] || '') + '|' + (o['유형'] || '')]);
       });
     }
-    /* 편집 중인 설교 행은 원격 변경분에서 제외(로컬 편집본 유지) */
+    /* 편집 중인 설교 행은 원격 변경분에서 제외(로컬 편집본 유지) — 단, 다른 기기가 바꿨으면 충돌로 표시 */
+    if (k === 'sermons' && keepId) {
+      var incRow = d[k].filter(function(r){ return String(r['ID']) === keepId; })[0];
+      if (incRow) _maybeFlagConflict(incRow);
+    }
     var inc = (k === 'sermons' && keepId) ? d[k].filter(function(r){ return String(r['ID']) !== keepId; }) : d[k];
     upsertById(state.data[k], inc);
   });
@@ -1570,7 +1597,11 @@ function _pullData(opts){
       var keepId = _editingGuardId();
       if (keepId) {
         var localRow = (state.data.sermons || []).filter(function(r){ return String(r['ID']) === keepId; })[0];
-        if (localRow) { d.sermons = (d.sermons || []).filter(function(r){ return String(r['ID']) !== keepId; }); d.sermons.push(localRow); }
+        if (localRow) {
+          var incRowF = (d.sermons || []).filter(function(r){ return String(r['ID']) === keepId; })[0];
+          if (incRowF) _maybeFlagConflict(incRowF, localRow);   /* 전체로드에서도 다른 기기 변경 감지 */
+          d.sermons = (d.sermons || []).filter(function(r){ return String(r['ID']) !== keepId; }); d.sermons.push(localRow);
+        }
       }
       state.data = d;
     }
@@ -3026,6 +3057,12 @@ function updateComposeBadge(){
   if (state.editing) {
     var s = findSermon(state.editing);
     el.innerHTML = '수정 중: <b style="color:var(--accent)">' + esc(state.editing) + '</b> ' + esc(s ? s['제목'] : '');
+    if (state.remoteConflict) {
+      el.innerHTML += '<div class="cnt" style="margin:5px 0 0;color:var(--warn);font-weight:700">⚠ 이 설교가 다른 기기에서 수정되었습니다' +
+        (state.remoteConflict['수정일'] ? ' (' + esc(state.remoteConflict['수정일']) + ')' : '') +
+        '. 지금 저장하면 그 변경을 덮어씁니다.</div>' +
+        '<button class="linkbtn" style="padding:2px 0;color:var(--accent2)" onclick="loadRemoteConflict()">다른 기기 내용 불러오기 (현재 작성분은 버려짐)</button>';
+    }
   } else if (state.versionOf) {
     var o = findSermon(state.versionOf);
     el.innerHTML = '<b style="font-size:16.5px;color:var(--accent2)">새버전 작성</b> <span style="color:var(--dim);font-size:12px">— 원본 ' + esc(state.versionOf) + ' ' + esc(o ? o['제목'] : '') + '</span>' +
@@ -3721,6 +3758,7 @@ function confirmDiscardCompose(msg){
 function clearCompose(){
   state.editing = null;
   state.versionOf = null;
+  state.remoteConflict = null;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = ''; });
   $('#c_date').value = new Date().toISOString().slice(0, 10);
   $('#c_state').value = '구상/연구';
@@ -3737,6 +3775,7 @@ function clearCompose(){
 function editSermonFill(id){
   var s = findSermon(id);
   if (!s) return;
+  state.remoteConflict = null;   /* 새 설교를 편집 시작 → 이전 충돌 표시 해제(기준본이 새로 잡힘) */
   /* 수정하기: 원본을 직접 불러와 수정 — [저장]하면 같은 행 업데이트(원본 갱신).
      원본을 보존하고 사본을 만들려면 작성화면의 [새 설교로 저장]을 쓴다. */
   state.editing = id;
@@ -3779,6 +3818,17 @@ function editSermonFill(id){
 }
 /* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
 window.editSermon = function(id){ if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 불러올까요?')) return; loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
+/* 충돌(문제 4) 시: 다른 기기에서 저장된 최신본을 불러온다(현재 작성분은 버림).
+   목록 응답엔 원고텍스트가 없으므로 loadSermonThen으로 전문까지 받아 채운다. */
+window.loadRemoteConflict = function(){
+  var r = state.remoteConflict;
+  if (!r || !r['ID']) return;
+  if (!confirmDiscardCompose('현재 작성 중인 내용을 버리고, 다른 기기에서 저장된 최신 내용을 불러올까요?')) return;
+  upsertById(state.data.sermons, [r]);   /* 기준본을 원격 최신본으로 교체 후 불러오기 */
+  state.remoteConflict = null;
+  var id = String(r['ID']);
+  loadSermonThen(id, null, '다른 기기 내용을 불러오는 중…', function(){ editSermonFill(id); });
+};
 $('#c_new').addEventListener('click', function(){
   if (!confirmDiscardCompose('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
   clearCompose();
@@ -3887,6 +3937,13 @@ function doSaveCompose(){
     if (org && docxFileName(org) === docxFileName(data) &&
         !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return false;
   }
+  /* 동시 편집 충돌(문제 4): 다른 기기가 이 설교를 바꿨는데 그대로 수정 저장하면 그 변경을 덮어쓴다.
+     덮어쓰기 전에 한 번 확인 — [취소] 후 "다른 기기 내용 불러오기"로 비교할 수 있다. */
+  if (state.editing && state.remoteConflict) {
+    var rc = state.remoteConflict;
+    if (!confirm('⚠ 이 설교는 다른 기기에서 수정되었습니다' + (rc['수정일'] ? ' (' + rc['수정일'] + ')' : '') +
+        '.\n지금 [확인]을 누르면 그 변경을 덮어씁니다.\n다른 기기 내용을 먼저 보려면 [취소] 후 “다른 기기 내용 불러오기”를 누르세요.\n\n그대로 덮어쓸까요?')) return false;
+  }
   var body;
   if (state.editing) {
     data.ID = state.editing;
@@ -3897,7 +3954,7 @@ function doSaveCompose(){
   /* 저장한 내용의 서명을 스냅샷 — 시트/대기열에 durable 보관된 경우에만 '깨끗함'으로 표시.
      저장이 진짜 실패하면 dirty를 유지해 미저장 경고가 살아있게 한다. */
   var _sig = composeSig();
-  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
+  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
     if (id && typeof id === 'string' && !state.editing) {
       state.editing = id;
       state.versionOf = null;
@@ -3921,7 +3978,7 @@ function doSaveAsNew(){
       !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
   delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
   var _sig = composeSig();
-  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
+  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     return id;
   });
@@ -10197,7 +10254,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v234';
+var APP_VER = 'v236';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
