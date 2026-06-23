@@ -1413,6 +1413,14 @@ function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c
 function toast(msg){ var t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2400); }
 function debounce(fn, ms){ var h; return function(){ var a = arguments, c = this; clearTimeout(h); h = setTimeout(function(){ fn.apply(c, a); }, ms); }; }
 function isDesktop(){ return window.matchMedia('(min-width: 900px)').matches; }
+/* 스트리밍 응답 idle 워치독 — 지정 시간 동안 한 바이트도 안 오면 자동 중단(무한 로딩 방지).
+   reader.read()마다 bump()로 타이머를 리셋하므로, 긴 생성이라도 데이터가 흐르는 한 끊기지 않는다. */
+function makeIdleAbort(ms){
+  var ctrl = new AbortController(), t = null;
+  function bump(){ if (t) clearTimeout(t); t = setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, ms); }
+  bump();
+  return { signal: ctrl.signal, bump: bump, clear: function(){ if (t) clearTimeout(t); } };
+}
 /* 새벽 시리즈 아이콘(일출) — currentColor 상속, 1em 크기. 기존 이모지 대체용 공용 SVG */
 var DAWN_ICON = '<svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>';
 var _scripts = {};
@@ -4586,9 +4594,11 @@ async function callClaude(system, user, maxTokens, onTick){
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
+  var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
   try {
   var res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
+    signal: wd.signal,
     headers: {
       'content-type': 'application/json',
       'x-api-key': key,
@@ -4608,6 +4618,7 @@ async function callClaude(system, user, maxTokens, onTick){
   var buf = '', out = '';
   while (true) {
     var r = await reader.read();
+    wd.bump();
     if (r.done) break;
     buf += dec.decode(r.value, { stream: true });
     var lines = buf.split('\n');
@@ -4625,16 +4636,39 @@ async function callClaude(system, user, maxTokens, onTick){
     }
   }
   return out;
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('응답이 지연되어 생성을 중단했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    throw e;
   } finally {
+    wd.clear();
     hideGenOverlay();
   }
 }
 function aiJson(text){
-  var m = text.match(/```json\s*([\s\S]*?)```/) || text.match(/```\s*([\s\S]*?)```/);
-  var t = m ? m[1] : text;
-  var a = t.indexOf('['), o = t.indexOf('{');
-  var s = (a >= 0 && (o < 0 || a < o)) ? t.slice(a, t.lastIndexOf(']') + 1) : t.slice(o, t.lastIndexOf('}') + 1);
-  return JSON.parse(s);
+  var m = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/);
+  var t = (m ? m[1] : text).trim();
+  /* 1) 우선 응답 전체를 그대로 파싱(모델이 JSON만 반환한 정상 케이스) */
+  try { return JSON.parse(t); } catch(_){}
+  /* 2) 시작 토큰부터 문자열/이스케이프를 고려해 짝 맞는 닫힘까지 스캔(중첩 } ] 안전) */
+  function extract(start){
+    var open = t[start], close = open === '[' ? ']' : '}';
+    var depth = 0, inStr = false, esc = false;
+    for (var i = start; i < t.length; i++){
+      var ch = t[i];
+      if (inStr){ if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === open) depth++;
+      else if (ch === close){ depth--; if (depth === 0) return t.slice(start, i + 1); }
+    }
+    return t.slice(start, t.lastIndexOf(close) + 1);   /* 닫힘 누락 대비 폴백 */
+  }
+  /* 후보 시작 위치([ 와 {)를 앞에서부터 시도 — 응답 앞에 군더더기 텍스트가 붙어도 견딤 */
+  var cands = []; var a = t.indexOf('['), o = t.indexOf('{');
+  if (a >= 0) cands.push(a);
+  if (o >= 0) cands.push(o);
+  cands.sort(function(x, y){ return x - y; });
+  for (var c = 0; c < cands.length; c++){ try { return JSON.parse(extract(cands[c])); } catch(_){} }
+  throw new Error('AI 응답을 JSON으로 해석하지 못했습니다. 다시 시도해 주세요.');
 }
 function aiTick(label){
   var fn = function(n){
@@ -4656,7 +4690,7 @@ var GEN_MSG = {
   '새벽 설교 선택지': '새벽 설교 선택지를 구상하고 있어요',
   '상황 설교 개요': '상황 설교 개요를 구상하고 있어요'
 };
-var GEN_SUB_AI = '잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.';
+var GEN_SUB_AI = '잠시만 기다려 주세요. 생성에는 시간이<br>다소 걸릴 수 있습니다.';
 function showGenOverlay(label){
   if (window._cascOn) return;   /* 캐스케이드 중엔 전용 오버레이가 위에서 유지 — 깜빡임 방지 */
   var el = $('#genOverlay'); if (!el) return;
@@ -9954,7 +9988,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v226';
+var APP_VER = 'v228';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -10493,8 +10527,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   async function callChat(messages, model, system, onTick){
     var key = (window.aiKey ? aiKey() : String((window.state && state.settings && state.settings.claudeKey) || '').trim());
     if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
+    var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
+    try {
     var res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: wd.signal,
       headers: {
         'content-type': 'application/json',
         'x-api-key': key,
@@ -10510,6 +10547,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var reader = res.body.getReader(), dec = new TextDecoder(), bufS = '', out = '';
     while (true){
       var r = await reader.read();
+      wd.bump();
       if (r.done) break;
       bufS += dec.decode(r.value, { stream: true });
       var ls = bufS.split('\n'); bufS = ls.pop();
@@ -10521,6 +10559,12 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       }
     }
     return out;
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error('응답이 지연되어 중단했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+      throw e;
+    } finally {
+      wd.clear();
+    }
   }
 
   /* ── 전송 ── */
@@ -10600,7 +10644,13 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   function loadSessions(){ try { var a = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
   function saveSessions(arr){
     try { localStorage.setItem(STORE_KEY, JSON.stringify(arr)); }
-    catch(e){ try { localStorage.setItem(STORE_KEY, JSON.stringify(arr.slice(-Math.floor(MAX_SESS / 2)))); } catch(_){} }
+    catch(e){
+      /* 저장공간 초과 — 최근 절반만 남기고 정리하되, 데이터가 줄어든 사실을 1회 알린다. */
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(arr.slice(-Math.floor(MAX_SESS / 2))));
+        try { toast('저장공간이 가득 차 오래된 대화 일부를 정리했습니다.'); } catch(_){}
+      } catch(_){ try { toast('대화 기록 저장 실패(저장공간 부족).'); } catch(__){} }
+    }
   }
   /* 저장용 정리: 이미지(base64)는 용량이 크므로 텍스트 표식으로 대체 */
   function convoForStore(c){
