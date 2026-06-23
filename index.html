@@ -8718,6 +8718,18 @@ $('#saveSettings').addEventListener('click', function(){
     .catch(function(e){ toast('연결 확인 실패: ' + e.message); });
 });
 
+/* 설교 이미지 AI 선택: 변경 즉시 저장(설정 저장 버튼 없이도 적용) */
+(function(){
+  var sel = document.getElementById('imgEngineSel');
+  if (!sel) return;
+  sel.addEventListener('change', function(){
+    state.settings = state.settings || {};
+    state.settings.imgEngine = sel.value;
+    save(LS.settings, state.settings);
+    toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini (Nano Banana)' : 'Flux'));
+  });
+})();
+
 /* ===== 설교 이미지 생성 (Cloudflare 프록시) — 자체완결 모듈 (1단계: 단일 생성) ===== */
 function imgProxyCfg(){
   var s = state.settings || {};
@@ -8990,7 +9002,7 @@ async function saveImgDataArtifacts(id, meta, cuts){
   await saveBlobToResults(blob, nm.docx);
   if (id) { try { storeTransIfEmpty(id, cuts.filter(function(c){ return c.n !== 1; }).map(function(c){ return { n: c.n, t: c.type === '본문' ? '본문' : '일반', a: String(c.anchor || '').slice(0, 30) }; })); } catch (e) {} }
 }
-/* 컷 배열로 실제 이미지 세트 생성: 일반/표지=Flux 배경(+표준 비네트·밝기보정), 본문=Gemini 성구 배경 */
+/* 컷 배열로 실제 이미지 세트 생성: 일반/표지=선택 엔진(Flux 또는 Gemini) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생 성구 배경 */
 async function generateImageSetFromCuts(id, meta, cuts){
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [];
