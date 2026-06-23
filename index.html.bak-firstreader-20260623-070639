@@ -275,7 +275,6 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 @keyframes genDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
 #genOverlay .genSub{font-size:13.5px;color:var(--dim);line-height:1.7;margin-bottom:14px}
 #genOverlay .genCount{font-size:13px;font-weight:700;color:var(--accent);min-height:1.2em}
-#genOverlay .genVer{margin-top:16px;font-size:11px;color:var(--dim);opacity:.6;letter-spacing:.02em}
 #cascOverlay{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(6,8,13,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 #cascOverlay.on{display:flex;animation:fade .18s ease}
 #cascOverlay .cascCard{text-align:center;max-width:600px;width:100%;padding:32px 28px;border-radius:22px;background:rgba(22,26,34,.95);border:1px solid rgba(127,196,255,.35);box-shadow:0 18px 60px rgba(0,0,0,.5)}
@@ -1358,7 +1357,6 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
     <div class="genTitle"><span id="genTitleTxt">생성 중</span><span class="dots"></span></div>
     <div class="genSub" id="genSub">잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.</div>
     <div class="genCount" id="genCount"></div>
-    <div class="genVer" id="genVer"></div>
   </div>
 </div>
 <div id="cascOverlay">
@@ -3757,11 +3755,6 @@ function editSermonFill(id){
   } else {
     c.style = s['원고유형'] || '기본원고';
   }
-  /* 구상 단계(서론 미작성)면 주제근거를 서론의 바탕으로 채운다 */
-  if (!String(c.intro || '').trim()) {
-    var _jeok = ((String(s['비고'] || '').match(/주제 근거:\s*([\s\S]*?)(?:\s*\/\s*(?:주간묵상|상황):|$)/) || [])[1] || '').trim();
-    if (_jeok) c.intro = _jeok;
-  }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   renderRefPast();
   var rf2 = $('#ptReframe'); if (rf2) rf2.innerHTML = '';
@@ -4714,7 +4707,6 @@ function showGenOverlay(label){
   var t = $('#genTitleTxt'); if (t) t.textContent = GEN_MSG[label] || (label + ' 생성 중');
   var sb = $('#genSub'); if (sb) sb.innerHTML = GEN_SUB_AI;
   var c = $('#genCount'); if (c) c.textContent = '';
-  var gv = $('#genVer'); if (gv) gv.textContent = '앱 버전 ' + (typeof APP_VER !== 'undefined' ? APP_VER : '');
   el.classList.add('on');
 }
 function updateGenOverlay(n){
@@ -4735,7 +4727,6 @@ function _waitPaint(){
   var t = $('#genTitleTxt'); if (t) t.textContent = (_waitInfo && _waitInfo.title) || '불러오는 중';
   var sb = $('#genSub'); if (sb) sb.textContent = (_waitInfo && _waitInfo.sub) || '잠시만 기다려 주세요. 결과를 준비하고 있어요.';
   var c = $('#genCount'); if (c) c.textContent = '';
-  var gv = $('#genVer'); if (gv) gv.textContent = '앱 버전 ' + (typeof APP_VER !== 'undefined' ? APP_VER : '');
   el.classList.add('on');
 }
 function showWaitOverlay(title, sub, delay){
@@ -4789,10 +4780,9 @@ var P_SERMON = [
 '당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON)의 각 주일마다, 직전 월~토 묵상확정 범위에서 다룰 설교 주제 선택지 3~4개를 만든다.',
 '출력은 반드시 JSON 배열만: [{"주일":"YYYY-MM-DD","주간범위":"책 1:1-3:17","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}],"비고":""}]',
 '선택지 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다. 직전 묵상일이 없는 첫 주일은 시리즈 소개 설교로.',
-'핵심메시지=설교 주제 한 문장(명제). ★주제근거(필수·절대 비우지 말 것)=이 본문에서 이 주제를 끌어낸 이유 2~3문장. 저자의 기록 의도와 1차 독자의 상황·정서를 짚어, 설교 작성으로 넘어가면 그대로 "서론"의 바탕이 되도록 쓴다. 모든 선택지마다 반드시 채운다.',
+'핵심메시지=설교 주제 한 문장(명제). 주제근거=이 본문에서 이 주제를 끌어낸 이유 1~2문장(본문의 맥락·정황 근거, 통찰이 드러나게).',
 '대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 — 장황한 설명형 금지, 청중이 물음표를 품게. 본문 표현을 넘는 현대적·비약적 표현 가능하나 메시지는 본문이 명시적으로 지지하는 범위 안에서만. 대지 셋은 같은 방향으로 성큼성큼, 청중의 삶으로 뚫고 들어오는 흐름. 대지는 3개.',
-'★1차 독자 관점(필수): 대지·적용이 선언적 교리 진술에 머물면 청중에게 닿지 않는다. 저자가 이 본문을 기록한 의도와 1차 독자가 처한 상황·정서(이 말씀이 그들에게 어떤 위로·도전·소망이었는지)를 먼저 포착하고, 그 1차 독자가 경험한 메시지의 무게를 오늘의 청중("나")의 자리로 가져온다.',
-'대지마다: 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나에게 동일하게 말 걸어 마음의 변화와 삶의 방향을 결단하게 하는 설교적 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
+'대지마다: 문=명제 한 문장 / 근거=본문 절을 짚는 주해 근거 한 문장(절 표시 포함) / 적용=청중이 이 메시지를 자기 자신에게 적용해 마음의 변화와 삶의 방향을 결단하게 하는 설교적 적용 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '★ 적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·행사·캠페인·실천과제 목록이 아니다. 청중의 삶의 자리를 찌르고 "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 설교적 메시지여야 한다. 외적 과제 나열 금지 — 메시지의 자기화와 결단에 초점을 둔다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
 '요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유.'].join('\n');
@@ -4801,10 +4791,9 @@ var P_OCC = [
 '당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON)의 설교일과 설교 상황(대상·시기·목적)에 맞는 설교 개요 선택지 3세트를 만든다.',
 '출력은 반드시 JSON 배열(길이 3)만: [{"제목":"...","본문":"책 1:1-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}]',
 '선택지 3세트는 본문과 접근 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 하고, 상황의 대상·시기·목적에 정확히 맞아야 한다.',
-'핵심메시지=설교 주제 한 문장(명제). ★주제근거(필수·절대 비우지 말 것)=이 본문에서 이 주제를 끌어낸 이유 2~3문장. 저자의 기록 의도와 1차 독자의 상황·정서를 짚어, 설교 작성으로 넘어가면 그대로 "서론"의 바탕이 되도록 쓴다. 모든 선택지마다 반드시 채운다.',
+'핵심메시지=설교 주제 한 문장(명제). 주제근거=이 본문에서 이 주제를 끌어낸 이유 1~2문장(본문의 맥락·정황 근거, 통찰이 드러나게).',
 '대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 — 장황한 설명형 금지, 청중이 물음표를 품게. 본문 표현을 넘는 현대적·비약적 표현 가능하나 메시지는 본문이 명시적으로 지지하는 범위 안에서만. 대지 셋은 같은 방향으로 성큼성큼, 청중의 삶으로 뚫고 들어오는 흐름. 대지는 3개.',
-'★1차 독자 관점(필수): 대지·적용이 선언적 교리 진술에 머물면 청중에게 닿지 않는다. 저자가 이 본문을 기록한 의도와 1차 독자가 처한 상황·정서(이 말씀이 그들에게 어떤 위로·도전·소망이었는지)를 먼저 포착하고, 그 1차 독자가 경험한 메시지의 무게를 오늘의 청중("나")의 자리로 가져온다.',
-'대지마다: 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나에게 동일하게 말 걸어 마음의 변화와 삶의 방향을 결단하게 하는 설교적 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
+'대지마다: 문=명제 한 문장 / 근거=본문 절을 짚는 주해 근거 한 문장(절 표시 포함) / 적용=청중이 이 메시지를 자기 자신에게 적용해 마음의 변화와 삶의 방향을 결단하게 하는 설교적 적용 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '★ 적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·행사·캠페인·실천과제 목록이 아니다. 청중의 삶의 자리를 찌르고 "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 설교적 메시지여야 한다. 외적 과제 나열 금지 — 메시지의 자기화와 결단에 초점을 둔다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).'].join('\n');
 
@@ -5101,7 +5090,6 @@ function setGenStage(text){
   var t = $('#genTitleTxt'); if (t) t.textContent = text;
   var sb = $('#genSub'); if (sb) sb.innerHTML = '';
   var c = $('#genCount'); if (c) c.textContent = '';
-  var gv = $('#genVer'); if (gv) gv.textContent = '앱 버전 ' + (typeof APP_VER !== 'undefined' ? APP_VER : '');
 }
 var P_CARDDECK = [
   '너는 영락교회 대학부 주일설교의 "카드원고 디자인 덱"을 만드는 조판가다.',
@@ -5840,36 +5828,10 @@ async function archiveSeriesOptions(S){
     var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: rows.slice(b, b + 50) });
     ids = ids.concat((res && res.ids) || []);
   }
-  ids.forEach(function(id, k){
-    var p = map[k]; if (p) S.sermon.weeks[p[0]].opts[p[1]]._id = id;
-    /* 방금 추가한 [보관] 행을 로컬 설교 데이터에도 즉시 반영(ID 기준) — 시트 시그니처에 잡히도록 */
-    if (id && rows[k]) { var lr = {}; for (var kk in rows[k]) lr[kk] = rows[k][kk]; lr['ID'] = id; state.data.sermons.push(lr); }
-  });
-  /* 이 시리즈가 "스스로" 만든 시트 변경분을 델타 동기화 기준점에 흡수시킨다.
-     이렇게 하지 않으면 목록을 나갔다 다시 들어올 때 syncSeriesDetails가 시그니처 변화를 감지해
-     buildSeriesFromSheet로 시리즈 "전체"를 시트에서 재구성하고, 그 과정에서 다른 회차의
-     인메모리 확정 상태(sel·edit·done·sig)가 시트 기준으로 되돌아가 "변경됨·재확정 필요"가 뜬다.
-     → 회차 재생성/생성은 자기 회차만 시트에 남기고 다른 회차엔 영향을 주지 않아야 한다. */
-  var _nm = (S.meta || {})['시리즈명']; if (_nm) S._sheetSig = sheetSigForSeries(_nm);
+  ids.forEach(function(id, k){ var p = map[k]; if (p) S.sermon.weeks[p[0]].opts[p[1]]._id = id; });
   saveSeries();
   sync(); /* 보관함·검색 데이터 갱신 (백그라운드) */
   return ids.length || rows.length;
-}
-/* 옛 보관(선택지) 행을 시트·로컬에서 삭제. 회차 재생성 시 교체된 선택지가
-   다른 기기에서 중복으로 보이지 않도록 한다(삭제로그 툼스톤으로 델타 전파). */
-async function deleteArchivedOpts(ids){
-  if (!(state.settings && state.settings.url && state.settings.token)) return;
-  if (!(ids && ids.length)) return;
-  for (var i = 0; i < ids.length; i++){
-    var id = ids[i];
-    if (!id) continue;
-    await apiPost({ action: 'delete', sheet: 'sermons', data: { ID: id } });
-    state.data.sermons = (state.data.sermons || []).filter(function(x){ return String(x['ID']) !== String(id); });
-  }
-  saveData();
-  /* 이 삭제로 바뀐 시트 시그니처를 자기 회차 기준점에 흡수 → 다음 부팅에서 불필요한 재구성 방지 */
-  var nm = state.series && state.series.meta && state.series.meta['시리즈명'];
-  if (nm) state.series._sheetSig = sheetSigForSeries(nm);
 }
 function archiveRec(m, w, wi, o){
   var _k = (m['주일'] || []).indexOf(w['주일']);   /* 달력상 주차(건너뛴 주 포함) */
@@ -6056,7 +6018,6 @@ window.occPick = function(i){
   $('#c_ref').value = o['본문'] || '';
   $('#c_msg').value = o['핵심메시지'] || '';
   $('#c_note').value = (o['주제근거'] ? '주제 근거: ' + o['주제근거'] + ' / ' : '') + '상황: ' + O.sit.replace(/\s+/g, ' ').slice(0, 120);
-  if (o['주제근거']) state.compose.intro = o['주제근거'];
   var dj = djParse(o['대지']);
   if (dj.length) state.compose.points = dj.map(function(d){
     return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '' });
@@ -6788,11 +6749,8 @@ function syncSeriesDetails(){
     if (!hasSheet) return;
     var sig = sheetSigForSeries(name);
     if (S._sheetSig === sig) return; /* 변경 없음 → 건너뜀 */
-    /* 시그니처가 달라졌다 = 다른 기기가 시트를 갱신했다.
-       (자기 변경분은 저장·보관 시 S._sheetSig에 흡수되므로 여기서 불일치는 곧 '원격 변경'을 뜻한다)
-       과거에는 미등록 로컬 초안 보존을 위해 건너뛰고 수동 [↻ 시트에서 재동기화]에만 의존했으나,
-       여러 기기로 한 작업을 이어갈 때 새로고침만으로 다른 기기 내용을 따라잡지 못하는 문제가 있어
-       부팅 시 자동으로 시트 기준 재구성하도록 변경(= 수동 재동기화와 동일하게 자동 반영). */
+    var pendingLocal = (S.devo && S.devo.m > 0 && !S.devoDone) || (S.sermon && S.sermon.m > 0 && !S.sermonDone);
+    if (pendingLocal) return; /* 미등록 로컬 초안 보존 — 수동 [↻ 시트에서 재동기화]로만 갱신 */
     if (buildSeriesFromSheet(name)) changed = true;
   });
   if (changed) idbSet('seriesList', state.seriesList).catch(function(){});
@@ -7864,26 +7822,13 @@ var P_DAWN = [
 '출력은 반드시 JSON 배열만(일정과 같은 길이·같은 순서): [{"날짜":"YYYY-MM-DD","요일":"월","통독범위":"책 1-3","선택지":[{"제목":"...","본문":"책 1:6-7","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}],"찬송":"357장 주 믿는 형제들"}]}]',
 '★본문(필수): 각 선택지의 "본문"은 그 날 통독범위 안의 1~2절(설교 한 편의 중심 구절). 통독범위를 절대 벗어나지 않는다. 같은 날 선택지 3개는 본문(절)도 서로 다르게.',
 '선택지 3개는 접근 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다.',
-'핵심메시지=설교 주제 한 문장(명제). ★주제근거(필수·절대 비우지 말 것)=이 본문에서 이 주제를 끌어낸 이유 2~3문장. 저자의 기록 의도와 1차 독자의 상황·정서를 짚어, 설교 작성으로 넘어가면 그대로 "서론"의 바탕이 되도록 쓴다. 모든 선택지마다 반드시 채운다.',
-'★1차 독자 관점(필수): 대지·적용이 선언적 교리 진술("~하시리라 / ~이다")에 머물면 청중에게 닿지 않는다. 먼저 저자가 이 본문을 기록한 의도와 1차 독자가 처한 상황·정서(이 말씀이 그들에게 어떤 위로·도전·소망·신원이었는지)를 포착하고, 그 1차 독자가 경험한 메시지의 무게를 오늘의 청중("나")의 자리로 가져오는 대지를 세운다.',
-'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 3개, 같은 방향으로 성큼성큼. 대지마다 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나의 실존에 동일하게 말 걸어 마음의 변화와 결단을 끌어내는 설교적 한 문장. 외적 과제 나열 금지.',
+'핵심메시지=설교 주제 한 문장(명제). 주제근거=이 본문에서 이 주제를 끌어낸 이유 1~2문장(본문 맥락·정황 근거).',
+'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 3개, 같은 방향으로 성큼성큼. 대지마다 문=명제 한 문장 / 근거=본문 절을 짚는 주해 한 문장(절 표시 포함) / 적용=청중이 자기 삶에 적용해 마음의 변화와 결단을 끌어내는 설교적 한 문장. 외적 과제 나열 금지.',
 '★새벽설교 특성(필수): ①새벽 회중은 청년부터 장년·노년까지 전연령의 헌신된 성도다 — 적용을 특정 세대나 직분(권사·집사·구역장 등)의 특정 상황에 가두지 말고, 모든 세대의 성도가 각자 자기 삶의 자리에서 받아 결단할 수 있는 보편적 메시지로 떨어뜨린다 ②도입 비유는 일상·자연·전통적 인물 중심으로 차분하게(트렌디한 시사 후크 자제) ③본문은 그 책·그 장이 왜 기록되었는지(1차 독자 정황)를 짧게 환기하는 결 ④결론은 짧게, 마지막은 통성 기도로 이어질 수 있는 메시지.',
 '★찬송(필수): 각 선택지에 그 주제에 어울리는 한국교회 새찬송가(21세기 찬송가) 한 장을 "장번호 + 제목"으로 고른다(예: "470장 내 평생 살아온 길"). 번호가 불확실하면 제목을 정확히 적는다. 새벽기도회에 부르기 적합한 잔잔하고 헌신적인 곡을 우선한다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
 '★주일(요일이 "일") 처리(필수): 주일 날의 각 선택지에는 "묵상요약" 필드를 추가한다 — 묵상집에 실을 3~5문장의 짧은 설교 요약(도입 한 문장 + 핵심 메시지 + 적용 한 문장, 따뜻한 높임말). 주일 외의 날 선택지에는 "묵상요약"을 넣지 않는다.',
 '요청사항이 있으면 반드시 반영한다.'].join('\n');
-
-/* 찬송 필드 방어: 모델이 찬송 자리에 비-찬송 문자열(예: "realtime")을 넣어 반환하는 경우가 있어,
-   장번호(숫자)나 한글 곡명이 전혀 없는 값은 버린다(빈 값이면 화면에 🎵 줄 자체가 안 나옴). */
-function sanitizeHymns(opts){
-  (opts || []).forEach(function(o){
-    if (o && o['찬송'] != null) {
-      var hv = String(o['찬송']).trim();
-      o['찬송'] = /[0-9가-힣]/.test(hv) ? hv : '';
-    }
-  });
-  return opts;
-}
 
 /* ── 직결 생성 ── */
 async function aiSeriesDawn(noteOverride){
@@ -7899,7 +7844,7 @@ async function aiSeriesDawn(noteOverride){
     if (!Array.isArray(days) || !days.length) throw new Error('응답 형식 오류');
     S.sermon = { m: Date.now(), weeks: days.map(function(d, di){
       var sched = (m['일정'] || [])[di] || {};
-      var opts = sanitizeHymns(d['선택지'] || []);
+      var opts = d['선택지'] || [];
       var rng = d['통독범위'] || sched['통독범위'] || '';
       return { '주일': d['날짜'] || sched['날짜'] || '', '요일': d['요일'] || sched['요일'] || '',
         '통독범위': rng, '주간범위': rng, '비고': '',
@@ -7943,7 +7888,7 @@ async function aiRegenWeek(wi, btn){
       }), 16000, aiTick('새벽 설교 선택지'));
       var days = aiJson(out);
       if (!Array.isArray(days) || !days.length) throw new Error('응답 형식 오류');
-      opts = sanitizeHymns(days[0]['선택지'] || []);
+      opts = days[0]['선택지'] || [];
     } else {
       var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
       var out2 = await callClaude(P_SERMON, JSON.stringify({
@@ -7957,17 +7902,11 @@ async function aiRegenWeek(wi, btn){
       opts = weeks[0]['선택지'] || [];
     }
     if (!Array.isArray(opts) || !opts.length) throw new Error('선택지를 받지 못했습니다');
-    /* 이 회차의 옛 보관(시트) 선택지 ID — 새 선택지로 교체하므로 시트에서도 지운다.
-       지우지 않으면 다른 기기가 시트에서 재구성할 때 옛 선택지+새 선택지가 함께 떠 6개로 겹쳐 보인다.
-       (w.opts에는 시트에서 복원된 경우 기존 보관 행의 _id가 모두 들어 있어, 이미 중복된 상태도 함께 정리된다) */
-    var oldIds = (w.opts || []).map(function(o){ return o && o._id; }).filter(Boolean);
     w.opts = opts; w.sel = 0; w.edit = optEdit(opts[0]);
     w.skip = false; w.done = false; w.sig = '';
     saveSeries(); renderSeriesPane();
     toast('이 ' + (dawn ? '날' : '주') + '의 선택지 ' + opts.length + '개를 새로 만들었습니다 — 자동 보관 중…');
     try { await archiveSeriesOptions(S); } catch (ae) { toast('생성은 완료됐으나 자동 보관 실패: ' + ae.message); }
-    /* 새 선택지 보관(시트 기록) 성공 후 옛 보관 행 삭제 — 툼스톤(삭제로그)으로 다른 기기에도 전파 */
-    if (oldIds.length) { try { await deleteArchivedOpts(oldIds); } catch (de) { toast('이전 선택지 정리 실패(중복 표시 가능): ' + de.message); } }
   } catch (e) {
     toast('재생성 실패: ' + e.message);
   } finally {
@@ -10067,7 +10006,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v234';
+var APP_VER = 'v230';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
