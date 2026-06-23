@@ -6509,8 +6509,83 @@ function saveSeries(){
     if (state.seriesList.indexOf(S) < 0) state.seriesList.unshift(S);
   }
   idbSet('seriesList', state.seriesList).catch(function(){});
+  pushSeriesDraftSoon();   /* 생성 전 마법사 메타를 시트 초안으로 올려 다른 기기에서 이어쓰게 함 */
 }
 var spSaveSoon = debounce(saveSeries, 600);
+
+/* ===================== 시리즈 마법사 초안 시트 동기화(생성 전 메타 기기 간 이어쓰기) =====================
+   생성(AI 결과 기록) 전 시리즈는 seriesList(기기 로컬)에만 있어 다른 기기에서 보이지 않았다.
+   여기서 '시리즈명·기간·일정' 같은 마법사 메타를 경량 '시리즈초안' 시트 행으로 자동 upsert한다.
+   - 백엔드(시리즈초안 시트)가 아직 없으면 add/update가 조용히 실패 → 기존처럼 로컬만 유지(무해).
+   - 시트에 실제 묵상/설교가 생긴(=생성된) 시리즈는 정상 동기화가 담당하므로 초안을 지운다. */
+function seriesHasSheetRecords(name){
+  if (!name) return false;
+  return (state.data.devo || []).some(function(d){ return d['시리즈명'] === name; })
+      || (state.data.sermons || []).some(function(s){ return s['시리즈'] === name; });
+}
+function findDraftRow(name){
+  return (state.data.seriesdraft || []).filter(function(r){ return r && r['시리즈명'] === name; })
+    .sort(function(a, b){ return String(b['수정일'] || '').localeCompare(String(a['수정일'] || '')); })[0] || null;
+}
+function nowLocalStr_(){ return new Date().toISOString().slice(0, 16).replace('T', ' '); }
+function seriesDraftBlob(S){
+  return JSON.stringify({ sid: S.sid, kind: S.kind || null, meta: S.meta || {},
+                          sched: S.sched || null, schedDate: S.schedDate || null });
+}
+function applySeriesDraftBlob(blob){
+  var o = null; try { o = JSON.parse(blob || 'null'); } catch (e) { return null; }
+  if (!o || !o.meta || !o.meta['시리즈명']) return null;
+  var S = newSeriesEntry();
+  S.sid = o.sid || S.sid; if (o.kind) S.kind = o.kind;
+  S.meta = o.meta; if (o.sched) S.sched = o.sched; if (o.schedDate) S.schedDate = o.schedDate;
+  return S;
+}
+function pushSeriesDraft(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return;
+  var S = state.series; if (!S || !S.meta) return;
+  var name = S.meta['시리즈명']; if (!name) return;
+  if (!(S.meta['시작일'] || S.meta['종료일'])) return;   /* 이름만 있고 기간 미정이면 보내지 않음 */
+  if (seriesHasSheetRecords(name)) return;               /* 이미 생성됨 → 정상 동기화가 담당 */
+  var blob; try { blob = seriesDraftBlob(S); } catch (e) { return; }
+  if (blob.length > 20000) return;                       /* 비정상적으로 큰 초안은 보내지 않음(안전) */
+  var data = { '시리즈명': name, '예배구분': (S.meta['예배구분'] || S.kind || ''),
+               '시작일': (S.meta['시작일'] || ''), '종료일': (S.meta['종료일'] || ''), '메타JSON': blob };
+  var existing = findDraftRow(name);
+  if (existing && existing['ID']) {
+    data.ID = existing['ID'];
+    apiPost({ action: 'update', sheet: 'seriesdraft', data: data })
+      .then(function(){ existing['메타JSON'] = blob; existing['수정일'] = nowLocalStr_(); }).catch(function(){});
+  } else {
+    apiPost({ action: 'add', sheet: 'seriesdraft', data: data }).then(function(id){
+      if (!id || typeof id !== 'string') return;
+      state.data.seriesdraft = state.data.seriesdraft || [];
+      state.data.seriesdraft.push({ ID: id, '시리즈명': name, '예배구분': data['예배구분'],
+        '시작일': data['시작일'], '종료일': data['종료일'], '메타JSON': blob, '수정일': nowLocalStr_() });
+    }).catch(function(){});
+  }
+}
+var pushSeriesDraftSoon = debounce(pushSeriesDraft, 1500);
+function dropSeriesDraft(name){
+  var r = findDraftRow(name); if (!r || !r['ID']) return;
+  apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: r['ID'] } }).catch(function(){});
+  state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return x !== r; });
+}
+/* 시트 초안 → 로컬 seriesList 반영(다른 기기에서 시작한 미생성 시리즈 이어받기).
+   생성된(시트 기록 있는) 초안은 정리한다. syncSeriesDetails 끝에서 호출. */
+function restoreSeriesDrafts(){
+  var changed = false;
+  (state.data.seriesdraft || []).slice().forEach(function(r){
+    var name = r && r['시리즈명']; if (!name) return;
+    if (seriesHasSheetRecords(name)) { dropSeriesDraft(name); return; }  /* 이미 생성됨 → 초안 제거 */
+    var exists = (state.seriesList || []).some(function(S){ return (S.meta || {})['시리즈명'] === name; });
+    if (exists) return;                                  /* 이미 로컬에 있음 */
+    var S = applySeriesDraftBlob(r['메타JSON']);
+    if (!S) return;
+    state.seriesList.unshift(S); changed = true;
+  });
+  if (changed) idbSet('seriesList', state.seriesList).catch(function(){});
+}
 var WD = ['일', '월', '화', '수', '목', '금', '토'];
 function wdOf(iso){ return WD[new Date(iso + 'T12:00:00').getDay()]; }
 function mdOf(iso){ return +iso.slice(5, 7) + '/' + +iso.slice(8, 10); }
@@ -6702,6 +6777,7 @@ window.slDel = function(i){
   if (state.series === S) state.series = null;
   state.seriesList.splice(i, 1);
   idbSet('seriesList', state.seriesList).catch(function(){});
+  try { dropSeriesDraft((S.meta || {})['시리즈명']); } catch (e) {}   /* 생성 전 초안이면 시트 초안도 제거 */
   renderSeriesList();
 };
 /* ── 모바일: 시리즈 목록 왼쪽 스와이프로 삭제 노출 ── */
@@ -6849,6 +6925,7 @@ function syncSeriesDetails(){
     if (buildSeriesFromSheet(name)) changed = true;
   });
   if (changed) idbSet('seriesList', state.seriesList).catch(function(){});
+  restoreSeriesDrafts();   /* 다른 기기에서 시작한 미생성 시리즈(시트 초안)도 로컬 목록에 반영 */
 }
 /* 시트 기록에서 시리즈 재구성 (수정·재사용)
    보관(선택지) + 구상(확정) 레코드를 통합해 모든 주차를 완전 복원 → 기기 간 이어작업 가능.
@@ -10195,6 +10272,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     /* 델타 동기화 기준점 복원(없으면 bootLoad가 전체 조회) */
     return idbGet('syncAt').then(function(v){ if (v) state.syncAt = v; }).catch(function(){});
   }).then(function(){
+    /* 미저장 작성 버퍼 복원(다른 기기/이전 세션에서 저장 안 하고 닫은 원고 되살리기) */
+    restoreComposeDraft();
     /* 실행 시 동기화: 기준점 있으면 변경분만, 없으면 전체. 이후엔 기기 포커스/저장 시 델타로 따라잡음. */
     if (state.settings.url) bootLoad();
   });
