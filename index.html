@@ -1498,7 +1498,7 @@ function apiPost(body){
 }
 
 /* ── 델타 동기화 머지 ── */
-var DELTA_KEYS = ['sermons', 'ideas', 'outputs', 'devo', 'devonotes'];
+var DELTA_KEYS = ['sermons', 'ideas', 'outputs', 'devo', 'devonotes', 'seriesdraft'];
 /* incoming(변경분)을 ID 기준으로 arr에 upsert (멱등) */
 function upsertById(arr, incoming){
   if (!incoming || !incoming.length) return arr;
@@ -1565,6 +1565,7 @@ function _pullData(opts){
       d.outputs = d.outputs || [];
       d.devo = d.devo || [];
       d.devonotes = d.devonotes || [];
+      d.seriesdraft = d.seriesdraft || [];
       /* 편집 중인 설교 행은 로컬 저장본을 유지(원격이 통째로 덮어쓰지 않도록) */
       var keepId = _editingGuardId();
       if (keepId) {
@@ -1619,7 +1620,12 @@ function focusSync(){
   if (!s.url || !s.token || !navigator.onLine || document.hidden) return;
   if (Date.now() - _lastFocusSync < 8000) return;   /* 과도한 호출 억제 */
   _lastFocusSync = Date.now();
-  pullData().catch(function(){});                    /* 조용히(오버레이·토스트 없음) */
+  pullData().then(function(){
+    /* 기기 전환 시 시리즈 화면이 열려 있으면, 다른 기기의 시리즈 변경분도 화면에 즉시 반영
+       (pullData는 state.data만 갱신 — 시리즈 마법사는 state.series 재구성이 필요). */
+    var pg = document.querySelector('.page.on');
+    if (pg && pg.id === 'page-series') { try { syncSeriesDetails(); renderSeriesPage(); } catch (e) {} }
+  }).catch(function(){});                    /* 조용히(오버레이·토스트 없음) */
 }
 var _focusSyncSoon = debounce(focusSync, 500);
 document.addEventListener('visibilitychange', function(){ if (!document.hidden) _focusSyncSoon(); });
@@ -3726,6 +3732,7 @@ function clearCompose(){
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   state.savedSig = composeSig();
+  clearComposeDraft();
 }
 function editSermonFill(id){
   var s = findSermon(id);
@@ -3824,6 +3831,52 @@ function cwRender(){
   if (q) q.addEventListener('input', cwRender);
 })();
 /* 작성 내용을 시트에 저장. 반환: Promise=저장 진행 / null=제목없음(불가) / false=사용자 취소 */
+/* ===================== 작성 버퍼 자동 임시저장(미저장 원고 기기 유실 방지) =====================
+   state.compose는 메모리에만 살아 있어, 저장 전에 앱이 닫히거나 다른 기기로 옮기면 사라졌다.
+   여기서 작성 중 버퍼를 IndexedDB에 자동 임시저장하고, 부팅 시 복원한다.
+   (시트로 보내는 것이 아니라 그 기기 안에서의 유실만 막는다 — 시트 공유는 [저장] 시점부터.) */
+function composeDraftSnapshot(){
+  var meta = {};
+  try { Object.keys(C_META).forEach(function(k){ var el = $('#' + C_META[k]); meta[k] = el ? el.value : ''; }); } catch (e) {}
+  return { v: 1, at: Date.now(), editing: state.editing || null, versionOf: state.versionOf || null,
+           savedSig: state.savedSig || '', meta: meta, compose: state.compose };
+}
+function saveComposeDraft(){
+  try {
+    if (!composeHasAnyContent()) { idbSet('composeDraft', null).catch(function(){}); return; }
+    idbSet('composeDraft', composeDraftSnapshot()).catch(function(){});
+  } catch (e) {}
+}
+var saveComposeDraftSoon = debounce(saveComposeDraft, 700);
+function clearComposeDraft(){ try { idbSet('composeDraft', null).catch(function(){}); } catch (e) {} }
+function restoreComposeDraft(){
+  return idbGet('composeDraft').then(function(d){
+    if (!d || !d.compose) return false;
+    var c = d.compose;
+    var has = !!((c.free || '').trim()) || (c.intro || '').trim() || (c.concBody || '').trim()
+      || (c.points || []).some(function(p){ return p && ((p.text || '').trim() || (p.apply || '').trim() || (p.body || '').trim()); });
+    if (!has) return false;
+    state.editing = d.editing || null;
+    state.versionOf = d.versionOf || null;
+    state.compose = c;
+    try { Object.keys(C_META).forEach(function(k){ var el = $('#' + C_META[k]); if (el && d.meta && d.meta[k] != null) el.value = d.meta[k]; }); } catch (e) {}
+    state.savedSig = d.savedSig || '';
+    setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
+    if (composeDirty()) toast('작성 중이던 원고를 복원했습니다.');
+    return true;
+  }).catch(function(){ return false; });
+}
+(function(){
+  var pg = $('#page-compose');
+  if (pg){
+    pg.addEventListener('input', saveComposeDraftSoon);
+    pg.addEventListener('change', saveComposeDraftSoon);
+  }
+  /* 디바운스 사이에 앱이 가려지거나 닫혀도 최신 버퍼를 즉시 저장 */
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) saveComposeDraft(); });
+  window.addEventListener('pagehide', saveComposeDraft);
+})();
+
 function doSaveCompose(){
   var data = collectCompose();
   if (!data['제목']) { toast('제목을 입력해 주세요.'); return null; }
@@ -3844,7 +3897,7 @@ function doSaveCompose(){
   /* 저장한 내용의 서명을 스냅샷 — 시트/대기열에 durable 보관된 경우에만 '깨끗함'으로 표시.
      저장이 진짜 실패하면 dirty를 유지해 미저장 경고가 살아있게 한다. */
   var _sig = composeSig();
-  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) state.savedSig = _sig; updateComposeBadge(); }).then(function(id){
+  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
     if (id && typeof id === 'string' && !state.editing) {
       state.editing = id;
       state.versionOf = null;
@@ -3868,7 +3921,7 @@ function doSaveAsNew(){
       !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
   delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
   var _sig = composeSig();
-  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) state.savedSig = _sig; updateComposeBadge(); }).then(function(id){
+  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     return id;
   });
