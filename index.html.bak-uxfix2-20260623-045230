@@ -1206,19 +1206,19 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <label>API URL (Apps Script 배포 주소 /exec)</label>
         <input type="url" id="setUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>API 토큰</label>
-        <input type="password" autocomplete="off" id="setToken" placeholder="setToken 실행 시 로그에 표시된 값">
+        <input type="text" id="setToken" placeholder="setToken 실행 시 로그에 표시된 값">
         <label>Claude API 키 (선택 — AI 직결 생성)</label>
-        <input type="password" autocomplete="off" id="setClaude" placeholder="sk-ant-api03-...">
+        <input type="text" id="setClaude" placeholder="sk-ant-api03-...">
         <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 4.8, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
         <label style="margin-top:14px">리더스앱 업로드 URL (통합시트 Apps Script /exec — 선택)</label>
         <input type="url" id="setLaUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>리더스앱 업로드 토큰</label>
-        <input type="password" autocomplete="off" id="setLaToken" placeholder="리더스앱 시트 setup 실행 시 로그의 토큰">
+        <input type="text" id="setLaToken" placeholder="리더스앱 시트 setup 실행 시 로그의 토큰">
         <div class="cnt" style="margin-top:6px">리더스앱 통합시트에 배포한 업로드 웹앱 주소·토큰을 넣으면, [LTC 교재 / 리더스앱 업로드] 버튼이 파일을 받는 대신 <b>시트에 바로 한 줄 추가</b>합니다. 비워두면 기존처럼 TSV 파일을 내려받습니다.</div>
         <label style="margin-top:14px">설교 이미지 프록시 URL (Cloudflare Worker — 선택)</label>
         <input type="url" id="setProxyUrl" placeholder="https://sermon-image-proxy.계정.workers.dev">
         <label>이미지 프록시 토큰 (APP_TOKEN)</label>
-        <input type="password" autocomplete="off" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
+        <input type="text" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
         <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>(Flux / Gemini)에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
@@ -1645,37 +1645,22 @@ function flushQueue(){
       });
     });
   });
-  return chain.catch(function(){ renderStats(); toast('대기열 일부 전송 실패 — 다음 동기화 때 다시 시도합니다.'); }).then(function(){ _flushing = false; });
+  return chain.catch(function(){ renderStats(); }).then(function(){ _flushing = false; });
 }
 
-/* 네트워크/일시 오류 판별 — fetch 실패는 브라우저마다 TypeError(Chrome "Failed to fetch",
-   Safari "Load failed")로 던져진다. 이 경우 데이터를 대기열에 안전하게 보관(durable)한다.
-   백엔드 논리 오류(apiPost가 new Error(j.error)로 던짐)는 여기 해당 없음 → 진짜 실패로 처리. */
-function _isTransientNetErr(e){
-  if (!navigator.onLine) return true;
-  if (e && (e.name === 'TypeError' || e.name === 'SyntaxError')) return true;
-  return /fetch|load failed|network|connection|timeout|failed to load/i.test(String(e && e.message || ''));
-}
-/* submit(body, okMsg, onResult)
-   onResult(ok): 호출부가 저장 성공/대기열 적재(=durable, ok=true) vs 진짜 실패(ok=false)를
-   구분해 후처리(예: dirty 해제)할 수 있도록 하는 선택적 콜백. 반환값(id) 계약은 유지. */
-function submit(body, okMsg, onResult){
+function submit(body, okMsg){
   showWaitOverlay('시트에 저장하고 있어요', '저장하고 최신 상태로 맞추는 중입니다.');
-  function ok(v){ if (onResult) { try { onResult(v); } catch(_){} } }
   return apiPost(body).then(function(id){
     toast(okMsg + (id ? ' (' + (id.ids ? id.ids.length + '건' : id.count || id) + ')' : ''));
-    ok(true);
     /* 저장 직후 동기화는 조용한 코어(pullData)만 — sync()의 별도 오버레이·토스트 중첩 방지.
        submit이 이미 띄운 오버레이를 갱신 완료까지 유지하도록 프라미스를 이어준다. */
     return pullData().catch(function(){}).then(function(){ return id; });
   }).catch(function(e){
-    if (_isTransientNetErr(e)) {
+    if (!navigator.onLine || /fetch/i.test(e.message)) {
       state.queue.push(body); save(LS.queue, state.queue); renderStats();
-      toast('오프라인/통신 오류 — 대기열에 저장했습니다. 다음 동기화 때 전송됩니다.');
-      ok(true);   /* 대기열에 durable 보관됨 → 저장된 것으로 처리 */
+      toast('오프라인 — 대기열에 저장했습니다. 다음 동기화 때 전송됩니다.');
     } else {
-      toast('저장 실패(서버 응답): ' + e.message);
-      ok(false);  /* 시트에도 대기열에도 없음 → 미저장 상태 유지 */
+      toast('저장 실패: ' + e.message);
     }
   }).then(function(r){ hideWaitOverlay(); return r; });
 }
@@ -3816,10 +3801,8 @@ function doSaveCompose(){
   } else {
     body = { action: 'add', sheet: 'sermons', data: data };
   }
-  /* 저장한 내용의 서명을 스냅샷 — 시트/대기열에 durable 보관된 경우에만 '깨끗함'으로 표시.
-     저장이 진짜 실패하면 dirty를 유지해 미저장 경고가 살아있게 한다. */
-  var _sig = composeSig();
-  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) state.savedSig = _sig; updateComposeBadge(); }).then(function(id){
+  state.savedSig = composeSig();   /* 저장 시점 = 깨끗한 상태로 표시 */
+  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료')).then(function(id){
     if (id && typeof id === 'string' && !state.editing) {
       state.editing = id;
       state.versionOf = null;
@@ -3842,8 +3825,8 @@ function doSaveAsNew(){
   } else if (src && docxFileName(src) === docxFileName(data) &&
       !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
   delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
-  var _sig = composeSig();
-  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) state.savedSig = _sig; updateComposeBadge(); }).then(function(id){
+  state.savedSig = composeSig();
+  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)').then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     return id;
   });
@@ -6117,7 +6100,7 @@ async function dlReqResult(sermonId, type){
     }
     if (n) { toast('내려받기 시작 (' + n + '건)'); return true; }
     return false;
-  } catch (e) { toast('내려받기 실패: ' + e.message); return false; }
+  } catch (e) { toast('내려받기 실패: ' + e.message); return true; }
 }
 /* ── 자산 실존 검사: 시트(요약본) + 아이클라우드 연도폴더 + 결과함 파일을 직접 확인 ── */
 state.assets = {};
