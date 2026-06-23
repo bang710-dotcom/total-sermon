@@ -1652,10 +1652,14 @@ function focusSync(){
   if (Date.now() - _lastFocusSync < 8000) return;   /* 과도한 호출 억제 */
   _lastFocusSync = Date.now();
   pullData().then(function(){
-    /* 기기 전환 시 시리즈 화면이 열려 있으면, 다른 기기의 시리즈 변경분도 화면에 즉시 반영
-       (pullData는 state.data만 갱신 — 시리즈 마법사는 state.series 재구성이 필요). */
+    /* 기기 전환 시 시리즈 '목록' 화면이면 다른 기기 변경분을 자동 반영.
+       ⚠ 마법사(wizard) 화면에서는 자동 재렌더하지 않는다 — 재렌더가 pane.innerHTML을 통째로 바꿔
+          열려 있던 요일 편집창·미저장 입력을 날리고 기본 요일로 튀는 문제(회귀)가 있어서다.
+          마법사에서 다른 기기 변경을 받으려면 [↻ 시트에서 재동기화] 버튼으로 사용자가 직접 갱신한다. */
     var pg = document.querySelector('.page.on');
-    if (pg && pg.id === 'page-series') { try { syncSeriesDetails(); renderSeriesPage(); } catch (e) {} }
+    if (pg && pg.id === 'page-series' && state.seriesMode === 'list') {
+      try { syncSeriesDetails(); renderSeriesPage(); } catch (e) {}
+    }
   }).catch(function(){});                    /* 조용히(오버레이·토스트 없음) */
 }
 var _focusSyncSoon = debounce(focusSync, 500);
