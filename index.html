@@ -1219,17 +1219,23 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
         <input type="url" id="setProxyUrl" placeholder="https://sermon-image-proxy.계정.workers.dev">
         <label>이미지 프록시 토큰 (APP_TOKEN)</label>
         <input type="text" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
-        <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다(배경=Flux / 제목 텍스트=Nano Banana Pro). 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
+        <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>(Flux / Gemini)에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
       <div class="card">
-        <label>🎨 설교 이미지 생성 (프록시 연결 테스트)</label>
+        <label>🖼️ 설교 이미지 AI 선택</label>
+        <select id="imgEngineSel">
+          <option value="flux">Flux (기본 · 분위기 배경에 최적)</option>
+          <option value="gemini">Gemini (Nano Banana · 사실적 디테일)</option>
+        </select>
+        <div class="cnt" style="margin-top:6px">설교 이미지 세트(배경 컷)를 만들 때 사용할 AI 엔진입니다. <b>Flux</b>는 분위기·질감 배경, <b>Gemini</b>(Nano Banana)는 더 사실적이고 디테일한 배경에 강합니다. Gemini 직접 호출은 지역 제한이 있어 자동으로 fal.ai를 경유합니다. 선택은 즉시 저장되며 [배경 이미지 생성]·[전체 이미지 세트]에 그대로 적용됩니다.</div>
+        <label style="margin-top:14px">🎨 설교 이미지 생성 (프록시 연결 테스트)</label>
         <textarea id="imgProxyPrompt" rows="3" placeholder="예) 검은 배경에 한 줄기 따뜻한 빛, 영화적, 글자 없음"></textarea>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
           <select id="imgProxyJob">
-            <option value="background">배경 (Flux klein)</option>
-            <option value="background-hero">배경·고급 (Flux max)</option>
-            <option value="text">제목 텍스트 (Nano Banana Pro)</option>
+            <option value="background">배경 (글자 없음)</option>
+            <option value="background-hero">배경·고급 (핵심 컷)</option>
+            <option value="text">제목·성구 텍스트 (항상 Nano Banana)</option>
           </select>
           <select id="imgProxyAR">
             <option value="16:9">16:9</option>
@@ -8704,7 +8710,8 @@ $('#saveSettings').addEventListener('click', function(){
   state.settings = { url: $('#setUrl').value.trim(), token: $('#setToken').value.trim(), claudeKey: $('#setClaude').value.trim(),
     laUrl: $('#setLaUrl').value.trim(), laToken: $('#setLaToken').value.trim(),
     proxyUrl: ($('#setProxyUrl') ? $('#setProxyUrl').value.trim() : (state.settings && state.settings.proxyUrl) || ''),
-    proxyToken: ($('#setProxyToken') ? $('#setProxyToken').value.trim() : (state.settings && state.settings.proxyToken) || '') };
+    proxyToken: ($('#setProxyToken') ? $('#setProxyToken').value.trim() : (state.settings && state.settings.proxyToken) || ''),
+    imgEngine: ($('#imgEngineSel') ? $('#imgEngineSel').value : (state.settings && state.settings.imgEngine) || 'flux') };
   save(LS.settings, state.settings);
   toast('설정 저장됨');
   api({ action: 'ping' }).then(function(){ toast('연결 성공! 동기화를 시작합니다.'); return sync(); })
@@ -8715,6 +8722,18 @@ $('#saveSettings').addEventListener('click', function(){
 function imgProxyCfg(){
   var s = state.settings || {};
   return { url: String(s.proxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
+}
+/* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) 또는 'gemini'(=fal.ai 경유 Nano Banana) */
+function imgEngine(){ return ((state.settings && state.settings.imgEngine) === 'gemini') ? 'gemini' : 'flux'; }
+/* 작업유형 + 엔진 → {provider, model}.
+   - 텍스트(제목·성구)는 한글 정확도 때문에 엔진과 무관하게 항상 Nano Banana(fal.ai).
+   - Gemini 선택 시: 지역 차단 회피를 위해 fal.ai 경유 nano-banana-pro로 라우팅.
+   - Flux 선택 시: background→klein(저가·대량), background-hero→max(핵심 컷). */
+function engineRoute(jobType, engine){
+  engine = engine || imgEngine();
+  if (jobType === 'text') return { provider: 'fal', model: 'nano-banana-pro' };
+  if (engine === 'gemini') return { provider: 'fal', model: 'nano-banana-pro' };
+  return { provider: 'flux', model: (jobType === 'background-hero' ? 'max' : 'klein') };
 }
 /* 데스크탑(File System Access API)에서만 폴더 저장 가능. iOS 사파리 등은 미지원 → 화면 저장. */
 function canFolderSave(){ return !!(xHandle && window.FileSystemHandle); }
@@ -8761,6 +8780,7 @@ async function genSermonImage(opts){
     var prompt = (document.getElementById('imgProxyPrompt') || {}).value || '';
     var jobType = (document.getElementById('imgProxyJob') || {}).value || 'background';
     var ar = (document.getElementById('imgProxyAR') || {}).value || '16:9';
+    var rtTest = engineRoute(jobType);
     if (!prompt.trim()) { toast('프롬프트를 입력해 주세요.'); return; }
     btn.disabled = true;
     out.innerHTML = '<div class="cnt">생성 중… (배경 약 10~20초)</div>';
@@ -8771,7 +8791,7 @@ async function genSermonImage(opts){
     var permP = wantSave ? xPerm().then(function(){ return true; }, function(){ return false; }) : Promise.resolve(false);
     permP.then(function(ok){
       canSave = ok;
-      return genSermonImage({ jobType: jobType, prompt: prompt, aspectRatio: ar });
+      return genSermonImage({ jobType: jobType, prompt: prompt, aspectRatio: ar, provider: rtTest.provider, model: rtTest.model });
     }).then(function(res){
       res0 = res;
       var d = new Date();
@@ -8985,7 +9005,8 @@ async function generateImageSetFromCuts(id, meta, cuts){
         blob = await deriveScriptureBg(lastCanvas);   /* 직전 일반 이미지를 어둡게·흐리게 — 성구는 직접 얹음 */
       } else {
         var p = (String(c.en || '').trim() ? c.en.trim() + ' ' : '') + LED_TAIL;
-        var res2 = await genSermonImage({ jobType: 'background', prompt: p, aspectRatio: '16:9' });
+        var rtBg = engineRoute('background');
+        var res2 = await genSermonImage({ jobType: 'background', prompt: p, aspectRatio: '16:9', provider: rtBg.provider, model: rtBg.model });
         if (!res2.b64) { fail.push('#' + c.n + '(URL응답)'); continue; }
         lastCanvas = processGeneral(await loadImgEl(res2.src));
         blob = await canvasToBlob(lastCanvas);
@@ -9940,6 +9961,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setLaToken')) $('#setLaToken').value = state.settings.laToken || '';
   if ($('#setProxyUrl')) $('#setProxyUrl').value = state.settings.proxyUrl || '';
   if ($('#setProxyToken')) $('#setProxyToken').value = state.settings.proxyToken || '';
+  if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
   $('#page-search').classList.add('on');
   $('#smDate').value = new Date().toISOString().slice(0, 10);
   $('#c_date').value = new Date().toISOString().slice(0, 10);
