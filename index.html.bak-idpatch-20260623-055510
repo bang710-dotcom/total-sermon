@@ -1474,19 +1474,9 @@ function api(params){
       .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
   });
 }
-/* 멱등 키 생성기: 통신 재시도(대기열 재전송)로 같은 add가 두 번 처리돼도 서버가 중복 행을
-   만들지 않도록, add/bulkAdd 본문에 안정적 로컬ID를 부여한다. body 객체에 한 번 박히면
-   대기열에 보관·재전송될 때도 같은 값이 유지된다(= 서버가 동일 add로 인식). */
-function uid_(){ return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
-function stampLocalId_(body){
-  if (!body) return;
-  if (body.action === 'add' && body.data && !body.data['로컬ID']) body.data['로컬ID'] = uid_();
-  else if (body.action === 'bulkAdd' && body.rows) body.rows.forEach(function(r){ if (r && !r['로컬ID']) r['로컬ID'] = uid_(); });
-}
 function apiPost(body){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
-  stampLocalId_(body);
   body.token = s.token;
   return _netRun(function(){
     return fetch(s.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
@@ -9998,7 +9988,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v229';
+var APP_VER = 'v228';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
