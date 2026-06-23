@@ -1235,7 +1235,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
           <select id="imgProxyJob">
             <option value="background">배경 (글자 없음)</option>
             <option value="background-hero">배경·고급 (핵심 컷)</option>
-            <option value="text">제목·성구 텍스트 (항상 Nano Banana)</option>
+            <option value="text">제목 텍스트 (Nano Banana · 테스트용)</option>
           </select>
           <select id="imgProxyAR">
             <option value="16:9">16:9</option>
@@ -8738,7 +8738,10 @@ function imgProxyCfg(){
 /* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) 또는 'gemini'(=fal.ai 경유 Nano Banana) */
 function imgEngine(){ return ((state.settings && state.settings.imgEngine) === 'gemini') ? 'gemini' : 'flux'; }
 /* 작업유형 + 엔진 → {provider, model}.
-   - 텍스트(제목·성구)는 한글 정확도 때문에 엔진과 무관하게 항상 Nano Banana(fal.ai).
+   ※ 성구(본문) 컷은 어느 엔진을 써도 AI로 생성하지 않는다 — 직전 일반 이미지를
+     톤다운·어둡게·흐리게 처리한 파생본을 배경으로 쓴다(아래 deriveScriptureBg).
+     따라서 이 라우팅은 '배경' 생성에만 쓰이며, 'text'(제목 텍스트)는 연결테스트 전용이다.
+   - 제목 텍스트는 한글 정확도 때문에 엔진과 무관하게 Nano Banana(fal.ai).
    - Gemini 선택 시: 지역 차단 회피를 위해 fal.ai 경유 nano-banana-pro로 라우팅.
    - Flux 선택 시: background→klein(저가·대량), background-hero→max(핵심 컷). */
 function engineRoute(jobType, engine){
