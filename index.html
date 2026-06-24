@@ -1730,8 +1730,11 @@ function bootLoad(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return;
   var pg = document.querySelector('.page.on');
+  /* 캐시(이전 동기화 데이터)가 있으면 화면을 막지 않고 배경에서 조용히 갱신 → 첫 화면 즉시 사용.
+     캐시가 없을 때(첫 실행)만 전체화면 오버레이를 띄운다. (느린 시트가 시작부터 앱을 막지 않게.) */
+  var hasCache = !!((state.data.sermons || []).length);
   if (pg) pg.classList.add('stale');
-  showWaitOverlay('시트를 불러오고 있어요', '최신 설교·묵상·시리즈 데이터를 가져오는 중입니다.', 0);
+  if (!hasCache) showWaitOverlay('시트를 불러오고 있어요', '최신 설교·묵상·시리즈 데이터를 가져오는 중입니다.', 0);
   return Promise.all([pullData(), Promise.resolve(_seriesReady)]).then(function(){
     syncSeriesDetails(); /* 각 시리즈 세부까지 로컬에 반영 */
     var cur = (pg && pg.id === 'page-series');
@@ -1740,7 +1743,7 @@ function bootLoad(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
     if (pg) pg.classList.remove('stale');
-    hideWaitOverlay();
+    if (!hasCache) hideWaitOverlay();
   });
 }
 
@@ -10243,6 +10246,8 @@ function showPage(name){
   var _curPage = ((document.querySelector('.page.on') || {}).id || '').replace('page-', '');
   if (_curPage === 'compose' && name !== 'compose' && !confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 화면을 이동할까요?')) return;
   if (_curPage === 'devo' && name !== 'devo' && typeof confirmLeaveDevo === 'function' && !confirmLeaveDevo()) return;
+  /* 새벽/상황 설교 작성칸을 떠날 때 마지막 입력을 즉시 저장(디바운스 사이 이탈로 인한 유실 방지) */
+  if (_curPage === 'occ' && name !== 'occ' && typeof occSaveNow === 'function') { try { occSaveNow(); } catch(e){} }
   $$('.page').forEach(function(p){ p.classList.remove('on'); });
   var pg = $('#page-' + name);
   if (pg) pg.classList.add('on');
@@ -11114,7 +11119,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v254';
+var APP_VER = 'v255';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
