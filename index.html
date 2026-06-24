@@ -8527,7 +8527,9 @@ function spDawnHtml(){
         (cleanHymn(o['찬송']) ? '<div style="margin:3px 0 0 22px;color:var(--accent);font-size:12.5px;font-weight:700">🎵 ' + esc(cleanHymn(o['찬송'])) + '</div>' : '') +
         '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
         (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
-        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>' + corner +
+        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div>' +
+        (isSun && String(o['묵상요약'] || '').trim() ? '<div style="margin:6px 0 0 22px;padding-top:5px;border-top:1px dashed var(--line);font-size:12px;color:var(--dim);line-height:1.55">묵상집 요약 — ' + esc(o['묵상요약']) + '</div>' : '') +
+        '</label>' + corner +
         '</div>';
     }).join('');
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
