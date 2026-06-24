@@ -1262,6 +1262,9 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
         <label>이미지 프록시 토큰 (APP_TOKEN)</label>
         <input type="password" autocomplete="off" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
         <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>(Flux / Gemini)에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
+        <label style="margin-top:14px">유튜브 영상분석 프록시 URL (Gemini Worker — 선택)</label>
+        <input type="url" id="setVidProxyUrl" placeholder="https://sermon-video-proxy.계정.workers.dev">
+        <div class="cnt" style="margin-top:6px">설교 <b>유튜브 링크</b>만 넣으면 영상에서 설교 부분을 찾아 전사하고 <b>요약본</b>까지 자동 생성합니다(전사=Gemini, 요약=Claude). 토큰은 위 <b>이미지 프록시 토큰</b>을 함께 사용합니다(Worker의 APP_TOKEN을 동일 값으로 설정). Gemini 키는 앱이 아니라 Worker에 비밀로 저장됩니다. 비워두면 이 기능은 숨겨집니다.</div>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
       <div class="card">
@@ -9600,6 +9603,7 @@ $('#saveSettings').addEventListener('click', function(){
     laUrl: $('#setLaUrl').value.trim(), laToken: $('#setLaToken').value.trim(),
     proxyUrl: ($('#setProxyUrl') ? $('#setProxyUrl').value.trim() : (state.settings && state.settings.proxyUrl) || ''),
     proxyToken: ($('#setProxyToken') ? $('#setProxyToken').value.trim() : (state.settings && state.settings.proxyToken) || ''),
+    vidProxyUrl: ($('#setVidProxyUrl') ? $('#setVidProxyUrl').value.trim() : (state.settings && state.settings.vidProxyUrl) || ''),
     imgEngine: ($('#imgEngineSel') ? $('#imgEngineSel').value : (state.settings && state.settings.imgEngine) || 'flux') };
   save(LS.settings, state.settings);
   toast('설정 저장됨');
@@ -9633,6 +9637,11 @@ function friendlyConnErr(e){
 function imgProxyCfg(){
   var s = state.settings || {};
   return { url: String(s.proxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
+}
+/* 유튜브 영상분석 프록시 설정 — vidProxyUrl(+ 이미지 토큰 공용). 유튜브→전사용. */
+function vidProxyCfg(){
+  var s = state.settings || {};
+  return { url: String(s.vidProxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
 }
 /* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) 또는 'gemini'(=fal.ai 경유 Nano Banana) */
 function imgEngine(){ return ((state.settings && state.settings.imgEngine) === 'gemini') ? 'gemini' : 'flux'; }
@@ -11247,6 +11256,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setLaToken')) $('#setLaToken').value = state.settings.laToken || '';
   if ($('#setProxyUrl')) $('#setProxyUrl').value = state.settings.proxyUrl || '';
   if ($('#setProxyToken')) $('#setProxyToken').value = state.settings.proxyToken || '';
+  if ($('#setVidProxyUrl')) $('#setVidProxyUrl').value = state.settings.vidProxyUrl || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
   $('#page-search').classList.add('on');
   $('#smDate').value = new Date().toISOString().slice(0, 10);
