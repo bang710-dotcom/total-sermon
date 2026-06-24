@@ -3110,7 +3110,7 @@ function renderInbox(){
   var list = state.data.ideas.filter(function(d){ if (d['상태'] === '편입됨') return false; return !f || d['상태'] === f; });
   list.sort(function(a, b){ return b['ID'] < a['ID'] ? -1 : 1; });
   var box = $('#inboxList');
-  if (!list.length) { box.innerHTML = '<div class="empty">「' + esc(state.inboxFilter) + '」 상태의 항목이 없습니다.<br><span style="font-size:12.5px;color:var(--dim)">위의 상태 칩을 바꾸면 다른 항목을 볼 수 있습니다.</span></div>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="empty">「' + esc(state.inboxFilter) + '」 상태의 항목이 없습니다.<br><span style="font-size:12.5px;color:var(--dim)">위의 상태 칩을 바꾸면 다른 항목을 볼 수 있습니다.</span><br><button class="emptyCta" type="button" onclick="showPage(\'input\')">빠른 입력으로 추가</button></div>'; return; }
   box.innerHTML = list.map(function(d){
     var isIll = d['유형'] === '예화';
     var ttl = d['제목'] || String(d['내용'] || '').split(/[\n.]/)[0].slice(0, 42);
@@ -9603,9 +9603,19 @@ $('#saveSettings').addEventListener('click', function(){
     imgEngine: ($('#imgEngineSel') ? $('#imgEngineSel').value : (state.settings && state.settings.imgEngine) || 'flux') };
   save(LS.settings, state.settings);
   toast('설정 저장됨');
+  if (window.refreshFirstRunBanner) refreshFirstRunBanner();
   api({ action: 'ping' }).then(function(){ toast('연결 성공! 동기화를 시작합니다.'); return sync(); })
-    .catch(function(e){ toast('연결 확인 실패: ' + e.message); });
+    .catch(function(e){ toast(friendlyConnErr(e)); });
 });
+/* 연결 실패 원본 오류를 사람이 읽기 쉬운 안내로 매핑 */
+function friendlyConnErr(e){
+  var m = String((e && e.message) || '');
+  if (/토큰|token|unauthorized|권한|forbidden|401|403/i.test(m)) return '토큰이 올바르지 않습니다 — setToken 실행 시 로그에 표시된 값을 확인해 주세요.';
+  if (/not found|찾을 수 없|404|moved|html|<!doctype/i.test(m)) return 'API URL을 확인해 주세요 — Apps Script 배포 주소(/exec)가 맞는지 다시 보세요.';
+  if (/fetch|load failed|network|연결|timeout|시트 응답/i.test(m)) return '네트워크 연결을 확인해 주세요 — 인터넷 상태를 점검한 뒤 다시 시도하세요.';
+  if (/알 수 없는 action|unknown action/i.test(m)) return '백엔드 업데이트가 필요합니다 — Apps Script에 새 Code.gs를 붙여넣고 재배포해 주세요.';
+  return '연결 확인 실패: ' + (m || '알 수 없는 오류');
+}
 
 /* 설교 이미지 AI 선택: 변경 즉시 저장(설정 저장 버튼 없이도 적용) */
 (function(){
@@ -9714,6 +9724,7 @@ async function genSermonImage(opts){
       out.innerHTML = '<div class="cnt">' + res0.provider + ' · ' + res0.model + ' — ' + note + '</div>';
       var img = document.createElement('img');
       img.src = res0.src; img.style.cssText = 'max-width:100%;border-radius:10px;margin-top:6px;display:block';
+      img.alt = '생성된 설교 이미지 — ' + (prompt || jobType).slice(0, 80);
       out.appendChild(img);
       var a = document.createElement('a');
       a.href = res0.src; a.download = (info.saved || 'sermon-image.png'); a.target = '_blank';
@@ -10487,7 +10498,7 @@ function renderLibrary(){
     var loading = !!(state.settings && state.settings.url && (_pullInflight || !state.syncAt));
     box.innerHTML = loading
       ? '<div class="libLoading"><span class="bigspin"></span><span class="ltxt">설교를 불러오는 중…</span></div>'
-      : '<div class="empty">아직 등록된 설교가 없습니다.<br>설정에서 동기화하거나 [전체 새로고침]을 눌러 주세요.</div>';
+      : '<div class="empty">아직 등록된 설교가 없습니다.<br>설정에서 동기화하거나 [전체 새로고침]을 눌러 주세요.<br><button class="emptyCta" type="button" onclick="showPage(\'settings\')">설정 열기</button></div>';
     $('#libCnt').textContent = '';
     return;
   }
@@ -10622,7 +10633,7 @@ function renderAnalytics(){
     var loading = !!(state.settings && state.settings.url && (_pullInflight || !state.syncAt));
     box.innerHTML = loading
       ? '<div class="libLoading"><span class="bigspin"></span><span class="ltxt">집계하는 중…</span></div>'
-      : '<div class="empty">아직 등록된 설교가 없습니다.<br>설정에서 동기화하거나 [전체 새로고침]을 눌러 주세요.</div>';
+      : '<div class="empty">아직 등록된 설교가 없습니다.<br>설정에서 동기화하거나 [전체 새로고침]을 눌러 주세요.<br><button class="emptyCta" type="button" onclick="showPage(\'settings\')">설정 열기</button></div>';
     return;
   }
   /* 옵션 채우기(연도·예배) */
@@ -11197,7 +11208,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v257';
+var APP_VER = 'v258';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -11337,6 +11348,34 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       try { if (state.queue && state.queue.length) flushQueue().then(function(){ renderStats(); }); } catch(e){}
     });
   });
+
+  /* ── "더보기" 전체 메뉴 그룹화(기존 버튼·이벤트 그대로 재배치) ── */
+  (function(){
+    var grid = document.querySelector('#moreSheet .msGrid');
+    if (!grid) return;
+    var GROUPS = [
+      { label: '작성 · 구상', pages: ['compose', 'occ', 'devo', 'series', 'input'] },
+      { label: '자료 · 검색', pages: ['search', 'library', 'illlib', 'analytics', 'archive'] },
+      { label: '생성물 · 관리', pages: ['outputs', 'import', 'inbox', 'settings'] }
+    ];
+    var byPage = {};
+    grid.querySelectorAll('.msItem').forEach(function(b){ if (b.dataset.page) byPage[b.dataset.page] = b; });
+    var ver = grid.querySelector('.msVer');
+    var frag = document.createDocumentFragment();
+    var placed = {};
+    GROUPS.forEach(function(g){
+      var items = g.pages.map(function(p){ return byPage[p]; }).filter(Boolean);
+      if (!items.length) return;
+      var lab = document.createElement('div'); lab.className = 'msGroupLabel'; lab.textContent = g.label;
+      frag.appendChild(lab);
+      items.forEach(function(b){ frag.appendChild(b); placed[b.dataset.page] = 1; });
+    });
+    /* 그룹에 빠진 항목이 있으면 끝에 보존(누락 방지) */
+    grid.querySelectorAll('.msItem').forEach(function(b){ if (!placed[b.dataset.page]) frag.appendChild(b); });
+    if (ver) frag.appendChild(ver);
+    grid.innerHTML = '';
+    grid.appendChild(frag);
+  })();
 })();
 
 /* ══ 커스텀 달력 날짜 선택기 ══
@@ -11716,7 +11755,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     if (role === 'user'){
       if (text){ var tx = document.createElement('div'); tx.textContent = text; d.appendChild(tx); }
       if (imgUrl){
-        var im = document.createElement('img'); im.className = 'aiShot'; im.src = imgUrl;
+        var im = document.createElement('img'); im.className = 'aiShot'; im.src = imgUrl; im.alt = '첨부한 화면 캡처';
         im.title = '클릭하면 새 탭에서 크게 보기';
         im.addEventListener('click', function(){ try { var w = window.open(); w.document.write('<img src="' + imgUrl + '" style="max-width:100%">'); } catch(e){} });
         d.appendChild(im);
