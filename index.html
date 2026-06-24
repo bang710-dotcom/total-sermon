@@ -2094,6 +2094,8 @@ function openDetail(kind, id){
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성'], true);   /* 요청함(Cowork) 경유 — 데스크탑 전용 */
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
+    if (state.settings && state.settings.vidProxyUrl)            /* 유튜브 프록시 설정 시에만 노출 */
+      html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
     html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
     var txt = String(s['원고텍스트'] || '');
     var hasSum = !!String(s['요약본'] || '').trim();
@@ -5176,6 +5178,60 @@ async function aiSummarize(id, s, force){
     toast('요약본·주제어 완료 — 시트에 기록했습니다.');
   } catch (e) { renderSyncState(); toast('요약 실패: ' + e.message); }
 }
+
+/* 유튜브 링크 → (예배 전체 영상이면 설교 구간 자동 탐지) → Gemini 전사 → 이어서 Claude 요약본.
+   장년·새벽(설교만 업로드)·대학부(예배 전체) 모두 지원. 전사=Worker(Gemini), 요약=앱(Claude P_SUM). */
+async function aiYouTubeSummarize(id){
+  try {
+    if (!id) { toast('먼저 [시트에 저장]으로 설교를 저장해 주세요.'); return; }
+    var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
+    var c = vidProxyCfg();
+    if (!c.url || !c.token) { toast('설정 탭에서 유튜브 영상분석 프록시 URL과 토큰을 먼저 입력해 주세요.'); showPage('settings'); return; }
+    if (!aiKey()) { toast('설정 탭에 Claude API 키를 입력해야 요약본을 만들 수 있습니다.'); return; }
+    var url = prompt('설교 유튜브 링크를 입력하세요\n(대학부 예배 전체 영상도 가능 — 설교 부분을 자동으로 찾습니다)', '');
+    if (url === null) return;
+    url = url.trim();
+    if (!/youtu\.?be/.test(url)) { toast('유효한 유튜브 링크가 아닙니다.'); return; }
+    /* 예배구분에 '대학'이 있으면 예배 전체 영상(full)으로 추정, 그 외는 설교만(sermon). 사용자가 확인·변경. */
+    var looksFull = /대학/.test(String(s['예배구분'] || ''));
+    var isFull = looksFull
+      ? confirm('이 링크는 「예배 전체 영상」인가요?\n\n[확인] = 예배 전체 → 설교 부분을 자동으로 찾습니다\n[취소] = 설교 부분만 업로드된 영상')
+      : !confirm('이 링크는 「설교 부분만」 업로드된 영상인가요?\n\n[확인] = 설교만 (장년·새벽 등)\n[취소] = 예배 전체 영상 → 설교 부분 자동 탐지');
+    var serviceType = isFull ? 'full' : 'sermon';
+    showGenOverlay('유튜브 전사');
+    var r, j;
+    try {
+      r = await fetch(c.url + '/youtube', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-app-token': c.token },
+        body: JSON.stringify({ youtubeUrl: url, serviceType: serviceType })
+      });
+    } catch (e) { hideGenOverlay(); toast('영상 분석 프록시 연결 실패: ' + e.message); return; }
+    try { j = await r.json(); } catch (e) { hideGenOverlay(); toast('응답 파싱 실패 (HTTP ' + r.status + ')'); return; }
+    hideGenOverlay();
+    if (!j.ok) { toast('전사 실패: ' + (j.error || ('HTTP ' + r.status))); return; }
+    var trans = String(j.transcript || '').trim();
+    if (!trans) { toast('전사 결과가 비어 있습니다 — 영상이 공개인지, 설교 구간이 있는지 확인해 주세요.'); return; }
+    var span = (j.start_mmss && j.end_mmss) ? (' (' + j.start_mmss + '~' + j.end_mmss + ')') : '';
+    /* 전사문은 원고텍스트가 비어 있을 때만 저장(준비된 원고 보존). */
+    var setData = { ID: id };
+    if (!String(s['원고텍스트'] || '').trim()) { setData['원고텍스트'] = trans; s['원고텍스트'] = trans; }
+    await apiPost({ action: 'update', sheet: 'sermons', data: setData });
+    toast('전사 완료' + span + ' — 이어서 Opus가 요약본을 생성합니다…');
+    var out = await callClaude(P_SUM,
+      '제목: ' + (s['제목'] || '') + '\n본문: ' + (s['본문'] || '') + '\n예배: ' + (s['예배구분'] || '') + '\n\n[설교 원고 전문(유튜브 자동 전사)]\n' + trans,
+      32000, aiTick('요약본'));
+    var sj = aiJson(out);
+    if (!sj['요약본']) throw new Error('요약 응답 형식 오류 — 다시 시도해 주세요.');
+    await apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': sj['요약본'], '키워드': sj['키워드'] || '' } });
+    await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': url, '비고': '유튜브 자동 전사+요약' + span } });
+    s['요약본'] = sj['요약본']; if (sj['키워드']) s['키워드'] = sj['키워드'];
+    aiMarkDone(id, '설교요약', '유튜브 자동 전사+요약');
+    renderSyncState();
+    toast('유튜브 → 요약본 완료 — 시트에 기록했습니다.');
+  } catch (e) { hideGenOverlay(); renderSyncState(); toast('유튜브 요약 실패: ' + e.message); }
+}
+window.aiYouTubeSummarize = aiYouTubeSummarize;
 
 async function aiManuscript(id, meta){
   try {
@@ -11217,7 +11273,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v258';
+var APP_VER = 'v259';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
