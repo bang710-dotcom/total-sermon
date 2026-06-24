@@ -6144,7 +6144,7 @@ function archiveRec(m, w, wi, o, status){
     '시리즈': m['시리즈명'] || '', '시리즈순번': String(_k >= 0 ? _k + 1 : wi + 1),
     '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': status || '보관',
     '핵심메시지': o['핵심메시지'] || '', '대지': djSer(o['대지']),
-    '비고': (_isTp && w['회차명'] ? '회차: ' + w['회차명'] + ' / ' : '') + (o['찬송'] ? '찬송: ' + o['찬송'] + ' / ' : '') + (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
+    '비고': (_isTp && w['회차명'] ? '회차: ' + w['회차명'] + ' / ' : '') + (cleanHymn(o['찬송']) ? '찬송: ' + cleanHymn(o['찬송']) + ' / ' : '') + (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
   };
   if (o['묵상요약']) rec['요약본'] = o['묵상요약'];
   return rec;
@@ -6251,7 +6251,7 @@ function optEdit(o){
   o = o || {};
   return { '제목': o['제목'] || '', '본문': o['본문'] || '', '핵심메시지': o['핵심메시지'] || '',
     '주제근거': o['주제근거'] || '', '대지': djSer(o['대지']),
-    '찬송': o['찬송'] || '', '묵상요약': o['묵상요약'] || '' };
+    '찬송': cleanHymn(o['찬송'] || ''), '묵상요약': o['묵상요약'] || '' };
 }
 
 /* ── 상황 설교 구상 ── */
@@ -7200,7 +7200,7 @@ function buildDawnFromSheet(name){
   if (!all.some(function(s){ return String(s['예배구분'] || '').indexOf('새벽') >= 0; })) return null;
   function bigoRange(b){ return ((String(b || '').match(/주간묵상:\s*(.+)$/) || [])[1] || '').trim(); }
   function bigoJeok(b){ return ((String(b || '').match(/^주제 근거:\s*(.*?)(?:\s*\/\s*주간묵상:|$)/) || [])[1] || '').trim(); }
-  function bigoHymn(b){ return ((String(b || '').match(/찬송:\s*(.*?)(?:\s*\/|$)/) || [])[1] || '').trim(); }
+  function bigoHymn(b){ return cleanHymn(((String(b || '').match(/찬송:\s*(.*?)(?:\s*\/|$)/) || [])[1] || '').trim()); }
   var serms = all.filter(function(s){ return isLiveSermon(s); });
   var arcs = all.filter(function(s){ return isOptRow(s); });
   var seen = {}, dates = [];
