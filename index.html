@@ -7565,7 +7565,7 @@ function spDevoHtml(){
   var pSt = (state.seriesReqs || {})['묵상집PDF'];
   var pCls = (pSt === '대기' || pSt === '진행중') ? ' req' : pSt === '완료' ? ' fin' : '';
   var pMark = pCls === ' fin' ? ' <span class="ck">●</span>' : pCls === ' req' ? ' <span class="ck">▲</span>' : '';
-  h += '<div class="toolrow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 다시 등록 (업서트)' : '묵상 일정 확정 → 묵상집 등록') + '</button>' +
+  h += '<div class="toolrow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 등록' : '묵상 일정 확정 → 묵상집 등록') + '</button>' +
     '<button class="btn sub" id="spDevoRedo" style="flex:0 0 auto;width:auto">재작업 요청</button>' +
     '<button class="btn sub" onclick="openSeriesDevoPreview()" style="flex:0 0 auto;width:auto">미리보기</button>' +
     '<button class="btn sub" id="spDevoTheme" style="flex:0 0 auto;width:auto">배경 테마' + (S.theme ? ' ✓' : '') + '</button>' +
@@ -9394,6 +9394,43 @@ function devoDayPages(S, row, bk){
   return [devoPg(pg1, paper), devoPg(pg2, paper), devoPg(pg3, paper), devoPg(pg4, paper)];
 }
 function devoMonday(iso){ var d = new Date(iso + 'T00:00:00'); var day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d.toISOString().slice(0,10); }
+/* 책 개요(8항목) — 동봉 홀만 서론 → Claude API 요약 → 시리즈 레코드 캐시 */
+var P_DEVO_OVERVIEW = '너는 영락교회 대학부 말씀묵상집의 "책 개요" 한 페이지를 만든다. 입력(JSON: 책 이름·홀만 성경주석 서론 원문)을 읽고 아래 8개 항목을 한국어로 정리해 JSON만 출력한다. 설명·코드펜스 금지. 서론 근거 안에서만(과장·창작 금지), 묵상집 독자에게 도움이 되게 간결히. 출력: {"이름":"이름의 뜻 한 줄","저자연대":"저자·기록연대 1문장","배경":"기록 배경 1~2문장","주제":"책의 주제 1~2문장","목적신학":"목적과 신학 — ① ② ③ 식 2~4가지","구조":"개요를 Ⅰ.~ 식으로 줄바꿈(\\n) 구분","핵심구절":"대표 구절 2~3개를 (장:절) 내용 식 줄바꿈(\\n)","그리스도":"이 책이 그리스도를 어떻게 가리키는지 1~2문장"}';
+async function devoLoadHolmanLocal(ko){
+  var idx = await devoLoadIdx();
+  var m = idx.filter(function(b){ return b.ko === ko || b.abbr === ko; })[0];
+  if (!m) return null;
+  return fetch('commentary/holman_' + ('0' + (m.n - 1)).slice(-2) + '.json').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+}
+async function ensureOverview(S, ko){
+  S.overviewCache = S.overviewCache || {};
+  if (S.overviewCache[ko]) return S.overviewCache[ko];
+  if (!aiKey()) return null;
+  var h = await devoLoadHolmanLocal(ko);
+  var intro = (h && h.chapters && h.chapters[0] && h.chapters[0][0]) ? String(h.chapters[0][0]) : '';
+  if (!intro) return null;
+  try {
+    var out = await callClaude(P_DEVO_OVERVIEW, JSON.stringify({ '책': ko, '홀만서론': intro.slice(0, 9000) }), 3000, aiTick(ko + ' 개요'));
+    var ov = aiJson(out);
+    S.overviewCache[ko] = ov; saveSeries();
+    return ov;
+  } catch (e) { return null; }
+}
+function devoOverviewPage(S, ko, ov){
+  function nl(s){ return esc(s || '').replace(/\n/g, '<br>'); }
+  function row(k, v){ return '<tr><td style="width:20mm;font-weight:700;color:#6F6046;padding:1mm 0;vertical-align:top">' + esc(k) + '</td><td style="padding:1mm 0">' + esc(v || '') + '</td></tr>'; }
+  var body = '<div class="pill" style="font-size:16.5pt;padding:2.6mm 0">' + esc(ko) + ' <span class="accent">개요</span></div><div style="height:4.5mm"></div>'
+    + '<div class="panel" style="padding:6mm 7mm"><table style="width:100%;border-collapse:collapse;font-size:9.8pt;line-height:1.55">'
+    + row('이름', ov['이름']) + row('저자·연대', ov['저자연대']) + row('배경', ov['배경']) + row('주제', ov['주제'])
+    + '</table></div><div style="height:4mm"></div>'
+    + '<div class="badge">목적과 신학</div><div class="panel" style="margin:2.5mm 0 4mm;border-radius:0 5mm 5mm 5mm;padding:5mm 7mm"><div style="font-size:9.8pt;line-height:1.75">' + nl(ov['목적신학']) + '</div></div>'
+    + '<div class="badge">구조</div><div class="panel" style="margin:2.5mm 0 4mm;border-radius:0 5mm 5mm 5mm;padding:5mm 7mm"><div style="font-size:10pt;line-height:1.85">' + nl(ov['구조']) + '</div></div>'
+    + '<table style="width:100%;border-collapse:separate;border-spacing:3mm 0"><tr>'
+    + '<td style="width:50%;vertical-align:top"><div class="badge">핵심 구절</div><div class="panel" style="margin-top:2.5mm;border-radius:0 5mm 5mm 5mm;padding:4mm 5.5mm;min-height:30mm"><div style="font-size:9.3pt;line-height:1.7">' + nl(ov['핵심구절']) + '</div></div></td>'
+    + '<td style="width:50%;vertical-align:top"><div class="badge">그리스도에게로</div><div class="panel" style="margin-top:2.5mm;border-radius:0 5mm 5mm 5mm;padding:4mm 5.5mm;min-height:30mm"><div style="font-size:9.3pt;line-height:1.7">' + nl(ov['그리스도']) + '</div></div></td>'
+    + '</tr></table>';
+  return devoPg(body, devoBgSrc(S, 'paper'));
+}
 async function buildDevoBookletHtml(S, opts){
   opts = opts || {};
   var m = S.meta || {}, rows = (S.devo && S.devo.rows) || [];
@@ -9416,9 +9453,15 @@ async function buildDevoBookletHtml(S, opts){
   var need = {}; weeks.forEach(function(w){ w.rows.forEach(function(r){ var pp = devoParseRef(r['본문범위']); if (pp) need[pp.book] = 1; }); });
   var bookMap = {};
   for (var ko in need){ try { bookMap[ko] = await devoLoadBook(ko); } catch(e){ bookMap[ko] = null; } }
+  /* 책별 개요(8항목) 미리 생성·캐시 */
+  var ovMap = {};
+  for (var ko3 in need){ try { ovMap[ko3] = await ensureOverview(S, ko3); } catch(e){ ovMap[ko3] = null; } }
+  var lastBook = null;
   /* 주차별 */
   weeks.forEach(function(w, wi){
     var first = w.rows[0], last = w.rows[w.rows.length - 1];
+    var wkBook = (devoParseRef(first['본문범위']) || {}).book;
+    if (wkBook && wkBook !== lastBook){ if (ovMap[wkBook]) pages.push(devoOverviewPage(S, wkBook, ovMap[wkBook])); lastBook = wkBook; }
     var rangeTxt = (first['본문범위'] || '') + (w.rows.length > 1 ? ' ~ ' + (last['본문범위'] || '').split(' ').pop() : '');
     var theme = (m['주차주제'] && m['주차주제'][wi] && m['주차주제'][wi]['주제']) || first['제목'] || '';
     pages.push(devoPg('<div style="position:absolute;left:34mm;right:34mm;top:42mm;bottom:80mm;border:0.45mm solid #4A4032;border-radius:14mm;background:rgba(252,250,240,.55)"></div>'
@@ -10563,7 +10606,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v242';
+var APP_VER = 'v243';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
