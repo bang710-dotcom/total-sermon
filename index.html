@@ -4034,33 +4034,62 @@ function doSaveCompose(){
     if (org && docxFileName(org) === docxFileName(data) &&
         !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return false;
   }
-  /* 동시 편집 충돌(문제 4): 다른 기기가 이 설교를 바꿨는데 그대로 수정 저장하면 그 변경을 덮어쓴다.
-     덮어쓰기 전에 한 번 확인 — [취소] 후 "다른 기기 내용 불러오기"로 비교할 수 있다. */
-  if (state.editing && state.remoteConflict) {
-    var rc = state.remoteConflict;
-    if (!confirm('⚠ 이 설교는 다른 기기에서 수정되었습니다' + (rc['수정일'] ? ' (' + rc['수정일'] + ')' : '') +
-        '.\n지금 [확인]을 누르면 그 변경을 덮어씁니다.\n다른 기기 내용을 먼저 보려면 [취소] 후 “다른 기기 내용 불러오기”를 누르세요.\n\n그대로 덮어쓸까요?')) return false;
-  }
-  var body;
-  if (state.editing) {
-    data.ID = state.editing;
-    body = { action: 'update', sheet: 'sermons', data: data };
-  } else {
-    body = { action: 'add', sheet: 'sermons', data: data };
-  }
-  /* 저장한 내용의 서명을 스냅샷 — 시트/대기열에 durable 보관된 경우에만 '깨끗함'으로 표시.
-     저장이 진짜 실패하면 dirty를 유지해 미저장 경고가 살아있게 한다. */
-  var _sig = composeSig();
+  var origId = state.editing;
   var _un = _lockSaveBtns();   /* 느린 저장 중 더블클릭으로 신규 설교가 중복 생성되는 것 방지 */
-  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
-    /* 신규 add(편집 아님)거나, 삭제→재등록으로 새 ID가 돌아온 경우 그 ID로 전환(이후 [저장]은 새 행을 갱신) */
-    if (id && typeof id === 'string' && (!state.editing || id !== state.editing)) {
-      state.editing = id;
-      state.versionOf = null;
-      updateComposeBadge(); refreshReqBtns();
+  function release(r){ _un(); return r; }
+  function fail(e){ _un(); throw e; }
+
+  /* 실제 저장(충돌 해결 포함) — 저장 직전 동기화로 최신 충돌 상태를 반영한 뒤 호출된다. */
+  function finishSave(){
+    /* ── 동시 편집 충돌(무손실 해결) ──
+       내가 편집하는 동안 다른 기기가 같은 설교를 바꿨으면, 덮어쓰기/포기의 이지선다(둘 다 손해)가 아니라
+       기본을 "검토본으로 따로 저장(둘 다 보존)"으로 둔다. 검토본은 원본당 1개로 재사용되어 사본이 난립하지 않는다. */
+    if (origId && state.remoteConflict) {
+      var rc = state.remoteConflict;
+      var pick = confirm('⚠ 이 설교는 다른 기기에서도 수정되었습니다' + (rc['수정일'] ? ' (' + rc['수정일'] + ')' : '') +
+        '.\n\n[확인] = 내 작업을 “검토본”으로 따로 저장\n  → 다른 기기 내용도, 내 작업도 모두 보존(원본당 검토본 1개로 합쳐짐 — 나중에 비교해서 정리)\n\n[취소] = 다른 방법 선택');
+      if (pick) return saveReconcileCopy(data, origId);
+      var ow = confirm('그러면 내 작업으로 “원본을 덮어쓸까요”?\n\n[확인] = 덮어쓰기 (다른 기기의 변경 내용은 사라집니다)\n[취소] = 저장하지 않고 편집 계속 (상단 “다른 기기 내용 불러오기”로 비교 가능)');
+      if (!ow) return Promise.resolve(false);
+      /* ow=true → 아래에서 그대로 update(덮어쓰기) 진행 */
     }
-    return id;
-  }).then(function(r){ _un(); return r; }, function(e){ _un(); throw e; });
+    var body = origId ? { action: 'update', sheet: 'sermons', data: Object.assign({}, data, { ID: origId }) }
+                      : { action: 'add', sheet: 'sermons', data: data };
+    /* 저장한 내용의 서명을 스냅샷 — durable 보관된 경우에만 '깨끗함'으로 표시(진짜 실패 시 dirty 유지). */
+    var _sig = composeSig();
+    return submit(body, origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+      /* 신규 add거나, 삭제→재등록으로 새 ID가 돌아온 경우 그 ID로 전환(이후 [저장]은 새 행을 갱신) */
+      if (id && typeof id === 'string' && (!origId || id !== origId)) {
+        state.editing = id;
+        state.versionOf = null;
+        updateComposeBadge(); refreshReqBtns();
+      }
+      return id;
+    });
+  }
+
+  /* 기존 설교 수정이면 저장 직전에 다른 기기 변경을 한 번 확인(편집 중이라 pullData는 내 행을 덮지 않고
+     remoteConflict만 세팅). 편집 도중 앱 전환이 없어 동기화가 안 일어난 경우의 '조용한 덮어쓰기'를 막는다. */
+  var pre = (origId && state.settings.url && state.settings.token && navigator.onLine)
+    ? pullData().catch(function(){}) : Promise.resolve();
+  return pre.then(finishSave).then(release, fail);
+}
+/* 내 작업을 '검토본'으로 저장 — 원본은 그대로 두고 둘 다 보존. 같은 원본의 검토본이 이미 있으면
+   새로 만들지 않고 그 행을 갱신(여러 기기를 오가도 검토본은 원본당 1개로 수렴). */
+function saveReconcileCopy(data, origId){
+  var d = Object.assign({}, data); delete d.ID; delete d['로컬ID'];
+  d['충돌원본'] = String(origId);
+  if (!/검토본/.test(String(d['제목'] || ''))) d['제목'] = (d['제목'] || '(제목 없음)') + ' (검토본)';
+  var existing = (state.data.sermons || []).filter(function(s){ return String(s['충돌원본'] || '') === String(origId); })
+    .sort(function(a, b){ var x = String(a['수정일'] || ''), y = String(b['수정일'] || ''); return x < y ? 1 : x > y ? -1 : 0; })[0];
+  var body = existing ? { action: 'update', sheet: 'sermons', data: Object.assign({}, d, { ID: existing['ID'] }) }
+                      : { action: 'add', sheet: 'sermons', data: d };
+  var _sig = composeSig();
+  return submit(body, '내 작업을 검토본으로 저장했습니다 (원본·다른 기기 내용 모두 보존)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+    var nid = existing ? existing['ID'] : id;
+    if (nid && typeof nid === 'string') { state.editing = nid; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
+    return nid;
+  });
 }
 /* 저장 버튼(저장/새 설교로 저장) 일괄 잠금·해제 — 진행 중 중복 클릭 차단 */
 function _lockSaveBtns(){
