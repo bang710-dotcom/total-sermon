@@ -575,7 +575,8 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #composeMeta [data-req="이미지프롬프트"],
   #composeMeta [data-req="이미지생성"],
   #spDevoPdf,
-  #spDevoTheme{display:none !important}
+  #spDevoTheme,
+  #spDevoPrint{display:none !important}
   .m-deskonly-note{display:block}
 
   /* 더보기 바텀시트 — 전 페이지 접근 */
@@ -7568,6 +7569,7 @@ function spDevoHtml(){
     '<button class="btn sub" id="spDevoRedo" style="flex:0 0 auto;width:auto">재작업 요청</button>' +
     '<button class="btn sub" onclick="openSeriesDevoPreview()" style="flex:0 0 auto;width:auto">미리보기</button>' +
     '<button class="btn sub" id="spDevoTheme" style="flex:0 0 auto;width:auto">배경 테마' + (S.theme ? ' ✓' : '') + '</button>' +
+    '<button class="btn sub" id="spDevoPrint" style="flex:0 0 auto;width:auto">묵상집 인쇄(1주 시험)</button>' +
     '<button class="btn gold' + pCls + '" id="spDevoPdf" style="flex:0 0 auto;width:auto;display:flex;align-items:center;gap:8px">' +
     '<span>묵상집 PDF 요청' + pMark + '</span>' + (pCls === ' fin' ? '<span class="inbtn">내려받기</span>' : '') + '</button></div>';
   return h;
@@ -7826,6 +7828,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     return;
   }
   if (e.target.closest('#spDevoTheme')) { openDevoThemePicker(); return; }
+  if (e.target.closest('#spDevoPrint')) { printDevoBooklet(state.series, { weeksLimit: 1 }); return; }
   if (e.target.closest('#spDevoPdf')) {
     if (e.target.closest('.inbtn')) spPdfDownload();
     else spReqPdf();
@@ -9272,6 +9275,186 @@ function openDevoThemePicker(){
     } catch (err) { toast('테마 생성 실패: ' + err.message); mk.disabled = false; mk.innerHTML = omk; }
   });
 }
+/* ===================== 묵상집 클라이언트 빌더 (원클릭 인쇄, 1단계) =====================
+   build.py(검증본)의 구조·수치를 그대로 이식. 배경은 인쇄에서 항상 출력되도록 <img>(z-index:-1)로 깐다.
+   데이터: 본문=bible/bNN.json(동봉), 질문·일정=S.devo.rows, 배경=S.theme 또는 devo_assets 기본. */
+var DEVO_CSS = "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}"
+ + "@font-face{font-family:'NotoKR';font-weight:400;src:url('fonts/NotoKR-400.ttf')}"
+ + "@font-face{font-family:'NotoKR';font-weight:500;src:url('fonts/NotoKR-500.ttf')}"
+ + "@font-face{font-family:'NotoKR';font-weight:700;src:url('fonts/NotoKR-700.ttf')}"
+ + "@font-face{font-family:'NotoKR';font-weight:900;src:url('fonts/NotoKR-900.ttf')}"
+ + "body{font-family:'NotoKR';color:#3A3024}"
+ + ".pg{position:relative;z-index:0;width:210mm;height:297mm;overflow:hidden;page-break-after:always;padding:14mm 13mm}"
+ + ".bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1}"
+ + ".panel{background:rgba(252,250,243,.93);border-radius:7mm;padding:9mm}"
+ + ".badge{display:inline-block;background:#6F6046;color:#FBF8F0;font-size:10.5pt;font-weight:700;padding:1.4mm 7mm;border-radius:0 3mm 3mm 0;letter-spacing:1px}"
+ + ".pill{background:rgba(252,250,243,.95);border-radius:99px;text-align:center;font-weight:900}"
+ + ".ln{height:9mm;border-bottom:0.25mm solid #BCAF97}.accent{color:#9A5B33}.dim{color:#7A6E5C}"
+ + ".vs{font-size:10.8pt;line-height:1.9;margin-bottom:1mm}"
+ + ".vn{color:#9A5B33;font-weight:700;font-size:8pt;vertical-align:super;margin-right:1.6mm}"
+ + ".chh{font-size:9pt;color:#7A6E5C;margin:2mm 0 1mm;font-weight:700}"
+ + "h1.daytitle{background:rgba(252,250,243,.95);border-radius:99px;text-align:center;font-size:18.5pt;font-weight:900;padding:3mm 0}"
+ + ".qitem{font-size:10.5pt;line-height:1.65;margin-bottom:6.5mm}.qmark{font-weight:900;color:#9A5B33;margin-right:2mm}"
+ + ".ip h1{background:rgba(252,250,243,.95);border-radius:99px;text-align:center;font-size:17pt;font-weight:900;padding:3mm 0;margin-bottom:7mm}.ip h1 .thin{font-weight:500}"
+ + ".ip .sec{margin-bottom:6.5mm}.ip .panel{border-radius:0 5mm 5mm 5mm;padding:5mm 7mm;margin-top:2.5mm}"
+ + ".ip .t{font-size:10.5pt;line-height:1.9}.ip .vs2{font-size:9.8pt;line-height:1.75;margin:2.5mm 0 0}"
+ + ".ip .vh{color:#9A5B33;font-weight:700;font-size:9.5pt;margin-top:3.5mm}"
+ + ".ip .foot{position:absolute;bottom:16mm;left:13mm;right:13mm;text-align:center;font-size:10.5pt;color:#5B5142;line-height:1.9;font-weight:500}.ip .q{color:#9A5B33;font-weight:700}";
+function devoBgSrc(S, kind){ return (S.theme && S.theme[kind]) ? S.theme[kind] : ('devo_assets/' + kind + '.jpg'); }
+function devoPg(body, bgSrc, cls){ return '<div class="pg ' + (cls||'') + '"><img class="bg" src="' + bgSrc + '">' + body + '</div>'; }
+/* 묵상이란 5p — intro_build.py 고정 원문 그대로 */
+var DEVO_INTRO = [
+ '<h1>묵상<span class="thin">이란</span></h1>'
+ +'<div class="sec"><div class="badge">1. 묵상(默想)의 사전적 의미</div><div class="panel"><div class="t">1) 눈을 감고 말없이 마음속으로 생각하다<br>2) 말없이 마음속으로 기도하다</div></div></div>'
+ +'<div class="sec"><div class="badge">2. 묵상의 원어적 의미</div><div class="panel"><div class="t">1) \'하가\' : 작은 소리로 읊조리다, 중얼거리다, 속삭이다, 으르렁거리다<br><span class="dim" style="font-size:9pt">(여호수아 1:8; 시편 1:2; 35:28; 잠언 15:28; 이사야 31:4; 예레미야 48:31)</span><br>2) \'시아흐\' : 말하다, 작은 소리로 읊조리다, 숙고하다, 생각에 잠기다<br><span class="dim" style="font-size:9pt">(시편 77:12; 145:5; 잠언 6:22; 역대상 16:9)</span></div></div></div>'
+ +'<div class="sec"><div class="badge">3. 성경 묵상의 실천적 의미</div><div class="panel"><div class="t">1) 성경을 매일 읽는 것 &nbsp; 2) 읽은 말씀을 깊이 생각하는 것<br>3) 말씀을 마음에 두는(간직하는) 것 &nbsp; 4) 말씀 안에 내가 거하는 것</div><div class="vh">- 시편 119:11</div><div class="vs2">내가 주께 범죄하지 아니하려 하여 주의 말씀을 내 마음에 두었나이다</div><div class="vh">- 신명기 6:6</div><div class="vs2">오늘 내가 네게 명하는 이 말씀을 마음에 새기고</div><div class="vh">- 에스겔 3:2-3</div><div class="vs2">내가 입을 벌리니 그가 그 두루마리를 내게 먹이시며 내게 이르시되 인자야 내가 네게 주는 이 두루마리를 네 배에 넣으며 네 창자에 채우라 하시기에 내가 먹으니 그것이 내 입에서 달기가 꿀 같더라</div><div class="vh">- 요한복음 15:7</div><div class="vs2">너희가 내 안에 거하고 내 말이 너희 안에 거하면 무엇이든지 원하는 대로 구하라 그리하면 이루리라</div></div></div>'
+ +'<div class="foot">성경묵상은 하나님의 말씀이 우리 안에 거하게(머물게)하는 것이며,<br>동시에 우리가 하나님의 말씀 안에 거하게(머무는) 것입니다.</div>',
+ '<h1>묵상의 <span class="thin">순서와 방법</span></h1>'
+ +'<div class="sec"><div class="badge">1. 말씀 묵상의 순서</div><div class="panel"><div class="t" style="font-weight:700;text-align:center;letter-spacing:0.5px">준비하기 → 기도하기 → 관찰하기 → 묵상하기 → 적용하기 → 기도하기 → 살아내기</div></div></div>'
+ +'<div class="sec"><div class="badge">2. 말씀 묵상의 방법</div><div class="panel"><div class="t"><b>1) 준비하기</b><br>- 마음, 시간과 장소, 도구(교재, 성경_다번역, 필기구)<br><span class="q">Q. 시간과 장소를 정해보자</span></div></div>'
+ +'<div class="panel"><div class="t"><b>2) 기도하기</b></div><div class="vh">- 시편 119:18</div><div class="vs2">내 눈을 열어서 주의 율법에서 놀라운 것을 보게 하소서</div><div class="vh">- 사무엘상 3:10</div><div class="vs2">여호와께서 임하여 서서 전과 같이 사무엘아 사무엘아 부르시는지라 사무엘이 이르되 말씀하옵소서 주의 종이 듣겠나이다 하니</div><div class="vh">- 열왕기상 3:9</div><div class="vs2">누가 주의 이 많은 백성을 재판할 수 있사오리이까 듣는 마음을 종에게 주사 주의 백성을 재판하여 선악을 분별하게 하옵소서</div></div>'
+ +'<div class="panel"><div class="t"><b>3) 관찰하기(성경읽기)</b><br>- 하나님 말씀을 듣는다는 자세로 읽기 <span class="dim">(하나님의 마음이 무엇일까 생각하며 읽기)</span><br>- 천천히, 꼼꼼히, 반복해서 내용 파악하며 읽기 <span class="dim">(본문 내용 속에서, 본문 내용을 근거로 묵상)</span><br>- 본문 내용을 요약할 수 있을 때까지 읽기 <span class="dim">(보고 싶은 것이 아니라 보여주시는 것을 발견)</span></div></div></div>',
+ '<h1>묵상의 <span class="thin">순서와 방법</span></h1>'
+ +'<div class="sec"><div class="panel" style="border-radius:5mm"><div class="t"><b>4) 묵상하기</b><br>- 그 내용 속에서 하나님의 뜻을 발견하기<br>- 시간과 공간을 초월하는 메시지 찾기</div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>5) 적용하기</b><br>- 그 뜻을 내 삶에 연결하기<br>- 적용의 범주: 하나님, 감사, 기도, 실천, 회개, 확신<br>- 적용 원칙: 가능한 구체적으로 실천 가능하도록</div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>6) 기도하기</b><br>- 삶에서 잘 살아낼 수 있도록 결단하기<br>- 하나님의 도우심을 구하기</div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>7) 살아내기</b></div></div></div>',
+ '<h1>성경묵상의 <span class="thin">읽기</span></h1>'
+ +'<div class="sec"><div class="panel" style="border-radius:5mm"><div class="t"><b>1. 천천히 소리내어 읽기</b></div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>2. 줄 치고 표시하며 읽기</b><br>- 사실, 인물, 배경, 사건, 결과 파악, 반복되는 단어, 키워드</div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>3. 질문하고 기록하며 읽기</b><br>- 읽으면서 쓰고, 쓰면서 새롭게 다시 읽기 / 사고의 경계 만들기<br>- 줄여 쓰기(요약) · 바꿔 쓰기(자기 언어) · 기도 쓰기(묵상을 담은 기도문 쓰기)</div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>4. 외면적 읽기: 사실 파악</b><br>- 주어 동사 관계, 시간적·공간적 배경 파악 등</div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>5. 내면적 읽기: 이면/동기 파악</b><br>- 저자의 의도, 등장인물의 말과 행동의 동기나 심정 생각하기</div></div>'
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>6. 묵상적 읽기: 의미(메시지) 파악</b><br>- 아래와 같은 질문하기<br><span class="q">* 이 장면에서 하나님의 마음은?</span><br><span class="q">* 왜 이렇게 역사하셨을까?</span><br><span class="q">* 나로 읽게 하시는 이유는 무엇인가?</span></div></div></div>',
+ '<h1>묵상 <span class="thin">나눔</span></h1>'
+ +'<div class="sec"><div class="badge">1. 묵상 나눔의 유익</div><div class="panel"><div class="t">1) 개인 묵상의 지나친 주관화 극복<br>2) 더 크신 하나님에 대한 온전 이해<br>3) 묵상을 배우고 익히는 최고의 방법<br>4) 교제와 돌봄</div></div></div>'
+ +'<div class="sec"><div class="badge">2. 묵상 나눔의 내용</div><div class="panel"><div class="t">1) 말씀 묵상을 통한 본문의 새로운 발견과 질문<br>2) 말씀 묵상을 통한 내 삶의 새로운 발견과 깨달음<br>3) 말씀 묵상 후 새로운 행동의 시도와 변화, 그 결과<br>4) 적용을 위한 개인과 공동체의 기도 제목</div></div></div>'
+ +'<div class="foot" style="font-weight:700">묵상을 잘 해서 나눔을 하는 것이 아니라,<br>묵상을 잘 하려고 나누는 것입니다.</div>'
+];
+var DEVO_BIBLE = { idx: null, books: {} };
+async function devoLoadIdx(){ if (!DEVO_BIBLE.idx){ DEVO_BIBLE.idx = await fetch('bible/index.json').then(function(r){ return r.json(); }); } return DEVO_BIBLE.idx; }
+async function devoLoadBook(ko){
+  if (DEVO_BIBLE.books[ko]) return DEVO_BIBLE.books[ko];
+  var idx = await devoLoadIdx();
+  var m = idx.filter(function(b){ return b.ko === ko || b.abbr === ko; })[0];
+  if (!m) throw new Error('성경 책을 찾지 못함: ' + ko);
+  var d = await fetch('bible/b' + ('0' + m.n).slice(-2) + '.json').then(function(r){ return r.json(); });
+  DEVO_BIBLE.books[ko] = d; return d;
+}
+function devoParseRef(rng){
+  var m = String(rng || '').match(/^(.+?)\s+(\d+):(\d+)(?:\s*[-~]\s*(?:(\d+):)?(\d+))?$/);
+  if (!m) return null;
+  var c1 = +m[2], v1 = +m[3], c2 = m[4] ? +m[4] : c1, v2 = m[5] ? +m[5] : v1;
+  return { book: m[1].trim(), c1: c1, v1: v1, c2: c2, v2: v2 };
+}
+function devoVersesHtml(bk, p){
+  var out = [], ch = bk.chapters;
+  for (var c = p.c1; c <= p.c2; c++){
+    var vs = ch[c - 1]; if (!vs) continue;
+    var a = (c === p.c1) ? p.v1 : 1, b = (c === p.c2) ? Math.min(p.v2, vs.length) : vs.length;
+    if (p.c1 !== p.c2) out.push('<div class="chh">' + c + '장</div>');
+    for (var v = a; v <= b; v++){
+      var label = (p.c1 === p.c2) ? String(v) : (c + ':' + v);
+      out.push('<div class="vs"><span class="vn">' + label + '</span>' + esc(vs[v - 1] || '') + '</div>');
+    }
+  }
+  return out.join('');
+}
+function devoWD(iso){ return ['일','월','화','수','목','금','토'][new Date(iso + 'T00:00:00').getDay()]; }
+function devoMD(iso){ var d = new Date(iso + 'T00:00:00'); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일'; }
+/* 하루 4페이지 (본문/관찰/질문+묵상/적용+기도) — build.py 블록 6~9 이식 */
+function devoDayPages(S, row, bk){
+  var p = devoParseRef(row['본문범위']) || { c1:1,v1:1,c2:1,v2:1 };
+  var verses = bk ? devoVersesHtml(bk, p) : '<div class="vs">(본문 로드 실패)</div>';
+  var paper = devoBgSrc(S, 'paper');
+  var titleRow = '<table style="width:100%;border-collapse:separate;border-spacing:3mm 0"><tr>'
+    + '<td style="width:34%"><div class="pill" style="font-size:12.5pt;padding:2.6mm 0">' + devoMD(row['날짜']) + ' ' + devoWD(row['날짜']) + '요일</div></td>'
+    + '<td style="width:12%;text-align:center;font-size:11pt;color:#6F6046;font-weight:700">제목</td>'
+    + '<td><div class="pill" style="font-size:12.5pt;padding:2.6mm 2mm;font-weight:700">' + esc(row['제목'] || '') + '</div></td></tr></table>';
+  var pg1 = titleRow + '<div style="height:6mm"></div><div class="badge" style="border-radius:99px;padding:1.8mm 8mm">' + esc(row['본문범위'] || '') + '</div><div style="height:3.5mm"></div><div class="panel" style="padding:6mm 8mm;min-height:236mm">' + verses + '</div>';
+  var lines18 = new Array(18).join('<div class="ln"></div>') + '<div class="ln"></div>';
+  var lines13 = new Array(13).join('<div class="ln"></div>') + '<div class="ln"></div>';
+  var lines14 = new Array(14).join('<div class="ln"></div>') + '<div class="ln"></div>';
+  var lines8 = new Array(8).join('<div class="ln"></div>') + '<div class="ln"></div>';
+  var pg2 = '<h1 class="daytitle">오늘의 말씀 묵상</h1><div style="height:6mm"></div><div class="badge">관찰하기</div>'
+    + '<div class="panel" style="position:absolute;left:13mm;right:13mm;top:43mm;bottom:14mm;border-radius:0 6mm 6mm 6mm;padding:6mm 8mm">'
+    + '<div style="font-size:11pt;font-weight:700;margin-bottom:4mm">본문 개요</div><div>' + lines18 + '</div>'
+    + '<div style="position:absolute;left:8mm;right:8mm;bottom:6mm;background:#A99C84;border-radius:3mm;padding:4mm 6mm;height:42mm"><div style="font-size:10.5pt;font-weight:700;color:#FBF8F0">본문 주제</div></div></div>';
+  var pg3 = '<h1 class="daytitle">오늘의 말씀 묵상</h1><div style="height:6mm"></div><div class="badge">묵상을 돕는 질문</div>'
+    + '<div class="panel" style="margin-top:2.5mm;border-radius:0 6mm 6mm 6mm;padding:6.5mm 8mm">'
+    + '<div class="qitem"><span class="qmark">Q.</span>' + esc(row['관찰질문'] || '') + '</div>'
+    + '<div class="qitem"><span class="qmark">Q.</span>' + esc(row['묵상질문'] || '') + '</div>'
+    + '<div class="qitem" style="margin-bottom:0"><span class="qmark">Q.</span>' + esc(row['적용질문'] || '') + '</div></div>'
+    + '<div style="position:absolute;left:13mm;right:13mm;bottom:14mm"><div class="badge">묵상하기</div>'
+    + '<div class="panel" style="margin-top:2.5mm;border-radius:0 6mm 6mm 6mm;padding:6mm 8mm;height:128mm"><div style="font-size:11pt;font-weight:500;margin-bottom:4mm">Messages</div><div>' + lines13 + '</div></div></div>';
+  var pg4 = '<h1 class="daytitle">오늘의 말씀 묵상</h1><div style="height:6mm"></div><div class="badge">적용하기</div>'
+    + '<div class="panel" style="margin-top:2.5mm;border-radius:0 6mm 6mm 6mm;padding:6mm 8mm;height:140mm"><div>' + lines14 + '</div></div>'
+    + '<div style="position:absolute;left:13mm;right:13mm;bottom:14mm"><div class="badge">오늘의 기도</div>'
+    + '<div class="panel" style="margin-top:2.5mm;border-radius:0 6mm 6mm 6mm;padding:6mm 8mm;height:81mm"><div>' + lines8 + '</div></div></div>';
+  return [devoPg(pg1, paper), devoPg(pg2, paper), devoPg(pg3, paper), devoPg(pg4, paper)];
+}
+function devoMonday(iso){ var d = new Date(iso + 'T00:00:00'); var day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d.toISOString().slice(0,10); }
+async function buildDevoBookletHtml(S, opts){
+  opts = opts || {};
+  var m = S.meta || {}, rows = (S.devo && S.devo.rows) || [];
+  if (!rows.length) throw new Error('묵상 일정이 없습니다.');
+  /* 주 단위(월~토) 그룹 */
+  var weeks = [], map = {};
+  rows.forEach(function(r){ var k = devoMonday(r['날짜']); if (!map[k]){ map[k] = []; weeks.push({ mon: k, rows: map[k] }); } map[k].push(r); });
+  if (opts.weeksLimit) weeks = weeks.slice(0, opts.weeksLimit);
+  var cover = devoBgSrc(S, 'cover'), paper = devoBgSrc(S, 'paper'), weekly = devoBgSrc(S, 'weekly');
+  var pages = [];
+  /* 표지 */
+  pages.push(devoPg('<div style="position:absolute;left:24mm;right:24mm;top:36mm;bottom:108mm;background:rgba(252,250,240,.48);border:0.55mm solid rgba(74,64,50,.8);border-radius:14mm"></div>'
+    + '<div style="text-align:center;margin-top:48mm;color:#33240F;font-size:40pt;font-weight:900;letter-spacing:1px">「' + esc(m['시리즈명'] || '') + '」</div>'
+    + '<div style="text-align:center;color:#33240F;font-size:27pt;font-weight:700;letter-spacing:10px;margin-top:8mm">말씀묵상집</div>'
+    + (m['기간'] ? '<div style="text-align:center;color:#42321E;margin-top:16mm;font-size:14pt;font-weight:700">' + esc(m['기간']) + '</div>' : '')
+    + '<div style="position:absolute;bottom:24mm;left:0;right:0;text-align:center"><span style="display:inline-block;background:rgba(40,28,14,.55);color:#FFFDF2;font-weight:900;font-size:15.5pt;letter-spacing:7px;padding:3mm 12mm 3.4mm;border-radius:99px">영락교회 대학부</span></div>', cover, 'cover'));
+  /* 묵상이란 5p */
+  DEVO_INTRO.forEach(function(h){ pages.push(devoPg('<div class="ip" style="position:relative;height:100%">' + h + '</div>', paper)); });
+  /* 책 데이터 미리 로드 */
+  var need = {}; weeks.forEach(function(w){ w.rows.forEach(function(r){ var pp = devoParseRef(r['본문범위']); if (pp) need[pp.book] = 1; }); });
+  var bookMap = {};
+  for (var ko in need){ try { bookMap[ko] = await devoLoadBook(ko); } catch(e){ bookMap[ko] = null; } }
+  /* 주차별 */
+  weeks.forEach(function(w, wi){
+    var first = w.rows[0], last = w.rows[w.rows.length - 1];
+    var rangeTxt = (first['본문범위'] || '') + (w.rows.length > 1 ? ' ~ ' + (last['본문범위'] || '').split(' ').pop() : '');
+    var theme = (m['주차주제'] && m['주차주제'][wi] && m['주차주제'][wi]['주제']) || first['제목'] || '';
+    pages.push(devoPg('<div style="position:absolute;left:34mm;right:34mm;top:42mm;bottom:80mm;border:0.45mm solid #4A4032;border-radius:14mm;background:rgba(252,250,240,.55)"></div>'
+      + '<div style="text-align:center;margin-top:38mm"><div style="font-size:20pt;font-weight:700;letter-spacing:6px">WEEKLY&nbsp; WORD</div>'
+      + '<div style="font-size:11pt;margin-top:4mm" class="dim">' + devoMD(first['날짜']) + ' (' + devoWD(first['날짜']) + ') ~ ' + devoMD(last['날짜']) + ' (' + devoWD(last['날짜']) + ')</div>'
+      + '<div style="width:60mm;border-top:0.3mm solid #6F6046;margin:11mm auto"></div>'
+      + '<div style="font-size:16pt;font-weight:700;margin-top:2.5mm">' + esc(rangeTxt) + '</div>'
+      + (theme ? '<div style="font-size:11.5pt;margin-top:8mm" class="accent">- ' + esc(theme) + ' -</div>' : '') + '</div>'
+      + '<div style="position:absolute;bottom:36mm;left:0;right:0;text-align:center;font-size:11.5pt;color:#5B5142">매일 한 줄의 말씀으로 하루를 채워보세요.</div>', weekly, 'wk'));
+    /* 일정표(찢은 종이) */
+    var schedRows = w.rows.map(function(r){ return '<tr><td style="padding:6.5mm 0 2mm 12mm;font-size:10.5pt;color:#6F6046;border-bottom:0.25mm dotted #BCAF97">' + devoMD(r['날짜']) + ' (' + devoWD(r['날짜']) + ')</td>'
+      + '<td style="padding:6.5mm 12mm 2mm 0;font-size:12.5pt;font-weight:900;border-bottom:0.25mm dotted #BCAF97">' + esc(r['본문범위'] || '') + '</td></tr>'; }).join('');
+    pages.push(devoPg('<div style="display:inline-block;background:rgba(252,250,240,.85);border-radius:99px;padding:2mm 7mm;font-size:11.5pt;font-weight:700;color:#4A4032">[' + (wi + 1) + '주차] ' + esc(theme) + '</div>'
+      + '<div style="position:relative;margin:26mm auto 0;width:160mm"><img src="devo_assets/torn.png" style="width:160mm">'
+      + '<table style="position:absolute;top:14mm;left:10mm;width:140mm;border-collapse:collapse">' + schedRows + '</table></div>', weekly, 'wk'));
+    /* 하루 4페이지 */
+    w.rows.forEach(function(r){ var pp = devoParseRef(r['본문범위']); var bk = pp ? bookMap[pp.book] : null; devoDayPages(S, r, bk).forEach(function(pg){ pages.push(pg); }); });
+  });
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(m['시리즈명'] || '묵상집') + '</title><style>' + DEVO_CSS + '</style></head><body>' + pages.join('') + '</body></html>';
+}
+async function printDevoBooklet(S, opts){
+  var html;
+  try { html = await buildDevoBookletHtml(S, opts); }
+  catch(e){ toast('묵상집 조립 실패: ' + e.message); return; }
+  var w = window.open('', '_blank');
+  if (!w){ toast('팝업이 차단되었습니다 — 이 사이트의 팝업을 허용해 주세요.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  /* 폰트·이미지 로드 완료 후 인쇄 */
+  var go = function(){ try { w.focus(); w.print(); } catch(e){} };
+  w.onload = function(){
+    var fonts = (w.document.fonts && w.document.fonts.ready) ? w.document.fonts.ready : Promise.resolve();
+    Promise.resolve(fonts).then(function(){ setTimeout(go, 600); });
+  };
+  /* onload가 안 걸리는 경우 대비 */
+  setTimeout(function(){ if (!w.closed) go(); }, 3500);
+}
 /* ===== 2단계: 설교 1편 전 컷 자동 생성 (이미지자료.docx → 프록시 + 본문 파생) ===== */
 function loadImgEl(src){ return new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = function(){ rej(new Error('이미지 로드 실패')); }; im.src = src; }); }
 function canvasToBlob(cv){ return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, 'image/png'); }); }
@@ -10380,7 +10563,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v241';
+var APP_VER = 'v242';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
