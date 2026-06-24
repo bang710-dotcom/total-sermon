@@ -10808,6 +10808,8 @@ function renderAnalytics(){
   html += anTestamentBars(byBook);
   /* 커버리지 코치(통산 기준) */
   html += anCoverage(all);
+  /* 절기 커버리지(통산 기준) */
+  html += anSeasons(all);
   /* 선택 분류의 설교 목록(드릴다운) */
   html += anDrill(list);
   box.innerHTML = html;
@@ -10936,6 +10938,34 @@ function anCoverage(all){
     + '<h4>아직 설교하지 않은 책 (' + never.length + '권)</h4><div class="covChips">' + neverHtml + '</div>'
     + (dormant.length ? '<h4>가장 오래 묵힌 책 (최근 설교 순)</h4><div class="covChips">' + dormHtml + '</div>' : '')
     + '</div>';
+}
+/* 절기별 설교 커버리지 — 제목·시리즈·예배구분의 키워드로 분류(움직이는 절기도 안정적으로 집계). */
+var SEASONS = [
+  { t: '대림·성탄', re: /대림|성탄|크리스마스/ },
+  { t: '사순·고난주간', re: /사순|고난\s*주간|종려|재의\s*수요일/ },
+  { t: '부활', re: /부활/ },
+  { t: '신년·송구영신', re: /신년|새해|송구영신/ },
+  { t: '맥추감사', re: /맥추/ },
+  { t: '추수감사', re: /추수\s*감사/ },
+  { t: '종교개혁', re: /종교개혁/ },
+  { t: '수련회·특별집회', re: /수련회|부흥회|연합집회|특별집회/ }
+];
+function anSeasons(all){
+  var rows = SEASONS.map(function(sn){ return { t: sn.t, re: sn.re, cnt: 0, last: '' }; });
+  (all || []).forEach(function(s){
+    var hay = String(s['제목'] || '') + ' ' + String(s['시리즈'] || '') + ' ' + String(svcOf(s) || '');
+    var dt = String(s['날짜'] || '');
+    rows.forEach(function(r){ if (r.re.test(hay)){ r.cnt++; if (dt > r.last) r.last = dt; } });
+  });
+  var html = rows.map(function(r){
+    var sub = r.cnt ? (r.cnt + '편' + (r.last ? ' · 최근 ' + r.last.slice(0, 7) : '')) : '아직 없음';
+    return '<div class="covGrow"><div class="covGlab">' + esc(r.t) + '</div>'
+      + '<div class="covGbar"><div class="covGfill" style="width:' + Math.min(r.cnt * 12, 100) + '%' + (r.cnt ? '' : ';opacity:.25') + '"></div></div>'
+      + '<div class="covGnum">' + sub + '</div></div>';
+  }).join('');
+  return '<div class="anCard covCard"><h3>절기 커버리지 <small>· 제목·시리즈 기준 · 전체 기간</small></h3>'
+    + '<div class="covGenres">' + html + '</div>'
+    + '<div class="cnt" style="margin-top:8px">제목·시리즈에 해당 절기 단어가 든 설교를 셉니다. \'아직 없음\'은 다음 절기 설교 후보입니다.</div></div>';
 }
 function anDrill(list){
   var S = ANALYTICS.sel;
