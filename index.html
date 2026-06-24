@@ -7745,9 +7745,10 @@ $('#seriesPane').addEventListener('click', async function(e){
     if (!oS._id) { toast('수정사항을 저장했습니다. (미래설교 보관함에 올리려면 그 선택지의 [미래설교로 저장]을 누르세요.)'); renderSeriesPane(); return; }
     ws.dataset.busy = '1'; var owS = ws.innerHTML; ws.innerHTML = '<span class="spin"></span>저장 중…';
     try {
-      var recS = { ID: oS._id, '제목': oS['제목']||'', '본문': oS['본문']||'',
-        '핵심메시지': oS['핵심메시지']||'', '대지': djSer(oS['대지']),
-        '비고': (oS['주제근거'] ? '주제 근거: ' + oS['주제근거'].trim() : '') + (wS['주간범위'] ? ' / 주간묵상: ' + wS['주간범위'] : '') };
+      /* archiveRec 형식 그대로 만들어 비고(찬송 포함)·요약본까지 일치시킨다. 상태는 빼서(초안/보관) 유지. */
+      var recS = archiveRec(state.series.meta || {}, wS, wiS, oS);
+      delete recS['상태'];
+      recS.ID = oS._id;
       await apiPost({ action: 'update', sheet: 'sermons', data: recS });
       toast('수정사항을 보관함에 저장했습니다.');
       sync();
@@ -10288,7 +10289,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v238';
+var APP_VER = 'v239';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
