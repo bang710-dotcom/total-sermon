@@ -1766,6 +1766,25 @@ function submit(body, okMsg, onResult, opts){
       state.queue.push(body); save(LS.queue, state.queue); renderStats();
       toast('오프라인/통신 오류 — 대기열에 저장했습니다. 다음 동기화 때 전송됩니다.');
       ok(true);   /* 대기열에 durable 보관됨 → 저장된 것으로 처리 */
+    } else if (body.action === 'update' && body.sheet === 'sermons' && body.data &&
+               /찾지 못했습니다|not found/i.test(String(e && e.message || ''))) {
+      /* 다른 기기에서 이미 삭제된 설교 — update 불가. 작업 유실을 막기 위해 새 설교로 다시 등록
+         (대화기록 동기화와 같은 graceful 복구). 옛 ID의 잔여행은 로컬에서 제거하고 새 ID로 전환. */
+      var _addBody = { action: 'add', sheet: 'sermons', data: Object.assign({}, body.data) };
+      delete _addBody.data.ID; delete _addBody.data['로컬ID'];
+      return apiPost(_addBody).then(function(nid){
+        toast('다른 기기에서 삭제된 설교라 새 설교로 다시 등록했습니다' + (nid ? ' (' + nid + ')' : ''));
+        ok(true);
+        try {
+          if (state.data.sermons) {
+            var _rec = (typeof nid === 'string') ? Object.assign({}, _addBody.data, { ID: nid }) : _addBody.data;
+            state.data.sermons = state.data.sermons.filter(function(r){ return String(r['ID']) !== String(body.data.ID); });
+            upsertById(state.data.sermons, [_rec]); saveData();
+            normalizeSermonStatuses(false); renderSyncState(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
+          }
+        } catch (_) {}
+        return nid;
+      }).catch(function(e2){ toast('저장 실패(재등록도 실패): ' + (e2 && e2.message || e2)); ok(false); return undefined; });
     } else {
       toast('저장 실패(서버 응답): ' + e.message);
       ok(false);  /* 시트에도 대기열에도 없음 → 미저장 상태 유지 */
