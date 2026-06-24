@@ -892,7 +892,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
     <section class="page" id="page-search">
       <div id="searchLeft">
         <div class="searchbox">
-          <input type="text" id="q" placeholder="제목·본문·예화·원고 통합 검색" autocomplete="off">
+          <input type="text" id="q" placeholder="제목·본문·예화·원고 통합 검색 (의미 확장: 불안→염려·걱정·두려움)" autocomplete="off">
           <div class="chips" style="margin-top:9px">
             <span class="chip on" data-scope="all">전체</span>
             <span class="chip" data-scope="sermons">설교</span>
@@ -903,7 +903,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
           </div>
         </div>
         <div class="cnt" id="qCnt"></div>
-        <div id="qResults"><div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.<br>데이터는 기기에 저장되어 오프라인에서도 검색됩니다.</div></div>
+        <div id="qResults"><div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.<br>비슷한 뜻의 말도 함께 찾습니다(예: <b>불안</b> → 염려·걱정·두려움).<br>데이터는 기기에 저장되어 오프라인에서도 검색됩니다.</div></div>
       </div>
       <div id="detailPane"><div class="empty">왼쪽에서 항목을 선택하면 상세 내용이 표시됩니다.</div></div>
     </section>
@@ -1950,6 +1950,70 @@ function ensureText(id){
 }
 function findIdea(id){ return state.data.ideas.filter(function(x){ return x['ID'] === id; })[0]; }
 
+/* ── 의미 기반(동의어) 검색 ──────────────────────────────────────────────────
+   한 그룹 안의 단어는 서로 확장 검색된다(예: '불안'→'염려·걱정·두려움'도 함께 매칭).
+   본문 검색이 부분일치이므로 어간만 넣어도 활용형이 잡힌다(예: '용서하'→'용서하면/용서하라'). */
+var SYNONYMS = [
+  ['불안','염려','걱정','근심','두려움','두렵','무서','초조','불안감','노심초사'],
+  ['평안','평강','안식','쉼','안정','평화'],
+  ['감사','감사함','고마'],
+  ['은혜','은총','거저','값없이','선물'],
+  ['사랑','자비','긍휼','사랑하','애정'],
+  ['용서','용납','사함','탕감','용서하','용서받'],
+  ['회개','돌이','돌아','뉘우','자복','회심'],
+  ['믿음','신앙','신뢰','의지','확신','믿는'],
+  ['소망','희망','기대','바람','기다림'],
+  ['구원','구속','속량','건지','구하심'],
+  ['십자가','갈보리','보혈','피흘','대속'],
+  ['부활','다시 사','살아나','영생'],
+  ['고난','고통','시련','환난','역경','아픔','괴로','연단'],
+  ['순종','복종','따름','말씀대로','청종'],
+  ['기도','간구','부르짖','중보','기도하','금식'],
+  ['예배','경배','찬양','찬송','영광 돌'],
+  ['헌신','드림','바침','충성','섬김','섬기'],
+  ['전도','선교','복음 전','증인','증거','땅끝'],
+  ['교만','자만','거만','높아','우쭐'],
+  ['겸손','낮아','낮춤','겸비','비우'],
+  ['죄','허물','범죄','죄악','타락'],
+  ['세상','세속','육신','정욕','탐욕','욕심'],
+  ['거룩','성결','구별','정결','성화'],
+  ['연약','약함','부족','한계','무능'],
+  ['능력','권능','강건','강함','두나미스'],
+  ['인내','참음','견딤','오래 참','버팀','끈기'],
+  ['지혜','명철','분별','슬기','총명'],
+  ['공동체','교회','지체','형제','성도'],
+  ['가정','부모','자녀','가족','자식'],
+  ['청년','젊은','다음세대','청춘'],
+  ['물질','재물','재정','소유'],
+  ['정체성','존재','나는 누구','내가 누구','자아'],
+  ['기억','기념','잊지','새김','회상'],
+  ['약속','언약','맹세'],
+  ['빛','광명','등불','비춤'],
+  ['어둠','흑암','캄캄','그늘'],
+  ['위로','격려','다독','붙드심'],
+  ['결단','결심','선택','다짐','작정']
+];
+var _SYN_MAP = null;
+function synMap(){
+  if (_SYN_MAP) return _SYN_MAP;
+  _SYN_MAP = {};
+  SYNONYMS.forEach(function(grp, gi){ grp.forEach(function(w){ _SYN_MAP[w.toLowerCase()] = gi; }); });
+  return _SYN_MAP;
+}
+/* 검색어 t를 같은 의미 그룹 단어들로 확장. 사전에 없으면 [t]. (1글자어는 확장 안 함)
+   매칭 규칙: t가 사전어와 같거나, 사전어로 '시작'할 때만 확장(활용형 흡수).
+   ※ 역방향(사전어가 t를 포함)은 오확장 유발('말씀'→'말씀대로')하므로 제외. */
+function expandTerm(t){
+  t = String(t || '').toLowerCase();
+  if (t.length < 2) return [t];
+  var m = synMap();
+  if (Object.prototype.hasOwnProperty.call(m, t)) return SYNONYMS[m[t]].map(function(w){ return w.toLowerCase(); });
+  for (var w in m){ if (w.length > 1 && t.indexOf(w) === 0) return SYNONYMS[m[w]].map(function(x){ return x.toLowerCase(); }); }
+  return [t];
+}
+function uniqArr(a){ var seen = {}, out = []; a.forEach(function(x){ if (!seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
+function termHit(hayAll, t){ return expandTerm(t).some(function(x){ return hayAll.indexOf(x) >= 0; }); }
+
 function runSearch(){
   var q = $('#q').value.trim();
   var box = $('#qResults'), cnt = $('#qCnt');
@@ -1965,7 +2029,7 @@ function runSearch(){
   function tagHit(kwStr){
     if (!tagTerms.length) return true;
     var kws = String(kwStr || '').toLowerCase().split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); });
-    return tagTerms.every(function(tt){ return kws.some(function(k){ return k.indexOf(tt) >= 0; }); });
+    return tagTerms.every(function(tt){ var ex = expandTerm(tt); return kws.some(function(k){ return ex.some(function(x){ return k.indexOf(x) >= 0; }); }); });
   }
 
   if (scope === 'all' || scope === 'sermons' || scope === 'illust' || scope === 'topics') {
@@ -1975,7 +2039,7 @@ function runSearch(){
       if (!tagHit(s['키워드'])) return;
       var fields = scope === 'illust' ? ['예화'] : SERMON_FIELDS;
       var hayAll = fields.map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
-      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'sermon', d: s, dt: String(s['날짜'] || '') });
+      if (terms.every(function(t){ return termHit(hayAll, t); })) results.push({ kind: 'sermon', d: s, dt: String(s['날짜'] || '') });
     });
   }
   if (scope === 'all' || scope === 'ideas' || scope === 'illust' || scope === 'topics') {
@@ -1983,7 +2047,7 @@ function runSearch(){
       if (scope === 'illust' && d['유형'] !== '예화') return;
       if (!tagHit(d['키워드'])) return;
       var hayAll = IDEA_FIELDS.map(function(f){ return String(d[f] || ''); }).join(' ').toLowerCase();
-      if (terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'idea', d: d, dt: String(d['등록일'] || '').slice(0, 10) });
+      if (terms.every(function(t){ return termHit(hayAll, t); })) results.push({ kind: 'idea', d: d, dt: String(d['등록일'] || '').slice(0, 10) });
     });
   }
   if (scope === 'all' || scope === 'devon') {
@@ -1991,9 +2055,12 @@ function runSearch(){
     (state.data.devonotes || []).forEach(function(n){
       if (tagTerms.length) return; /* 묵상노트에는 키워드 필드가 없음 */
       var hayAll = DEVON_FIELDS.map(function(f){ return String(n[f] || ''); }).join(' ').toLowerCase();
-      if (terms.length && terms.every(function(t){ return hayAll.indexOf(t) >= 0; })) results.push({ kind: 'devonote', d: n, dt: String(n['날짜'] || '') });
+      if (terms.length && terms.every(function(t){ return termHit(hayAll, t); })) results.push({ kind: 'devonote', d: n, dt: String(n['날짜'] || '') });
     });
   }
+  /* 하이라이트·스니펫에 확장어(동의어)까지 포함 — 왜 매칭됐는지 보이도록 */
+  terms = uniqArr(terms.reduce(function(a, t){ return a.concat(expandTerm(t)); }, []));
+  state.lastTerms = terms.concat(tagTerms);
   /* 최신순 정렬 */
   results.sort(function(a, b){ return a.dt < b.dt ? 1 : a.dt > b.dt ? -1 : 0; });
 
@@ -11275,7 +11342,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v259';
+var APP_VER = 'v260';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
