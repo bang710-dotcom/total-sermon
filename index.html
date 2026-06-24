@@ -2414,12 +2414,35 @@ function illUnified(){
   });
   return out;
 }
+/* 이 예화가 사용된 설교(역링크): 인박스 예화의 직접 연결(사용설교ID) + 설교 예화 텍스트 휴리스틱 매칭. */
+function illUsedInSermons(it){
+  var title = String(it.title || '').trim(), msg = String(it.message || '').trim(), out = [];
+  if (it.src === 'inbox' && it.key){
+    var d = findIdea(it.key.replace(/^inbox:/, ''));
+    if (d && d['사용설교ID']) String(d['사용설교ID']).split(/[,;]\s*/).forEach(function(sid){ var s = findSermon(sid.trim()); if (s && out.indexOf(s) < 0) out.push(s); });
+  }
+  if (title.length >= 4 || msg.length >= 6){
+    (state.data.sermons || []).forEach(function(s){
+      if (isOptRow(s) || out.indexOf(s) >= 0) return;
+      var hay = String(s['예화'] || ''); if (!hay) return;
+      if ((title.length >= 4 && hay.indexOf(title) >= 0) || (msg.length >= 6 && hay.indexOf(msg) >= 0)) out.push(s);
+    });
+  }
+  return out;
+}
 function illCardU(it){
+  var used = illUsedInSermons(it);
+  var usedHtml = used.length
+    ? '<div style="margin-top:6px;font-size:12px;color:var(--accent2)">↩ 사용된 설교 ' + used.length + '편: '
+      + used.slice(0, 5).map(function(s){ return esc(String(s['날짜'] || '').slice(0, 7)) + ' 「' + esc(s['제목'] || '') + '」'; }).join(' · ')
+      + (used.length > 5 ? ' 외' : '') + '</div>'
+    : '';
   return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
     + '<summary style="cursor:pointer;list-style:none"><span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
     + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
+    + usedHtml
     + '<div style="margin-top:6px"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button></div></details>';
 }
 function renderIllLib(){
