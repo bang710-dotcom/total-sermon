@@ -2094,7 +2094,7 @@ function openDetail(kind, id){
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성'], true);   /* 요청함(Cowork) 경유 — 데스크탑 전용 */
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
-    if (state.settings && state.settings.vidProxyUrl)            /* 유튜브 프록시 설정 시에만 노출 */
+    if (state.settings && (state.settings.vidProxyUrl || state.settings.proxyUrl))   /* 프록시(이미지/영상) 설정 시 노출 */
       html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
     html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
     var txt = String(s['원고텍스트'] || '');
@@ -9694,10 +9694,12 @@ function imgProxyCfg(){
   var s = state.settings || {};
   return { url: String(s.proxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
 }
-/* 유튜브 영상분석 프록시 설정 — vidProxyUrl(+ 이미지 토큰 공용). 유튜브→전사용. */
+/* 유튜브 영상분석 프록시 설정 — 별도 vidProxyUrl이 없으면 이미지 프록시(proxyUrl)를 재사용.
+   (기존 이미지 워커에 /youtube 라우트만 추가하는 권장 구성에서는 vidProxyUrl을 비워둔다.) */
 function vidProxyCfg(){
   var s = state.settings || {};
-  return { url: String(s.vidProxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
+  var u = String(s.vidProxyUrl || s.proxyUrl || '').trim().replace(/\/+$/, '');
+  return { url: u, token: String(s.proxyToken || '').trim() };
 }
 /* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) 또는 'gemini'(=fal.ai 경유 Nano Banana) */
 function imgEngine(){ return ((state.settings && state.settings.imgEngine) === 'gemini') ? 'gemini' : 'flux'; }
