@@ -2069,7 +2069,7 @@ function renderRefPast(){
   if (!iv){ box.innerHTML = ''; return; }
   var cur = state.editing, same = [], book = [];
   (state.data.sermons || []).forEach(function(s){
-    if (s['상태'] === '보관') return;
+    if (isOptRow(s)) return;
     if (cur && s['ID'] === cur) return;
     var iv2 = refToInterval(s['본문'] || ''); if (!iv2 || iv2.idx !== iv.idx) return;
     (iv2.lo <= iv.hi && iv.lo <= iv2.hi ? same : book).push(s);
@@ -6030,7 +6030,7 @@ function loadSermonFromArchive(S) {
   var name = (S.meta || {})['시리즈명'];
   if (!name) return 0;
   var archived = (state.data.sermons || []).filter(function(s){
-    return s['시리즈'] === name && s['상태'] === '보관';
+    return s['시리즈'] === name && isOptRow(s);
   });
   if (!archived.length) return 0;
   /* 날짜 오름차순, 같은 날짜 안에선 시리즈순번 오름차순 */
@@ -7026,8 +7026,8 @@ function buildDawnFromSheet(name){
   function bigoRange(b){ return ((String(b || '').match(/주간묵상:\s*(.+)$/) || [])[1] || '').trim(); }
   function bigoJeok(b){ return ((String(b || '').match(/^주제 근거:\s*(.*?)(?:\s*\/\s*주간묵상:|$)/) || [])[1] || '').trim(); }
   function bigoHymn(b){ return ((String(b || '').match(/찬송:\s*(.*?)(?:\s*\/|$)/) || [])[1] || '').trim(); }
-  var serms = all.filter(function(s){ return s['상태'] !== '보관'; });
-  var arcs = all.filter(function(s){ return s['상태'] === '보관'; });
+  var serms = all.filter(function(s){ return isLiveSermon(s); });
+  var arcs = all.filter(function(s){ return isOptRow(s); });
   var seen = {}, dates = [];
   all.forEach(function(s){ var d = s['날짜']; if (d && !seen[d]) { seen[d] = 1; dates.push(d); } });
   dates.sort();
@@ -7082,11 +7082,11 @@ function buildSeriesFromSheet(name){
   var book = String(rows[0]['본문범위'] || '').replace(/\s*\d.*$/, '').trim() || name;
   /* 확정 레코드(구상/완료) */
   var serms = (state.data.sermons || []).filter(function(s){
-    return s['시리즈'] === name && s['상태'] !== '보관';
+    return s['시리즈'] === name && isLiveSermon(s);
   }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
   /* 보관 레코드(선택지 후보) */
   var arcs = (state.data.sermons || []).filter(function(s){
-    return s['시리즈'] === name && s['상태'] === '보관';
+    return s['시리즈'] === name && isOptRow(s);
   });
   /* 동일 시리즈명 기존 항목 재사용 → 재동기화 시 목록에 중복 추가 방지 */
   var existing = state.seriesList.filter(function(s){ return (s.meta || {})['시리즈명'] === name; })[0]
@@ -7198,7 +7198,7 @@ function spStatus(){
   if (S.devoDone && (!S.sermon || _sermonMissingOpts)) {
     var _name = (S.meta || {})['시리즈명'];
     var _hasArc = _name && (state.data.sermons || []).some(function(s){
-      return s['시리즈'] === _name && s['상태'] === '보관';
+      return s['시리즈'] === _name && isOptRow(s);
     });
     if (_hasArc) {
       archiveBanner = '<div style="margin-top:8px;padding:8px 10px;background:rgba(127,196,255,0.12);border:1px solid rgba(127,196,255,0.3);border-radius:6px;box-sizing:border-box;width:100%">' +
@@ -7911,7 +7911,7 @@ async function confirmSermonWeeks(idxs, skipUnchanged){
     if (String(ed['묵상요약'] || '').trim()) rec['요약본'] = ed['묵상요약'].trim();
     /* 선택분의 보관 행이 있으면 그 행을 [구상/연구]으로 승격(업데이트), 없으면 기존 [구상/연구] 행 갱신/신규 추가 */
     var exId = (winner && winner._id) ||
-      (state.data.sermons.filter(function(s){ return s['날짜'] === w['주일'] && s['시리즈'] === rec['시리즈'] && s['상태'] !== '보관'; })[0] || {})['ID'];
+      (state.data.sermons.filter(function(s){ return s['날짜'] === w['주일'] && s['시리즈'] === rec['시리즈'] && isLiveSermon(s); })[0] || {})['ID'];
     if (exId) { rec.ID = exId; ups.push(rec); } else adds.push(rec);
     w.done = true; w.sig = sig;
   });
@@ -10034,7 +10034,7 @@ function serverFullText(){
   api({ action: 'search', q: q }).then(function(ids){
     renderSyncState();
     var terms = (state.lastTerms && state.lastTerms.length) ? state.lastTerms : q.toLowerCase().split(/\s+/).filter(Boolean);
-    var add = (ids || []).map(findSermon).filter(function(s){ return s && !shown[s['ID']] && s['상태'] !== '보관'; });
+    var add = (ids || []).map(findSermon).filter(function(s){ return s && !shown[s['ID']] && isLiveSermon(s); });
     if (!add.length) { toast('원고 전문에서 추가로 찾은 결과가 없습니다.'); return; }
     var html = '<div class="cnt" style="margin:12px 2px 6px;color:var(--accent2)">📄 원고 전문 일치 ' + add.length + '건 (클릭하면 원고를 불러옵니다)</div>' +
       add.map(function(s){
