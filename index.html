@@ -5880,6 +5880,45 @@ function devoCycleProblem(rows){
   if (badAt < 0) return null;
   return (rows[badAt]['날짜'] || ((badAt + 1) + '일차')) + '에 "' + (rows[badAt]['본문범위'] || '') + '"로 앞 책으로 되돌아갔습니다';
 }
+/* ===== 분할 생성 공통 — 빈 "주제근거" 자동 보완 =====
+   긴 출력에서 모델이 후반 선택지의 주제근거를 누락하는 경우가 있어,
+   생성 후 빈 주제근거만 그 항목 단위로 다시 요청해 채운다(다른 필드는 건드리지 않음). */
+var P_FILL_JEOK = [
+'당신은 영락교회 설교 기획 비서다. 입력(JSON 배열)의 각 설교 개요에 대해 "주제근거"만 새로 작성한다.',
+'주제근거=이 본문에서 이 주제(핵심메시지)를 끌어낸 이유 2~3문장. 저자의 기록 의도와 1차 독자의 상황·정서를 짚어, 그대로 설교 "서론"의 바탕이 되도록 따뜻한 높임말로 쓴다.',
+'출력은 반드시 입력과 같은 길이·같은 순서의 JSON 배열만: [{"주제근거":"..."}]. 다른 필드·설명·코드펜스 금지.'].join('\n');
+async function fillMissingJeokgeo(weeks){
+  var need = [];
+  (weeks || []).forEach(function(w){
+    (w.opts || []).forEach(function(o){
+      if (o && !String(o['주제근거'] || '').trim() && String(o['제목'] || '').trim()) need.push(o);
+    });
+  });
+  if (!need.length) return 0;
+  var filled = 0;
+  for (var b = 0; b < need.length; b += 8){
+    var batch = need.slice(b, b + 8);
+    var payload = batch.map(function(o){
+      var dj = Array.isArray(o['대지']) ? o['대지'].map(function(d){ return d && d['문']; }).filter(Boolean).join(' / ') : String(o['대지'] || '');
+      return { '본문': o['본문'] || '', '제목': o['제목'] || '', '핵심메시지': o['핵심메시지'] || '', '대지': dj };
+    });
+    try {
+      var out = await callClaude(P_FILL_JEOK, JSON.stringify(payload), 6000, aiTick('근거 보완'));
+      var arr = aiJson(out);
+      if (Array.isArray(arr)) arr.forEach(function(r, i){
+        if (batch[i] && r && String(r['주제근거'] || '').trim()){ batch[i]['주제근거'] = String(r['주제근거']).trim(); filled++; }
+      });
+    } catch (e) { /* 보완 실패는 조용히 — 선택지 본문은 정상, 누락 항목은 [이 회차 재생성]으로 보완 가능 */ }
+  }
+  return filled;
+}
+/* 선택지가 갱신(보완)된 뒤 편집칸 동기화 — 선택된 선택지를 edit으로 다시 복사 */
+function refreshWeekEdits(weeks){
+  (weeks || []).forEach(function(w){
+    if (w.opts && w.opts.length){ var i = w.sel >= 0 ? w.sel : 0; w.edit = optEdit(w.opts[i]); }
+  });
+}
+
 async function aiSeriesDevo(m){
   var S = state.series;
   try {
@@ -5935,13 +5974,21 @@ async function aiSeriesSermon(noteOverride){
   var S = state.series;
   try {
     (state.seriesReqs = state.seriesReqs || {})['시리즈설교'] = '진행중'; spStatus();
-    toast('Opus가 주일 설교 선택지를 생성합니다 — 1~3분');
     var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
-    var out = await callClaude(P_SERMON, JSON.stringify({
-      '시리즈명': S.meta['시리즈명'], '요청사항': (noteOverride != null ? noteOverride : S.meta['요청사항']), '주일': S.meta['주일'], '묵상확정': rows
-    }), 32000, aiTick('설교 선택지'));
-    var weeks = aiJson(out);
-    if (!Array.isArray(weeks) || !weeks.length) throw new Error('응답 형식 오류');
+    /* 분할 생성: 주일을 4주씩 끊어 여러 번 호출(긴 단일 출력에서 후반 선택지 품질이 떨어지는 것을 방지) */
+    var suns = S.meta['주일'] || [];
+    var SB = 4, nb = Math.ceil(suns.length / SB), weeks = [];
+    for (var bi = 0; bi < suns.length; bi += SB){
+      var partSuns = suns.slice(bi, bi + SB);
+      toast('주일 설교 선택지 생성 중 — ' + (Math.floor(bi / SB) + 1) + '/' + nb + ' 묶음 (' + partSuns.length + '주)');
+      var out = await callClaude(P_SERMON, JSON.stringify({
+        '시리즈명': S.meta['시리즈명'], '요청사항': (noteOverride != null ? noteOverride : S.meta['요청사항']), '주일': partSuns, '묵상확정': rows
+      }), 20000, aiTick('설교 선택지'));
+      var part = aiJson(out);
+      if (!Array.isArray(part) || !part.length) throw new Error('응답 형식 오류(' + (Math.floor(bi / SB) + 1) + '번째 묶음)');
+      weeks = weeks.concat(part);
+    }
+    if (!weeks.length) throw new Error('응답 형식 오류');
     S.sermon = { m: Date.now(), weeks: weeks.map(function(w, wi){
       var opts = w['선택지'] || [];
       var sunIdx = (S.meta['주일'] || []).indexOf(w['주일']);
@@ -5950,6 +5997,8 @@ async function aiSeriesSermon(noteOverride){
         '시리즈순번': sunIdx >= 0 ? sunIdx + 1 : wi + 1,
         edit: optEdit(opts[0]) };
     }) };
+    /* 빈 주제근거 자동 보완 */
+    try { var nf = await fillMissingJeokgeo(S.sermon.weeks); if (nf) refreshWeekEdits(S.sermon.weeks); } catch (fe) {}
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['시리즈설교'] = '';
     saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
@@ -8224,22 +8273,32 @@ async function aiSeriesDawn(noteOverride){
   var S = state.series, m = S.meta;
   try {
     (state.seriesReqs = state.seriesReqs || {})['새벽설교'] = '진행중';
-    toast('Opus가 새벽기도 6일 설교 선택지를 생성합니다 — 1~3분');
-    var out = await callClaude(P_DAWN, JSON.stringify({
-      '시리즈명': m['시리즈명'], '찬송판본': m['찬송판본'],
-      '요청사항': (noteOverride != null ? noteOverride : m['요청사항']), '일정': m['일정']
-    }), 32000, aiTick('새벽 설교 선택지'));
-    var days = aiJson(out);
-    if (!Array.isArray(days) || !days.length) throw new Error('응답 형식 오류');
+    /* 분할 생성: 6일을 2일씩 끊어 호출(새벽 선택지는 찬송·주일 묵상요약까지 있어 가장 무거우므로 작게) */
+    var sched = m['일정'] || [];
+    var DB = 2, nb = Math.ceil(sched.length / DB), days = [];
+    for (var bi = 0; bi < sched.length; bi += DB){
+      var part = sched.slice(bi, bi + DB);
+      toast('새벽 설교 선택지 생성 중 — ' + (Math.floor(bi / DB) + 1) + '/' + nb + ' 묶음 (' + part.length + '일)');
+      var out = await callClaude(P_DAWN, JSON.stringify({
+        '시리즈명': m['시리즈명'], '찬송판본': m['찬송판본'],
+        '요청사항': (noteOverride != null ? noteOverride : m['요청사항']), '일정': part
+      }), 14000, aiTick('새벽 설교 선택지'));
+      var pd = aiJson(out);
+      if (!Array.isArray(pd) || !pd.length) throw new Error('응답 형식 오류(' + (Math.floor(bi / DB) + 1) + '번째 묶음)');
+      days = days.concat(pd);
+    }
+    if (!days.length) throw new Error('응답 형식 오류');
     S.sermon = { m: Date.now(), weeks: days.map(function(d, di){
-      var sched = (m['일정'] || [])[di] || {};
+      var sched1 = (m['일정'] || [])[di] || {};
       var opts = sanitizeHymns(d['선택지'] || []);
-      var rng = d['통독범위'] || sched['통독범위'] || '';
-      return { '주일': d['날짜'] || sched['날짜'] || '', '요일': d['요일'] || sched['요일'] || '',
+      var rng = d['통독범위'] || sched1['통독범위'] || '';
+      return { '주일': d['날짜'] || sched1['날짜'] || '', '요일': d['요일'] || sched1['요일'] || '',
         '통독범위': rng, '주간범위': rng, '비고': '',
         opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
         '시리즈순번': di + 1, edit: optEdit(opts[0]) };
     }) };
+    /* 빈 주제근거 자동 보완 */
+    try { var nf = await fillMissingJeokgeo(S.sermon.weeks); if (nf) refreshWeekEdits(S.sermon.weeks); } catch (fe) {}
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['새벽설교'] = '';
     saveSeries(); renderSeriesPane(); renderSyncState();
