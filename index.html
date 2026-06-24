@@ -7583,7 +7583,7 @@ function spDevoHtml(){
     '<button class="btn sub" id="spDevoRedo" style="flex:0 0 auto;width:auto">재작업 요청</button>' +
     '<button class="btn sub" onclick="openSeriesDevoPreview()" style="flex:0 0 auto;width:auto">미리보기</button>' +
     '<button class="btn sub" id="spDevoTheme" style="flex:0 0 auto;width:auto">배경 테마' + (S.theme ? ' ✓' : '') + '</button>' +
-    '<button class="btn sub" id="spDevoPrint" style="flex:0 0 auto;width:auto">묵상집 인쇄(1주 시험)</button>' +
+    '<button class="btn sub" id="spDevoPrint" style="flex:0 0 auto;width:auto">묵상집 인쇄</button>' +
     '<button class="btn gold' + pCls + '" id="spDevoPdf" style="flex:0 0 auto;width:auto;display:flex;align-items:center;gap:8px">' +
     '<span>묵상집 PDF 요청' + pMark + '</span>' + (pCls === ' fin' ? '<span class="inbtn">내려받기</span>' : '') + '</button></div>';
   return h;
@@ -7842,7 +7842,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     return;
   }
   if (e.target.closest('#spDevoTheme')) { openDevoThemePicker(); return; }
-  if (e.target.closest('#spDevoPrint')) { printDevoBooklet(state.series, { weeksLimit: 1 }); return; }
+  if (e.target.closest('#spDevoPrint')) { printDevoBooklet(state.series, {}); return; }
   if (e.target.closest('#spDevoPdf')) {
     if (e.target.closest('.inbtn')) spPdfDownload();
     else spReqPdf();
@@ -9317,6 +9317,7 @@ var DEVO_CSS = "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:
  + ".ip .foot{position:absolute;bottom:16mm;left:13mm;right:13mm;text-align:center;font-size:10.5pt;color:#5B5142;line-height:1.9;font-weight:500}.ip .q{color:#9A5B33;font-weight:700}";
 function devoBgSrc(S, kind){ return (S.theme && S.theme[kind]) ? S.theme[kind] : ('devo_assets/' + kind + '.jpg'); }
 function devoPg(body, bgSrc, cls){ return '<div class="pg ' + (cls||'') + '"><img class="bg" src="' + bgSrc + '">' + body + '</div>'; }
+function devoBlank(S){ return devoPg('', devoBgSrc(S, 'paper'), 'blankpg'); }
 /* 묵상이란 5p — intro_build.py 고정 원문 그대로 */
 var DEVO_INTRO = [
  '<h1>묵상<span class="thin">이란</span></h1>'
@@ -9406,7 +9407,7 @@ function devoDayPages(S, row, bk){
     + '<div class="panel" style="margin-top:2.5mm;border-radius:0 6mm 6mm 6mm;padding:6mm 8mm;height:140mm"><div>' + lines14 + '</div></div>'
     + '<div style="position:absolute;left:13mm;right:13mm;bottom:14mm"><div class="badge">오늘의 기도</div>'
     + '<div class="panel" style="margin-top:2.5mm;border-radius:0 6mm 6mm 6mm;padding:6mm 8mm;height:81mm"><div>' + lines8 + '</div></div></div>';
-  return [devoPg(pg1, paper), devoPg(pg2, paper), devoPg(pg3, paper), devoPg(pg4, paper)];
+  return [devoPg(pg1, paper, 'bodypg'), devoPg(pg2, paper), devoPg(pg3, paper), devoPg(pg4, paper)];
 }
 function devoMonday(iso){ var d = new Date(iso + 'T00:00:00'); var day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d.toISOString().slice(0,10); }
 /* 책 개요(8항목) — 동봉 홀만 서론 → Claude API 요약 → 시리즈 레코드 캐시 */
@@ -9510,6 +9511,10 @@ async function buildDevoBookletHtml(S, opts){
     var first = w.rows[0], last = w.rows[w.rows.length - 1];
     var wkBook = (devoParseRef(first['본문범위']) || {}).book;
     if (wkBook && wkBook !== lastBook){ if (ovMap[wkBook]) pages.push(devoOverviewPage(S, wkBook, ovMap[wkBook])); lastBook = wkBook; }
+    /* 펼침면 패리티: 한 주는 주차표지(+1)·일정표(+1) 뒤에 본문이 오므로, 본문(=pages.length+3)이
+       짝수(왼쪽) 페이지가 되도록 — pages.length가 짝수면 빈 페이지 한 장으로 맞춘다.
+       (책마다 개요 1쪽이 홀수로 끼어 패리티가 틀어지는 것을 이 지점에서 흡수한다.) */
+    if (pages.length % 2 === 0) pages.push(devoBlank(S));
     var _sp = devoParseRef(first['본문범위']) || {}, _ep = devoParseRef(last['본문범위']) || {};
     var wkBookName = _sp.book || ((first['본문범위'] || '').split(' ')[0]) || '';
     var _startRef = (_sp.c1 != null) ? (_sp.c1 + ':' + _sp.v1) : '';
@@ -10665,7 +10670,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v247';
+var APP_VER = 'v248';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
