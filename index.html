@@ -9419,22 +9419,42 @@ async function devoLoadHolmanLocal(ko){
 }
 async function ensureOverview(S, ko){
   S.overviewCache = S.overviewCache || {};
-  if (S.overviewCache[ko]) return S.overviewCache[ko];
-  if (!aiKey()) return null;
+  /* 캐시에 새 필드(맺음말)까지 있으면 재사용, 없으면(옛 캐시) 갱신 생성 */
+  if (S.overviewCache[ko] && S.overviewCache[ko]['맺음말']) return S.overviewCache[ko];
+  if (!aiKey()) return S.overviewCache[ko] || null;
   var h = await devoLoadHolmanLocal(ko);
   var intro = (h && h.chapters && h.chapters[0] && h.chapters[0][0]) ? String(h.chapters[0][0]) : '';
-  if (!intro) return null;
+  if (!intro) return S.overviewCache[ko] || null;
+  var days = ((S.devo && S.devo.rows) || []).filter(function(r){ return String(r['본문범위'] || '').indexOf(ko) === 0; }).length;
   try {
-    var out = await callClaude(P_DEVO_OVERVIEW, JSON.stringify({ '책': ko, '홀만서론': intro.slice(0, 9000) }), 3000, aiTick(ko + ' 개요'));
+    var out = await callClaude(P_DEVO_OVERVIEW, JSON.stringify({ '책': ko, '묵상일수': days, '홀만서론': intro.slice(0, 9000) }), 3000, aiTick(ko + ' 개요'));
     var ov = aiJson(out);
+    if (h && h.en) ov['영문'] = h.en;
     S.overviewCache[ko] = ov; saveSeries();
     return ov;
-  } catch (e) { return null; }
+  } catch (e) { return S.overviewCache[ko] || null; }
+}
+function devoPeriod(rows){
+  if (!rows || !rows.length) return '';
+  var a = new Date(rows[0]['날짜'] + 'T00:00:00'), b = new Date(rows[rows.length - 1]['날짜'] + 'T00:00:00');
+  return a.getFullYear() + '년 ' + (a.getMonth() + 1) + '월 ~ ' + b.getFullYear() + '년 ' + (b.getMonth() + 1) + '월';
+}
+function devoBookGroup(nums){
+  if (!nums || !nums.length) return '';
+  function grp(n){
+    if (n <= 5) return '모세오경'; if (n <= 17) return '역사서'; if (n <= 22) return '시가서';
+    if (n <= 27) return '대선지서'; if (n <= 39) return '소선지서';
+    if (n <= 43) return '복음서'; if (n === 44) return '사도행전';
+    if (n <= 57) return '바울 서신'; if (n <= 65) return '일반 서신'; return '요한계시록';
+  }
+  var g = grp(nums[0]);
+  for (var i = 1; i < nums.length; i++){ if (grp(nums[i]) !== g) return ''; }
+  return g;
 }
 function devoOverviewPage(S, ko, ov){
   function nl(s){ return esc(s || '').replace(/\n/g, '<br>'); }
   function row(k, v){ return '<tr><td style="width:20mm;font-weight:700;color:#6F6046;padding:1mm 0;vertical-align:top">' + esc(k) + '</td><td style="padding:1mm 0">' + esc(v || '') + '</td></tr>'; }
-  var body = '<div class="pill" style="font-size:16.5pt;padding:2.6mm 0">' + esc(ko) + ' <span class="accent">개요</span></div><div style="height:4.5mm"></div>'
+  var body = '<div class="pill" style="font-size:16.5pt;padding:2.6mm 0">' + esc(ko) + ' <span class="accent">개요</span>' + (ov['영문'] ? ' <span style="font-size:10.5pt;color:#7A6E5C;font-weight:500">' + esc(ov['영문']) + '</span>' : '') + '</div><div style="height:4.5mm"></div>'
     + '<div class="panel" style="padding:6mm 7mm"><table style="width:100%;border-collapse:collapse;font-size:9.8pt;line-height:1.55">'
     + row('이름', ov['이름']) + row('저자·연대', ov['저자연대']) + row('배경', ov['배경']) + row('주제', ov['주제'])
     + '</table></div><div style="height:4mm"></div>'
@@ -9443,7 +9463,8 @@ function devoOverviewPage(S, ko, ov){
     + '<table style="width:100%;border-collapse:separate;border-spacing:3mm 0"><tr>'
     + '<td style="width:50%;vertical-align:top"><div class="badge">핵심 구절</div><div class="panel" style="margin-top:2.5mm;border-radius:0 5mm 5mm 5mm;padding:4mm 5.5mm;min-height:30mm"><div style="font-size:9.3pt;line-height:1.7">' + nl(ov['핵심구절']) + '</div></div></td>'
     + '<td style="width:50%;vertical-align:top"><div class="badge">그리스도에게로</div><div class="panel" style="margin-top:2.5mm;border-radius:0 5mm 5mm 5mm;padding:4mm 5.5mm;min-height:30mm"><div style="font-size:9.3pt;line-height:1.7">' + nl(ov['그리스도']) + '</div></div></td>'
-    + '</tr></table>';
+    + '</tr></table>'
+    + (ov['맺음말'] ? '<div style="position:absolute;bottom:13mm;left:13mm;right:13mm;text-align:center;font-size:9.5pt;color:#5B5142;line-height:1.6">' + esc(ov['맺음말']) + '</div>' : '');
   return devoPg(body, devoBgSrc(S, 'paper'));
 }
 async function buildDevoBookletHtml(S, opts){
@@ -9456,12 +9477,22 @@ async function buildDevoBookletHtml(S, opts){
   if (opts.weeksLimit) weeks = weeks.slice(0, opts.weeksLimit);
   var cover = devoBgSrc(S, 'cover'), paper = devoBgSrc(S, 'paper'), weekly = devoBgSrc(S, 'weekly');
   var pages = [];
+  /* 표지용 분류(예: 바울 서신)·기간 — 전체 시리즈 기준 */
+  var _idx = await devoLoadIdx();
+  function _bn(ko){ var b = (_idx || []).filter(function(x){ return x.ko === ko || x.abbr === ko; })[0]; return b ? b.n : 0; }
+  var _bnums = [], _seenN = {};
+  rows.forEach(function(r){ var pp = devoParseRef(r['본문범위']); if (pp){ var n = _bn(pp.book); if (n && !_seenN[n]){ _seenN[n] = 1; _bnums.push(n); } } });
+  var catLabel = devoBookGroup(_bnums);
+  var period = m['기간'] || devoPeriod(rows);
+  var themeLabel = (S.theme && S.theme.label) ? S.theme.label : '';
   /* 표지 */
   pages.push(devoPg('<div style="position:absolute;left:24mm;right:24mm;top:36mm;bottom:108mm;background:rgba(252,250,240,.48);border:0.55mm solid rgba(74,64,50,.8);border-radius:14mm;z-index:0"></div>'
-    + '<div style="position:relative;z-index:1;text-align:center">'
-    + '<div style="margin-top:48mm;color:#33240F;font-size:40pt;font-weight:900;letter-spacing:1px">「' + esc(m['시리즈명'] || '') + '」</div>'
-    + '<div style="color:#33240F;font-size:27pt;font-weight:700;letter-spacing:10px;margin-top:8mm">말씀묵상집</div>'
-    + (m['기간'] ? '<div style="color:#42321E;margin-top:16mm;font-size:14pt;font-weight:700">' + esc(m['기간']) + '</div>' : '')
+    + '<div style="position:relative;z-index:1;text-align:center;margin-top:40mm">'
+    + (catLabel ? '<div style="font-size:12pt;font-weight:700;letter-spacing:7px;color:#5B4A33;margin-bottom:7mm">' + esc(catLabel) + '</div>' : '')
+    + '<div style="color:#33240F;font-size:38pt;font-weight:900;letter-spacing:1px">「' + esc(m['시리즈명'] || '') + '」</div>'
+    + '<div style="color:#33240F;font-size:25pt;font-weight:700;letter-spacing:10px;margin-top:9mm">말씀묵상집</div>'
+    + (themeLabel ? '<div style="margin-top:12mm;font-size:11.5pt" class="accent">- ' + esc(themeLabel) + ' -</div>' : '')
+    + (period ? '<div style="color:#42321E;margin-top:10mm;font-size:13.5pt;font-weight:700">' + esc(period) + '</div>' : '')
     + '</div>'
     + '<div style="position:absolute;bottom:24mm;left:0;right:0;text-align:center;z-index:1"><span style="display:inline-block;background:rgba(40,28,14,.55);color:#FFFDF2;font-weight:900;font-size:15.5pt;letter-spacing:7px;padding:3mm 12mm 3.4mm;border-radius:99px">영락교회 대학부</span></div>', cover, 'cover'));
   /* 묵상이란 5p */
@@ -9479,15 +9510,21 @@ async function buildDevoBookletHtml(S, opts){
     var first = w.rows[0], last = w.rows[w.rows.length - 1];
     var wkBook = (devoParseRef(first['본문범위']) || {}).book;
     if (wkBook && wkBook !== lastBook){ if (ovMap[wkBook]) pages.push(devoOverviewPage(S, wkBook, ovMap[wkBook])); lastBook = wkBook; }
-    var rangeTxt = (first['본문범위'] || '') + (w.rows.length > 1 ? ' ~ ' + (last['본문범위'] || '').split(' ').pop() : '');
+    var _sp = devoParseRef(first['본문범위']) || {}, _ep = devoParseRef(last['본문범위']) || {};
+    var wkBookName = _sp.book || ((first['본문범위'] || '').split(' ')[0]) || '';
+    var _startRef = (_sp.c1 != null) ? (_sp.c1 + ':' + _sp.v1) : '';
+    var _endRef = (_ep.c2 != null) ? (_ep.c2 + ':' + _ep.v2) : '';
+    var rangeShort = _startRef + (_endRef && _endRef !== _startRef ? ' ~ ' + _endRef : '');
     var theme = (m['주차주제'] && m['주차주제'][wi] && m['주차주제'][wi]['주제']) || first['제목'] || '';
     pages.push(devoPg('<div style="position:absolute;left:34mm;right:34mm;top:42mm;bottom:80mm;border:0.45mm solid #4A4032;border-radius:14mm;background:rgba(252,250,240,.55);z-index:0"></div>'
       + '<div style="position:relative;z-index:1;text-align:center;margin-top:38mm"><div style="font-size:20pt;font-weight:700;letter-spacing:6px">WEEKLY&nbsp; WORD</div>'
       + '<div style="font-size:11pt;margin-top:4mm" class="dim">' + devoMD(first['날짜']) + ' (' + devoWD(first['날짜']) + ') ~ ' + devoMD(last['날짜']) + ' (' + devoWD(last['날짜']) + ')</div>'
       + '<div style="width:60mm;border-top:0.3mm solid #6F6046;margin:11mm auto"></div>'
-      + '<div style="font-size:16pt;font-weight:700;margin-top:2.5mm">' + esc(rangeTxt) + '</div>'
-      + (theme ? '<div style="font-size:11.5pt;margin-top:8mm" class="accent">- ' + esc(theme) + ' -</div>' : '') + '</div>'
-      + '<div style="position:absolute;bottom:36mm;left:0;right:0;text-align:center;font-size:11.5pt;color:#5B5142">매일 한 줄의 말씀으로 하루를 채워보세요.</div>', weekly, 'wk'));
+      + '<div style="font-size:21pt;font-weight:900">' + esc(wkBookName) + '</div>'
+      + '<div style="font-size:15pt;font-weight:700;margin-top:2mm">' + esc(rangeShort) + '</div>'
+      + (theme ? '<div style="font-size:11.5pt;margin-top:8mm" class="accent">- ' + esc(theme) + ' -</div>' : '')
+      + '<div style="font-size:9pt;margin-top:16mm" class="dim">' + esc(m['시리즈명'] || '') + ' 말씀 묵상집</div></div>'
+      + '<div style="position:absolute;bottom:34mm;left:0;right:0;text-align:center;z-index:1"><span style="display:inline-block;background:rgba(252,250,243,.92);color:#5B5142;font-size:11pt;padding:2.2mm 7mm;border-radius:99px">매일 한 줄의 말씀으로 하루를 채워보세요.</span></div>', weekly, 'wk'));
     /* 일정표(찢은 종이) */
     var schedRows = w.rows.map(function(r){ return '<tr><td style="padding:6.5mm 0 2mm 12mm;font-size:10.5pt;color:#6F6046;border-bottom:0.25mm dotted #BCAF97">' + devoMD(r['날짜']) + ' (' + devoWD(r['날짜']) + ')</td>'
       + '<td style="padding:6.5mm 12mm 2mm 0;font-size:12.5pt;font-weight:900;border-bottom:0.25mm dotted #BCAF97">' + esc(r['본문범위'] || '') + '</td></tr>'; }).join('');
@@ -10628,7 +10665,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v246';
+var APP_VER = 'v247';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
