@@ -1722,12 +1722,26 @@ function _isTransientNetErr(e){
 /* submit(body, okMsg, onResult)
    onResult(ok): 호출부가 저장 성공/대기열 적재(=durable, ok=true) vs 진짜 실패(ok=false)를
    구분해 후처리(예: dirty 해제)할 수 있도록 하는 선택적 콜백. 반환값(id) 계약은 유지. */
-function submit(body, okMsg, onResult){
+function submit(body, okMsg, onResult, opts){
+  opts = opts || {};
   showWaitOverlay('시트에 저장하고 있어요', '저장하고 최신 상태로 맞추는 중입니다.');
   function ok(v){ if (onResult) { try { onResult(v); } catch(_){} } }
   return apiPost(body).then(function(id){
     toast(okMsg + (id ? ' (' + (id.ids ? id.ids.length + '건' : id.count || id) + ')' : ''));
     ok(true);
+    if (opts.fastLocal) {
+      /* 빠른 저장: 방금 저장한 레코드를 로컬에 즉시 upsert하고, 재동기화는 오버레이를 잡지 않는
+         백그라운드로 돌린다(작성 중 cmd+s 체감 지연 최소화). 다른 기기 변경은 배경 pull이 따라잡는다. */
+      try {
+        if (body.data && body.sheet && state.data[body.sheet]) {
+          var rec = (body.action === 'add' && typeof id === 'string') ? Object.assign({}, body.data, { ID: id }) : body.data;
+          upsertById(state.data[body.sheet], [rec]); saveData();
+          normalizeSermonStatuses(false); renderSyncState(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
+        }
+      } catch (_) {}
+      pullData().catch(function(){});   /* 배경 동기화(오버레이·프라미스 비차단) */
+      return id;
+    }
     /* 저장 직후 동기화는 조용한 코어(pullData)만 — sync()의 별도 오버레이·토스트 중첩 방지.
        submit이 이미 띄운 오버레이를 갱신 완료까지 유지하도록 프라미스를 이어준다. */
     return pullData().catch(function(){}).then(function(){ return id; });
@@ -3960,7 +3974,7 @@ function doSaveCompose(){
   /* 저장한 내용의 서명을 스냅샷 — 시트/대기열에 durable 보관된 경우에만 '깨끗함'으로 표시.
      저장이 진짜 실패하면 dirty를 유지해 미저장 경고가 살아있게 한다. */
   var _sig = composeSig();
-  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
+  return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     if (id && typeof id === 'string' && !state.editing) {
       state.editing = id;
       state.versionOf = null;
@@ -3984,7 +3998,7 @@ function doSaveAsNew(){
       !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
   delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
   var _sig = composeSig();
-  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }).then(function(id){
+  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     return id;
   });
@@ -10606,7 +10620,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v243';
+var APP_VER = 'v244';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
