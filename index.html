@@ -3246,11 +3246,20 @@ window.setIdeaState = function(id, st){
 /* ===================== 작성 (데스크탑 에디터) ===================== */
 var C_META = { '날짜':'c_date','예배구분':'c_service','제목':'c_title','본문':'c_ref','시리즈':'c_series','시리즈순번':'c_seriesNo','상태':'c_state','핵심메시지':'c_msg','키워드':'c_kw','비고':'c_note' };
 
-/* 대지 내부 블록: body=대지 내용, ill=예화(제목+내용). 순서 자유 변경 가능. 적용(apply)은 대지 맨 아래 고정 */
-function newBodyBlock(b){ return { type: 'body', body: b || '' }; }
+/* 대지 내부 블록(세분화):
+   - body계열(텍스트 .body) — role: '주해근거'(주해적 근거) · '대지적용'(내 얘기다 공감) · '대지정리'(정리·연결)
+   - apply계열(텍스트 .apply) — role: '대지실천'(삶의 구체적 실천 촉구)
+   - ill — 예화(제목+내용). 순서 자유 변경 가능.
+   ※ 타입(body/apply/ill)은 그대로 유지 — 기존 저장·내보내기·집계 로직과 100% 호환. role은 라벨·AI·범례·파서용 메타데이터. */
+var BODY_ROLES = ['주해근거', '대지적용', '대지정리'];
+var ROLE_FIELD = { '주해근거': 'body', '대지적용': 'body', '대지정리': 'body', '대지실천': 'apply' };
+function newBodyBlock(b, role){ return { type: 'body', role: (role && ROLE_FIELD[role] === 'body') ? role : '주해근거', body: b || '' }; }
 function newIllBlock(t, b){ return { type: 'ill', ill: t || '', illBody: b || '' }; }
-function newApplyBlock(a){ return { type: 'apply', apply: a || '' }; }
-function newPoint(){ return { text: '', blocks: [newBodyBlock(''), newApplyBlock('')] }; }
+function newApplyBlock(a, role){ return { type: 'apply', role: '대지실천', apply: a || '' }; }
+function newPoint(){ return { text: '', blocks: [newBodyBlock('', '주해근거'), newApplyBlock('', '대지실천')] }; }
+/* 블록 role/필드/라벨 헬퍼 */
+function blockRole(b){ if (!b) return ''; if (b.type === 'ill') return '예화'; if (b.type === 'apply') return '대지실천'; return (b.role && ROLE_FIELD[b.role] === 'body') ? b.role : '주해근거'; }
+function blockField(b){ return (b && b.type === 'apply') ? 'apply' : 'body'; }
 /* 구모델({body,ill,illBody,apply}) → 신모델(blocks; 적용도 블록) 정규화 */
 function normPoint(p){
   if (!p) return newPoint();
@@ -3261,6 +3270,8 @@ function normPoint(p){
     /* 레거시 p.apply(문자열) → 적용 블록으로 1회 이관 */
     if ((p.apply || '').trim() && !p.blocks.some(function(b){ return b.type === 'apply'; })) p.blocks.push(newApplyBlock(p.apply));
     if ('apply' in p) delete p.apply;
+    /* 레거시 블록(role 없음)에 기본 role 부여: body→주해근거, apply→대지실천 */
+    p.blocks.forEach(function(b){ if (b && b.type === 'body' && !(b.role && ROLE_FIELD[b.role] === 'body')) b.role = '주해근거'; else if (b && b.type === 'apply') b.role = '대지실천'; });
     p.text = p.text || '';
     return p;
   }
@@ -3350,18 +3361,14 @@ function renderPoints(){
           '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
           '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="이 위치에 맞는 예화 추천·생성">AI</button></div>';
       }
-      if (b.type === 'apply') {
-        var ap = (b.apply || '').replace(/\s+/g, ' ').trim();
-        var aprev = ap ? '<span class="blkBodyPrev">' + esc(ap.slice(0, 30)) + (ap.length > 30 ? '…' : '') + '</span>'
-                       : '<span class="blkHint">적용 — 오른쪽에서 작성</span>';
-        return '<div class="ptBlk applyBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
-          '<span class="blkTag applyTag">적용</span>' + aprev + '</div>';
-      }
-      var bp = (b.body || '').replace(/\s+/g, ' ').trim();
-      var prev = bp ? '<span class="blkBodyPrev">' + esc(bp.slice(0, 30)) + (bp.length > 30 ? '…' : '') + '</span>'
-                    : '<span class="blkHint">대지 본문 — 오른쪽에서 작성</span>';
-      return '<div class="ptBlk bodyBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
-        '<span class="blkTag bodyTag">내용</span>' + prev + '</div>';
+      var role = blockRole(b), field = blockField(b);
+      var raw = (b[field] || '').replace(/\s+/g, ' ').trim();
+      var prev = raw ? '<span class="blkBodyPrev">' + esc(raw.slice(0, 30)) + (raw.length > 30 ? '…' : '') + '</span>'
+                     : '<span class="blkHint">' + esc(role) + ' — 오른쪽에서 작성</span>';
+      var isAp = b.type === 'apply';
+      var roleCls = 'role-' + (role === '주해근거' ? 'exeg' : role === '대지적용' ? 'appgen' : role === '대지실천' ? 'appact' : 'summ');
+      return '<div class="ptBlk ' + (isAp ? 'applyBlk' : 'bodyBlk') + ' ' + roleCls + '" data-i="' + i + '" data-bi="' + bi + '">' + handle +
+        '<span class="blkTag ' + (isAp ? 'applyTag' : 'bodyTag') + '">' + esc(role) + '</span>' + prev + '</div>';
     }).join('');
     return '<div class="ptRow">' +
       '<div class="ptHead"><span class="ptNo">' + (i + 1) + '.</span>' +
@@ -3370,9 +3377,11 @@ function renderPoints(){
       '<button class="ptBtn" data-act="down" data-i="' + i + '" title="대지 아래로">↓</button>' +
       '<button class="ptBtn" data-act="del" data-i="' + i + '" title="대지 삭제">✕</button></div>' +
       '<div class="ptBlocks">' + blk + '</div>' +
-      '<div class="ptAddRow"><button class="linkbtn addBody" data-i="' + i + '">＋ 내용 추가</button>' +
-      '<button class="linkbtn addIll" data-i="' + i + '">＋ 예화 추가</button>' +
-      '<button class="linkbtn addApply" data-i="' + i + '">＋ 적용 추가</button></div>' +
+      '<div class="ptAddRow"><button class="linkbtn addExeg" data-i="' + i + '">＋ 주해근거</button>' +
+      '<button class="linkbtn addAppgen" data-i="' + i + '">＋ 대지적용</button>' +
+      '<button class="linkbtn addAppact" data-i="' + i + '">＋ 대지실천</button>' +
+      '<button class="linkbtn addSumm" data-i="' + i + '">＋ 대지정리</button>' +
+      '<button class="linkbtn addIll" data-i="' + i + '">＋ 예화</button></div>' +
       '</div>';
   }).join('');
 }
