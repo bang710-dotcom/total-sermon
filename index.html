@@ -1576,6 +1576,18 @@ function mergeDelta(d){
       if (incRow) _maybeFlagConflict(incRow);
     }
     var inc = (k === 'sermons' && keepId) ? d[k].filter(function(r){ return String(r['ID']) !== keepId; }) : d[k];
+    if (k === 'sermons') {
+      /* 목록(델타)은 대용량 원고텍스트를 생략해 보내므로, 들어온 행의 본문이 비었고 로컬에 받아둔 본문이 있으면
+         그 칸만 보존한다(행 통째 교체로 캐시 본문이 ''로 날아가 불필요한 재요청·순간 공백이 나는 것 방지). */
+      var _local = {}; (state.data.sermons || []).forEach(function(r){ if (r && r['ID'] != null) _local[r['ID']] = r; });
+      inc.forEach(function(r){
+        if (!r || r['ID'] == null) return;
+        var old = _local[r['ID']];
+        if (old && !String(r['원고텍스트'] || '').trim() && String(old['원고텍스트'] || '').trim()) {
+          r['원고텍스트'] = old['원고텍스트']; if (old._txt) r._txt = old._txt;
+        }
+      });
+    }
     upsertById(state.data[k], inc);
   });
   (d.deletes || []).forEach(function(x){
@@ -4010,7 +4022,8 @@ function doSaveCompose(){
      저장이 진짜 실패하면 dirty를 유지해 미저장 경고가 살아있게 한다. */
   var _sig = composeSig();
   return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
-    if (id && typeof id === 'string' && !state.editing) {
+    /* 신규 add(편집 아님)거나, 삭제→재등록으로 새 ID가 돌아온 경우 그 ID로 전환(이후 [저장]은 새 행을 갱신) */
+    if (id && typeof id === 'string' && (!state.editing || id !== state.editing)) {
       state.editing = id;
       state.versionOf = null;
       updateComposeBadge(); refreshReqBtns();
@@ -6387,6 +6400,10 @@ $('#occPane').addEventListener('input', function(e){
 });
 $('#occ_date').addEventListener('change', function(){ state.occ.date = this.value; occSaveSoon(); });
 $('#occ_sit').addEventListener('input', function(){ state.occ.sit = this.value; occSaveSoon(); });
+/* 디바운스(600ms) 사이에 앱이 가려지거나 닫혀도 마지막 입력을 잃지 않도록 즉시 저장(composeDraft와 동일한 보호). */
+function occSaveNow(){ try { idbSet('occDraft', state.occ).catch(function(){}); } catch(e){} }
+document.addEventListener('visibilitychange', function(){ if (document.hidden) occSaveNow(); });
+window.addEventListener('pagehide', occSaveNow);
 
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
@@ -6772,7 +6789,8 @@ function findDraftRow(name){
   return (state.data.seriesdraft || []).filter(function(r){ return r && r['시리즈명'] === name; })
     .sort(function(a, b){ return String(b['수정일'] || '').localeCompare(String(a['수정일'] || '')); })[0] || null;
 }
-function nowLocalStr_(){ return new Date().toISOString().slice(0, 16).replace('T', ' '); }
+/* 기기 로컬 시각 'yyyy-MM-dd HH:mm'. toISOString()은 UTC라 서버(KST) 수정일과 9시간 어긋나므로 로컬 구성요소로 만든다. */
+function nowLocalStr_(){ var d = new Date(); function z(n){ return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
 function seriesDraftBlob(S){
   return JSON.stringify({ sid: S.sid, kind: S.kind || null, meta: S.meta || {},
                           sched: S.sched || null, schedDate: S.schedDate || null });
@@ -6820,6 +6838,20 @@ function dropSeriesDraft(name){
    생성된(시트 기록 있는) 초안은 정리한다. syncSeriesDetails 끝에서 호출. */
 function restoreSeriesDrafts(){
   var changed = false;
+  /* 같은 시리즈명의 시트 초안 행이 둘 이상이면(동기화 전 두 기기가 동시에 생성) 최신 1건만 남기고 나머지를 정리. */
+  try {
+    var grp = {};
+    (state.data.seriesdraft || []).forEach(function(r){ var n = r && r['시리즈명']; if (!n) return; (grp[n] = grp[n] || []).push(r); });
+    Object.keys(grp).forEach(function(n){
+      var rows = grp[n]; if (rows.length < 2) return;
+      rows.sort(function(a, b){ return String(b['수정일'] || b['등록일'] || '').localeCompare(String(a['수정일'] || a['등록일'] || '')); });
+      rows.slice(1).forEach(function(extra){
+        if (!extra['ID']) return;
+        apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: extra['ID'] } }).catch(function(){});
+        state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return x !== extra; });
+      });
+    });
+  } catch (e) {}
   (state.data.seriesdraft || []).slice().forEach(function(r){
     var name = r && r['시리즈명']; if (!name) return;
     if (seriesHasSheetRecords(name)) { dropSeriesDraft(name); return; }  /* 이미 생성됨 → 초안 제거 */
@@ -11026,7 +11058,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v253';
+var APP_VER = 'v254';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
