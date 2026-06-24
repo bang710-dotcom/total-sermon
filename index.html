@@ -3260,6 +3260,12 @@ function newPoint(){ return { text: '', blocks: [newBodyBlock('', '주해근거'
 /* 블록 role/필드/라벨 헬퍼 */
 function blockRole(b){ if (!b) return ''; if (b.type === 'ill') return '예화'; if (b.type === 'apply') return '대지실천'; return (b.role && ROLE_FIELD[b.role] === 'body') ? b.role : '주해근거'; }
 function blockField(b){ return (b && b.type === 'apply') ? 'apply' : 'body'; }
+var BLOCK_PH = {
+  '주해근거': '대지의 주해적 근거 — 본문이 이 메시지를 어떻게 지지하는가 (핵심 단어 1~2개에 집중)',
+  '대지적용': '청중이 "내 얘기다" 느끼게 — 누구나 아는 구체적 장면·현상으로 (과제·결단 아님)',
+  '대지실천': '청중의 삶에 촉구하는 구체적 실천 ("~해 보세요 / ~합시다 / ~하십시오")',
+  '대지정리': '메시지를 정리하고 다음 단락으로 넘어가는 연결부'
+};
 /* 구모델({body,ill,illBody,apply}) → 신모델(blocks; 적용도 블록) 정규화 */
 function normPoint(p){
   if (!p) return newPoint();
@@ -3417,19 +3423,15 @@ $('#pointList').addEventListener('click', function(e){
     if (ap) { ap.blocks.push(newIllBlock('', '')); renderPoints(); renderEditor(); }
     return;
   }
-  /* ④ 내용 블록 추가 */
-  var ab = e.target.closest('.addBody');
-  if (ab) {
-    var bp = state.compose.points[+ab.dataset.i];
-    if (bp) { bp.blocks.push(newBodyBlock('')); renderPoints(); renderEditor(); }
-    return;
-  }
-  /* ⑤ 적용 블록 추가 */
-  var aa = e.target.closest('.addApply');
-  if (aa) {
-    var pp = state.compose.points[+aa.dataset.i];
-    if (pp) { pp.blocks.push(newApplyBlock('')); renderPoints(); renderEditor(); }
-    return;
+  /* ④ 세분화 블록 추가: 주해근거·대지적용·대지정리(body계열) / 대지실천(apply계열) */
+  var addMap = { addExeg: ['body', '주해근거'], addAppgen: ['body', '대지적용'], addAppact: ['apply', '대지실천'], addSumm: ['body', '대지정리'] };
+  for (var ak in addMap){
+    var abtn = e.target.closest('.' + ak);
+    if (abtn){
+      var pX = state.compose.points[+abtn.dataset.i];
+      if (pX){ var spec = addMap[ak]; pX.blocks.push(spec[0] === 'apply' ? newApplyBlock('', spec[1]) : newBodyBlock('', spec[1])); renderPoints(); renderEditor(); }
+      return;
+    }
   }
   /* ⑥ 예화 위치 맞춤 AI 추천·생성 */
   var iai = e.target.closest('.ptIllAi');
@@ -3444,7 +3446,7 @@ $('#addPoint').addEventListener('click', function(){
 function cwBlockDelete(i, bi){
   var p = state.compose.points[i]; if (!p) return;
   var bl = p.blocks, b = bl[bi]; if (!b) return;
-  var lbl = b.type === 'ill' ? '이 예화를' : b.type === 'apply' ? '이 적용 블록을' : '이 내용 블록을';
+  var lbl = b.type === 'ill' ? '이 예화를' : '이 ' + blockRole(b) + ' 블록을';
   var hasC = b.type === 'ill' ? ((b.ill || '').trim() || (b.illBody || '').trim()) : b.type === 'apply' ? (b.apply || '').trim() : (b.body || '').trim();
   if (hasC && !confirm(lbl + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
   bl.splice(bi, 1);
@@ -3771,22 +3773,24 @@ function renderEditor(){
     html += '<div class="edSec"><div class="edLabel">서론</div>' + ta('intro', 0, '', 5, '서론을 작성하세요', c.intro) + '</div>';
     c.points.forEach(function(p, i){
       p = normPoint(p); c.points[i] = p;
-      var illTot = p.blocks.filter(function(b){ return b.type === 'ill'; }).length;
-      var applyTot = p.blocks.filter(function(b){ return b.type === 'apply'; }).length;
-      var bodyTot = p.blocks.length - illTot - applyTot;
-      var illN = 0, bodyN = 0, applyN = 0;
+      var roleCount = {};
+      function roleTotOf(role){ return p.blocks.filter(function(x){ return blockRole(x) === role; }).length; }
       var inner = p.blocks.map(function(b, bi){
         if (b.type === 'ill') {
-          illN++;
+          roleCount['예화'] = (roleCount['예화'] || 0) + 1;
+          var illTot = roleTotOf('예화');
           return '<div class="edEx" data-x="' + i + '.' + bi + '"></div>' +
-            '<div class="edLabel" style="margin-top:8px">예화' + (illTot > 1 ? ' ' + illN : '') + '</div>' + ta(null, i, 'illBody', 4, '예화 세부 내용', b.illBody, null, bi);
+            '<div class="edLabel" style="margin-top:8px">예화' + (illTot > 1 ? ' ' + roleCount['예화'] : '') +
+            ' <button class="edBlkAi" type="button" data-pi="' + i + '" data-bi="' + bi + '" data-role="예화" title="바로 앞 단락을 강화하는 예화(스토리텔링) 생성">AI 생성</button></div>' +
+            ta(null, i, 'illBody', 4, '예화 세부 내용 (제목은 왼쪽 칸)', b.illBody, null, bi);
         }
-        if (b.type === 'apply') {
-          applyN++;
-          return '<div class="edLabel applyLbl" style="margin-top:8px">적용' + (applyTot > 1 ? ' ' + applyN : '') + '</div>' + ta(null, i, 'apply', 3, '적용 — 청중이 "내 얘기다" 느끼게 (실천은 그 다음 칸/줄)', b.apply, null, bi);
-        }
-        bodyN++;
-        return '<div class="edLabel" style="margin-top:8px">내용' + (bodyTot > 1 ? ' ' + bodyN : '') + '</div>' + ta(null, i, 'body', 5, '대지 내용을 풀어 쓰세요', b.body, null, bi);
+        var role = blockRole(b), field = blockField(b);
+        roleCount[role] = (roleCount[role] || 0) + 1;
+        var roleTot = roleTotOf(role);
+        var lblCls = field === 'apply' ? 'applyLbl' : '';
+        return '<div class="edLabel ' + lblCls + '" style="margin-top:8px">' + esc(role) + (roleTot > 1 ? ' ' + roleCount[role] : '') +
+          ' <button class="edBlkAi" type="button" data-pi="' + i + '" data-bi="' + bi + '" data-role="' + esc(role) + '" title="이 ' + esc(role) + '을 AI로 생성">AI 생성</button></div>' +
+          ta(null, i, field, field === 'apply' ? 3 : 5, BLOCK_PH[role] || '', b[field], null, bi);
       }).join('');
       html += '<div class="edPoint">' +
         '<div class="edPointTitle" data-h="' + i + '"></div>' +
@@ -3844,6 +3848,13 @@ $('#editorPane').addEventListener('input', function(e){
     if (t.dataset.bi != null) { var b = pBlocks(p)[+t.dataset.bi]; if (b) b[t.dataset.pk] = t.value; }
     else p[t.dataset.pk] = t.value;
   }
+});
+$('#editorPane').addEventListener('click', function(e){
+  var ab = e.target.closest && e.target.closest('.edBlkAi');
+  if (!ab) return;
+  var pi = +ab.dataset.pi, bi = +ab.dataset.bi, role = ab.dataset.role;
+  if (role === '예화') aiIllustration(pi, bi);
+  else aiBlockGen(pi, bi);
 });
 ['c_title', 'c_ref', 'c_series', 'c_seriesNo', 'c_msg'].forEach(function(id){
   $('#' + id).addEventListener('input', debounce(updateAutoBits, 150));
