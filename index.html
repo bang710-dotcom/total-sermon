@@ -4920,7 +4920,7 @@ var P_MS = [
 '집필 원칙: ①초고의 구조(대지 순서·예화 배치)와 핵심메시지를 존중하고 살을 붙인다 ②호칭은 "여러분" ③짧고 강력한 호흡 — 한 문장에 생각 하나, 만연체·문어체 금지 ④빠른 논리 도약과 속도감 ⑤단락마다 상징 어휘 또는 생각이 머무는 명제 문장 하나 ⑥그러나 적용은 오늘 실행 가능한 구체적 행동으로 착지 ⑦"~지요?", "~잖아요"를 "~입니다"와 섞은 구어체 ⑧대조("~가 아닙니다. ~입니다")와 재정의 활용 ⑨결론은 단문 3~4개 + 축복 선언으로 짧게 ⑩"/" 끊어 읽기 표시 절대 금지.',
 '분량: 4,500~6,000자.'].join('\n');
 
-var P_DEVO = [
+var P_DEVO_ARR = [
 '당신은 영락교회 대학부의 묵상집 편집자다. 입력(JSON)의 성경범위 전체를 묵상일 배열(주일 제외, 날짜 고정)에 빠짐없이 배분하고 날마다 질문 3개를 만든다.',
 '출력은 반드시 JSON 배열만, 묵상일과 같은 길이·같은 순서: [{"날짜":"YYYY-MM-DD","본문범위":"책 1:1-9","제목":"...","관찰질문":"...","묵상질문":"...","적용질문":"..."}]',
 '★ 범위 해석(필수): 성경범위가 "갈라디아서-빌레몬서"처럼 책-책 형태면 성경 정경 순서로 두 책 사이의 모든 책을 포함한다(예: 갈라디아서·에베소서·빌립보서·골로새서·데살로니가전후서·디모데전후서·디도서·빌레몬서). 시작 책의 1장 1절부터 끝 책의 마지막 장 마지막 절까지가 전체 범위다.',
@@ -4929,7 +4929,41 @@ var P_DEVO = [
 '배분 원칙: 단락(페리코페)·장 경계를 존중하고 맥락과 분량을 고려한다. 내용 흐름상 어색한 곳에서 끊지 않는다. 본문범위는 항상 앞 날보다 뒤로만 진행하며(시작 절이 이전 날의 끝 절 다음), 절대 역행하거나 겹치지 않는다. 제목은 본문의 핵심을 담은 한 구절형.',
 '질문 정의: 관찰질문=본문을 읽으면 구체적으로 알 수 있는 정보를 묻되 메시지로 이어지게 / 묵상질문=맥락·저자의 기록 의도·등장인물의 정서·사건과 장소의 의미 등 표층 아래를 고민해야 답할 수 있는 질문 / 적용질문=묵상자의 삶의 자리에서 구체적 실천을 촉구.',
 '★ 질문 어조(필수): 세 질문 모두 따뜻하고 다정한 높임말로 쓴다 — "~해 보셨나요?", "~는 어떤 마음이었을까요?", "오늘 ~해 보시겠어요?"처럼 부드럽게 권유·초대하는 말투로, 묵상하는 분의 마음을 존중하며 곁에서 함께 묵상하자고 청하는 느낌. 차갑거나 시험하는 듯한 어조, 명령조, 반말, 딱딱한 문어체는 금지(예: "~하라", "~인가" 금지).',
+'자체 검증 후 출력(어긴 항목이 있으면 다시 배분): ⑴배열 길이=묵상일 길이 ⑵첫날 본문=범위의 시작 책 1:1, 마지막 날 본문=범위의 "끝 책" 마지막 절까지 정확히 도달 ⑶본문이 빠짐없이 한 방향으로 이어지고 겹치지 않음 ⑷어떤 책·장·절도 두 번 나오지 않음(반복·사이클 없음). 요청사항이 있으면 따른다.'];
+var P_DEVO = P_DEVO_ARR.join('\n');
+/* 1단계(배분만): 전체 성경범위를 묵상일에 한 번에 배분 — 본문범위·제목만, 질문 없음(출력이 짧아 후반 누락 없음).
+   배분 원칙·범위 해석·자체 검증은 P_DEVO_ARR의 검증된 문장을 그대로 재사용해 흐름이 어긋나지 않게 한다. */
+var P_DEVO_PLAN = [
+'당신은 영락교회 대학부의 묵상집 편집자다. 입력(JSON)의 성경범위 전체를 묵상일 배열(주일 제외, 날짜 고정)에 빠짐없이 배분한다. 질문은 만들지 말고, 날마다 "본문범위"와 "제목"만 정한다.',
+'출력은 반드시 JSON 배열만, 묵상일과 같은 길이·같은 순서: [{"날짜":"YYYY-MM-DD","본문범위":"책 1:1-9","제목":"..."}]',
+P_DEVO_ARR[2], P_DEVO_ARR[3], P_DEVO_ARR[4], P_DEVO_ARR[5],
 '자체 검증 후 출력(어긴 항목이 있으면 다시 배분): ⑴배열 길이=묵상일 길이 ⑵첫날 본문=범위의 시작 책 1:1, 마지막 날 본문=범위의 "끝 책" 마지막 절까지 정확히 도달 ⑶본문이 빠짐없이 한 방향으로 이어지고 겹치지 않음 ⑷어떤 책·장·절도 두 번 나오지 않음(반복·사이클 없음). 요청사항이 있으면 따른다.'].join('\n');
+/* 2단계(질문만): 배분이 끝난 각 날(본문범위·제목 고정)에 질문 3개만 — 작은 묶음으로 호출해 후반 누락을 막는다. */
+var P_DEVO_Q = [
+'당신은 영락교회 대학부의 묵상집 편집자다. 입력(JSON 배열)의 각 날(본문범위·제목 고정)에 대해 묵상 질문 3개만 만든다. 본문범위·제목은 절대 바꾸지 않는다.',
+'출력은 반드시 입력과 같은 길이·같은 순서의 JSON 배열만: [{"날짜":"YYYY-MM-DD","관찰질문":"...","묵상질문":"...","적용질문":"..."}]',
+P_DEVO_ARR[6], P_DEVO_ARR[7]].join('\n');
+/* 빈 질문 자동 보완 — 배분된 날 중 질문이 비어 있는 날만 14일씩 묶어 다시 요청해 채운다(본문·제목 불변). */
+async function fillMissingDevoQ(rows){
+  var need = (rows || []).filter(function(r){
+    return String(r['본문범위'] || '').trim() &&
+      (!String(r['관찰질문'] || '').trim() || !String(r['묵상질문'] || '').trim() || !String(r['적용질문'] || '').trim());
+  });
+  if (!need.length) return 0;
+  var filled = 0;
+  for (var b = 0; b < need.length; b += 14){
+    var batch = need.slice(b, b + 14);
+    var payload = batch.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
+    var out = await callClaude(P_DEVO_Q, JSON.stringify(payload), 12000, aiTick('묵상 질문'));
+    var arr = aiJson(out);
+    if (Array.isArray(arr)) batch.forEach(function(r, i){
+      var q = arr[i]; if (!q) return;
+      ['관찰질문', '묵상질문', '적용질문'].forEach(function(k){ if (!String(r[k] || '').trim() && String(q[k] || '').trim()) r[k] = String(q[k]).trim(); });
+      filled++;
+    });
+  }
+  return filled;
+}
 
 var P_SERMON = [
 '당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON)의 각 주일마다, 직전 월~토 묵상확정 범위에서 다룰 설교 주제 선택지 3~4개를 만든다.',
@@ -5923,21 +5957,30 @@ async function aiSeriesDevo(m){
   var S = state.series;
   try {
     (state.seriesReqs = state.seriesReqs || {})['시리즈묵상'] = '진행중'; spStatus();
-    toast('Opus가 묵상 일정 ' + m['묵상일'].length + '일을 생성합니다 — 1~3분');
+    var nDays = m['묵상일'].length;
     var baseUser = JSON.stringify({
       '성경범위': m['성경범위'], '시리즈명': m['시리즈명'], '요청사항': m['요청사항'], '묵상일': m['묵상일']
     });
+    /* 1단계: 전체 본문 배분(질문 없음) — 출력이 짧아 한 번에 안정적. 사이클(앞 책 회귀)이면 1회 교정 재시도. */
+    toast('Opus가 묵상 ' + nDays + '일 본문을 배분합니다 (1/2단계) — 잠시만요');
     var rows = null, cyc = null, fix = '';
     for (var attempt = 0; attempt < 2; attempt++) {
-      var out = await callClaude(P_DEVO, baseUser + fix, 28000, aiTick('묵상 일정'));
+      var out = await callClaude(P_DEVO_PLAN, baseUser + fix, 16000, aiTick('묵상 본문 배분'));
       rows = aiJson(out);
-      if (!Array.isArray(rows) || rows.length !== m['묵상일'].length)
-        throw new Error('일수 불일치(' + ((rows && rows.length) || 0) + '/' + m['묵상일'].length + ') — 한 번 더 시도해 주세요.');
+      if (!Array.isArray(rows) || rows.length !== nDays)
+        throw new Error('일수 불일치(' + ((rows && rows.length) || 0) + '/' + nDays + ') — 한 번 더 시도해 주세요.');
       cyc = devoCycleProblem(rows);
       if (!cyc) break;
-      fix = '\n\n[교정 지시] 직전 생성이 ' + cyc + '. 성경 범위를 처음부터 끝까지 "딱 한 번만" 순서대로 배분하고, 끝 책 마지막 절까지 간 뒤에는 절대 앞 책으로 돌아가지 마세요. 남는 날은 본문을 더 잘게 나누어 채우세요.';
+      fix = '\n\n[교정 지시] 직전 배분이 ' + cyc + '. 성경 범위를 처음부터 끝까지 "딱 한 번만" 순서대로 배분하고, 끝 책 마지막 절까지 간 뒤에는 절대 앞 책으로 돌아가지 마세요. 남는 날은 본문을 더 잘게 나누어 채우세요.';
     }
     if (cyc) toast('⚠ 일부 본문이 앞 책으로 되돌아갔습니다(' + cyc + '). 검토 후 [재작업 요청]으로 다시 만들거나 직접 수정해 주세요.');
+    /* 2단계: 배분된 날들에 질문 3개씩을 14일 묶음으로 생성(후반 누락 방지) + 빈 질문 자동 보완 1회 */
+    var total = rows.length, qnb = Math.ceil(total / 14);
+    for (var qi = 0, bn = 1; qi < total; qi += 14, bn++) {
+      toast('묵상 질문 생성 중 (2/2단계) — ' + bn + '/' + qnb + ' 묶음');
+      try { await fillMissingDevoQ(rows.slice(qi, qi + 14)); } catch (qe) { /* 묶음 실패는 보완 단계가 다시 시도 */ }
+    }
+    try { var qf = await fillMissingDevoQ(rows); if (qf) toast('비어 있던 질문 ' + qf + '일분을 보완했습니다.'); } catch (qe2) {}
     S.devo = { rows: rows, m: Date.now() }; S.devoDone = false; S.view = 'devo';
     S.devoSig = spMetaSig(m); /* 이 초안이 만들어진 계획 서명 — 계획이 바뀌면 폐기 판단에 사용 */
     state.seriesReqs['시리즈묵상'] = '';
@@ -8396,15 +8439,23 @@ async function aiSeriesTopic(noteOverride){
   var S = state.series, m = S.meta;
   try {
     (state.seriesReqs = state.seriesReqs || {})['주제설교'] = '진행중';
-    toast('Opus가 주제별 설교 선택지를 생성합니다 — 1~3분');
-    var out = await callClaude(P_TOPIC, JSON.stringify({
-      '시리즈명': m['시리즈명'], '주제': m['주제'], '예배구분': m['예배구분'],
-      '배경설명': m['배경설명'],
-      '요청사항': (noteOverride != null ? noteOverride : m['요청사항']),
-      '회차': m['회차']
-    }), 32000, aiTick('주제별 설교 선택지'));
-    var arr = aiJson(out);
-    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    /* 분할 생성: 회차를 4개씩 끊어 호출(긴 단일 출력에서 후반 선택지 품질 저하 방지) */
+    var sessions = m['회차'] || [];
+    var TB = 4, nb = Math.ceil(sessions.length / TB), arr = [];
+    for (var bi = 0; bi < sessions.length; bi += TB){
+      var part = sessions.slice(bi, bi + TB);
+      toast('주제별 설교 선택지 생성 중 — ' + (Math.floor(bi / TB) + 1) + '/' + nb + ' 묶음 (' + part.length + '회차)');
+      var out = await callClaude(P_TOPIC, JSON.stringify({
+        '시리즈명': m['시리즈명'], '주제': m['주제'], '예배구분': m['예배구분'],
+        '배경설명': m['배경설명'],
+        '요청사항': (noteOverride != null ? noteOverride : m['요청사항']),
+        '회차': part
+      }), 20000, aiTick('주제별 설교 선택지'));
+      var pt = aiJson(out);
+      if (!Array.isArray(pt) || !pt.length) throw new Error('응답 형식 오류(' + (Math.floor(bi / TB) + 1) + '번째 묶음)');
+      arr = arr.concat(pt);
+    }
+    if (!arr.length) throw new Error('응답 형식 오류');
     S.sermon = { m: Date.now(), weeks: arr.map(function(d, di){
       var sess = (m['회차'] || [])[di] || {};
       var opts = d['선택지'] || [];
@@ -8413,6 +8464,8 @@ async function aiSeriesTopic(noteOverride){
         opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
         '시리즈순번': di + 1, edit: optEdit(opts[0]) };
     }) };
+    /* 빈 주제근거 자동 보완 */
+    try { var nf = await fillMissingJeokgeo(S.sermon.weeks); if (nf) refreshWeekEdits(S.sermon.weeks); } catch (fe) {}
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['주제설교'] = '';
     saveSeries(); renderSeriesPane(); renderSyncState();
