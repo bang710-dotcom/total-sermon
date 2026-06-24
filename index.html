@@ -574,7 +574,8 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   /* 데스크탑 전용 작업(설교 이미지 파이프라인·묵상집 PDF)은 모바일에서 숨김 */
   #composeMeta [data-req="이미지프롬프트"],
   #composeMeta [data-req="이미지생성"],
-  #spDevoPdf{display:none !important}
+  #spDevoPdf,
+  #spDevoTheme{display:none !important}
   .m-deskonly-note{display:block}
 
   /* 더보기 바텀시트 — 전 페이지 접근 */
@@ -7388,7 +7389,9 @@ function spReqPdf(){
   if (p === '대기' || p === '진행중') { toast('이미 PDF 작업이 요청되어 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
   if (p === '완료' && !confirm('이미 완성된 묵상집 PDF가 있습니다 (버튼 안 [내려받기]로 받을 수 있습니다).\n수정된 일정으로 다시 요청할까요?')) return;
   if (!S.devoDone && !confirm('묵상 일정이 아직 시트에 확정되지 않았습니다.\n현재 검토본 그대로 PDF를 요청할까요?')) return;
-  spWriteReq('묵상집PDF', { '계획': S.meta, '묵상확정': S.devo.rows }, '묵상집 PDF (' + ((S.meta || {})['시리즈명'] || '') + ')');
+  var _pdfPayload = { '계획': S.meta, '묵상확정': S.devo.rows };
+  if (S.theme && S.theme.cover) _pdfPayload['테마'] = { 'label': S.theme.label, 'cover': S.theme.cover, 'paper': S.theme.paper, 'weekly': S.theme.weekly };
+  spWriteReq('묵상집PDF', _pdfPayload, '묵상집 PDF (' + ((S.meta || {})['시리즈명'] || '') + ')');
 }
 /* PDF 결과 내려받기: 완료된 묵상집PDF 요청의 결과파일을 결과함에서 직접 다운로드 */
 async function spPdfDownload(){
@@ -7564,6 +7567,7 @@ function spDevoHtml(){
   h += '<div class="toolrow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 다시 등록 (업서트)' : '묵상 일정 확정 → 묵상집 등록') + '</button>' +
     '<button class="btn sub" id="spDevoRedo" style="flex:0 0 auto;width:auto">재작업 요청</button>' +
     '<button class="btn sub" onclick="openSeriesDevoPreview()" style="flex:0 0 auto;width:auto">미리보기</button>' +
+    '<button class="btn sub" id="spDevoTheme" style="flex:0 0 auto;width:auto">배경 테마' + (S.theme ? ' ✓' : '') + '</button>' +
     '<button class="btn gold' + pCls + '" id="spDevoPdf" style="flex:0 0 auto;width:auto;display:flex;align-items:center;gap:8px">' +
     '<span>묵상집 PDF 요청' + pMark + '</span>' + (pCls === ' fin' ? '<span class="inbtn">내려받기</span>' : '') + '</button></div>';
   return h;
@@ -7821,6 +7825,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     toast(wSeq(w, wi) + '주차 「' + esc(ed['제목'] || '') + '」 — 설교 작성을 시작합니다.');
     return;
   }
+  if (e.target.closest('#spDevoTheme')) { openDevoThemePicker(); return; }
   if (e.target.closest('#spDevoPdf')) {
     if (e.target.closest('.inbtn')) spPdfDownload();
     else spReqPdf();
@@ -9185,6 +9190,88 @@ async function genSermonImage(opts){
     }).then(function(){ btn.disabled = false; });
   });
 })();
+/* ===================== 묵상집 배경 테마 (원클릭 · Flux) =====================
+   표지 분위기 3안을 Flux로 생성 → 하나 선택 → 같은 톤의 내지·주차 배경까지 만들어
+   S.theme(base64 3종)에 저장한다. [묵상집 PDF 요청] 시 이 테마가 요청에 실려,
+   스킬이 기존 여호수아 테마 대신 이 배경으로(가독성 워시·A4 크롭은 스킬이 처리) 조판한다. */
+var DEVO_THEME_MOODS = [
+  { key: 'A', label: '빛과 자유',
+    cover: 'A quiet dawn breaking over a wide open plain, warm golden light spilling from the horizon, gentle mist lifting, a sense of release and freedom, soft rays. Warm gold and amber palette with deep umber edges, subtle vignette in corners.',
+    paper: 'Very pale high-key wash of soft dawn light on faint warm parchment, extremely low contrast, washed-out, airy, lots of empty pale cream space. Pale ivory and faint gold, high-key almost white.',
+    weekly: 'Soft golden morning glow over a calm open field, gentle and uncluttered, mid brightness, warm and hopeful, plenty of quiet sky. Warm amber and cream palette.' },
+  { key: 'B', label: '옛 편지·양피지',
+    cover: 'An ancient rolled parchment and a quill resting in warm candlelight on aged wood, soft chiaroscuro, intimate scholarly stillness, deep warm shadows. Rich sepia, aged-ivory and ember-amber palette, soft dark vignette.',
+    paper: 'Very pale aged parchment surface, soft even warm light, extremely low contrast, faint fiber texture, washed and high-key, vast empty pale area, no objects. Pale aged ivory.',
+    weekly: 'A softly lit aged parchment with a faint warm wax-seal glow at one corner, calm and minimal, mid brightness, warm sepia, lots of quiet space.' },
+  { key: 'C', label: '은혜의 길',
+    cover: 'A gentle winding path through silvery olive trees on a Mediterranean hillside at golden hour, a soft cross-shaped shaft of light in the distance, peaceful and redemptive, warm and serene. Olive green, warm stone and honey-gold palette, soft vignette.',
+    paper: 'Very pale washed background of soft olive-and-cream light, extremely low contrast, high-key, faint hint of leaves at the very edges only, vast empty pale center. Pale sage and warm cream.',
+    weekly: 'A calm Mediterranean hillside with soft olive tones and gentle warm light, minimal and uncluttered, mid brightness, peaceful, plenty of quiet space.' }
+];
+var THEME_WRAP_HEAD = 'Painterly cinematic devotional background, oil-and-light texture, NO text, NO typography, NO letters, NO logo, no human faces in focus. ';
+function themePrompt(part, m){
+  if (part === 'cover') return THEME_WRAP_HEAD + m.cover + ' Vertical A4 book-cover composition, generous calm empty space in the center for overlaying a title, refined christian sacred mood, tasteful, no people.';
+  if (part === 'paper') return THEME_WRAP_HEAD + m.paper + ' Vertical A4, mostly empty for handwriting legibility, high-key, almost white, no people.';
+  return THEME_WRAP_HEAD + m.weekly + ' Vertical A4, calm empty upper area, no people.';
+}
+async function genThemeBg(prompt){
+  var r = await genSermonImage({ jobType: 'background', prompt: prompt, aspectRatio: '3:4', provider: 'flux', model: 'klein' });
+  return r.src; /* dataURL */
+}
+function openDevoThemePicker(){
+  var S = state.series;
+  if (!S) { toast('시리즈를 먼저 여세요.'); return; }
+  var c = imgProxyCfg();
+  if (!c.url || !c.token) { toast('설정 탭에서 이미지 프록시 URL·토큰을 먼저 입력해 주세요 (Flux 배경 생성용).'); return; }
+  var ov = document.createElement('div');
+  ov.id = 'devoThemeOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML = '<div style="background:var(--card,#1d1d1d);color:var(--txt,#eee);max-width:680px;width:100%;border-radius:16px;overflow:hidden;max-height:92vh;overflow-y:auto">' +
+    '<div style="padding:16px 18px 10px;border-bottom:1px solid rgba(128,128,128,.2)"><b style="font-size:16px">묵상집 배경 테마 선택</b>' +
+    '<div class="cnt" style="margin-top:5px">' + esc((S.meta || {})['시리즈명'] || '') + ' — 표지 분위기 3안 중 하나를 고르면 내지·주차 배경까지 같은 톤으로 만들어집니다. (Flux 생성, 약 20~60초)</div></div>' +
+    '<div id="themeCards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 18px"></div>' +
+    '<div style="display:flex;justify-content:flex-end;gap:10px;padding:0 18px 16px"><button class="btn sub" id="themeCancel" style="width:auto">취소</button>' +
+    '<button class="btn" id="themeMake" style="width:auto;opacity:.4;pointer-events:none">이 테마로 만들기</button></div></div>';
+  document.body.appendChild(ov);
+  var sel = null, covers = {};
+  var cards = ov.querySelector('#themeCards');
+  DEVO_THEME_MOODS.forEach(function(m){
+    var card = document.createElement('div');
+    card.style.cssText = 'border:2px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer;background:rgba(128,128,128,.12)';
+    card.innerHTML = '<div class="tcImg" style="aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;font-size:12px;color:#999;text-align:center">생성 중…</div>' +
+      '<div style="padding:7px 9px"><div style="font-size:13px;font-weight:700">' + m.label + '</div></div>';
+    card.addEventListener('click', function(){
+      if (!covers[m.key]) return;
+      Array.prototype.forEach.call(cards.children, function(x){ x.style.border = '2px solid transparent'; });
+      card.style.border = '2px solid var(--accent)';
+      sel = m.key;
+      var mk = ov.querySelector('#themeMake'); mk.style.opacity = '1'; mk.style.pointerEvents = 'auto';
+    });
+    cards.appendChild(card);
+    genThemeBg(themePrompt('cover', m)).then(function(src){
+      covers[m.key] = src;
+      var box = card.querySelector('.tcImg');
+      box.style.cssText = 'aspect-ratio:3/4;background:url(' + src + ') center/cover'; box.textContent = '';
+    }).catch(function(){
+      var box = card.querySelector('.tcImg'); box.textContent = '생성 실패'; box.style.color = '#e66';
+    });
+  });
+  ov.querySelector('#themeCancel').addEventListener('click', function(){ ov.remove(); });
+  ov.addEventListener('click', function(e){ if (e.target === ov) ov.remove(); });
+  ov.querySelector('#themeMake').addEventListener('click', async function(){
+    if (!sel) return;
+    var mk = this; mk.disabled = true; var omk = mk.innerHTML; mk.innerHTML = '<span class="spin"></span>내지·주차 생성 중…';
+    try {
+      var m = DEVO_THEME_MOODS.filter(function(x){ return x.key === sel; })[0];
+      var paper = await genThemeBg(themePrompt('paper', m));
+      var weekly = await genThemeBg(themePrompt('weekly', m));
+      state.series.theme = { key: m.key, label: m.label, cover: covers[m.key], paper: paper, weekly: weekly, createdAt: Date.now() };
+      saveSeries();
+      toast('배경 테마 “' + m.label + '” 저장 완료 — [묵상집 PDF 요청] 시 이 배경으로 만들어집니다.');
+      ov.remove(); renderSeriesPane();
+    } catch (err) { toast('테마 생성 실패: ' + err.message); mk.disabled = false; mk.innerHTML = omk; }
+  });
+}
 /* ===== 2단계: 설교 1편 전 컷 자동 생성 (이미지자료.docx → 프록시 + 본문 파생) ===== */
 function loadImgEl(src){ return new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = function(){ rej(new Error('이미지 로드 실패')); }; im.src = src; }); }
 function canvasToBlob(cv){ return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, 'image/png'); }); }
