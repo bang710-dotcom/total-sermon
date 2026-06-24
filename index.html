@@ -1677,7 +1677,9 @@ function _pullData(opts){
       }
       state.data = d;
     }
-    if (d.fetchedAt) { state.syncAt = d.fetchedAt; idbSet('syncAt', d.fetchedAt).catch(function(){}); }
+    /* 동기화 기준점(state.syncAt)과 함께, 화면 좌측 하단 "동기화: …" 표시값(state.data.fetchedAt)도
+       매 동기화마다 갱신한다. (예전엔 전체 로드 때만 state.data=d로 갱신돼, 델타만 도는 동안 표시가 멈춰 보였다.) */
+    if (d.fetchedAt) { state.syncAt = d.fetchedAt; state.data.fetchedAt = d.fetchedAt; idbSet('syncAt', d.fetchedAt).catch(function(){}); }
     normalizeSermonStatuses(!d.delta); promotePreachedByDate(!d.delta); _dedupReconcileCopies(); saveData();  /* 전체 로드 때만 시트도 정리·승격 */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
@@ -11169,7 +11171,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v256';
+var APP_VER = 'v257';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
