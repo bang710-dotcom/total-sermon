@@ -1834,7 +1834,7 @@ function runSearch(){
 
   if (scope === 'all' || scope === 'sermons' || scope === 'illust' || scope === 'topics') {
     state.data.sermons.forEach(function(s){
-      if (s['상태'] === '보관') return; /* 미래설교 보관함 전용 — 메인 검색에서는 숨김 */
+      if (isOptRow(s)) return; /* 미래설교 보관함('보관')·임시 초안('초안')은 메인 검색에서 숨김 */
       if (s['상태'] !== '완료' && s['상태'] !== '설교함') return; /* 검색은 완료·설교함만 (진행중은 [설교 작성]의 진행중 불러오기에서) */
       if (!tagHit(s['키워드'])) return;
       var fields = scope === 'illust' ? ['예화'] : SERMON_FIELDS;
@@ -5922,6 +5922,7 @@ async function aiSeriesSermon(noteOverride){
     state.seriesReqs['시리즈설교'] = '';
     saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
     toast('주일 설교 선택지 ' + weeks.length + '주 생성 완료 — 선택·수정 후, 보관할 선택지마다 [미래설교로 저장]을 누르세요.');
+    try { await archiveSeriesOptions(S, '초안'); } catch (ae) { /* 임시(초안) 동기화 실패는 조용히 — 로컬엔 남아있고 [미래설교로 저장] 시 다시 시도됨 */ }
   } catch (e) {
     state.seriesReqs['시리즈설교'] = ''; spStatus(); renderSyncState();
     toast('생성 실패: ' + e.message);
@@ -5930,14 +5931,15 @@ async function aiSeriesSermon(noteOverride){
 
 /* 생성 즉시 모든 선택지를 설교마스터에 [보관] 상태로 기록 → 기기 무관 보관·이어작업.
    각 선택지의 시트 행 ID를 opts[*]._id 에 저장해, 확정 시 선택분만 [구상/연구]으로 승격한다. */
-async function archiveSeriesOptions(S){
+async function archiveSeriesOptions(S, status){
+  status = status || '초안'; /* 기본: 생성 직후 임시동기화는 '초안'(보관함·검색엔 숨김, 기기 간엔 보임) */
   if (!(state.settings && state.settings.url && state.settings.token)) return 0; /* 시트 미설정 시 건너뜀 */
   if (!(S && S.sermon && Array.isArray(S.sermon.weeks))) return 0;
   var m = S.meta || {}, rows = [], map = [];
   S.sermon.weeks.forEach(function(w, wi){
     (w.opts || []).forEach(function(o, oi){
-      if (o._id) return; /* 이미 보관된 선택지(재생성·이어작업)는 건너뜀 */
-      rows.push(archiveRec(m, w, wi, o));
+      if (o._id) return; /* 이미 시트에 행이 있는 선택지(재생성·이어작업)는 건너뜀 */
+      rows.push(archiveRec(m, w, wi, o, status));
       map.push([wi, oi]);
     });
   });
@@ -5962,23 +5964,31 @@ async function archiveSeriesOptions(S){
   sync(); /* 보관함·검색 데이터 갱신 (백그라운드) */
   return ids.length || rows.length;
 }
-/* 선택지 한 개만 [미래설교 보관함]에 저장(수동). 그 선택지에 _id를 부여하고
-   로컬 데이터·시트 시그니처도 갱신한다. 이미 저장된(_id 있는) 선택지는 그대로 둔다. */
+/* 선택지 한 개를 [미래설교 보관함]에 올린다(수동). 생성 시 이미 '초안' 행이 있으면
+   그 행을 '보관'으로 승격(내용도 갱신, 행 추가 없음). 행이 없으면(시트 꺼진 채 생성 등)
+   새로 '보관'으로 추가한다. 로컬 데이터·시트 시그니처도 갱신한다. */
 async function archiveOneOption(S, wi, oi){
   if (!(state.settings && state.settings.url && state.settings.token)) { toast('시트 설정이 필요합니다 (설정 탭에서 URL·토큰 입력).'); return 0; }
   if (!(S && S.sermon && S.sermon.weeks && S.sermon.weeks[wi])) return 0;
   var m = S.meta || {}, w = S.sermon.weeks[wi], o = (w.opts || [])[oi];
   if (!o) return 0;
-  if (o._id) return o._id; /* 이미 보관됨 */
   /* 선택된 선택지를 보관할 때는 편집란 수정분을 먼저 반영한다 */
   if (w.sel === oi) { var ed = w.edit || {}; ['제목', '본문', '핵심메시지', '주제근거', '대지', '찬송', '묵상요약'].forEach(function(k){ if (ed[k] != null && ed[k] !== '') o[k] = ed[k]; }); }
-  var rec = archiveRec(m, w, wi, o);
-  var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: [rec] });
-  var id = (res && res.ids && res.ids[0]) || '';
-  if (id) { o._id = id; var lr = {}; for (var kk in rec) lr[kk] = rec[kk]; lr['ID'] = id; state.data.sermons.push(lr); }
+  var rec = archiveRec(m, w, wi, o, '보관');
+  if (o._id) {
+    /* 이미 '초안'(또는 '보관') 행 존재 → 그 행을 '보관'으로 갱신(승격). 행 추가 안 함. */
+    rec.ID = o._id;
+    await apiPost({ action: 'update', sheet: 'sermons', data: rec });
+    var lrow = (state.data.sermons || []).filter(function(s){ return String(s['ID']) === String(o._id); })[0];
+    if (lrow) { for (var k1 in rec) lrow[k1] = rec[k1]; }
+  } else {
+    var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: [rec] });
+    var id = (res && res.ids && res.ids[0]) || '';
+    if (id) { o._id = id; var lr = {}; for (var kk in rec) lr[kk] = rec[kk]; lr['ID'] = id; state.data.sermons.push(lr); }
+  }
   var _nm = m['시리즈명']; if (_nm) S._sheetSig = sheetSigForSeries(_nm);
   saveSeries(); sync();
-  return id;
+  return o._id;
 }
 /* 옛 보관(선택지) 행을 시트·로컬에서 삭제. 회차 재생성 시 교체된 선택지가
    다른 기기에서 중복으로 보이지 않도록 한다(삭제로그 툼스톤으로 델타 전파). */
@@ -5996,12 +6006,17 @@ async function deleteArchivedOpts(ids){
   var nm = state.series && state.series.meta && state.series.meta['시리즈명'];
   if (nm) state.series._sheetSig = sheetSigForSeries(nm);
 }
-function archiveRec(m, w, wi, o){
+/* 설교 상태 분류 헬퍼.
+   '초안' = 생성 직후 임시동기화(기기 간엔 보이되 미래설교 보관함·검색엔 숨김),
+   '보관' = 미래설교 보관함(수동 [미래설교로 저장]), 그 외(구상/연구·완료·설교함) = 실제 설교마스터. */
+function isOptRow(s){ return !!s && (s['상태'] === '보관' || s['상태'] === '초안'); }   /* 선택지 후보(초안 포함) */
+function isLiveSermon(s){ return !!s && s['상태'] !== '보관' && s['상태'] !== '초안'; }   /* 실제 설교(설교마스터) */
+function archiveRec(m, w, wi, o, status){
   var _k = (m['주일'] || []).indexOf(w['주일']);   /* 달력상 주차(건너뛴 주 포함) */
   var rec = {
     '날짜': w['주일'] || '', '예배구분': m['예배구분'] || '대학부',
     '시리즈': m['시리즈명'] || '', '시리즈순번': String(_k >= 0 ? _k + 1 : wi + 1),
-    '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': '보관',
+    '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': status || '보관',
     '핵심메시지': o['핵심메시지'] || '', '대지': djSer(o['대지']),
     '비고': (o['찬송'] ? '찬송: ' + o['찬송'] + ' / ' : '') + (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
   };
@@ -6770,7 +6785,7 @@ window.startSeriesWithBook = function(name){
 };
 function renderSeriesCoverage(){
   var box = $('#slCoverage'); if (!box) return;
-  var all = (state.data.sermons || []).filter(function(s){ return s['상태'] !== '보관'; });
+  var all = (state.data.sermons || []).filter(function(s){ return isLiveSermon(s); });
   if (!all.length){ box.innerHTML = ''; return; }
   var C = coverageData(all), picks = [];
   C.never.slice(0, 6).forEach(function(i){ picks.push({ idx: i, tag: '미설교' }); });
@@ -8116,6 +8131,7 @@ async function aiSeriesDawn(noteOverride){
     state.seriesReqs['새벽설교'] = '';
     saveSeries(); renderSeriesPane(); renderSyncState();
     toast('새벽 설교 선택지 ' + days.length + '일 생성 완료 — 선택·수정 후, 보관할 선택지마다 [미래설교로 저장]을 누르세요.');
+    try { await archiveSeriesOptions(S, '초안'); } catch (ae) { /* 임시(초안) 동기화 실패는 조용히 */ }
   } catch (e) {
     (state.seriesReqs = state.seriesReqs || {})['새벽설교'] = ''; renderSyncState();
     toast('생성 실패: ' + e.message);
@@ -8166,8 +8182,8 @@ async function aiRegenWeek(wi, btn){
     w.skip = false; w.done = false; w.sig = '';
     saveSeries(); renderSeriesPane();
     toast('이 ' + (dawn ? '날' : '주') + '의 선택지 ' + opts.length + '개를 새로 만들었습니다 — 보관할 선택지는 [미래설교로 저장]을 누르세요.');
-    /* 이 회차의 옛 보관 행은 새 선택지로 교체되므로 시트에서 삭제(툼스톤 전파).
-       새 선택지는 수동 [미래설교로 저장] 전까지 시트에 올리지 않는다. */
+    try { await archiveSeriesOptions(S, '초안'); } catch (ae) { /* 새 선택지 임시(초안) 동기화 실패는 조용히 */ }
+    /* 이 회차의 옛 행(초안/보관)은 새 선택지로 교체되므로 시트에서 삭제(툼스톤 전파). */
     if (oldIds.length) { try { await deleteArchivedOpts(oldIds); } catch (de) { toast('이전 선택지 정리 실패(중복 표시 가능): ' + de.message); } }
   } catch (e) {
     toast('재생성 실패: ' + e.message);
@@ -9562,7 +9578,7 @@ function renderLibRow(s){
 function renderLibrary(){
   var box = $('#libResults'); if (!box) return;
   var L = state.lib;
-  var all = (state.data.sermons || []).filter(function(s){ return s['상태'] !== '보관'; });
+  var all = (state.data.sermons || []).filter(function(s){ return isLiveSermon(s); });
   if (!all.length) {
     var loading = !!(state.settings && state.settings.url && (_pullInflight || !state.syncAt));
     box.innerHTML = loading
@@ -9697,7 +9713,7 @@ function donutBlock(title, counts, opts){
 function renderAnalytics(){
   var box = $('#anResults'); if (!box) return;
   var A = ANALYTICS;
-  var all = (state.data.sermons || []).filter(function(s){ return s['상태'] !== '보관'; });
+  var all = (state.data.sermons || []).filter(function(s){ return isLiveSermon(s); });
   if (!all.length){
     var loading = !!(state.settings && state.settings.url && (_pullInflight || !state.syncAt));
     box.innerHTML = loading
