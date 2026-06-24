@@ -1,0 +1,402 @@
+{
+  "id": "holman",
+  "name": "Holman 핸드북",
+  "books": [
+    {
+      "bookIdx": 0,
+      "ko": "창세기",
+      "file": "commentary/holman_00.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 1,
+      "ko": "출애굽기",
+      "file": "commentary/holman_01.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 2,
+      "ko": "레위기",
+      "file": "commentary/holman_02.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 3,
+      "ko": "민수기",
+      "file": "commentary/holman_03.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 4,
+      "ko": "신명기",
+      "file": "commentary/holman_04.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 5,
+      "ko": "여호수아",
+      "file": "commentary/holman_05.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 6,
+      "ko": "사사기",
+      "file": "commentary/holman_06.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 7,
+      "ko": "룻기",
+      "file": "commentary/holman_07.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 8,
+      "ko": "사무엘상",
+      "file": "commentary/holman_08.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 9,
+      "ko": "사무엘하",
+      "file": "commentary/holman_09.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 10,
+      "ko": "열왕기상",
+      "file": "commentary/holman_10.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 11,
+      "ko": "열왕기하",
+      "file": "commentary/holman_11.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 12,
+      "ko": "역대상",
+      "file": "commentary/holman_12.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 13,
+      "ko": "역대하",
+      "file": "commentary/holman_13.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 14,
+      "ko": "에스라",
+      "file": "commentary/holman_14.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 15,
+      "ko": "느헤미야",
+      "file": "commentary/holman_15.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 16,
+      "ko": "에스더",
+      "file": "commentary/holman_16.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 17,
+      "ko": "욥기",
+      "file": "commentary/holman_17.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 18,
+      "ko": "시편",
+      "file": "commentary/holman_18.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 19,
+      "ko": "잠언",
+      "file": "commentary/holman_19.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 20,
+      "ko": "전도서",
+      "file": "commentary/holman_20.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 21,
+      "ko": "아가",
+      "file": "commentary/holman_21.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 22,
+      "ko": "이사야",
+      "file": "commentary/holman_22.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 23,
+      "ko": "예레미야",
+      "file": "commentary/holman_23.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 24,
+      "ko": "예레미야애가",
+      "file": "commentary/holman_24.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 25,
+      "ko": "에스겔",
+      "file": "commentary/holman_25.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 26,
+      "ko": "다니엘",
+      "file": "commentary/holman_26.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 27,
+      "ko": "호세아",
+      "file": "commentary/holman_27.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 28,
+      "ko": "요엘",
+      "file": "commentary/holman_28.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 29,
+      "ko": "아모스",
+      "file": "commentary/holman_29.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 30,
+      "ko": "오바댜",
+      "file": "commentary/holman_30.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 31,
+      "ko": "요나",
+      "file": "commentary/holman_31.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 32,
+      "ko": "미가",
+      "file": "commentary/holman_32.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 33,
+      "ko": "나훔",
+      "file": "commentary/holman_33.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 34,
+      "ko": "하박국",
+      "file": "commentary/holman_34.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 35,
+      "ko": "스바냐",
+      "file": "commentary/holman_35.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 36,
+      "ko": "학개",
+      "file": "commentary/holman_36.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 37,
+      "ko": "스가랴",
+      "file": "commentary/holman_37.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 38,
+      "ko": "말라기",
+      "file": "commentary/holman_38.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 39,
+      "ko": "마태복음",
+      "file": "commentary/holman_39.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 40,
+      "ko": "마가복음",
+      "file": "commentary/holman_40.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 41,
+      "ko": "누가복음",
+      "file": "commentary/holman_41.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 42,
+      "ko": "요한복음",
+      "file": "commentary/holman_42.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 43,
+      "ko": "사도행전",
+      "file": "commentary/holman_43.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 44,
+      "ko": "로마서",
+      "file": "commentary/holman_44.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 45,
+      "ko": "고린도전서",
+      "file": "commentary/holman_45.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 46,
+      "ko": "고린도후서",
+      "file": "commentary/holman_46.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 47,
+      "ko": "갈라디아서",
+      "file": "commentary/holman_47.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 48,
+      "ko": "에베소서",
+      "file": "commentary/holman_48.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 49,
+      "ko": "빌립보서",
+      "file": "commentary/holman_49.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 50,
+      "ko": "골로새서",
+      "file": "commentary/holman_50.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 51,
+      "ko": "데살로니가전서",
+      "file": "commentary/holman_51.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 52,
+      "ko": "데살로니가후서",
+      "file": "commentary/holman_52.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 53,
+      "ko": "디모데전서",
+      "file": "commentary/holman_53.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 54,
+      "ko": "디모데후서",
+      "file": "commentary/holman_54.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 55,
+      "ko": "디도서",
+      "file": "commentary/holman_55.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 56,
+      "ko": "빌레몬서",
+      "file": "commentary/holman_56.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 57,
+      "ko": "히브리서",
+      "file": "commentary/holman_57.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 58,
+      "ko": "야고보서",
+      "file": "commentary/holman_58.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 59,
+      "ko": "베드로전서",
+      "file": "commentary/holman_59.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 60,
+      "ko": "베드로후서",
+      "file": "commentary/holman_60.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 61,
+      "ko": "요한일서",
+      "file": "commentary/holman_61.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 62,
+      "ko": "요한이서",
+      "file": "commentary/holman_62.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 63,
+      "ko": "요한삼서",
+      "file": "commentary/holman_63.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 64,
+      "ko": "유다서",
+      "file": "commentary/holman_64.json",
+      "entries": 1
+    },
+    {
+      "bookIdx": 65,
+      "ko": "요한계시록",
+      "file": "commentary/holman_65.json",
+      "entries": 1
+    }
+  ]
+}
