@@ -7647,16 +7647,18 @@ function spSermonHtml(){
     /* ── 미확정 상태: 라디오 선택지 + 편집란 + 확정 버튼 ── */
     var opts = (w.opts || []).map(function(o, oi){
       var sel = w.sel === oi;
-      var saveRow = '<div style="display:flex;justify-content:flex-end;align-items:center;margin:-2px 0 9px;padding:0 2px">' +
-        (o._status === '보관' ? '<span style="font-size:12px;color:var(--accent)">✓ 미래설교에 저장됨</span>'
-               : '<button class="btn sub" data-act="optArchive" data-w="' + wi + '" data-o="' + oi + '" style="width:auto;font-size:12px;padding:4px 11px">미래설교로 저장</button>') +
+      var corner = '<div style="position:absolute;top:7px;right:8px;z-index:2">' +
+        (o._status === '보관' ? '<span style="font-size:11px;color:var(--accent);font-weight:700">✓ 저장됨</span>'
+               : '<button class="btn sub" data-act="optArchive" data-w="' + wi + '" data-o="' + oi + '" style="width:auto;font-size:11px;padding:3px 8px;white-space:nowrap">미래설교 저장</button>') +
         '</div>';
-      return '<label style="display:block;margin:0 0 4px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
+      return '<div style="position:relative;margin:0 0 9px">' +
+        '<label style="display:block;margin:0;padding:9px 11px;padding-right:100px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
         '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
         '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
-        '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
+        '<div style="margin:3px 0 0 22px;padding-right:0">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
         (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
-        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>' + saveRow;
+        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>' + corner +
+        '</div>';
     }).join('');
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
