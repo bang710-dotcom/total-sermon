@@ -991,7 +991,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
         <label>대지 · 예화 (회색 ↑↓=대지 이동 · 파란 ↑↓=내부 순서 · ＋예화 추가)</label>
         <div id="pointList"></div>
         <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
-        <div class="toolrow" style="margin-top:6px;gap:6px;flex-wrap:wrap"><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:0 0 auto">✦ 대지 보강 (재정의·대조)</button><button class="btn sub mini" id="ptApplyBtn" type="button" style="flex:0 0 auto">✦ 적용 강화 (세대별 실천)</button></div>
+        <div class="toolrow" style="margin-top:6px;gap:6px;flex-wrap:wrap"><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:0 0 auto">✦ 대지 보강 (재정의·대조)</button><button class="btn sub mini" id="ptApplyBtn" type="button" style="flex:0 0 auto">✦ 실천 강화 (세대별)</button></div>
         <div id="ptReframe"></div>
         <div id="ptApply"></div>
         <div id="c_dupCheck"></div>
@@ -11577,7 +11577,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v262';
+var APP_VER = 'v263';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
