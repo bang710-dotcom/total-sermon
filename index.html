@@ -6073,14 +6073,15 @@ function loadSermonFromArchive(S) {
     if (a['날짜'] > b['날짜']) return 1;
     return (parseInt(a['시리즈순번'] || '0', 10) - parseInt(b['시리즈순번'] || '0', 10));
   });
-  var byDate = {}, dates = [];
+  /* 주제별 시리즈는 날짜가 비어 있어, 날짜가 있으면 날짜로·없으면 시리즈순번으로 회차를 가른다. */
+  var byKey = {}, keys = [];
   archived.forEach(function(s){
-    var d = s['날짜'];
-    if (!byDate[d]) { byDate[d] = []; dates.push(d); }
-    byDate[d].push(s);
+    var k = s['날짜'] || ('#순번' + (s['시리즈순번'] || ''));
+    if (!byKey[k]) { byKey[k] = []; keys.push(k); }
+    byKey[k].push(s);
   });
-  var weeks = dates.map(function(d){
-    var items = byDate[d];
+  var weeks = keys.map(function(k){
+    var items = byKey[k];
     var opts = items.map(function(s){
       var bigo = String(s['비고'] || '');
       var mRoot = bigo.match(/주제 근거:\s*([^/]+)/);
@@ -6092,17 +6093,29 @@ function loadSermonFromArchive(S) {
         _id: s['ID'] || ''
       };
     });
-    var mRange = String(items[0]['비고'] || '').match(/주간묵상:\s*(.+)$/);
-    return {
-      '주일': d,
+    var bigo0 = String(items[0]['비고'] || '');
+    var mRange = bigo0.match(/주간묵상:\s*(.+)$/);
+    var mSess = bigo0.match(/회차:\s*([^/]+)/);
+    var realDate = items[0]['날짜'] || '';
+    var wk = {
+      '주일': realDate,
       '주간범위': mRange ? mRange[1].trim() : '',
       '비고': '',
       opts: opts,
       sel: opts.length ? 0 : -1,
       skip: !opts.length,
+      '시리즈순번': +(items[0]['시리즈순번']) || (keys.indexOf(k) + 1),
       edit: optEdit(opts[0])
     };
+    if (mSess || !realDate) wk['회차명'] = mSess ? mSess[1].trim() : (wk['시리즈순번'] + '회');
+    return wk;
   });
+  /* 회차명이 복원되면 이 시리즈를 주제별로 표시(kind='topic') */
+  if (weeks.some(function(w){ return w['회차명'] != null; })) {
+    S.kind = 'topic';
+    S.meta = S.meta || {};
+    if (!S.meta['종류']) S.meta['종류'] = 'topic';
+  }
   S.sermon = { m: 0, weeks: weeks };
   S.sermonDone = false;
   S.view = 'sermon';
@@ -6844,11 +6857,11 @@ function renderSeriesList(){
     if (m['시리즈명']) localNames[m['시리즈명']] = true;
     var bits = [];
     if (S.devo) bits.push('묵상 ' + S.devo.rows.length + '일' + (S.devoDone ? ' (등록됨)' : ' 검토 중'));
-    if (S.sermon) bits.push((isDawn(S) ? '새벽 ' + S.sermon.weeks.length + '일' : '주일 설교 ' + S.sermon.weeks.length + '주') + (S.sermonDone ? ' (등록됨)' : ' 검토 중'));
+    if (S.sermon) bits.push((isDawn(S) ? '새벽 ' + S.sermon.weeks.length + '일' : isTopic(S) ? '주제별 설교 ' + S.sermon.weeks.length + '회' : '주일 설교 ' + S.sermon.weeks.length + '주') + (S.sermonDone ? ' (등록됨)' : ' 검토 중'));
     html += '<div class="swipeRow">' +
       '<button class="swipeDel" type="button" onclick="slDel(' + i + ')">삭제</button>' +
       '<div class="item swipeFront" data-sw="' + i + '" onclick="slOpen(' + i + ')"><div class="meta">' +
-      '<span class="badge ' + (isDawn(S) ? 'b-idea">' + DAWN_ICON + ' 새벽' : 'b-sermon">시리즈') + '</span>' +
+      '<span class="badge ' + (isDawn(S) ? 'b-idea">' + DAWN_ICON + ' 새벽' : isTopic(S) ? 'b-sermon">주제별' : 'b-sermon">시리즈') + '</span>' +
       (m['시작일'] ? '<span>' + esc(m['시작일']) + ' ~ ' + esc(m['종료일'] || '') + '</span>' : '') +
       '<span class="badge b-state">' + spStageLabel(S) + '</span>' +
       (S.updatedAt ? '<span>수정 ' + esc(S.updatedAt) + '</span>' : '') +
@@ -7988,18 +8001,24 @@ async function confirmSermonWeeks(idxs, skipUnchanged){
     if (!winner) { w.done = false; w.sig = sig; return; } /* 제외된 주: 강등만 */
     var ed = w.edit || {};
     /* 시리즈순번 = 달력상 주차(건너뛴 주 포함). 보관/기존 행의 옛 값에 의존하지 않는다. */
-    var rec = { '날짜': w['주일'], '예배구분': m['예배구분'] || '대학부', '시리즈': m['시리즈명'] || '',
+    var _isTp = isTopic(S) || (w['회차명'] != null);
+    var rec = { '날짜': w['주일'] || '', '예배구분': m['예배구분'] || '대학부', '시리즈': m['시리즈명'] || '',
       '시리즈순번': String(seriesWeekNo(w, wi)),
       '제목': ed['제목'] || '', '본문': ed['본문'] || '', '상태': '구상/연구',
       '핵심메시지': ed['핵심메시지'] || '', '대지': ed['대지'] || '' };
-    var _bigo = (String(ed['찬송'] || '').trim() ? '찬송: ' + ed['찬송'].trim() + ' / ' : '') +
+    var _bigo = (_isTp && w['회차명'] ? '회차: ' + w['회차명'] + ' / ' : '') +
+      (String(ed['찬송'] || '').trim() ? '찬송: ' + ed['찬송'].trim() + ' / ' : '') +
       (String(ed['주제근거'] || '').trim() ? '주제 근거: ' + ed['주제근거'].trim() : '') +
       (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '');
-    if (_bigo.trim()) rec['비고'] = _bigo.trim();
+    if (_bigo.trim()) rec['비고'] = _bigo.trim().replace(/^\/\s*|\s*\/\s*$/g, '').trim();
     if (String(ed['묵상요약'] || '').trim()) rec['요약본'] = ed['묵상요약'].trim();
-    /* 선택분의 보관 행이 있으면 그 행을 [구상/연구]으로 승격(업데이트), 없으면 기존 [구상/연구] 행 갱신/신규 추가 */
+    /* 선택분의 보관 행이 있으면 그 행을 [구상/연구]으로 승격(업데이트), 없으면 기존 [구상/연구] 행 갱신/신규 추가.
+       주제별 시리즈는 날짜가 비어 있어 날짜로는 구분되지 않으므로 시리즈순번으로 매칭한다. */
     var exId = (winner && winner._id) ||
-      (state.data.sermons.filter(function(s){ return s['날짜'] === w['주일'] && s['시리즈'] === rec['시리즈'] && isLiveSermon(s); })[0] || {})['ID'];
+      (state.data.sermons.filter(function(s){
+        if (!isLiveSermon(s) || s['시리즈'] !== rec['시리즈']) return false;
+        return w['주일'] ? (s['날짜'] === w['주일']) : (String(s['시리즈순번'] || '') === rec['시리즈순번']);
+      })[0] || {})['ID'];
     if (exId) { rec.ID = exId; ups.push(rec); } else adds.push(rec);
     w.done = true; w.sig = sig;
   });
@@ -10868,7 +10887,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v248';
+var APP_VER = 'v249';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
