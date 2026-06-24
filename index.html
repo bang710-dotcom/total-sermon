@@ -5921,14 +5921,7 @@ async function aiSeriesSermon(noteOverride){
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['시리즈설교'] = '';
     saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
-    toast('주일 설교 선택지 ' + weeks.length + '주 생성 완료 — 자동 보관 중…');
-    try {
-      var an = await archiveSeriesOptions(S);
-      toast(an ? ('생성·보관 완료 (' + an + '개) — 선택·수정 후 확정하세요. [미래설교 보관함]에서 어느 기기에서나 열람')
-        : '생성 완료 — 선택·수정 후 확정하세요.');
-    } catch (ae) {
-      toast('생성은 완료됐으나 자동 보관 실패: ' + ae.message + ' — 아래 [선택지 시트에 보관] 버튼으로 다시 시도하세요.');
-    }
+    toast('주일 설교 선택지 ' + weeks.length + '주 생성 완료 — 선택·수정 후, 보관할 선택지마다 [미래설교로 저장]을 누르세요.');
   } catch (e) {
     state.seriesReqs['시리즈설교'] = ''; spStatus(); renderSyncState();
     toast('생성 실패: ' + e.message);
@@ -5968,6 +5961,24 @@ async function archiveSeriesOptions(S){
   saveSeries();
   sync(); /* 보관함·검색 데이터 갱신 (백그라운드) */
   return ids.length || rows.length;
+}
+/* 선택지 한 개만 [미래설교 보관함]에 저장(수동). 그 선택지에 _id를 부여하고
+   로컬 데이터·시트 시그니처도 갱신한다. 이미 저장된(_id 있는) 선택지는 그대로 둔다. */
+async function archiveOneOption(S, wi, oi){
+  if (!(state.settings && state.settings.url && state.settings.token)) { toast('시트 설정이 필요합니다 (설정 탭에서 URL·토큰 입력).'); return 0; }
+  if (!(S && S.sermon && S.sermon.weeks && S.sermon.weeks[wi])) return 0;
+  var m = S.meta || {}, w = S.sermon.weeks[wi], o = (w.opts || [])[oi];
+  if (!o) return 0;
+  if (o._id) return o._id; /* 이미 보관됨 */
+  /* 선택된 선택지를 보관할 때는 편집란 수정분을 먼저 반영한다 */
+  if (w.sel === oi) { var ed = w.edit || {}; ['제목', '본문', '핵심메시지', '주제근거', '대지', '찬송', '묵상요약'].forEach(function(k){ if (ed[k] != null && ed[k] !== '') o[k] = ed[k]; }); }
+  var rec = archiveRec(m, w, wi, o);
+  var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: [rec] });
+  var id = (res && res.ids && res.ids[0]) || '';
+  if (id) { o._id = id; var lr = {}; for (var kk in rec) lr[kk] = rec[kk]; lr['ID'] = id; state.data.sermons.push(lr); }
+  var _nm = m['시리즈명']; if (_nm) S._sheetSig = sheetSigForSeries(_nm);
+  saveSeries(); sync();
+  return id;
 }
 /* 옛 보관(선택지) 행을 시트·로컬에서 삭제. 회차 재생성 시 교체된 선택지가
    다른 기기에서 중복으로 보이지 않도록 한다(삭제로그 툼스톤으로 델타 전파). */
@@ -7620,12 +7631,16 @@ function spSermonHtml(){
     /* ── 미확정 상태: 라디오 선택지 + 편집란 + 확정 버튼 ── */
     var opts = (w.opts || []).map(function(o, oi){
       var sel = w.sel === oi;
-      return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
+      var saveRow = '<div style="display:flex;justify-content:flex-end;align-items:center;margin:-2px 0 9px;padding:0 2px">' +
+        (o._id ? '<span style="font-size:12px;color:var(--accent)">✓ 미래설교에 저장됨</span>'
+               : '<button class="btn sub" data-act="optArchive" data-w="' + wi + '" data-o="' + oi + '" style="width:auto;font-size:12px;padding:4px 11px">미래설교로 저장</button>') +
+        '</div>';
+      return '<label style="display:block;margin:0 0 4px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
         '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
         '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
         '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
         (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
-        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>';
+        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>' + saveRow;
     }).join('');
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
@@ -7700,6 +7715,18 @@ $('#seriesPane').addEventListener('click', async function(e){
     finally { delete ar.dataset.busy; ar.innerHTML = oa; }
     return;
   }
+  var oar = e.target.closest('[data-act="optArchive"]');
+  if (oar) {
+    if (oar.dataset.busy) return;
+    var wiO = +oar.dataset.w, oiO = +oar.dataset.o;
+    oar.dataset.busy = '1'; var ooO = oar.innerHTML; oar.innerHTML = '<span class="spin"></span>저장 중…';
+    try {
+      var idO = await archiveOneOption(state.series, wiO, oiO);
+      if (idO) toast('이 선택지를 미래설교 보관함에 저장했습니다 — [미래설교 보관함]에서 확인하세요.');
+    } catch (err) { toast('저장 실패: ' + err.message); }
+    finally { delete oar.dataset.busy; oar.innerHTML = ooO; renderSeriesPane(); }
+    return;
+  }
   var ws = e.target.closest('[data-act="weekSave"]');
   if (ws) {
     if (ws.dataset.busy) return;
@@ -7711,7 +7738,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     /* edit → opts[sel] 동기화 (화면도 업데이트) */
     ['제목', '본문', '핵심메시지', '주제근거', '대지'].forEach(function(k){ oS[k] = edS[k] || ''; });
     saveSeries();
-    if (!oS._id) { toast('임시저장 완료 — 시트에 반영하려면 [시트에 보관]을 먼저 눌러 주세요.'); renderSeriesPane(); return; }
+    if (!oS._id) { toast('수정사항을 저장했습니다. (미래설교 보관함에 올리려면 그 선택지의 [미래설교로 저장]을 누르세요.)'); renderSeriesPane(); return; }
     ws.dataset.busy = '1'; var owS = ws.innerHTML; ws.innerHTML = '<span class="spin"></span>저장 중…';
     try {
       var recS = { ID: oS._id, '제목': oS['제목']||'', '본문': oS['본문']||'',
@@ -8100,12 +8127,7 @@ async function aiSeriesDawn(noteOverride){
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['새벽설교'] = '';
     saveSeries(); renderSeriesPane(); renderSyncState();
-    toast('새벽 설교 선택지 ' + days.length + '일 생성 완료 — 자동 보관 중…');
-    try {
-      var an = await archiveSeriesOptions(S);
-      toast(an ? ('생성·보관 완료 (' + an + '개) — 선택·수정 후 확정하세요. [미래설교 보관함]에서 열람')
-        : '생성 완료 — 선택·수정 후 확정하세요.');
-    } catch (ae) { toast('생성은 완료됐으나 자동 보관 실패: ' + ae.message); }
+    toast('새벽 설교 선택지 ' + days.length + '일 생성 완료 — 선택·수정 후, 보관할 선택지마다 [미래설교로 저장]을 누르세요.');
   } catch (e) {
     (state.seriesReqs = state.seriesReqs || {})['새벽설교'] = ''; renderSyncState();
     toast('생성 실패: ' + e.message);
@@ -8155,9 +8177,9 @@ async function aiRegenWeek(wi, btn){
     w.opts = opts; w.sel = 0; w.edit = optEdit(opts[0]);
     w.skip = false; w.done = false; w.sig = '';
     saveSeries(); renderSeriesPane();
-    toast('이 ' + (dawn ? '날' : '주') + '의 선택지 ' + opts.length + '개를 새로 만들었습니다 — 자동 보관 중…');
-    try { await archiveSeriesOptions(S); } catch (ae) { toast('생성은 완료됐으나 자동 보관 실패: ' + ae.message); }
-    /* 새 선택지 보관(시트 기록) 성공 후 옛 보관 행 삭제 — 툼스톤(삭제로그)으로 다른 기기에도 전파 */
+    toast('이 ' + (dawn ? '날' : '주') + '의 선택지 ' + opts.length + '개를 새로 만들었습니다 — 보관할 선택지는 [미래설교로 저장]을 누르세요.');
+    /* 이 회차의 옛 보관 행은 새 선택지로 교체되므로 시트에서 삭제(툼스톤 전파).
+       새 선택지는 수동 [미래설교로 저장] 전까지 시트에 올리지 않는다. */
     if (oldIds.length) { try { await deleteArchivedOpts(oldIds); } catch (de) { toast('이전 선택지 정리 실패(중복 표시 가능): ' + de.message); } }
   } catch (e) {
     toast('재생성 실패: ' + e.message);
@@ -8241,13 +8263,17 @@ function spDawnHtml(){
 
     var opts = (w.opts || []).map(function(o, oi){
       var sel = w.sel === oi;
-      return '<label style="display:block;margin:0 0 8px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
+      var saveRow = '<div style="display:flex;justify-content:flex-end;align-items:center;margin:-2px 0 9px;padding:0 2px">' +
+        (o._id ? '<span style="font-size:12px;color:var(--accent)">✓ 미래설교에 저장됨</span>'
+               : '<button class="btn sub" data-act="optArchive" data-w="' + wi + '" data-o="' + oi + '" style="width:auto;font-size:12px;padding:4px 11px">미래설교로 저장</button>') +
+        '</div>';
+      return '<label style="display:block;margin:0 0 4px;padding:9px 11px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
         '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
         '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
         (o['찬송'] ? '<div style="margin:3px 0 0 22px;color:var(--accent);font-size:12.5px;font-weight:700">🎵 ' + esc(o['찬송']) + '</div>' : '') +
         '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
         (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
-        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>';
+        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>' + saveRow;
     }).join('');
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문 (1~2절)</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
