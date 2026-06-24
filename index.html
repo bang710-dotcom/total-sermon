@@ -276,6 +276,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #genOverlay .genSub{font-size:13.5px;color:var(--dim);line-height:1.7;margin-bottom:14px}
 #genOverlay .genCount{font-size:13px;font-weight:700;color:var(--accent);min-height:1.2em}
 #genOverlay .genVer{margin-top:16px;font-size:11px;color:var(--dim);opacity:.6;letter-spacing:.02em}
+  #genOverlay .genCancel{margin-top:18px;padding:9px 18px;border-radius:11px;border:1px solid rgba(127,196,255,.4);background:rgba(127,196,255,.12);color:#cfe6ff;font-size:13px;font-weight:700;cursor:pointer}
+  #genOverlay .genCancel:active{transform:scale(.97)}
+  #genOverlay .genCancel[hidden]{display:none}
 #cascOverlay{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(6,8,13,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 #cascOverlay.on{display:flex;animation:fade .18s ease}
 #cascOverlay .cascCard{text-align:center;max-width:600px;width:100%;padding:32px 28px;border-radius:22px;background:rgba(22,26,34,.95);border:1px solid rgba(127,196,255,.35);box-shadow:0 18px 60px rgba(0,0,0,.5)}
@@ -1376,6 +1379,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
     <div class="genTitle"><span id="genTitleTxt">생성 중</span><span class="dots"></span></div>
     <div class="genSub" id="genSub">잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.</div>
     <div class="genCount" id="genCount"></div>
+    <button class="genCancel" id="genCancel" type="button" hidden>취소하고 계속 작업하기</button>
     <div class="genVer" id="genVer"></div>
   </div>
 </div>
@@ -1484,12 +1488,32 @@ function _netRun(fn){
   _netChain = run.then(function(){}, function(){});  /* 체인은 항상 살아있게 유지 */
   return run;
 }
+/* 시트 fetch는 타임아웃·취소가 가능해야 한다 — 느리거나 멈춘 Apps Script 한 요청이 앱 전체를
+   무한 정지(오버레이가 안 닫힘, 직렬 체인 정체)시키지 않도록. 진행 중 요청의 AbortController를
+   모아두고 (a) 타임아웃 시 자동 중단 (b) 오버레이 [취소]로 사용자가 중단할 수 있게 한다.
+   중단(AbortError)은 '일시 통신 오류'로 표준화돼 _isTransientNetErr→대기열 보관 경로로 흐른다. */
+var SHEET_TIMEOUT_MS = 30000;
+var _netAborts = [];
+function _sheetFetch(url, opts){
+  opts = opts || {};
+  var ctrl = new AbortController();
+  opts.signal = ctrl.signal;
+  _netAborts.push(ctrl);
+  var to = setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, SHEET_TIMEOUT_MS);
+  function done(){ clearTimeout(to); var i = _netAborts.indexOf(ctrl); if (i >= 0) _netAborts.splice(i, 1); }
+  return fetch(url, opts).then(function(r){ done(); return r; }, function(e){
+    done();
+    if (e && e.name === 'AbortError') throw new Error('timeout: 시트 응답이 없어 중단했습니다');
+    throw e;
+  });
+}
+function _cancelSheetReqs(){ _netAborts.slice().forEach(function(c){ try { c.abort(); } catch(e){} }); }
 function api(params){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
   var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
   return _netRun(function(){
-    return fetch(s.url + '?token=' + encodeURIComponent(s.token) + '&' + qs)
+    return _sheetFetch(s.url + '?token=' + encodeURIComponent(s.token) + '&' + qs)
       .then(function(r){ return r.json(); })
       .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
   });
@@ -1509,7 +1533,7 @@ function apiPost(body){
   stampLocalId_(body);
   body.token = s.token;
   return _netRun(function(){
-    return fetch(s.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+    return _sheetFetch(s.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
       .then(function(r){ return r.json(); })
       .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
   });
@@ -1744,8 +1768,11 @@ function flushQueue(){
    백엔드 논리 오류(apiPost가 new Error(j.error)로 던짐)는 여기 해당 없음 → 진짜 실패로 처리. */
 function _isTransientNetErr(e){
   if (!navigator.onLine) return true;
-  if (e && (e.name === 'TypeError' || e.name === 'SyntaxError')) return true;
-  return /fetch|load failed|network|connection|timeout|failed to load/i.test(String(e && e.message || ''));
+  if (e && (e.name === 'TypeError' || e.name === 'SyntaxError' || e.name === 'AbortError')) return true;
+  /* 네트워크 실패뿐 아니라 서버측 일시 오류(잠금 경합·5xx·할당량·일시 서비스 불가·타임아웃)도
+     대기열에 안전 보관 → 다음 동기화 때 자동 재전송. (영구 오류인 '찾지 못했습니다'·토큰 오류 등 한글
+     메시지와 'unknown action'은 매칭되지 않아 그대로 진짜 실패로 처리된다.) */
+  return /fetch|load failed|network|connection|timeout|failed to load|lock|try ?again|quota|exceeded|rate.?limit|too many|unavailable|temporar|\b5\d\d\b/i.test(String(e && e.message || ''));
 }
 /* submit(body, okMsg, onResult)
    onResult(ok): 호출부가 저장 성공/대기열 적재(=durable, ok=true) vs 진짜 실패(ok=false)를
@@ -4021,6 +4048,7 @@ function doSaveCompose(){
   /* 저장한 내용의 서명을 스냅샷 — 시트/대기열에 durable 보관된 경우에만 '깨끗함'으로 표시.
      저장이 진짜 실패하면 dirty를 유지해 미저장 경고가 살아있게 한다. */
   var _sig = composeSig();
+  var _un = _lockSaveBtns();   /* 느린 저장 중 더블클릭으로 신규 설교가 중복 생성되는 것 방지 */
   return submit(body, state.editing ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     /* 신규 add(편집 아님)거나, 삭제→재등록으로 새 ID가 돌아온 경우 그 ID로 전환(이후 [저장]은 새 행을 갱신) */
     if (id && typeof id === 'string' && (!state.editing || id !== state.editing)) {
@@ -4029,7 +4057,13 @@ function doSaveCompose(){
       updateComposeBadge(); refreshReqBtns();
     }
     return id;
-  });
+  }).then(function(r){ _un(); return r; }, function(e){ _un(); throw e; });
+}
+/* 저장 버튼(저장/새 설교로 저장) 일괄 잠금·해제 — 진행 중 중복 클릭 차단 */
+function _lockSaveBtns(){
+  var a = $('#c_save'), b = $('#c_saveAs');
+  if (a) a.disabled = true; if (b) b.disabled = true;
+  return function(){ if (a) a.disabled = false; if (b) b.disabled = false; };
 }
 $('#c_save').addEventListener('click', function(){ doSaveCompose(); });
 /* 다른 이름으로 저장(Save As) — 편집 중이든 아니든 항상 새 행으로 등록(원본 보존).
@@ -4046,10 +4080,11 @@ function doSaveAsNew(){
       !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
   delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
   var _sig = composeSig();
+  var _un = _lockSaveBtns();
   return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     return id;
-  });
+  }).then(function(r){ _un(); return r; }, function(e){ _un(); throw e; });
 }
 (function(){ var b = $('#c_saveAs'); if (b) b.addEventListener('click', function(){ doSaveAsNew(); }); })();
 /* 작성 화면에서 Cmd/Ctrl + S = 저장 / +Shift = 새 설교로 저장 (브라우저 저장 대화상자 차단) */
@@ -4907,7 +4942,19 @@ function hideGenOverlay(){
 /* ── 일반 대기 오버레이 (시트 불러오기·동기화·저장 등) ──
    genOverlay 카드를 재사용. 레퍼런스 카운트 + 지연표시(기본 250ms)로
    아주 빠른 작업에서는 깜빡이지 않고, 사용자가 기다리는 작업에만 뜬다. */
-var _waitN = 0, _waitTimer = null, _waitInfo = null;
+var _waitN = 0, _waitTimer = null, _waitInfo = null, _waitCancelTimer = null;
+/* 대기 오버레이가 일정 시간(6초) 이상 떠 있으면 [취소] 버튼을 노출 — 느린/멈춘 시트 요청에서
+   사용자가 빠져나갈 길을 연다. 취소 시 진행 중 시트 요청을 중단(→대기열 보관)한다. */
+function _armWaitCancel(){
+  if (_waitCancelTimer) clearTimeout(_waitCancelTimer);
+  _waitCancelTimer = setTimeout(function(){
+    var cb = $('#genCancel'); if (cb && _waitN > 0) cb.hidden = false;
+  }, 6000);
+}
+function _disarmWaitCancel(){
+  if (_waitCancelTimer){ clearTimeout(_waitCancelTimer); _waitCancelTimer = null; }
+  var cb = $('#genCancel'); if (cb) cb.hidden = true;
+}
 function _waitPaint(){
   var el = $('#genOverlay'); if (!el) return;
   var t = $('#genTitleTxt'); if (t) t.textContent = (_waitInfo && _waitInfo.title) || '불러오는 중';
@@ -4915,6 +4962,7 @@ function _waitPaint(){
   var c = $('#genCount'); if (c) c.textContent = '';
   var gv = $('#genVer'); if (gv) gv.textContent = '앱 버전 ' + (typeof APP_VER !== 'undefined' ? APP_VER : '');
   el.classList.add('on');
+  _armWaitCancel();
 }
 function showWaitOverlay(title, sub, delay){
   _waitN++; _waitInfo = { title: title, sub: sub };
@@ -4928,10 +4976,18 @@ function hideWaitOverlay(){
   _waitN = Math.max(0, _waitN - 1);
   if (_waitN === 0){
     if (_waitTimer){ clearTimeout(_waitTimer); _waitTimer = null; }
-    _waitInfo = null;
+    _waitInfo = null; _disarmWaitCancel();
     var el = $('#genOverlay'); if (el) el.classList.remove('on');
   }
 }
+(function(){
+  var cb = document.getElementById('genCancel');
+  if (cb) cb.addEventListener('click', function(){
+    cb.hidden = true;
+    _cancelSheetReqs();   /* 진행 중 시트 요청 중단 → submit이 일시오류로 보고 대기열에 보관 */
+    try { toast('시트 요청을 취소했습니다 — 저장분은 대기열에서 다음 동기화 때 다시 전송됩니다.'); } catch(e){}
+  });
+})();
 
 /* ── 프롬프트 (스킬 핵심 내장) ── */
 var P_SUM = [
