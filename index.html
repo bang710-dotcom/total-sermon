@@ -1038,7 +1038,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
     <!-- ============ 시리즈 계획 (데스크탑) ============ -->
     <section class="page" id="page-series">
       <div id="seriesListView">
-        <div class="toolrow" style="max-width:560px;margin-bottom:6px;gap:8px"><button class="btn" id="sl_new">＋ 새 시리즈 만들기</button><button class="btn gold" id="sl_dawn"><span style="white-space:nowrap"><svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg> 새벽기도 시리즈</span> <span style="white-space:nowrap">만들기</span></button></div>
+        <div class="toolrow" style="max-width:560px;margin-bottom:6px;gap:8px;flex-wrap:wrap"><button class="btn" id="sl_new">＋ 새 시리즈 만들기</button><button class="btn" id="sl_topic"><span style="white-space:nowrap">＋ 주제별 시리즈</span> <span style="white-space:nowrap">만들기</span></button><button class="btn gold" id="sl_dawn"><span style="white-space:nowrap"><svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg> 새벽기도 시리즈</span> <span style="white-space:nowrap">만들기</span></button></div>
         <div class="cnt" style="margin-bottom:12px">시리즈를 선택하면 마법사로 들어가 단계별로 확인·수정하고 그 시점부터 재사용할 수 있습니다.</div>
         <div id="slCoverage"></div>
         <div id="slItems"></div>
@@ -1075,6 +1075,22 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
           <div class="cnt" id="dw_preview" style="margin-top:8px"></div>
           <div class="toolrow"><button class="btn gold" id="dw_gen">주간 설교 주제 생성</button></div>
           <div class="cnt" style="margin-top:10px">흐름: 날짜 입력 → 그 주 주일~금 6일의 통독 범위 자동 확정 → [주간 설교 주제 생성] → 날마다 3개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로, 주일 설교는 묵상집용 요약도 함께 저장됩니다.</div>
+        </div>
+        <div id="topicMeta" style="display:none">
+          <div class="cnt" style="margin-bottom:8px">주제별 시리즈 마법사 — 본문 범위 대신 <b>주제</b>로 묶는 시리즈입니다. 묵상 일정 없이 회차마다 설교 주제 선택지를 바로 생성합니다. (예: 수련회 4회 — 여는예배·집회1·집회2·닫는예배 / 국내선교 3회 / 주일 4주간 한 주제 등)</div>
+          <label style="margin-top:0">주제 *</label><input type="text" id="tp_topic" placeholder="예: 복음, 삶, 교회 / 행함과 진실함으로 하자 / 기도">
+          <label>시리즈명 (선택 — 비우면 주제로)</label><input type="text" id="tp_series" placeholder="예: 2026 여름수련회 / 국내선교 / 기도 시리즈">
+          <div class="row2">
+            <div><label>설교 횟수 *</label><input type="number" id="tp_count" min="1" max="20" step="1" placeholder="예: 4"></div>
+            <div><label>예배구분</label><input type="text" id="tp_service" value="대학부" placeholder="예: 수련회 / 국내선교 / 대학부"></div>
+          </div>
+          <label>회차 구성 <span style="color:var(--dim);font-weight:400;font-size:12px">(횟수를 입력하면 칸이 생깁니다 — 각 회차 명칭을 자유롭게 적으세요)</span></label>
+          <div id="tp_sessions" style="margin-top:4px"></div>
+          <label>배경 설명 (설교 준비에 필요한 맥락) *</label><textarea id="tp_bg" rows="3" placeholder="예: 대학부 여름수련회. 시험과 진로로 지친 청년들이 복음 안에서 다시 공동체로 세워지도록. 여는예배는 환영·기대, 집회는 도전·결단, 닫는예배는 파송."></textarea>
+          <label>요청사항 (선택)</label><textarea id="tp_note" rows="2" placeholder="예: 특정 본문·인물 우선 / 피하고 싶은 주제 등"></textarea>
+          <div class="cnt" id="tp_preview" style="margin-top:8px"></div>
+          <div class="toolrow"><button class="btn gold" id="tp_gen">주제별 설교 주제 생성</button></div>
+          <div class="cnt" style="margin-top:10px">흐름: 주제·횟수·회차·배경 입력 → [주제별 설교 주제 생성] → 회차마다 3~4개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로. 묵상 일정·묵상집은 만들지 않습니다.</div>
         </div>
       </div>
       <div id="seriesPane"><div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.</div></div>
