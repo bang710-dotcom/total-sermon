@@ -1053,6 +1053,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
         <input type="date" id="devoDate" style="width:auto;flex:0 1 170px">
         <button class="ptBtn" id="devoNext" style="flex:0 0 34px;height:36px">▶</button>
         <button class="linkbtn" id="devoToday" style="font-size:13.5px">오늘</button>
+        <button class="linkbtn" onclick="shareDevo()" style="font-size:13.5px">↗ 공유</button>
         <div id="devoTitle" style="flex:1;min-width:200px;font-weight:700"></div>
       </div>
       <div id="devoBody"></div>
@@ -2163,6 +2164,7 @@ function openDetail(kind, id){
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
     if (state.settings && (state.settings.vidProxyUrl || state.settings.proxyUrl))   /* 프록시(이미지/영상) 설정 시 노출 */
       html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
+    html += '<div class="toolrow"><button class="btn sub mini" onclick="shareSermon(\'' + esc(s['ID']) + '\')">↗ 공유 (카카오·메시지)</button></div>';
     html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
     var txt = String(s['원고텍스트'] || '');
     var hasSum = !!String(s['요약본'] || '').trim();
@@ -4754,6 +4756,65 @@ async function exportSeriesPlan(){
   }
 }
 
+/* ── 시리즈 계획 → 캘린더(.ics) 내보내기 ──────────────────────────────────────
+   OAuth 없이 어떤 캘린더(구글/애플 등)에도 가져오기 되는 표준 .ics 파일을 만든다.
+   각 주일을 종일 일정으로: 제목=[시리즈 N] 설교제목 — 본문, 설명=본문/핵심/전주간 묵상. */
+function _icsDate(d){ var m = String(d || '').match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})/); return m ? (m[1] + ('0' + m[2]).slice(-2) + ('0' + m[3]).slice(-2)) : ''; }
+function _icsEsc(s){ return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+function buildSeriesIcs(S){
+  var m = S.meta || {}, seriesName = m['시리즈명'] || '시리즈';
+  var weeks = (S.sermon && S.sermon.weeks) || [];
+  var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//토탈설교앱//series//KO', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  var n = 0;
+  weeks.forEach(function(w, wi){
+    if (w.skip) return;
+    var dt = _icsDate(w['주일']); if (!dt) return;
+    var ed = w.edit || {};
+    var title = String(ed['제목'] || w['제목'] || '').trim();
+    var ref = String(ed['본문'] || w['본문'] || '').trim();
+    var key = String(ed['핵심메시지'] || w['핵심메시지'] || '').trim();
+    var seq = (typeof wSeq === 'function') ? wSeq(w, wi) : (wi + 1);
+    var sum = '[' + seriesName + (seq ? ' ' + seq : '') + '] ' + (title || '(제목 미정)') + (ref ? ' — ' + ref : '');
+    var desc = [];
+    if (ref) desc.push('본문: ' + ref);
+    if (key) desc.push('핵심메시지: ' + key);
+    try { var dv = weekDevoRange(S, w); if (dv) desc.push('전주간 묵상: ' + dv); } catch (e) {}
+    L.push('BEGIN:VEVENT', 'UID:tsa-series-' + dt + '-' + wi + '@total-sermon',
+      'DTSTAMP:' + stamp, 'DTSTART;VALUE=DATE:' + dt, 'SUMMARY:' + _icsEsc(sum));
+    if (desc.length) L.push('DESCRIPTION:' + _icsEsc(desc.join('\n')));
+    L.push('END:VEVENT'); n++;
+  });
+  L.push('END:VCALENDAR');
+  return { text: L.join('\r\n'), count: n };
+}
+async function exportSeriesIcs(){
+  try {
+    var S = state.series;
+    if (!S || !(S.sermon && (S.sermon.weeks || []).length)) { toast('내보낼 시리즈 주차가 없습니다.'); return; }
+    var r = buildSeriesIcs(S);
+    if (!r.count) { toast('주일 날짜가 있는 주차가 없습니다 — 날짜를 먼저 채워 주세요.'); return; }
+    var blob = new Blob([r.text], { type: 'text/calendar;charset=utf-8' });
+    var sname = String((S.meta || {})['시리즈명'] || '시리즈').replace(/[\\/:*?"<>|]/g, '_');
+    var fname = sname + '_설교일정.ics';
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    if (xHandle) {
+      try {
+        var perm = await xHandle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') perm = await xHandle.requestPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
+          var outDir = await xHandle.getDirectoryHandle('_claude_결과함', { create: true });
+          var fh = await outDir.getFileHandle(fname, { create: true });
+          var wr = await fh.createWritable(); await wr.write(blob); await wr.close();
+        }
+      } catch (xErr) {}
+    }
+    toast(r.count + '개 주일 일정 .ics 저장 — 구글/애플 캘린더에서 "가져오기"로 추가하세요.');
+  } catch (err) { toast('캘린더 내보내기 실패: ' + err.message); }
+}
+window.exportSeriesIcs = exportSeriesIcs;
+
 /* ===================== 이달의 묵상 ===================== */
 var devoState = { date: new Date().toISOString().slice(0, 10), entry: null, note: {}, bibleCache: {} };
 var DEVO_FIELDS = ['본문개요', '본문주제', '관찰답', '묵상답', '적용답', '묵상메시지', '적용', '기도'];
@@ -4922,6 +4983,16 @@ function renderDevo(){
     $('#devoVerses').textContent = '본문 범위를 해석하지 못했습니다: ' + e['본문범위'];
   }
 }
+/* 오늘의 묵상(본문·제목·3질문)을 회중에게 공유 — 카카오/메시지. */
+function shareDevo(){
+  var e = devoState.entry; if (!e){ toast('공유할 묵상이 없습니다 (이 날짜에 묵상 일정이 없습니다).'); return; }
+  var L = ['[오늘의 묵상] ' + (e['날짜'] || ''), '본문: ' + (e['본문범위'] || '') + (e['제목'] ? ' — ' + e['제목'] : '')];
+  if (e['관찰질문']) L.push('\n[관찰] ' + e['관찰질문']);
+  if (e['묵상질문']) L.push('[묵상] ' + e['묵상질문']);
+  if (e['적용질문']) L.push('[적용] ' + e['적용질문']);
+  shareContent({ title: '오늘의 묵상 ' + (e['본문범위'] || ''), text: L.join('\n') });
+}
+window.shareDevo = shareDevo;
 function saveDevoNote(){
   var data = { '날짜': devoState.date, '본문범위': devoState.entry ? devoState.entry['본문범위'] : '' };
   DEVO_FIELDS.forEach(function(k){
@@ -5299,6 +5370,32 @@ async function aiYouTubeSummarize(id){
   } catch (e) { hideGenOverlay(); renderSyncState(); toast('유튜브 요약 실패: ' + e.message); }
 }
 window.aiYouTubeSummarize = aiYouTubeSummarize;
+
+/* ── 공유 (회중·동료에게 카카오/메시지로) ───────────────────────────────────
+   navigator.share(파일 가능 시 파일째, 아니면 텍스트), 둘 다 없으면 클립보드 복사. */
+async function shareContent(opts){
+  opts = opts || {};
+  try {
+    if (opts.blob && navigator.canShare){
+      var f = new File([opts.blob], opts.filename || 'share', { type: opts.blob.type || 'application/octet-stream' });
+      if (navigator.canShare({ files: [f] })){ await navigator.share({ title: opts.title || '', text: opts.text || '', files: [f] }); return; }
+    }
+    if (navigator.share){ await navigator.share({ title: opts.title || '', text: opts.text || '' }); return; }
+    await navigator.clipboard.writeText((opts.title ? opts.title + '\n\n' : '') + (opts.text || ''));
+    toast('클립보드에 복사했습니다 — 카카오 등에 붙여넣어 공유하세요.');
+  } catch (e){ if (e && e.name === 'AbortError') return; toast('공유 실패: ' + ((e && e.message) || e)); }
+}
+window.shareContent = shareContent;
+/* 설교 한 편을 텍스트로 공유(제목·본문·핵심메시지·요약본). */
+function shareSermon(id){
+  var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
+  var parts = ['「' + (s['제목'] || '(제목 없음)') + '」'];
+  if (s['본문']) parts.push('본문: ' + s['본문']);
+  if (s['핵심메시지']) parts.push('\n' + s['핵심메시지']);
+  if (s['요약본']) parts.push('\n' + String(s['요약본']).replace(/\*\*/g, '').replace(/^- /gm, '· '));
+  shareContent({ title: s['제목'] || '설교', text: parts.join('\n') });
+}
+window.shareSermon = shareSermon;
 
 async function aiManuscript(id, meta){
   try {
@@ -8165,6 +8262,7 @@ function spSermonHtml(){
     '<button class="btn sub" id="spSermonRedo" style="flex:1 1 auto;min-width:120px;font-size:13px">재작업</button>' +
     '<button class="btn sub" onclick="openSeriesSermonPreview()" style="flex:1 1 auto;min-width:120px;font-size:13px">미리보기</button>' +
     (_tp ? '' : '<button class="btn sub" id="spSermonExport" style="flex:1 1 auto;min-width:120px;font-size:13px">설교계획 내보내기</button>') +
+    (_tp ? '' : '<button class="btn sub" id="spSermonIcs" style="flex:1 1 auto;min-width:120px;font-size:13px">캘린더(.ics)</button>') +
     '</div>';
   return h;
 }
@@ -8216,6 +8314,8 @@ $('#seriesPane').addEventListener('click', async function(e){
   }
   var ex = e.target.closest('#spSermonExport');
   if (ex) { exportSeriesPlan(); return; }
+  var icsB = e.target.closest('#spSermonIcs');
+  if (icsB) { exportSeriesIcs(); return; }
   var oar = e.target.closest('[data-act="optArchive"]');
   if (oar) {
     if (oar.dataset.busy) return;
