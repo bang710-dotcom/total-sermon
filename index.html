@@ -818,6 +818,24 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
   .aiHd{padding-top:calc(13px + env(safe-area-inset-top))}
   .aiFt{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
 }
+/* UX: 대기열 배지 · 상단 배너 · 더보기 그룹 라벨 */
+.queueBadge{display:none;background:rgba(255,194,77,.16);border:1px solid rgba(255,194,77,.55);color:#ffc24d;border-radius:9px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.3}
+.queueBadge:hover{filter:brightness(1.12)}
+header.mobile .queueBadge{margin-left:8px;align-self:center}
+.sidebar .queueBadge{margin-top:6px}
+#uxBanners{display:flex;flex-direction:column;gap:8px}
+#uxBanners:empty{display:none}
+.uxBanner{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:12px;margin-bottom:10px;font-size:13px;line-height:1.45}
+.uxBanner .uxbTxt{flex:1 1 auto;min-width:0}
+.uxBanner .uxbBtn{flex:0 0 auto;background:var(--accent);color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.uxBanner .uxbBtn:hover{filter:brightness(1.08)}
+.uxBanner.uxInfo{background:rgba(127,196,255,.13);border:1px solid rgba(127,196,255,.5);color:var(--text)}
+.uxBanner.uxUpdate{background:rgba(120,220,150,.14);border:1px solid rgba(120,220,150,.55);color:var(--text)}
+.uxBanner.uxUpdate .uxbBtn{background:#3fae6b}
+#moreSheet .msGroupLabel{grid-column:1/-1;font-size:11.5px;font-weight:700;color:var(--dim);letter-spacing:.02em;margin:8px 4px 0;padding-top:8px;border-top:1px solid var(--line)}
+#moreSheet .msGroupLabel:first-child{margin-top:0;padding-top:0;border-top:none}
+.emptyCta{display:inline-block;margin-top:12px;background:var(--accent);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.emptyCta:hover{filter:brightness(1.08)}
 </style>
 </head>
 <body>
@@ -856,6 +874,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>설정</button>
     <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none">⏳</span><span id="statusPillTxt"></span></div>
     <div class="foot">
+      <button class="queueBadge" id="queueBadgeD" type="button" aria-label="전송 대기 항목 — 설정에서 동기화"></button>
       <div class="syncState" id="syncStateD">—</div>
       <div class="syncState" id="appVerD" style="margin-top:3px"></div>
     </div>
@@ -863,6 +882,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
 
   <header class="mobile">
     <h1>Total <span>Sermons</span></h1>
+    <button class="queueBadge" id="queueBadge" type="button" aria-label="전송 대기 항목 — 설정에서 동기화"></button>
     <div class="syncState" id="syncState">—</div>
   </header>
 
@@ -10980,6 +11000,12 @@ function renderSyncState(){
 function renderStats(){
   $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건 · 앱 버전 ' + APP_VER;
   $('#queueStat').textContent = state.queue.length ? '전송 대기 중인 입력: ' + state.queue.length + '건' : '';
+  var _qn = (state.queue && state.queue.length) || 0;
+  ['#queueBadge', '#queueBadgeD'].forEach(function(sel){
+    var el = $(sel); if (!el) return;
+    if (_qn){ el.style.display = ''; el.textContent = '⏳ 전송 대기 ' + _qn + '건'; }
+    else { el.style.display = 'none'; }
+  });
 }
 
 /* ===================== 미리보기 (인쇄 미리보기 표준) ===================== */
@@ -11224,7 +11250,18 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }).catch(function(){});
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      if (!reg) return;
+      reg.addEventListener('updatefound', function(){
+        var nw = reg.installing; if (!nw) return;
+        nw.addEventListener('statechange', function(){
+          /* 새 워커가 설치 완료 + 기존 컨트롤러 존재 = 갱신본 도착(최초 설치는 제외) */
+          if (nw.state === 'installed' && navigator.serviceWorker.controller && window.__showUpdateBar) window.__showUpdateBar();
+        });
+      });
+    }).catch(function(){});
+  }
   _seriesReady = idbGet('seriesList').then(function(l){
     if (l && l.length) { state.seriesList = l; return; }
     /* 구버전(단일 series) 마이그레이션 */
@@ -11250,6 +11287,55 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     restoreComposeDraft();
     /* 실행 시 동기화: 기준점 있으면 변경분만, 없으면 전체. 이후엔 기기 포커스/저장 시 델타로 따라잡음. */
     if (state.settings.url) bootLoad();
+  });
+})();
+
+/* ===================== UX: 첫 실행 안내 · 새 버전 알림 · 대기열 배지 ===================== */
+(function(){
+  var main = document.getElementById('main');
+  if (!main) return;
+  var wrap = document.createElement('div');
+  wrap.id = 'uxBanners';
+  main.insertBefore(wrap, main.firstChild);
+
+  /* ── 첫 실행 안내(설정 URL·토큰 미입력 시) ── */
+  function firstRunNeeded(){ try { return !(state.settings && state.settings.url && state.settings.token); } catch(e){ return false; } }
+  window.refreshFirstRunBanner = function(){
+    var ex = document.getElementById('firstRunBanner');
+    if (!firstRunNeeded()){ if (ex) ex.parentNode && ex.parentNode.removeChild(ex); return; }
+    if (ex) return;
+    var b = document.createElement('div');
+    b.id = 'firstRunBanner'; b.className = 'uxBanner uxInfo';
+    b.innerHTML = '<div class="uxbTxt"><b>설정을 먼저 연결해 주세요.</b><br>API URL·토큰을 입력하면 설교 데이터가 동기화됩니다.</div>';
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'uxbBtn'; btn.textContent = '설정 열기';
+    btn.addEventListener('click', function(){ if (window.showPage) showPage('settings'); });
+    b.appendChild(btn);
+    wrap.appendChild(b);
+  };
+  refreshFirstRunBanner();
+
+  /* ── 새 버전 알림(서비스워커 갱신본 도착 시 호출) ── */
+  window.__showUpdateBar = function(){
+    if (document.getElementById('updateBanner')) return;
+    var b = document.createElement('div');
+    b.id = 'updateBanner'; b.className = 'uxBanner uxUpdate';
+    b.innerHTML = '<div class="uxbTxt"><b>새 버전이 준비됐습니다.</b><br>새로고침하면 최신 기능·수정이 적용됩니다.</div>';
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'uxbBtn'; btn.textContent = '새로고침';
+    btn.addEventListener('click', function(){ try { location.reload(); } catch(e){} });
+    b.appendChild(btn);
+    wrap.appendChild(b);
+    try { toast('새 버전이 준비됐습니다 — 위의 [새로고침]을 눌러 적용하세요.'); } catch(e){}
+  };
+
+  /* ── 대기열 배지 클릭: 설정으로 이동 + 즉시 전송 시도 ── */
+  ['#queueBadge', '#queueBadgeD'].forEach(function(sel){
+    var el = document.querySelector(sel); if (!el) return;
+    el.addEventListener('click', function(){
+      if (window.showPage) showPage('settings');
+      try { if (state.queue && state.queue.length) flushQueue().then(function(){ renderStats(); }); } catch(e){}
+    });
   });
 })();
 
