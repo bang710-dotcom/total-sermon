@@ -1620,6 +1620,24 @@ function mergeDelta(d){
     if (Array.isArray(arr)) state.data[x.sheet] = arr.filter(function(r){ return String(r['ID']) !== String(x.id); });
   });
 }
+/* 검토본 중복 자동 정리: 같은 '충돌원본'을 가진 검토본이 둘 이상이면(두 기기가 동기화 전에 각자 생성)
+   수정일 최신 1건만 남기고 나머지는 시트에서 삭제(툼스톤). → 원본당 검토본 1개로 수렴. */
+function _dedupReconcileCopies(){
+  try {
+    var by = {};
+    (state.data.sermons || []).forEach(function(s){ var o = String(s['충돌원본'] || ''); if (!o) return; (by[o] = by[o] || []).push(s); });
+    Object.keys(by).forEach(function(o){
+      var arr = by[o]; if (arr.length < 2) return;
+      arr.sort(function(a, b){ var x = String(a['수정일'] || a['등록일'] || ''), y = String(b['수정일'] || b['등록일'] || ''); return x < y ? 1 : x > y ? -1 : 0; });
+      arr.slice(1).forEach(function(extra){
+        if (String(extra['ID']) === String(state.editing)) return;   /* 편집 중인 행은 건드리지 않음 */
+        state.data.sermons = state.data.sermons.filter(function(r){ return String(r['ID']) !== String(extra['ID']); });
+        if (state.settings && state.settings.url && state.settings.token && navigator.onLine)
+          apiPost({ action: 'delete', sheet: 'sermons', data: { ID: extra['ID'] } }).catch(function(){});
+      });
+    });
+  } catch(e){}
+}
 /* 단일 비행: 동시 호출(저장 직후 + 기기 포커스 등)이 겹쳐 flushQueue가 이중 전송되는 것 방지 */
 var _pullInflight = null;
 function pullData(opts){
@@ -1660,7 +1678,7 @@ function _pullData(opts){
       state.data = d;
     }
     if (d.fetchedAt) { state.syncAt = d.fetchedAt; idbSet('syncAt', d.fetchedAt).catch(function(){}); }
-    normalizeSermonStatuses(!d.delta); promotePreachedByDate(!d.delta); saveData();  /* 전체 로드 때만 시트도 정리·승격 */
+    normalizeSermonStatuses(!d.delta); promotePreachedByDate(!d.delta); _dedupReconcileCopies(); saveData();  /* 전체 로드 때만 시트도 정리·승격 */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
     if ($('#page-library') && $('#page-library').classList.contains('on')) renderLibrary();
@@ -4053,7 +4071,10 @@ function doSaveCompose(){
       if (!ow) return Promise.resolve(false);
       /* ow=true → 아래에서 그대로 update(덮어쓰기) 진행 */
     }
-    var body = origId ? { action: 'update', sheet: 'sermons', data: Object.assign({}, data, { ID: origId }) }
+    /* 검토본 링크('충돌원본')는 작성폼에 없는 서버 보존 필드 → update 시 기존 로컬 행 값을 유지(링크 소실 방지). */
+    var _exist = origId ? (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(origId); })[0] : null;
+    var _keep = (_exist && _exist['충돌원본']) ? { '충돌원본': _exist['충돌원본'] } : {};
+    var body = origId ? { action: 'update', sheet: 'sermons', data: Object.assign({}, data, { ID: origId }, _keep) }
                       : { action: 'add', sheet: 'sermons', data: data };
     /* 저장한 내용의 서명을 스냅샷 — durable 보관된 경우에만 '깨끗함'으로 표시(진짜 실패 시 dirty 유지). */
     var _sig = composeSig();
@@ -11148,7 +11169,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v255';
+var APP_VER = 'v256';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
