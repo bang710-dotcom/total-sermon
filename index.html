@@ -7652,7 +7652,6 @@ function spSermonHtml(){
   }).join('');
   h += '<div class="toolrow" style="flex-wrap:wrap">' +
     '<button class="btn" id="spSermonConfirm" style="flex:1 1 100%;font-size:13px">선택 항목 전체 확정</button>' +
-    '<button class="btn sub" id="spSermonArchive" style="flex:1 1 auto;min-width:120px;font-size:13px">시트에 보관</button>' +
     '<button class="btn sub" id="spSermonRedo" style="flex:1 1 auto;min-width:120px;font-size:13px">재작업</button>' +
     '<button class="btn sub" onclick="openSeriesSermonPreview()" style="flex:1 1 auto;min-width:120px;font-size:13px">미리보기</button>' +
     '<button class="btn sub" id="spSermonExport" style="flex:1 1 auto;min-width:120px;font-size:13px">설교계획 내보내기</button>' +
@@ -7704,17 +7703,6 @@ $('#seriesPane').addEventListener('click', async function(e){
   if (rd) { spRedo(rd.id === 'spDevoRedo' ? '시리즈묵상' : '시리즈설교'); return; }
   var ex = e.target.closest('#spSermonExport');
   if (ex) { exportSeriesPlan(); return; }
-  var ar = e.target.closest('#spSermonArchive');
-  if (ar) {
-    if (ar.dataset.busy) return;
-    ar.dataset.busy = '1'; var oa = ar.innerHTML; ar.innerHTML = '<span class="spin"></span>보관 중…';
-    try {
-      var n = await archiveSeriesOptions(state.series);
-      toast(n ? (n + '개 선택지를 시트에 보관했습니다 — [미래설교 보관함]에서 확인하세요.') : '보관할 새 선택지가 없습니다(이미 저장됨이거나 시트 설정 필요).');
-    } catch (err) { toast('보관 실패: ' + err.message); }
-    finally { delete ar.dataset.busy; ar.innerHTML = oa; }
-    return;
-  }
   var oar = e.target.closest('[data-act="optArchive"]');
   if (oar) {
     if (oar.dataset.busy) return;
@@ -8287,7 +8275,6 @@ function spDawnHtml(){
   }).join('');
   h += '<div class="toolrow" style="flex-wrap:wrap">' +
     '<button class="btn" id="spSermonConfirm" style="flex:1 1 100%;font-size:13px">선택 항목 전체 확정</button>' +
-    '<button class="btn sub" id="spSermonArchive" style="flex:1 1 auto;min-width:120px;font-size:13px">시트에 보관</button>' +
     '<button class="btn sub" id="spDawnRedo" style="flex:1 1 auto;min-width:120px;font-size:13px">재작업</button>' +
     '</div>';
   return h;
@@ -10284,7 +10271,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v236';
+var APP_VER = 'v237';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
