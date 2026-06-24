@@ -6959,6 +6959,39 @@ $('#sl_dawn').addEventListener('click', function(){
   state.seriesReqs = {}; spLastScan = null;
   renderSeriesPage();
 });
+$('#sl_topic').addEventListener('click', function(){
+  var S = newSeriesEntry(); S.kind = 'topic';
+  state.series = S; state.seriesMode = 'wizard';
+  state.seriesReqs = {}; spLastScan = null;
+  renderSeriesPage();
+});
+/* 회차 수 변경 → 회차 명칭 입력칸 재생성(기존 입력은 유지) */
+$('#topicMeta').addEventListener('input', function(e){
+  if (e.target.id === 'tp_count') { twRenderSessions(); twPreview(); }
+  else if (e.target.id === 'tp_topic' || e.target.id === 'tp_series') twPreview();
+});
+$('#tp_gen').addEventListener('click', function(){
+  var S = state.series; if (!S) return;
+  var m = twReadMeta();
+  if (!m) { toast('주제·횟수·배경 설명을 입력해 주세요.'); return; }
+  if (!aiKey()) { toast('주제별 시리즈는 Claude API 직결로 동작합니다. 설정에서 Claude API 키를 입력해 주세요.'); return; }
+  var pend = (state.seriesReqs || {})['주제설교'];
+  if (pend === '진행중') { toast('생성 중입니다 — 잠시만 기다려 주세요.'); return; }
+  var changed = !!(S.sermon && S.meta && (S.meta['주제'] !== m['주제'] || (S.meta['회차'] || []).length !== (m['회차'] || []).length));
+  if (changed && !confirm('주제 또는 회차 수가 바뀌었습니다.\n이전 선택지를 지우고 새로 생성할까요?')) return;
+  if (changed) { S.sermon = null; S.sermonDone = false; }
+  else if (S.sermon && !confirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?')) return;
+  S.meta = m; saveSeries(); renderSeriesPane();
+  aiSeriesTopic();
+});
+function spTopicRedo(){
+  var S = state.series; if (!S || !S.meta) return;
+  var note = prompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '');
+  if (note === null) return;
+  var add = '[재작업] 이전 선택지가 마음에 들지 않아 다시 요청합니다. 이전과 다른 본문·주제·접근 갈래로 보완해 주세요.' + (note.trim() ? ' — ' + note.trim() : '');
+  if (aiKey()) { aiSeriesTopic(add); return; }
+  toast('설정에서 Claude API 키를 입력하면 즉시 다시 생성됩니다.');
+}
 $('#dw_date').addEventListener('change', function(){ dwSyncSched(true); dwPreview(); });
 $('#dawnMeta').addEventListener('input', function(e){
   if (!e.target.classList.contains('dwRange')) return;
@@ -8180,6 +8213,120 @@ async function aiSeriesDawn(noteOverride){
   }
 }
 
+/* ============ 주제별 시리즈 마법사 ============
+   본문 범위 대신 "주제"로 묶는 시리즈. 묵상 일정 없이, 회차(여는예배/집회/닫는예배 등)마다
+   주제·배경·회차 역할에 맞는 설교 본문을 정하고 주제 선택지 3~4개를 생성한다.
+   생성·선택·수정·확정(설교마스터 [구상/연구])·미래설교 보관은 주일 시리즈와 동일 경로를 재사용한다. */
+function isTopic(S){ S = S || state.series; return !!(S && S.kind === 'topic'); }
+/* 회차 명칭 기본값: 횟수에 맞춘 무난한 라벨(사용자가 자유롭게 수정) */
+function twDefaultLabel(i, n){
+  if (n <= 1) return '1회';
+  return (i + 1) + '회';
+}
+/* 회차 명칭 입력칸 렌더 — 횟수만큼. 기존에 입력한 명칭은 보존한다. */
+function twRenderSessions(){
+  var box = $('#tp_sessions'); if (!box) return;
+  var n = Math.max(0, Math.min(20, parseInt($('#tp_count').value, 10) || 0));
+  var prev = {};
+  box.querySelectorAll('.tpSess').forEach(function(el){ prev[+el.dataset.i] = el.value; });
+  /* 이전에 저장된 메타의 회차 명칭도 우선 복원 */
+  var saved = (state.series && state.series.meta && state.series.meta['회차']) || [];
+  if (!n) { box.innerHTML = '<div class="cnt" style="color:var(--dim)">설교 횟수를 입력하면 회차 칸이 나타납니다.</div>'; return; }
+  var rows = '';
+  for (var i = 0; i < n; i++) {
+    var val = (prev[i] != null ? prev[i] : (saved[i] && saved[i]['명칭']) != null ? saved[i]['명칭'] : twDefaultLabel(i, n));
+    rows += '<div style="display:flex;gap:8px;align-items:center;padding:2px 0">' +
+      '<span style="flex:0 0 54px;color:var(--dim);font-size:12.5px">' + (i + 1) + '회</span>' +
+      '<input type="text" class="tpSess" data-i="' + i + '" value="' + esc(val) + '" placeholder="회차 명칭 (예: 여는예배 / 집회1 / 닫는예배)" style="flex:1;font-size:13px"></div>';
+  }
+  box.innerHTML = rows;
+}
+function twReadMeta(){
+  var topic = ($('#tp_topic').value || '').trim();
+  var n = Math.max(0, Math.min(20, parseInt($('#tp_count').value, 10) || 0));
+  var bg = ($('#tp_bg').value || '').trim();
+  if (!topic || !n || !bg) return null;
+  var sessions = [];
+  $('#tp_sessions').querySelectorAll('.tpSess').forEach(function(el, i){
+    sessions.push({ '순번': i + 1, '명칭': (el.value || '').trim() || twDefaultLabel(i, n) });
+  });
+  if (!sessions.length) { for (var i = 0; i < n; i++) sessions.push({ '순번': i + 1, '명칭': twDefaultLabel(i, n) }); }
+  var name = ($('#tp_series').value || '').trim() || topic;
+  return {
+    kind: 'topic', '종류': 'topic',
+    '시리즈명': name, '주제': topic, '성경범위': '',
+    '예배구분': ($('#tp_service').value || '').trim() || '대학부',
+    '배경설명': bg, '요청사항': ($('#tp_note').value || '').trim(),
+    '회차': sessions, '주일': []
+  };
+}
+function twFillInputs(m){
+  m = m || {};
+  $('#tp_topic').value = m['주제'] || '';
+  $('#tp_series').value = (m['시리즈명'] && m['시리즈명'] !== m['주제']) ? m['시리즈명'] : '';
+  $('#tp_count').value = (m['회차'] && m['회차'].length) ? m['회차'].length : '';
+  $('#tp_service').value = m['예배구분'] || '대학부';
+  $('#tp_bg').value = m['배경설명'] || '';
+  $('#tp_note').value = m['요청사항'] || '';
+  twRenderSessions();
+}
+function twPreview(){
+  var box = $('#tp_preview'); if (!box) return;
+  var n = Math.max(0, Math.min(20, parseInt($('#tp_count').value, 10) || 0));
+  var topic = ($('#tp_topic').value || '').trim();
+  if (!n || !topic) { box.innerHTML = ''; return; }
+  var labels = [];
+  $('#tp_sessions').querySelectorAll('.tpSess').forEach(function(el, i){ labels.push((el.value || '').trim() || twDefaultLabel(i, n)); });
+  box.innerHTML = '<div style="font-weight:600;margin-bottom:3px">「' + esc(topic) + '」 · ' + n + '회 설교</div>' +
+    '<div class="cnt">' + esc(labels.join(' · ')) + '</div>';
+}
+
+/* ── 주제별 설교 선택지 프롬프트 ── */
+var P_TOPIC = [
+'당신은 영락교회 설교 기획 비서다. 입력(JSON)의 "주제"와 "배경설명"을 바탕으로, "회차" 목록의 각 회차마다 그 회차의 역할·정황에 맞는 설교 본문을 성경 전체에서 직접 정하고, 설교 주제 선택지 3~4개를 만든다. 본문 범위가 미리 정해져 있지 않으므로, 주제와 회차의 성격에 가장 잘 맞는 본문을 자유롭게 선택한다.',
+'출력은 반드시 JSON 배열만(회차와 같은 길이·같은 순서): [{"순번":1,"명칭":"여는예배","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}]}]',
+'★회차 역할 반영(필수): 각 회차의 명칭이 암시하는 역할에 맞춰 본문·메시지의 결을 다르게 잡는다. 예) 여는예배=환영·기대·하나님 앞에 모임 / 집회1·2=핵심 도전·결단(주제의 심화·전진) / 닫는예배=파송·결단의 실행·세상으로 / 현지(선교지) 예배=그 자리의 정황에 맞춘 격려·동역. 회차 전체가 하나의 주제 아래 자연스러운 흐름(서론→전개→결단)을 이루도록 배열한다.',
+'한 회차의 선택지 3~4개는 접근 갈래(인물/사건/신학 주제/적용 강조)와 본문이 서로 달라야 한다.',
+'핵심메시지=설교 주제 한 문장(명제). ★주제근거(필수·절대 비우지 말 것)=이 본문에서 이 주제를 끌어낸 이유 2~3문장. 저자의 기록 의도와 1차 독자의 상황·정서를 짚어, 설교 작성으로 넘어가면 그대로 "서론"의 바탕이 되도록 쓴다. 모든 선택지마다 반드시 채운다.',
+'★1차 독자 관점(필수): 대지·적용이 선언적 교리 진술("~하시리라 / ~이다")에 머물면 청중에게 닿지 않는다. 먼저 저자가 이 본문을 기록한 의도와 1차 독자가 처한 상황·정서를 포착하고, 그 1차 독자가 경험한 메시지의 무게를 오늘의 청중("나")의 자리로 가져오는 대지를 세운다.',
+'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 3개, 같은 방향으로 성큼성큼. 대지마다 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나의 실존에 동일하게 말 걸어 마음의 변화와 결단을 끌어내는 설교적 한 문장. 외적 과제·행사 나열 금지.',
+'★적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·캠페인·실천과제 목록이 아니다. 본문이 1차 독자에게 일으킨 내면의 전환이 오늘 나에게 동일하게 일어나도록 부르는 한 문장이어야 한다.',
+'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
+'예배구분(대학부·수련회·선교 등)과 배경설명의 청중·정황을 반드시 반영한다. 요청사항이 있으면 반드시 반영한다.'].join('\n');
+
+/* ── 직결 생성 ── */
+async function aiSeriesTopic(noteOverride){
+  var S = state.series, m = S.meta;
+  try {
+    (state.seriesReqs = state.seriesReqs || {})['주제설교'] = '진행중';
+    toast('Opus가 주제별 설교 선택지를 생성합니다 — 1~3분');
+    var out = await callClaude(P_TOPIC, JSON.stringify({
+      '시리즈명': m['시리즈명'], '주제': m['주제'], '예배구분': m['예배구분'],
+      '배경설명': m['배경설명'],
+      '요청사항': (noteOverride != null ? noteOverride : m['요청사항']),
+      '회차': m['회차']
+    }), 32000, aiTick('주제별 설교 선택지'));
+    var arr = aiJson(out);
+    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    S.sermon = { m: Date.now(), weeks: arr.map(function(d, di){
+      var sess = (m['회차'] || [])[di] || {};
+      var opts = d['선택지'] || [];
+      return { '주일': '', '회차명': d['명칭'] || sess['명칭'] || twDefaultLabel(di, arr.length),
+        '주간범위': '', '비고': '',
+        opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
+        '시리즈순번': di + 1, edit: optEdit(opts[0]) };
+    }) };
+    S.sermonDone = false; S.view = 'sermon';
+    state.seriesReqs['주제설교'] = '';
+    saveSeries(); renderSeriesPane(); renderSyncState();
+    toast('주제별 설교 선택지 ' + arr.length + '회 생성 완료 — 회차마다 선택·수정 후, 보관할 선택지는 [미래설교 저장]을 누르세요.');
+    try { await archiveSeriesOptions(S, '초안'); } catch (ae) { /* 임시(초안) 동기화 실패는 조용히 */ }
+  } catch (e) {
+    (state.seriesReqs = state.seriesReqs || {})['주제설교'] = ''; renderSyncState();
+    toast('생성 실패: ' + e.message);
+  }
+}
+
 /* 한 회차(주일/새벽 하루)만 주제 선택지 재생성 — API 직결.
    주일 시리즈(P_SERMON)와 새벽 시리즈(P_DAWN)를 분기해, 해당 회차 입력만 전달하고
    결과 배열의 첫 항목 선택지로 그 회차 opts를 교체한다(기존과 다른 갈래로). */
@@ -8187,13 +8334,23 @@ async function aiRegenWeek(wi, btn){
   var S = state.series;
   if (!S || !S.sermon || !S.sermon.weeks[wi]) return;
   if (!aiKey()) { toast('이 회차만 재생성하려면 설정 탭에 Claude API 키가 필요합니다.'); return; }
-  var w = S.sermon.weeks[wi], m = S.meta || {}, dawn = isDawn(S);
+  var w = S.sermon.weeks[wi], m = S.meta || {}, dawn = isDawn(S), topic = isTopic(S);
   var ob;
   if (btn) { if (btn.dataset.busy) return; btn.dataset.busy = '1'; ob = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
   try {
-    toast('Opus가 이 ' + (dawn ? '날' : '주') + '의 설교 선택지를 다시 만듭니다 — 30초~1분');
+    toast('Opus가 이 ' + (dawn ? '날' : topic ? '회차' : '주') + '의 설교 선택지를 다시 만듭니다 — 30초~1분');
     var opts;
-    if (dawn) {
+    if (topic) {
+      var sess1 = [{ '순번': w['시리즈순번'] || (wi + 1), '명칭': w['회차명'] || ((wi + 1) + '회') }];
+      var outT = await callClaude(P_TOPIC, JSON.stringify({
+        '시리즈명': m['시리즈명'], '주제': m['주제'], '예배구분': m['예배구분'], '배경설명': m['배경설명'],
+        '요청사항': String(m['요청사항'] || '') + '\n(아래 회차 하나의 선택지 3~4개만 새로 만든다. 기존 선택지와 다른 새로운 갈래·본문으로.)',
+        '회차': sess1
+      }), 16000, aiTick('주제별 설교 선택지'));
+      var arrT = aiJson(outT);
+      if (!Array.isArray(arrT) || !arrT.length) throw new Error('응답 형식 오류');
+      opts = arrT[0]['선택지'] || [];
+    } else if (dawn) {
       var sched = [{ '날짜': w['주일'] || '', '요일': w['요일'] || '', '통독범위': w['통독범위'] || w['주간범위'] || '' }];
       var out = await callClaude(P_DAWN, JSON.stringify({
         '시리즈명': m['시리즈명'], '찬송판본': m['찬송판본'],
