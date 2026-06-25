@@ -1612,6 +1612,10 @@ function _maybeFlagConflict(incomingRow, baseRow){
     var base = baseRow || (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(incomingRow['ID']); })[0];
     if (!base) return;
     if (_rowContentSig(incomingRow) === _rowContentSig(base)) return;   /* 의미있는 변경 없음(자기 저장 에코 등) */
+    /* 오탐 방지: 들어온 행이 기준본보다 '더 최신'(수정일 큰 값)일 때만 충돌로 본다.
+       같은 분이거나 더 오래된 델타(내 저장 에코·뒤늦게 도착한 옛 버전)는 충돌이 아니다. */
+    var _im = String(incomingRow['수정일'] || ''), _bm = String(base['수정일'] || '');
+    if (_im && _bm && _im <= _bm) return;
     var isNew = !state.remoteConflict || _rowContentSig(state.remoteConflict) !== _rowContentSig(incomingRow);
     state.remoteConflict = incomingRow;
     try { updateComposeBadge(); } catch(e){}
@@ -1850,7 +1854,12 @@ function submit(body, okMsg, onResult, opts){
       try {
         if (body.data && body.sheet && state.data[body.sheet]) {
           var rec = (body.action === 'add' && typeof id === 'string') ? Object.assign({}, body.data, { ID: id }) : body.data;
-          upsertById(state.data[body.sheet], [rec]); saveData();
+          /* 기존 로컬 행과 '병합'(통째 교체 금지) — 작성폼에 없는 서버 보존 필드(요약본·원고텍스트·등록일·파일맵·충돌원본 등)를
+             잃지 않는다. 이 필드들이 빠지면 저장 직후 시트 에코(델타)와 내용이 어긋나 '다른 기기 변경'으로 오탐된다(검토본 난립 원인). */
+          var _prev = (state.data[body.sheet] || []).filter(function(r){ return String(r['ID']) === String(rec['ID']); })[0];
+          var _merged = Object.assign({}, _prev || {}, rec);
+          _merged['수정일'] = nowLocalStr_();   /* 기준본 수정일을 지금으로 — 내 저장 에코가 '더 최신'으로 보이지 않게 */
+          upsertById(state.data[body.sheet], [_merged]); saveData();
           normalizeSermonStatuses(false); renderSyncState(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
         }
       } catch (_) {}
@@ -11732,7 +11741,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v272';
+var APP_VER = 'v273';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
