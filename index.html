@@ -767,6 +767,12 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
 .aiMsg.u{align-self:flex-end;background:var(--accent);color:#0c1020;border-bottom-right-radius:4px}
 .aiMsg.a{align-self:flex-start;background:var(--card2);border:1px solid var(--line);border-bottom-left-radius:4px}
 .aiMsg.a.err{border-color:var(--warn);color:var(--warn)}
+.aiMsg.u .aiCtxPrev{margin-top:8px;border-top:1px solid rgba(12,16,32,.18);padding-top:6px}
+.aiMsg.u .aiCtxPrev summary{cursor:pointer;font-size:11.5px;font-weight:700;opacity:.85;list-style:none}
+.aiMsg.u .aiCtxPrev summary::-webkit-details-marker{display:none}
+.aiMsg.u .aiCtxPrev summary::before{content:"▸ ";font-size:10px}
+.aiMsg.u .aiCtxPrev[open] summary::before{content:"▾ "}
+.aiMsg.u .aiCtxPrev pre{margin:6px 0 0;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:11.5px;line-height:1.5;background:rgba(12,16,32,.10);border-radius:8px;padding:8px 10px;font-family:inherit}
 .aiMsg.a p{margin:0 0 8px}.aiMsg.a p:last-child{margin-bottom:0}
 .aiMsg.a strong{color:var(--accent2)}
 .aiMsg.a h3,.aiMsg.a h4{margin:10px 0 6px;font-size:14.5px;color:var(--accent)}
@@ -11767,7 +11773,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v277';
+var APP_VER = 'v278';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -12552,6 +12558,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }
   /* 메시지 content → 표시용 평문(화면참고 접두부 제거) */
   function stripCtx(t){ return String(t || '').replace(/^\[현재[\s\S]*?\n\[질문\]\n/, ''); }
+  /* 저장된 메시지에서 함께 보낸 '화면 내용'만 역추출(미리보기 복원용) */
+  function extractCtx(content){
+    var m = String(textOf(content) || '').match(/^\[현재[^\]]*화면 입력 내용\]\n([\s\S]*?)\n\n\[질문\]\n/);
+    return m ? m[1] : '';
+  }
   function textOf(content){
     if (typeof content === 'string') return content;
     if (Array.isArray(content)) return content.filter(function(b){ return b && b.type === 'text'; }).map(function(b){ return b.text; }).join(' ');
@@ -12652,7 +12663,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       if (m.role === 'user'){
         var hasImg = Array.isArray(m.content) && m.content.some(function(b){ return b && b.type === 'text' && b.text === '[이미지 첨부]'; });
         var t = cleanUserText(m.content);
-        var el = addMsg('user', t || (hasImg ? '(이미지 첨부)' : ''), null);
+        var el = addMsg('user', t || (hasImg ? '(이미지 첨부)' : ''), null, extractCtx(m.content));
         if (hasImg && t){ var note = document.createElement('div'); note.style.cssText = 'font-size:11px;opacity:.7;margin-top:4px'; note.textContent = '🖼 이미지 첨부됨'; el.appendChild(note); }
       } else {
         var a = addMsg('assistant', m.content || '');
