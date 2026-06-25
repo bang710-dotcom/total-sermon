@@ -4654,6 +4654,7 @@ function parasFromText(meta, bodyText, style){
     if (/^\(서론\)/.test(l)) { l = l.replace(/^\(서론\)\s*/, ''); if (!l) return; }
     if (/^\((?:대지\s*)?내용\)/.test(l)) { l = l.replace(/^\((?:대지\s*)?내용\)\s*/, ''); if (!l) return; }
     if (/^\(적용\)/.test(l)) { l = l.replace(/^\(적용\)\s*/, ''); if (!l) return; }
+    if (/^\((?:주해|근거|강화|실천|정리)\)/.test(l)) { l = l.replace(/^\((?:주해|근거|강화|실천|정리)\)\s*/, ''); if (!l) return; }
     var isHead = false;
     if (/^\(대지\)\s*/.test(l)) { headNo++; l = headNo + '. ' + l.replace(/^\(대지\)\s*/, '').trim(); isHead = true; }
     else if (/^\d+\s*[.)]\s/.test(l)) { isHead = true; var mn = l.match(/^(\d+)/); if (mn) headNo = +mn[1]; }
@@ -4713,7 +4714,7 @@ function parasFromCompose(meta, c){
         if ((b.illBody || '').trim()) b.illBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
         blank(); /* 블록 사이 한 줄 */
       } else if (b.type === 'apply') {
-        if ((b.apply || '').trim()) { push('(적용)', true); b.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
+        if ((b.apply || '').trim()) { b.apply.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }   /* 구조 코드(적용) 라벨은 출력하지 않음 */
       } else if ((b.body || '').trim()) { b.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
     });
     blank(); /* 대지 사이 한 줄 (blank()는 중복 빈줄 방지) */
@@ -11766,7 +11767,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v275';
+var APP_VER = 'v276';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
