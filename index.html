@@ -288,6 +288,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #cascOverlay .cstep.cur{color:#fff;background:var(--accent);border-color:var(--accent);font-weight:800}
 #cascOverlay .carrow{color:var(--dim);font-size:11px}
 #cascOverlay .cascNow{font-size:17px;font-weight:800;color:#fff;min-height:1.4em;line-height:1.4}
+#cascOverlay .cascNow .dots{display:inline-block;width:1.4em;text-align:left;vertical-align:bottom}
+#cascOverlay .cascNow .dots::after{content:'';animation:genDots 1.4s steps(4,end) infinite}
 #cascOverlay .cascHint{font-size:12px;color:var(--dim);margin-top:12px}
 .btn[data-casc].casc-done .blab::after{content:'●';color:#2e9d68;font-size:11px;margin-left:6px}
 /* ── 시트 재동기화 중 흐림 처리 ── */
@@ -5915,7 +5917,7 @@ async function aiCardScript(id, meta){
 /* ===================== 카드 디자인 PDF (1단계) ===================== */
 /* 작업중 오버레이 단계 메시지 직접 설정(현재 어느 과정인지 표시) */
 function setGenStage(text){
-  if (window._cascOn) { var cn = $('#cascNow'); if (cn) cn.textContent = text; return; }  /* 캐스케이드 중엔 진행 텍스트로 라우팅 */
+  if (window._cascOn) { var cn = $('#cascNow'); if (cn) cn.innerHTML = esc(String(text).replace(/[.…]+$/, '')) + '<span class="dots"></span>'; return; }  /* 캐스케이드 중엔 진행 텍스트로 라우팅(움직이는 점) */
   var el = $('#genOverlay'); if (el) el.classList.add('on');
   var t = $('#genTitleTxt'); if (t) t.textContent = text;
   var sb = $('#genSub'); if (sb) sb.innerHTML = '';
@@ -10067,7 +10069,7 @@ function cascShow(steps){
 function cascStep(i, detail){
   var box = $('#cascSteps');
   if (box) Array.prototype.forEach.call(box.querySelectorAll('.cstep'), function(el){ var x = +el.dataset.i; el.classList.toggle('done', x < i); el.classList.toggle('cur', x === i); });
-  var cn = $('#cascNow'); if (cn && detail !== undefined) cn.textContent = detail;
+  var cn = $('#cascNow'); if (cn && detail !== undefined) cn.innerHTML = esc(String(detail).replace(/[.…]+$/, '')) + '<span class="dots"></span>';
 }
 function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov) ov.classList.remove('on'); }
 /* 새 캐스케이드 버튼에 산출물 존재 여부(● 완료) 표시 — 결과함 스캔(권한 있을 때만, 프롬프트 없음) */
@@ -12078,7 +12080,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v297';
+var APP_VER = 'v298';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
