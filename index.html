@@ -3980,10 +3980,12 @@ $('#editorPane').addEventListener('click', function(e){
   if (role === '예화') aiIllustration(pi, bi);
   else aiBlockGen(pi, bi);
 });
-/* 리사이즈 핸들 드래그가 끝나면(또는 칸을 벗어날 때) 현재 높이를 저장 → 재렌더 시 ta()가 다시 적용 */
-$('#editorPane').addEventListener('mouseup', function(e){
-  var t = e.target;
-  if (t && t.classList && t.classList.contains('edTa')) saveTaHeight(t);
+/* 리사이즈 핸들 드래그가 끝나면(마우스를 칸 밖에서 떼도) 현재 에디터 textarea들의 높이를 저장 → 재렌더 시 ta()가 다시 적용.
+   드래그 종료 지점이 칸을 벗어날 수 있어 문서 레벨에서 에디터 칸들을 한 번 훑는다(인라인 높이가 있는 것만 저장). */
+document.addEventListener('mouseup', function(){
+  var pane = document.getElementById('editorPane'); if (!pane) return;
+  var els = pane.querySelectorAll('.edTa');
+  for (var i = 0; i < els.length; i++) { if (els[i].style.height) saveTaHeight(els[i]); }
 });
 ['c_title', 'c_ref', 'c_series', 'c_seriesNo', 'c_msg'].forEach(function(id){
   $('#' + id).addEventListener('input', debounce(updateAutoBits, 150));
@@ -11653,7 +11655,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v268';
+var APP_VER = 'v269';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
