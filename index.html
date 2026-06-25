@@ -7178,7 +7178,7 @@ async function checkAssets(id){
     try { ydir = await dirHandle.getDirectoryHandle(year); } catch (e) {}
     if (ydir) { for await (var e of ydir.values()) { if (e.kind === 'file') names[e.name] = true; } }
     function hit(n){ return names[n] ? { ok: true, hit: { dir: ydir, name: n } } : null; }
-    a['원고작성'] = hit(sermonFileBase(s, s['원고유형'] || '기본원고') + '.docx');
+    a['원고작성'] = hit(sermonFileBase(s, fileTypeTag(s['원고유형'])) + '.docx');
     a['카드원고'] = hit(sermonFileBase(s, '카드원고') + '.docx');
     if (!ltcHandle) { /* LTC 폴더 미지정 — 설교 폴더 연도 방식 폴백 */
       a['LTC교재'] = hit(ltcFileName(s));
@@ -9692,7 +9692,7 @@ $('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.
 function exportDocxParas(meta, built, namePrefix){
   return ensureDocxLib().then(function(D){
     return D.Packer.toBlob(buildDocxParas(D, built.paras, built.st)).then(function(blob){
-      return saveDocxBlob(blob, sermonFileBase(meta, meta['원고유형'] || '기본원고') + '.docx', meta['날짜']);
+      return saveDocxBlob(blob, sermonFileBase(meta, fileTypeTag(meta['원고유형'])) + '.docx', meta['날짜']);
     });
   }).catch(function(e){ toast('내보내기 실패: ' + e.message); });
 }
@@ -11775,7 +11775,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v278';
+var APP_VER = 'v279';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
