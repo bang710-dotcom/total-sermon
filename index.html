@@ -12321,7 +12321,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }
 
   /* ── 메시지 DOM ── */
-  function addMsg(role, text, imgUrl){
+  function addMsg(role, text, imgUrl, ctx){
     var d = document.createElement('div');
     d.className = 'aiMsg ' + (role === 'user' ? 'u' : 'a');
     if (role === 'user'){
@@ -12331,6 +12331,13 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         im.title = '클릭하면 새 탭에서 크게 보기';
         im.addEventListener('click', function(){ try { var w = window.open(); w.document.write('<img src="' + imgUrl + '" style="max-width:100%">'); } catch(e){} });
         d.appendChild(im);
+      }
+      if (ctx && String(ctx).trim()){
+        /* 이 메시지와 함께 AI에게 실제로 전송된 화면 내용 — 펼쳐서 확인 가능(전송 시점 기준) */
+        var det = document.createElement('details'); det.className = 'aiCtxPrev';
+        var sm = document.createElement('summary'); sm.textContent = 'AI가 본 화면 내용 (이 전송 시점)'; det.appendChild(sm);
+        var pre = document.createElement('pre'); pre.textContent = String(ctx); det.appendChild(pre);
+        d.appendChild(det);
       }
     } else d.innerHTML = renderMd(text || '');
     body.appendChild(d);
@@ -12461,9 +12468,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     /* 사용자 메시지 = (선택) 컨텍스트 + 질문 (+ 첨부 화면). 화면 표시는 질문·썸네일만. */
     var userVisible = text || (shot ? '(첨부한 화면을 봐주세요)' : '');
     var userSend = text || '첨부한 화면을 보고 도와주세요.';
+    var sentCtx = '';
     if (ctxOn.checked && PAGES[pg]){
       var ctx = gatherContext(pg);
-      if (ctx) userSend = '[현재 ' + PAGES[pg] + ' 화면 입력 내용]\n' + ctx + '\n\n[질문]\n' + userSend;
+      if (ctx){ sentCtx = ctx; userSend = '[현재 ' + PAGES[pg] + ' 화면 입력 내용]\n' + ctx + '\n\n[질문]\n' + userSend; }
     }
     var content;
     if (shot){
@@ -12472,7 +12480,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: shot.split(',')[1] } }
       ];
     } else { content = userSend; }
-    addMsg('user', userVisible, shot);
+    addMsg('user', userVisible, shot, sentCtx);
     convo.push({ role: 'user', content: content });
     jumpBottom();   /* 사용자가 보냈으면 항상 최신으로 (이후 스트리밍은 사용자 스크롤 존중) */
     input.value = ''; autosize();
