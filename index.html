@@ -2178,7 +2178,7 @@ function openDetail(kind, id){
       html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
     html += '<div class="toolrow"><button class="btn sub mini" onclick="shareSermon(\'' + esc(s['ID']) + '\')">↗ 공유 (카카오·메시지)</button></div>';
     html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
-    var txt = String(s['원고텍스트'] || '');
+    var txt = stripStructText(String(s['원고텍스트'] || ''));
     var hasSum = !!String(s['요약본'] || '').trim();
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">';
     if (!txt) html += s._txt
@@ -3646,6 +3646,8 @@ function isStructConc(l){ return l.indexOf('말씀을 정리') >= 0 || /^\s*\(�
 function stripStructCode(l){
   return String(l).replace(/^\s*\((?:서론|대지|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론)\)\s*/, '');
 }
+/* 사람이 읽는 원고 표시용: 줄 맨 앞 구조화 코드 토큰만 제거하고 내용은 그대로 둔다(앱 내부 round-trip 마커가 화면에 노출되지 않게). */
+function stripStructText(s){ return String(s == null ? '' : s).split('\n').map(stripStructCode).join('\n'); }
 
 /* 자유원고 텍스트 → 구조(서론/대지 내용·예화·적용/결론) 역파싱 — 단일 패스.
    기존 토큰(번호 대지, ex), (대지 내용), (적용), "말씀을 정리")과
@@ -3907,7 +3909,7 @@ function renderEditor(){
       '<div class="edAuto msg" id="edConcMsg"></div></div>';
     if (String(c.free || '').trim()) {
       html += '<details class="sumbox"><summary>전체 원고 보기 (참고용 — 여기서 고쳐도 반영되지 않습니다)</summary>' +
-        '<div class="fulltext" style="margin-top:8px">' + esc(c.free) + '</div></details>';
+        '<div class="fulltext" style="margin-top:8px">' + esc(stripStructText(c.free)) + '</div></details>';
     }
   }
   $('#editorPane').innerHTML = html;
@@ -4049,25 +4051,30 @@ function assembleText(){
   c.points.forEach(function(p, i){
     if (!pHasContent(p)) return;
     L.push((i + 1) + '. ' + (p.text || '').trim());
-    var needCmark = false;   /* 직전 블록이 예화/적용이면, 뒤따르는 본문은 (대지 내용) 마커로 구분 */
-    /* 모든 블록은 앞에 빈 줄 한 개로 구분 — 명제·예화·내용·적용 사이 한 줄 띄기 */
+    /* 블록 역할을 구조화 코드로 인코딩 — 재불러올 때 parseFreeToStructure가 역할(주해근거·대지적용·대지강화·대지정리·대지실천)을 그대로 복원하게 한다.
+       첫 블록 이후의 주해근거 본문은 (주해) 마커로 분리해, 평문끼리 한 블록으로 합쳐지지 않게 한다. */
+    var needMark = false;
+    /* 모든 블록은 앞에 빈 줄 한 개로 구분 */
     pBlocks(p).forEach(function(b){
       if (b.type === 'ill') {
         if (!((b.ill || '').trim() || (b.illBody || '').trim())) return;
         L.push('');
         if ((b.ill || '').trim()) L.push('ex) ' + b.ill.trim());
         if ((b.illBody || '').trim()) L.push(b.illBody.trim());
-        needCmark = true;
+        needMark = true;
       } else if (b.type === 'apply') {
         if (!(b.apply || '').trim()) return;
         L.push('');
-        L.push('(적용) ' + b.apply.trim());
-        needCmark = true;
+        L.push('(실천) ' + b.apply.trim());
+        needMark = true;
       } else if ((b.body || '').trim()) {
+        var r = blockRole(b);
         L.push('');
-        if (needCmark) L.push('(대지 내용)');   /* 예화·적용 뒤 본문은 마커로 구분 — 재불러올 때 합쳐지지 않게 */
-        L.push(b.body.trim());
-        needCmark = false;
+        if (r === '대지적용') L.push('(적용) ' + b.body.trim());
+        else if (r === '대지강화') L.push('(강화) ' + b.body.trim());
+        else if (r === '대지정리') L.push('(정리) ' + b.body.trim());
+        else { if (needMark) L.push('(주해)'); L.push(b.body.trim()); }   /* 주해근거: 첫 블록은 평문, 이후는 마커로 분리 */
+        needMark = true;
       }
     });
     L.push('');   /* 대지 사이 한 줄 */
@@ -5558,16 +5565,16 @@ async function aiManuscript(id, meta){
     /* 완성 원고를 바로 DOCX로 내보내지 않고 오른쪽 작성창에 채운다 —
        검토·수정 후 [내보내기]로 DOCX 생성. 자유원고는 이어진 텍스트, 기본·카드원고는 구조 파싱. */
     var c = state.compose;
-    /* 구조 코드 자동 주입: 적용→(적용), 예화 뒤 본문→(대지 내용). 기본↔자유 토글에도 구조가 유지되게 한다. */
+    /* 구조 코드 자동 주입: 적용·실천 문단→(실천), 예화 뒤 본문→(대지 내용). 기본↔자유 토글에도 구조가 유지되게 한다. */
     var seenEx = false;
     c.free = arr.map(function(p){
       var t = p.t || 'p', x = String(p.x || '');
       var cv = toLeadRefQuote(x.trim()); x = (cv !== x.trim()) ? cv : x;   /* 본문 인용 새 형식 강제 */
-      x = x.replace(/^\s*\((?:적용|대지\s*내용|내용|서론|결론)\)\s*/, '');   /* 모델이 코드를 이미 넣었으면 제거(중복 방지) */
+      x = x.replace(/^\s*\((?:주해|근거|적용|강화|실천|정리|대지\s*내용|내용|서론|결론)\)\s*/, '');   /* 모델이 코드를 이미 넣었으면 제거(중복 방지) */
       if (t === 'head') { seenEx = false; return x; }
       if (t === 'ex') { seenEx = true; return x; }
       if (t === 'quote') { return x; }
-      if (t === 'apply') { return '(적용) ' + x; }
+      if (t === 'apply') { return '(실천) ' + x; }
       return (seenEx ? '(대지 내용) ' : '') + x;   /* 예화 뒤에 이어지는 본문은 마커로 구분 */
     }).join('\n');
     if (c.style === '자유원고') {
@@ -11622,7 +11629,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v266';
+var APP_VER = 'v267';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
