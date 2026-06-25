@@ -7445,6 +7445,7 @@ async function checkAssets(id){
   var s = findSermon(id);
   if (!s) return;
   var a = { __t: Date.now() };
+  var cardDirHit = null, cardExHit = null;   /* 카드원고: 결과함 우선, 설교 폴더는 옛 파일 폴백 */
   a['설교요약'] = String(s['요약본'] || '').trim() ? { ok: true } : null;
   var base = docxFileName(s);
   var baseTxt = base.replace(/\.docx$/, '.txt');
@@ -7456,7 +7457,7 @@ async function checkAssets(id){
     if (ydir) { for await (var e of ydir.values()) { if (e.kind === 'file') names[e.name] = true; } }
     function hit(n){ return names[n] ? { ok: true, hit: { dir: ydir, name: n } } : null; }
     a['원고작성'] = hit(sermonFileBase(s, fileTypeTag(s['원고유형'])) + '.docx');
-    a['카드원고'] = hit(sermonFileBase(s, '카드원고') + '.docx');
+    cardDirHit = hit(sermonFileBase(s, '카드원고') + '.docx');   /* 폴백(옛 파일이 설교 폴더에 있을 때) */
     if (!ltcHandle) { /* LTC 폴더 미지정 — 설교 폴더 연도 방식 폴백 */
       a['LTC교재'] = hit(ltcFileName(s));
       a['리더스앱업로드'] = hit('리더스앱_' + baseTxt);
@@ -7479,14 +7480,16 @@ async function checkAssets(id){
       var ip = null, ig = null;
       for await (var e2 of ex.values()) {
         if (e2.kind !== 'file') continue;
-        var n = e2.name;
-        if (!ip && ymd && n.indexOf(ymd) === 0 && n.indexOf('이미지자료') >= 0) ip = { dir: ex, name: n };
-        if (!ig && /백스테이지.*\.zip$/.test(n) && tok && n.indexOf(tok.ab) >= 0) ig = { dir: ex, name: n };
+        var n = e2.name, nn = n.normalize ? n.normalize('NFC') : n;
+        if (!ip && ymd && n.indexOf(ymd) === 0 && nn.indexOf('이미지자료') >= 0) ip = { dir: ex, name: n };
+        if (!ig && /백스테이지.*\.zip$/.test(nn) && tok && n.indexOf(tok.ab) >= 0) ig = { dir: ex, name: n };
+        if (!cardExHit && /\.docx$/i.test(nn) && nn.indexOf('카드원고') >= 0 && (!ymd || n.indexOf(ymd) >= 0)) cardExHit = { dir: ex, name: n };
       }
       a['이미지프롬프트'] = ip ? { ok: true, hit: ip } : null;
       a['이미지생성'] = ig ? { ok: true, hit: ig } : null;
     } catch (e) { a.__noEx = true; }
   } else a.__noEx = true;
+  a['카드원고'] = cardExHit ? { ok: true, hit: cardExHit } : (cardDirHit || null);   /* 결과함 우선, 없으면 설교 폴더(옛 파일) */
   state.assets[id] = a;
 }
 function reqBtnSt(sermonId, type){
