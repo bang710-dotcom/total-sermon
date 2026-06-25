@@ -457,12 +457,14 @@ input[type=date]{cursor:pointer}
 .ptRow .ptAddRow .linkbtn{margin-right:14px;white-space:nowrap}
 .ptRow .ptAddRow .addExeg{color:var(--accent2)}
 .ptRow .ptAddRow .addAppgen{color:#3aa17e}
+.ptRow .ptAddRow .addStrong{color:#d6555f}
 .ptRow .ptAddRow .addAppact{color:#9a6fd0}
 .ptRow .ptAddRow .addSumm{color:#c98a3a}
 .ptRow .ptAddRow .addIll{color:#5b9bd5}
 /* 세분화 라벨 폭·색상 (왼쪽 칩) */
 .ptRow .ptBlk .blkTag{flex:0 0 auto;min-width:46px;padding:4px 6px}
 .ptRow .ptBlk.role-appgen .blkTag{color:#3aa17e;background:rgba(58,161,126,.14);border:1px solid rgba(58,161,126,.42)}
+.ptRow .ptBlk.role-strong .blkTag{color:#d6555f;background:rgba(214,85,95,.14);border:1px solid rgba(214,85,95,.42)}
 .ptRow .ptBlk.role-summ .blkTag{color:#c98a3a;background:rgba(201,138,58,.14);border:1px solid rgba(201,138,58,.42)}
 /* 오른쪽 편집기 블록별 AI 생성키 */
 .edBlkAi{background:var(--card2);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-size:10.5px;font-weight:700;padding:2px 7px;cursor:pointer;font-family:inherit;margin-left:7px;vertical-align:middle}
@@ -3157,6 +3159,13 @@ var P_APPLY_ONE = [
 '직전내용(있으면)과 자연스럽게 이어지게 한다. 입력(JSON: 본문·핵심메시지·대지명제·역할·직전내용).',
 '출력은 반드시 JSON 하나만(설명·코드펜스 금지): {"결과":"적용이면 3~5문장 구체 사례, 실천이면 1~3문장 권면"}',
 '구어체 높임말, 한국어.'].join('\n');
+var P_STRENGTHEN = [
+'당신은 영락교회 담임 설교자(목사님)의 설교에서 한 대지의 "대지강화"를 쓰는 비서다.',
+'대지강화 = 주해근거·대지적용·예화를 거치며 날카롭고 강력하게 발전한 이 대지의 메시지를 갈무리하여, 여기까지 청중이 분명하게 이해한 그 메시지를 이제 청중의 "가슴에 심는" 단락이다. 새 정보·새 논증·새 예화를 더하지 말고, 들어 온 메시지를 한 번 더 응축해 가슴에 박는다.',
+'표현 원리(필수): 선언적 명제(단언) 또는 함의적·상징적 표현으로 쓴다. 목사님 시그니처 — ①대조 구조("~가 아닙니다. ~입니다.") ②재정의(reframe: 통념을 뒤집어 다시 정의) ③상징 어휘가 응축돼 청중의 생각이 멈춰 머무는 한 문장(명제). 설명·부연을 길게 늘이지 말고 한 호흡에 꽂히는 단문 위주로. 추상으로만 끝내지 말고 메시지의 핵심을 가슴에 남긴다.',
+'직전내용(있으면)의 흐름을 받아 절정으로 끌어올린다. 입력(JSON: 본문·핵심메시지·대지명제·직전내용).',
+'출력은 반드시 JSON 하나만(설명·코드펜스 금지): {"결과":"2~4문장 대지강화"}',
+'구어체 높임말, 한국어. 본문이 지지하는 메시지의 무게 안에서, 지어내지 않는다.'].join('\n');
 var P_SUMM = [
 '당신은 영락교회 담임 설교자(목사님)의 설교에서 한 대지의 "정리·연결"을 쓰는 비서다.',
 '대지정리 = 이 대지에서 전한 메시지를 한두 문장으로 압축해 정리하고, 다음 단락(다음 대지 또는 결론)으로 자연스럽게 넘어가는 연결부. 새 내용을 더하지 말고, 들은 것을 단단히 묶어 다음으로 건넨다.',
@@ -3174,6 +3183,7 @@ async function aiBlockGen(pi, bi){
   var prompt, label = role;
   if (role === '주해근거') prompt = P_EXEG;
   else if (role === '대지적용'){ prompt = P_APPLY_ONE; input.역할 = '적용'; }
+  else if (role === '대지강화') prompt = P_STRENGTHEN;
   else if (role === '대지실천'){ prompt = P_APPLY_ONE; input.역할 = '실천'; }
   else prompt = P_SUMM;
   try {
@@ -3442,6 +3452,7 @@ function renderPoints(){
       '<div class="ptBlocks">' + blk + '</div>' +
       '<div class="ptAddRow"><button class="linkbtn addExeg" data-i="' + i + '">＋ 주해근거</button>' +
       '<button class="linkbtn addAppgen" data-i="' + i + '">＋ 대지적용</button>' +
+      '<button class="linkbtn addStrong" data-i="' + i + '">＋ 대지강화</button>' +
       '<button class="linkbtn addAppact" data-i="' + i + '">＋ 대지실천</button>' +
       '<button class="linkbtn addSumm" data-i="' + i + '">＋ 대지정리</button>' +
       '<button class="linkbtn addIll" data-i="' + i + '">＋ 예화</button></div>' +
@@ -3481,7 +3492,7 @@ $('#pointList').addEventListener('click', function(e){
     return;
   }
   /* ④ 세분화 블록 추가: 주해근거·대지적용·대지정리(body계열) / 대지실천(apply계열) */
-  var addMap = { addExeg: ['body', '주해근거'], addAppgen: ['body', '대지적용'], addAppact: ['apply', '대지실천'], addSumm: ['body', '대지정리'] };
+  var addMap = { addExeg: ['body', '주해근거'], addAppgen: ['body', '대지적용'], addStrong: ['body', '대지강화'], addAppact: ['apply', '대지실천'], addSumm: ['body', '대지정리'] };
   for (var ak in addMap){
     var abtn = e.target.closest('.' + ak);
     if (abtn){
@@ -3610,7 +3621,7 @@ function structHeadProp(l){
 function isStructConc(l){ return l.indexOf('말씀을 정리') >= 0 || /^\s*\(결론\)/.test(l); }
 /* 내보내기용: 줄 맨 앞 구조화 코드 토큰만 제거(내용은 보존). 서식 판단은 호출부에서 따로. */
 function stripStructCode(l){
-  return String(l).replace(/^\s*\((?:서론|대지|대지\s*내용|내용|주해|근거|적용|실천|정리|예화|결론)\)\s*/, '');
+  return String(l).replace(/^\s*\((?:서론|대지|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론)\)\s*/, '');
 }
 
 /* 자유원고 텍스트 → 구조(서론/대지 내용·예화·적용/결론) 역파싱 — 단일 패스.
@@ -3650,6 +3661,8 @@ function parseFreeToStructure(){
     if (cm) { flushBody(); flushIll(); flushApply(); mode = 'body'; bodyRole = '주해근거'; if (cm[1].trim()) bodyAcc.push(cm[1]); continue; }
     var gm = l.match(/^\s*\(적용\)\s*(.*)$/);
     if (gm) { flushBody(); flushIll(); flushApply(); mode = 'body'; bodyRole = '대지적용'; if (gm[1].trim()) bodyAcc.push(gm[1]); continue; }
+    var hm = l.match(/^\s*\(강화\)\s*(.*)$/);
+    if (hm) { flushBody(); flushIll(); flushApply(); mode = 'body'; bodyRole = '대지강화'; if (hm[1].trim()) bodyAcc.push(hm[1]); continue; }
     var jm = l.match(/^\s*\(정리\)\s*(.*)$/);
     if (jm) { flushBody(); flushIll(); flushApply(); mode = 'body'; bodyRole = '대지정리'; if (jm[1].trim()) bodyAcc.push(jm[1]); continue; }
     var am = l.match(/^\s*\(실천\)\s*(.*)$/);
@@ -3791,6 +3804,7 @@ var STRUCT_CHIPS = [
   { label: '주해근거', code: '(주해) ' },
   { label: '대지적용', code: '(적용) ' },
   { label: '예화', code: '(예화) ' },
+  { label: '대지강화', code: '(강화) ' },
   { label: '대지실천', code: '(실천) ' },
   { label: '대지정리', code: '(정리) ' },
   { label: '결론', code: '(결론) ' }
@@ -3809,7 +3823,7 @@ var FREE_PARSE_LEGEND =
   '<details class="sumbox" style="margin-top:10px">' +
   '<summary>구조화 코드 범례 — 기본원고로 깔끔히 나누려면</summary>' +
   '<div style="margin-top:8px;font-size:12.5px;line-height:1.6">' +
-  '<div style="color:var(--dim);margin-bottom:8px">오른쪽 [구조화 도구] 칩을 끌어오거나 클릭해 <b>줄 맨 앞</b>에 코드를 넣으면, [기본원고]로 전환할 때 서론·대지·주해근거·대지적용·예화·대지실천·대지정리·결론으로 정확히 나뉩니다. 이 코드는 <b>내보내기 원고에는 보이지 않고</b> 앱에서만 읽힙니다.</div>' +
+  '<div style="color:var(--dim);margin-bottom:8px">오른쪽 [구조화 도구] 칩을 끌어오거나 클릭해 <b>줄 맨 앞</b>에 코드를 넣으면, [기본원고]로 전환할 때 서론·대지·주해근거·대지적용·예화·대지강화·대지실천·대지정리·결론으로 정확히 나뉩니다. 이 코드는 <b>내보내기 원고에는 보이지 않고</b> 앱에서만 읽힙니다.</div>' +
   '<table class="plegend">' +
   '<tr><th>구분</th><th>코드</th><th>설명</th></tr>' +
   '<tr><td>서론</td><td><code>(서론)</code></td><td>서론 문단 앞에. (코드 없이 첫 대지 앞의 내용도 서론으로 인식)</td></tr>' +
@@ -3817,6 +3831,7 @@ var FREE_PARSE_LEGEND =
   '<tr><td>주해근거</td><td><code>(주해)</code> · <code>(근거)</code> · <code>(내용)</code></td><td>대지의 주해적 근거. 첫 단락은 코드 없이도 인식. 예화 뒤 다시 이어 쓸 때 이 코드로 시작.</td></tr>' +
   '<tr><td>대지적용</td><td><code>(적용)</code></td><td>청중이 “내 얘기다” 느끼게 하는 공감 단락(메시지의 현대적 일반화).</td></tr>' +
   '<tr><td>예화</td><td><code>(예화)</code> · <code>ex)</code></td><td>그 줄은 예화 제목, 다음 줄들은 예화 내용.</td></tr>' +
+  '<tr><td>대지강화</td><td><code>(강화)</code></td><td>여기까지 분명해진 메시지를 선언적 명제·함의적 표현으로 청중의 가슴에 심는 단락.</td></tr>' +
   '<tr><td>대지실천</td><td><code>(실천)</code></td><td>청중의 삶에 촉구하는 구체적 실천·변화 단락.</td></tr>' +
   '<tr><td>대지정리</td><td><code>(정리)</code></td><td>메시지를 정리하고 다음 단락으로 넘어가는 연결부.</td></tr>' +
   '<tr><td>결론</td><td><code>(결론)</code> · <code>말씀을 정리합니다</code></td><td>이 줄부터 결론, 그 아래가 결론 내용.</td></tr>' +
@@ -11584,7 +11599,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v264';
+var APP_VER = 'v265';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
