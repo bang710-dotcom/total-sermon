@@ -292,6 +292,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #cascOverlay .cstep.cur{color:#fff;background:var(--accent);border-color:var(--accent);font-weight:800}
 #cascOverlay .carrow{color:var(--dim);font-size:11px}
 #cascOverlay .cascNow{font-size:17px;font-weight:800;color:#fff;min-height:1.4em;line-height:1.4}
+#cascOverlay .cascCnt{font-size:13px;color:var(--dim);min-height:1.2em;margin-top:3px}
 #cascOverlay .cascHint{font-size:12px;color:var(--dim);margin-top:12px}
 .btn[data-casc].casc-done .blab::after{content:'●';color:#2e9d68;font-size:11px;margin-left:6px}
 /* ── 시트 재동기화 중 흐림 처리 ── */
@@ -1436,6 +1437,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
     <div class="genRing"></div>
     <div class="cascSteps" id="cascSteps"></div>
     <div class="cascNow" id="cascNow"></div>
+    <div class="cascCnt" id="cascCnt"></div>
     <div class="cascHint">생성하는 동안 화면을 이동하면 중단됩니다.</div>
   </div>
 </div>
@@ -5370,8 +5372,10 @@ function showGenOverlay(label){
   el.classList.add('on');
 }
 function updateGenOverlay(n){
+  var txt = '받는 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자';
+  if (window._cascOn) { var cc = $('#cascCnt'); if (cc) cc.textContent = txt; return; }   /* 카세이드 중엔 카세이드 화면에 표시 */
   var c = $('#genCount'); if (!c) return;
-  c.textContent = '받는 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자';
+  c.textContent = txt;
 }
 function hideGenOverlay(){
   if (window._cascOn) return;   /* 캐스케이드 중엔 내부 hide 무시 — 전용 오버레이 유지 */
@@ -10066,11 +10070,13 @@ function cascShow(steps){
   var box = $('#cascSteps');
   if (box) box.innerHTML = steps.map(function(s, i){ return '<span class="cstep" data-i="' + i + '">' + (i + 1) + '. ' + esc(s.label) + '</span>'; }).join('<span class="carrow">→</span>');
   var cn = $('#cascNow'); if (cn) cn.textContent = '';
+  var cc0 = $('#cascCnt'); if (cc0) cc0.textContent = '';
   var ov = $('#cascOverlay'); if (ov) ov.classList.add('on');
 }
 function cascStep(i, detail){
   var box = $('#cascSteps');
   if (box) Array.prototype.forEach.call(box.querySelectorAll('.cstep'), function(el){ var x = +el.dataset.i; el.classList.toggle('done', x < i); el.classList.toggle('cur', x === i); });
+  var cc = $('#cascCnt'); if (cc) cc.textContent = '';   /* 새 단계 시작 시 글자수 초기화 */
   var cn = $('#cascNow'); if (cn && detail !== undefined) cn.innerHTML = esc(String(detail).replace(/[.…]+$/, '')) + ' <span class="dots"><i>.</i><i>.</i><i>.</i></span>';
 }
 function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov) ov.classList.remove('on'); }
@@ -10119,21 +10125,24 @@ async function runCascade(target, id, meta){
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
   var k = 0;
   cascShow(cascStepList(target));
+  var fails = [];   /* 한 단계가 실패해도 멈추지 않고 다음 단계로 — 무엇이 실패했는지 모아 알린다 */
+  function rec(label, e){ try { console.error('[Total Sermon] ' + label + ' 실패:', e); } catch (_) {} fails.push(label + '(' + ((e && e.message) || e) + ')'); }
   try {
     /* ★ 단일 소스 전환표 먼저 확정. 원고가 바뀌었으면(_transRegen) 하위 산출물 전부 강제 재생성,
        그대로면 '이미 있는 산출물은 건너뛰고' 없는 것만 만든다(중복 재생성 방지 → 어긋남 방지). */
-    await ensureTransTable(id, meta);
+    cascStep(k, '이미지 전환표 확인 중…');
+    try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); }
     var force = _transRegen;
     var done = force ? {} : await cascDone(id, meta);
 
     if (!force && done.docx) cascStep(k++, '설교 원고 DOCX — 이미 있음, 건너뜀');
-    else { cascStep(k++, '설교 원고 DOCX 내보내는 중…'); await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); }
+    else { cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); } }
     if (inA) {
       if (!force && done.card) cascStep(k++, '카드 원고 — 이미 있음, 건너뜀');
-      else { cascStep(k++, '카드 원고 집필 중…'); await aiCardScript(id, meta); }
+      else { cascStep(k++, '카드 원고 집필 중…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); } }
       if (target === 'cardpdf' || target === 'total') {
         if (!force && done.cardpdf) cascStep(k++, '카드 디자인 PDF — 이미 있음, 건너뜀');
-        else { cascStep(k++, '카드 디자인 PDF 조판 중…'); var deck = await aiCardDeck(meta); if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } }
+        else { cascStep(k++, '카드 디자인 PDF 조판 중…'); try { var deck = await aiCardDeck(meta); if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } else throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 디자인 PDF', e); } }
       }
     }
     if (inB) {
@@ -10143,14 +10152,14 @@ async function runCascade(target, id, meta){
       var needImg = doImg && (force || !done.imgdata);
       var needBg = doBg && (force || !done.bgimg);
       var cuts = null;
-      if (needTrans || needImg || needBg) { cascStep(k++, '이미지 컷(전환표) 생성 중…'); cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('이미지 컷 생성 실패'); }
+      if (needTrans || needImg || needBg) { cascStep(k++, '이미지 컷(전환표) 생성 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; } }
       else cascStep(k++, '이미지 컷 — 기존 사용');
-      if (needTrans) { cascStep(k++, '이미지 전환표시본 생성 중…'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } }
+      if (needTrans) { cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); } }
       else cascStep(k++, '이미지 전환표시본 — 이미 있음, 건너뜀');
-      if (doImg) { if (needImg) { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } else cascStep(k++, '이미지 프롬프트 — 이미 있음, 건너뜀'); }
-      if (doBg) { if (needBg) { cascStep(k++, '배경 이미지 생성 중…'); await generateImageSetFromCuts(id, meta, cuts); } else cascStep(k++, '배경 이미지 — 이미 있음, 건너뜀'); }
+      if (doImg) { if (needImg) { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } } else cascStep(k++, '이미지 프롬프트 — 이미 있음, 건너뜀'); }
+      if (doBg) { if (needBg) { cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } } else cascStep(k++, '배경 이미지 — 이미 있음, 건너뜀'); }
     }
-    toast('완료 — [아웃풋]에서 확인');
+    toast(fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인');
   } catch (e) { toast('생성 실패: ' + (e.message || e)); }
   finally { cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
