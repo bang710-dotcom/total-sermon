@@ -5831,22 +5831,21 @@ function buildCardDocx(D, meta, items){
   var FONT = { ascii: '함초롬바탕', eastAsia: '함초롬바탕', hAnsi: '함초롬바탕' };
   var series = (meta['예배구분'] || '') ;
   var titleLine = (series ? series + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
-  var children = [new D.Paragraph({ spacing: { line: 360 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 40 })] })];
-  var firstGeneralTrans = true;   /* 첫 일반 전환(#2)은 표지가 #1이므로 시작 페이지(제목과 같은 페이지)에 둔다 */
-  var pageLen = (titleLine || '').length;   /* 현재 페이지에 쌓인 본문 글자수(근사) */
-  var MIN_PAGE = 160;   /* 직전 페이지 내용이 이보다 적으면 전환이 와도 페이지를 넘기지 않는다 — 짧은 장면은 한 페이지에 전환 2개 허용(빈 페이지 방지) */
-  items.forEach(function(it){
+  /* 페이지 분할 원칙(전환마다 강제로 끊지 않는다):
+     - "한 이미지에 해당하는 내용 덩어리"(일반 전환 바 ~ 다음 일반 전환 바 직전)는 페이지 중간에서 쪼개지지 않게 묶는다(keepNext 연쇄).
+       → 남은 공간에 안 들어가면 덩어리째 다음 페이지 상단으로 내려가고, 그 페이지는 전환 바로 시작한다.
+     - 전환 바는 페이지 중간에 나와도 된다(억지로 새 페이지를 만들지 않음).
+     - 한 이미지 내용이 한 페이지를 넘으면 자연히 쪼개지고, 그 경우 페이지 상단이 전환 바가 아닐 수도 있다.
+     - 본문 이미지 바는 직전 이미지에 귀속되므로 같은 덩어리 안에 있다(덩어리 경계는 '일반' 전환 바만). */
+  function isGenTrans(it){ return it && it.t === 'trans' && String(it.x || '').indexOf('본문') < 0; }
+  var children = [new D.Paragraph({ keepNext: true, spacing: { line: 360 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 40 })] })];
+  items.forEach(function(it, idx){
     var x = String(it.x || '');
+    var segEnd = (idx === items.length - 1) || isGenTrans(items[idx + 1]);   /* 다음이 새 이미지(일반 전환)면 여기서 덩어리 끝 → 끊김 허용 */
+    var keep = !segEnd;
     if (it.t === 'trans') {
-      /* 이미지 전환 시점 = 페이지 넘김 시점: 일반 전환 바(▶ 이미지 #N 전환 ◀)는 새 페이지 맨 위에서 시작.
-         단 (1) 첫 일반 전환(#2)은 시작 페이지에 그대로 두고(앞 페이지 비우지 않음),
-            (2) '본문 이미지' 바(▶ 본문 이미지 #N 전환 ◀)는 직전 이미지에 귀속되므로 페이지를 넘기지 않고 이어 붙인다,
-            (3) 직전 페이지 내용이 너무 적으면(MIN_PAGE 미만) 페이지를 넘기지 않고 같은 페이지에 둔다(빈 페이지 방지). */
-      var isBon = x.indexOf('본문') >= 0;
-      var doBreak = false;
-      if (!isBon) { doBreak = !firstGeneralTrans && pageLen >= MIN_PAGE; firstGeneralTrans = false; if (doBreak) pageLen = 0; }
       children.push(new D.Paragraph({
-        pageBreakBefore: doBreak,
+        keepNext: keep, keepLines: true,
         shading: { type: D.ShadingType.CLEAR, fill: 'EE0000' },
         alignment: D.AlignmentType.CENTER, spacing: { line: 360, before: 120, after: 120 },
         children: [new D.TextRun({ text: x, bold: true, color: 'FFFFFF' })]
@@ -5854,8 +5853,7 @@ function buildCardDocx(D, meta, items){
     } else {
       if (it.t === 'quote') x = toLeadRefQuote(x);   /* 후행 괄호 → 선두 약어 형식 강제 */
       var col = it.t === 'quote' ? 'EE0000' : it.t === 'ex' ? '215E99' : undefined;
-      pageLen += x.length;
-      children.push(new D.Paragraph({ spacing: { line: 360 },
+      children.push(new D.Paragraph({ keepNext: keep, keepLines: true, spacing: { line: 360 },
         children: [new D.TextRun({ text: x, bold: it.t !== 'p', color: col })] }));
     }
   });
