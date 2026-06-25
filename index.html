@@ -3307,8 +3307,8 @@ var C_META = { '날짜':'c_date','예배구분':'c_service','제목':'c_title','
    - apply계열(텍스트 .apply) — role: '대지실천'(삶의 구체적 실천 촉구)
    - ill — 예화(제목+내용). 순서 자유 변경 가능.
    ※ 타입(body/apply/ill)은 그대로 유지 — 기존 저장·내보내기·집계 로직과 100% 호환. role은 라벨·AI·범례·파서용 메타데이터. */
-var BODY_ROLES = ['주해근거', '대지적용', '대지정리'];
-var ROLE_FIELD = { '주해근거': 'body', '대지적용': 'body', '대지정리': 'body', '대지실천': 'apply' };
+var BODY_ROLES = ['주해근거', '대지적용', '대지강화', '대지정리'];
+var ROLE_FIELD = { '주해근거': 'body', '대지적용': 'body', '대지강화': 'body', '대지정리': 'body', '대지실천': 'apply' };
 function newBodyBlock(b, role){ return { type: 'body', role: (role && ROLE_FIELD[role] === 'body') ? role : '주해근거', body: b || '' }; }
 function newIllBlock(t, b){ return { type: 'ill', ill: t || '', illBody: b || '' }; }
 function newApplyBlock(a, role){ return { type: 'apply', role: '대지실천', apply: a || '' }; }
@@ -3319,6 +3319,7 @@ function blockField(b){ return (b && b.type === 'apply') ? 'apply' : 'body'; }
 var BLOCK_PH = {
   '주해근거': '대지의 주해적 근거 — 본문이 이 메시지를 어떻게 지지하는가 (핵심 단어 1~2개에 집중)',
   '대지적용': '청중이 "내 얘기다" 느끼게 — 누구나 아는 구체적 장면·현상으로 (과제·결단 아님)',
+  '대지강화': '여기까지 분명해진 메시지를 선언적 명제·함의적 표현으로 청중의 가슴에 심는 단락',
   '대지실천': '청중의 삶에 촉구하는 구체적 실천 ("~해 보세요 / ~합시다 / ~하십시오")',
   '대지정리': '메시지를 정리하고 다음 단락으로 넘어가는 연결부'
 };
@@ -3428,7 +3429,7 @@ function renderPoints(){
       var prev = raw ? '<span class="blkBodyPrev">' + esc(raw.slice(0, 30)) + (raw.length > 30 ? '…' : '') + '</span>'
                      : '<span class="blkHint">' + esc(role) + ' — 오른쪽에서 작성</span>';
       var isAp = b.type === 'apply';
-      var roleCls = 'role-' + (role === '주해근거' ? 'exeg' : role === '대지적용' ? 'appgen' : role === '대지실천' ? 'appact' : 'summ');
+      var roleCls = 'role-' + (role === '주해근거' ? 'exeg' : role === '대지적용' ? 'appgen' : role === '대지강화' ? 'strong' : role === '대지실천' ? 'appact' : 'summ');
       return '<div class="ptBlk ' + (isAp ? 'applyBlk' : 'bodyBlk') + ' ' + roleCls + '" data-i="' + i + '" data-bi="' + bi + '">' + handle +
         '<span class="blkTag ' + (isAp ? 'applyTag' : 'bodyTag') + '">' + esc(role) + '</span>' + prev + '</div>';
     }).join('');
