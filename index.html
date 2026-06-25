@@ -6047,6 +6047,8 @@ function sermonFileBase(meta, type){
   var titlePart = (serP ? serP + '_' : '') + title;
   return san(d + ' ' + type) + '_' + loc + '_' + titlePart + '_' + ref;
 }
+/* 내보내기 파일명용 원고형식 라벨: '카드원고'만 이름에 남기고, 기본원고·자유원고 등은 넣지 않는다(내용이 동일하므로). */
+function fileTypeTag(t){ return String(t || '').trim() === '카드원고' ? '카드원고' : ''; }
 async function generateCardPdf(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
