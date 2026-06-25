@@ -3836,22 +3836,33 @@ $$('#c_style .chip').forEach(function(ch){
 });
 
 /* ----- 오른쪽: 구조화 에디터 (왼쪽→오른쪽 단방향 자동 반영) ----- */
-/* 사용자가 드래그로 조절한 textarea 높이를 데이터에 보존 — 재렌더(AI 생성·블록 추가·재정렬) 때 다시 적용해 크기가 초기화되지 않게 한다.
-   블록 textarea는 블록 객체(b._h)에, 상단 필드(서론·결론 등)는 compose._taH 맵에 저장한다(블록과 함께 이동하므로 재정렬에도 안전). */
+/* 사용자가 드래그로 조절한 textarea 높이를 보존 — 재렌더(AI 생성·블록 추가·재정렬) 때 다시 적용해 크기가 초기화되지 않게 한다.
+   ① 세션 중: 블록 textarea는 블록 객체(b._h)에, 상단 필드(서론·결론 등)는 compose._taH 맵에 저장(블록과 함께 이동하므로 재정렬에도 안전).
+   ② 기기 영구: 설교 ID별로 state.taHeights[id]에도 저장하고 IndexedDB에 보관 → 저장 후 다시 불러오거나 새로고침해도 같은 기기에서는 복원된다(화면 크기는 기기마다 다르므로 기기 로컬). */
+state.taHeights = state.taHeights || {};   /* { 설교ID: { key: '123px' } } — 부팅 때 IndexedDB에서 로드 */
+var _taHTimer = null;
+function _persistHeights(){ if (_taHTimer) clearTimeout(_taHTimer); _taHTimer = setTimeout(function(){ idbSet('taHeights', state.taHeights).catch(function(){}); }, 500); }
+function _curHId(){ return state.editing ? String(state.editing) : ''; }
+function _hKeyOf(k, pi, pk, bi){ if (k) return 'k:' + k; if (bi != null) return 'b:' + pi + ':' + bi; return 'p:' + pi + ':' + pk; }
 function taSavedHeight(k, pi, pk, bi){
-  var c = state.compose;
-  if (k) return (c._taH || {})['k:' + k] || '';
-  var p = c.points && c.points[pi]; if (!p) return '';
-  if (bi != null) { var b = pBlocks(p)[bi]; return (b && b._h) || ''; }
-  return p['_h_' + pk] || '';
+  var c = state.compose, v = '';
+  if (k) v = (c._taH || {})['k:' + k] || '';
+  else { var p = c.points && c.points[pi]; if (p) { if (bi != null) { var b = pBlocks(p)[bi]; v = (b && b._h) || ''; } else v = p['_h_' + pk] || ''; } }
+  if (v) return v;
+  /* 세션 메모리에 없으면(저장 후 재불러오기 등) 기기 영구 저장에서 복원 */
+  var id = _curHId();
+  if (id && state.taHeights[id]) return state.taHeights[id][_hKeyOf(k, pi, pk, bi)] || '';
+  return '';
 }
 function saveTaHeight(t){
   var h = t.style.height; if (!h) return;
   var c = state.compose;
-  if (t.dataset.k) { (c._taH = c._taH || {})['k:' + t.dataset.k] = h; return; }
-  var p = c.points && c.points[+t.dataset.pi]; if (!p) return;
-  if (t.dataset.bi != null) { var b = pBlocks(p)[+t.dataset.bi]; if (b) b._h = h; }
-  else p['_h_' + t.dataset.pk] = h;
+  var pi = t.dataset.pi != null ? +t.dataset.pi : null, bi = t.dataset.bi != null ? +t.dataset.bi : null;
+  if (t.dataset.k) { (c._taH = c._taH || {})['k:' + t.dataset.k] = h; }
+  else { var p = c.points && c.points[pi]; if (!p) return; if (bi != null) { var b = pBlocks(p)[bi]; if (b) b._h = h; } else p['_h_' + t.dataset.pk] = h; }
+  /* 기기 영구 저장(설교 ID 있을 때만) */
+  var id = _curHId();
+  if (id) { (state.taHeights[id] = state.taHeights[id] || {})[_hKeyOf(t.dataset.k, pi, t.dataset.pk, bi)] = h; _persistHeights(); }
 }
 function ta(k, pi, pk, rows, ph, val, cls, bi){
   var attrs = k ? 'data-k="' + k + '"' : 'data-pi="' + pi + '" data-pk="' + pk + '"' + (bi != null ? ' data-bi="' + bi + '"' : '');
@@ -11828,6 +11839,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       if (s && (s.meta || s.devo)) { s.sid = s.sid || 'sp0'; state.seriesList = [s]; return idbSet('seriesList', state.seriesList); }
     });
   }).catch(function(){});
+  idbGet('taHeights').then(function(m){ if (m && typeof m === 'object') state.taHeights = m; }).catch(function(){});
   idbGet('dir').then(function(h){ if (h) { dirHandle = h; renderDirState(); } }).catch(function(){});
   idbGet('dirltc').then(function(h){ if (h) { ltcHandle = h; renderDirState(); } }).catch(function(){});
   idbGet('dirx').then(function(h){ if (h) { xHandle = h; renderDirState(); scanRequests(true); setInterval(function(){ scanRequests(true); }, 60000); } }).catch(function(){});
