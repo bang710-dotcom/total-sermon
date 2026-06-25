@@ -5857,7 +5857,7 @@ function buildCardDocx(D, meta, items){
   return new D.Document({
     styles: { default: { document: { run: { font: FONT, size: 28 } } } },
     sections: [{
-      properties: { page: { size: { width: mm(310), height: mm(210) },
+      properties: { page: { size: { width: mm(210), height: mm(310) },
         margin: { top: mm(10), bottom: mm(12.5), left: mm(10), right: mm(10), header: 0, footer: mm(5) } } },
       footers: { default: new D.Footer({ children: [new D.Paragraph({ alignment: D.AlignmentType.CENTER,
         children: [new D.TextRun({ children: [D.PageNumber.CURRENT], size: 20 })] })] }) },
@@ -5990,7 +5990,10 @@ var CARD_CSS = ".cdk-card{width:1240px;height:840px;position:relative;overflow:h
  + ".cdk-card.pt .topbar .trans{color:#9A9CD6}"
  + ".cdk-card.pt .ptnum{font-family:'Jua';color:#4ED4B0;font-size:150px;line-height:1.04;margin-top:40px}"
  + ".cdk-card.pt .pttext{font-family:'Jua';color:#fff;font-size:64px;line-height:1.28;margin-top:16px}"
- + ".cdk-card .foot-r.light{color:#8C8EC9}";
+ + ".cdk-card .foot-r.light{color:#8C8EC9}"
+ + ".cdk-card .imgbadge{background:#2E3191;color:#fff;font-weight:800;font-size:29px;padding:7px 22px;border-radius:14px;line-height:1.05;white-space:nowrap}"
+ + ".cdk-card .imgbadge.dark{background:#4ED4B0;color:#2E3191}"
+ + ".cdk-card .imgbadge.coverbadge{position:absolute;top:84px;right:96px}";
 function cardRunsHtml(runs){
   return (runs || []).map(function(r){
     var t = esc(r.t || '');
@@ -6012,23 +6015,30 @@ function cardBgText(bg){
 var CARD_FOOTER = '복음의 능력으로 춤추라';   /* 올해 표어 — Opus 출력과 무관하게 항상 이 값으로 */
 function renderCardDeckHtml(deck){
   var m = deck.meta || {}, foot = esc(CARD_FOOTER), html = '';
+  /* 우상단 이미지 번호 배지: 표지=#1, 전환·본문 카드마다 +1, 계속은 직전 번호 유지 */
+  var imgN = 1;
+  function badge(n, dark, cover){ return '<span class="imgbadge' + (dark ? ' dark' : '') + (cover ? ' coverbadge' : '') + '">#' + n + '</span>'; }
   (deck.cards || []).forEach(function(c){
+    var bg = c.bg || {};
+    if (c.type === 'cover') imgN = 1;
+    else if (bg.kind === '전환' || bg.kind === '본문') imgN++;
+    var ino = imgN;
     if (c.type === 'cover'){
       var kw = m.titleKeyword || '';
       var tlines = (m.titleLines && m.titleLines.length) ? m.titleLines : [m.title || ''];
       var titleHtml = tlines.map(function(L){ var t = esc(L); if (kw) t = t.replace(esc(kw), '<span class="kw">' + esc(kw) + '</span>'); return '<div>' + t + '</div>'; }).join('');
-      html += '<div class="cdk-card cover"><div class="pad"><div class="label">' + esc(m.series || '대학부 · 주일설교') + '</div>'
+      html += '<div class="cdk-card cover">' + badge(ino, true, true) + '<div class="pad"><div class="label">' + esc(m.series || '대학부 · 주일설교') + '</div>'
         + '<div class="title">' + titleHtml + '</div><div class="ref">' + esc(m.ref || '') + '</div>'
         + '<div class="foot">' + foot + '</div></div></div>';
     } else if (c.type === 'scripture'){
       html += '<div class="cdk-card scr"><div class="pad"><div class="row"><span class="pill">' + esc(c.ref || '')
-        + '</span><span class="hint">' + esc(cardBgText(c.bg) || '+ 본문 · 같은 배경') + '</span></div>'
+        + '</span>' + badge(ino, false) + '</div>'
         + '<div class="quote"><span class="qm">“</span><div class="vt">' + cardLinesHtml(c.quote) + '</div></div>'
         + (c.after ? '<div class="after">' + cardLinesHtml(c.after) + '</div>' : '')
         + (c.key ? '<div class="key">' + esc(c.key) + '</div>' : '') + '</div></div>';
     } else if (c.type === 'point'){
       html += '<div class="cdk-card pt"><div class="pad">'
-        + '<div class="topbar"><span class="seclabel">핵심 대지</span><span class="trans">' + esc(cardBgText(c.bg)) + '</span></div>'
+        + '<div class="topbar"><span class="seclabel">핵심 대지</span>' + badge(ino, true) + '</div>'
         + '<div class="ptnum">' + ('0' + (c.num || 1)).slice(-2) + '</div>'
         + '<div class="pttext">' + esc(c.text || '') + '</div>'
         + '<div class="foot-r light">' + foot + '</div></div></div>';
@@ -6038,7 +6048,7 @@ function renderCardDeckHtml(deck){
       var nLines = (c.blocks || []).reduce(function(s, b){ return s + (b.lines || []).length; }, 0) + Math.max(0, (c.blocks || []).length - 1);
       var dense = nLines >= 11 ? ' dense2' : nLines >= 9 ? ' dense' : '';
       html += '<div class="cdk-card body' + dense + '"><div class="pad"><div class="topbar"><span class="sec">' + esc(c.section || '')
-        + '</span><span class="trans">' + esc(cardBgText(c.bg)) + '</span></div>' + blocks
+        + '</span>' + badge(ino, false) + '</div>' + blocks
         + '<div class="foot-r">' + foot + '</div></div></div>';
     }
   });
@@ -6102,7 +6112,7 @@ async function generateCardPdf(id, meta){
     if (!deck || !Array.isArray(deck.cards) || !deck.cards.length) throw new Error('카드 덱 응답 형식 오류');
     setGenStage('카드 PDF — 조판·저장 중…');
     var blob = await buildCardPdfBlob(deck);
-    var fname = sermonFileBase(meta, '카드원고') + '.pdf';
+    var fname = sermonFileBase(meta, '[디자인]') + '.pdf';
     await saveBlobToResults(blob, fname);
     hideGenOverlay();
     if (id) { try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '카드PDF', '상태': '완료', '링크': '', '비고': '앱 직접 생성' } }); } catch (e) {} }
@@ -9853,7 +9863,7 @@ async function refreshCascBtns(id){
         var dir = await xHandle.getDirectoryHandle('_claude_결과함');
         var nm = imgDataNames(meta);
         async function has(name){ try { await dir.getFileHandle(name); return true; } catch (e) { return false; } }
-        if (await has(sermonFileBase(meta, '카드원고') + '.pdf')) done.cardpdf = true;
+        if (await has(sermonFileBase(meta, '[디자인]') + '.pdf')) done.cardpdf = true;
         if (await has(nm.trans)) done.trans = true;
         if (await has(nm.docx)) done.imgdata = true;
         for await (var e of dir.values()) { if (e.kind === 'file' && e.name.indexOf(nm.backstagePrefix) === 0 && /\.zip$/i.test(e.name)) { done.bgimg = true; break; } }
@@ -9878,7 +9888,7 @@ async function runCascade(target, id, meta){
       if (target === 'cardpdf' || target === 'total') {
         cascStep(k++, '카드 디자인 PDF 조판 중…');
         var deck = await aiCardDeck(meta);
-        if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '카드원고') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); }
+        if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); }
       }
     }
     if (inB) {
