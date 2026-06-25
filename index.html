@@ -10126,6 +10126,16 @@ async function refreshCascBtns(id){
 async function runCascade(target, id, meta){
   if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
   if (target !== 'docx' && !canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+  /* 이미 만든 적 있고 원고가 그대로면 — 다시 만들지 묻는다(결과물 보기 / 다시 생성하기 / 닫기).
+     원고가 바뀌었으면 묻지 않고 새로 만든다. */
+  if (id && !manuscriptChanged(id, meta)) {
+    var dmap = cascDone(id), keys = CASC_TARGET_KEYS[target] || [];
+    if (keys.length && keys.every(function(kk){ return dmap[kk]; })) {
+      var choice = await askCascRegen();
+      if (choice === 'view') { showPage('outputs'); return; }
+      if (choice !== 'regen') return;   /* 닫기/바깥클릭 → 아무것도 안 함 */
+    }
+  }
   if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
   var inA = (target === 'card' || target === 'cardpdf' || target === 'total');
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
@@ -10134,36 +10144,25 @@ async function runCascade(target, id, meta){
   var fails = [];   /* 한 단계가 실패해도 멈추지 않고 다음 단계로 — 무엇이 실패했는지 모아 알린다 */
   function rec(label, e){ try { console.error('[Total Sermon] ' + label + ' 실패:', e); } catch (_) {} fails.push(label + '(' + ((e && e.message) || e) + ')'); }
   try {
-    /* ★ 단일 소스 전환표 먼저 확정. 원고가 바뀌었으면(_transRegen) 하위 산출물 전부 강제 재생성,
-       그대로면 '이미 있는 산출물은 건너뛰고' 없는 것만 만든다(중복 재생성 방지 → 어긋남 방지). */
+    /* 단일 소스 전환표 먼저 확정(원고가 그대로면 저장본 재사용, 바뀌었으면 갱신). 이후 카드·컷·전환표시본이 이 표를 따른다. */
     cascStep(k, '이미지 전환표 확인 중…');
     try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); }
-    var force = _transRegen;
-    var done = force ? {} : await cascDone(id, meta);
 
-    if (!force && done.docx) cascStep(k++, '설교 원고 DOCX — 이미 있음, 건너뜀');
-    else { cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); } }
+    cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); }
     if (inA) {
-      if (!force && done.card) cascStep(k++, '카드 원고 — 이미 있음, 건너뜀');
-      else { cascStep(k++, '카드 원고 집필 중…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); } }
+      cascStep(k++, '카드 원고 집필 중…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); }
       if (target === 'cardpdf' || target === 'total') {
-        if (!force && done.cardpdf) cascStep(k++, '카드 디자인 PDF — 이미 있음, 건너뜀');
-        else { cascStep(k++, '카드 디자인 PDF 조판 중…'); try { var deck = await aiCardDeck(meta); if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } else throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 디자인 PDF', e); } }
+        cascStep(k++, '카드 디자인 PDF 조판 중…'); try { var deck = await aiCardDeck(meta); if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } else throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 디자인 PDF', e); }
       }
     }
     if (inB) {
       var doImg = (target === 'imgdata' || target === 'bgimg' || target === 'total');
       var doBg = (target === 'bgimg' || target === 'total');
-      var needTrans = force || !done.trans;
-      var needImg = doImg && (force || !done.imgdata);
-      var needBg = doBg && (force || !done.bgimg);
       var cuts = null;
-      if (needTrans || needImg || needBg) { cascStep(k++, '이미지 컷(전환표) 생성 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; } }
-      else cascStep(k++, '이미지 컷 — 기존 사용');
-      if (needTrans) { cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); } }
-      else cascStep(k++, '이미지 전환표시본 — 이미 있음, 건너뜀');
-      if (doImg) { if (needImg) { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } } else cascStep(k++, '이미지 프롬프트 — 이미 있음, 건너뜀'); }
-      if (doBg) { if (needBg) { cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } } else cascStep(k++, '배경 이미지 — 이미 있음, 건너뜀'); }
+      cascStep(k++, '이미지 컷(전환표) 생성 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
+      cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); }
+      if (doImg) { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
+      if (doBg) { cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
     }
     toast(fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인');
     if (fails.length) {   /* 실패 단계를 화면에 남겨 둠(토스트는 금방 사라지므로) */
@@ -12102,7 +12101,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v300';
+var APP_VER = 'v301';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
