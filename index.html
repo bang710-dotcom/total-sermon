@@ -10080,52 +10080,46 @@ function cascStep(i, detail){
   var cn = $('#cascNow'); if (cn && detail !== undefined) cn.innerHTML = esc(String(detail).replace(/[.…]+$/, '')) + ' <span class="dots"><i>.</i><i>.</i><i>.</i></span>';
 }
 function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov) ov.classList.remove('on'); }
-/* 새 캐스케이드 버튼에 산출물 존재 여부(● 완료) 표시 — 결과함 스캔(권한 있을 때만, 프롬프트 없음) */
-/* 기본원고 DOCX(설교 폴더/연도)가 실제로 있는지 — 맥 NFD 파일명 대비 정규화 비교 */
-async function manuscriptDocxExists(meta){
-  function nf(s){ try { return s.normalize('NFC'); } catch (e) { return s; } }
-  var want = nf(sermonFileBase(meta, fileTypeTag(meta['원고유형'])) + '.docx');
-  async function findIn(d){
-    try { await d.getFileHandle(want); return true; } catch (e) {}
-    try { for await (var e of d.values()) { if (e.kind === 'file' && nf(e.name) === want) return true; } } catch (e) {}
-    return false;
-  }
-  try {
-    if (dirHandle && await dirIf(dirHandle)) {
-      var yr = (String(meta['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
-      try { var yd = await dirHandle.getDirectoryHandle(yr); if (await findIn(yd)) return true; } catch (e) {}
-      if (await findIn(dirHandle)) return true;
-    }
-  } catch (e) {}
-  return false;
+/* 카세이드 버튼 ● 표시 / "만든 적 있음" 판단 — 시트의 산출물 기록(doneTypes) 기준.
+   (파일을 결과함에 계속 쌓아두지 않아도 기록으로 안다. 실제 재생성 여부는 아래 모달로 사용자가 결정.) */
+function cascDone(id){
+  var dt = (id && typeof doneTypes === 'function') ? doneTypes(id) : {};
+  return { docx: !!dt['원고DOCX'], card: !!dt['카드원고'], cardpdf: !!dt['카드PDF'],
+           trans: !!dt['이미지전환표시본'], imgdata: !!dt['이미지프롬프트'], bgimg: !!dt['이미지생성'] };
 }
-/* 산출물 존재 여부 맵 — ★ 시트의 과거 생성 기록이 아니라 "실제 파일 존재"만 본다.
-   (한 번 만든 기록이 시트에 남아도, 파일이 없으면 다시 만들도록 — 잘못된 건너뛰기 방지.) */
-async function cascDone(id, meta){
-  var done = {};
-  if (!meta) return done;
-  try { if (await manuscriptDocxExists(meta)) done.docx = true; } catch (e) {}
-  try { if (await cardDocxFileHandle(meta)) done.card = true; } catch (e) {}
-  if (canFolderSave()) {
-    try {
-      if (await xHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
-        var dir = await xHandle.getDirectoryHandle('_claude_결과함');
-        var nm = imgDataNames(meta);
-        async function has(name){ try { await dir.getFileHandle(name); return true; } catch (e) { return false; } }
-        if (await has(sermonFileBase(meta, '[디자인]') + '.pdf')) done.cardpdf = true;
-        if (await has(nm.trans)) done.trans = true;
-        if (await has(nm.docx)) done.imgdata = true;
-        for await (var e of dir.values()) { if (e.kind === 'file' && e.name.indexOf(nm.backstagePrefix) === 0 && /\.zip$/i.test(e.name)) { done.bgimg = true; break; } }
-      }
-    } catch (e) {}
-  }
-  return done;
+/* 원고가 (전환표를 만든 시점 이후) 바뀌었는가 — 바뀌었으면 묻지 않고 새로 만든다. */
+function manuscriptChanged(id, meta){
+  var s = id ? findSermon(id) : null; if (!s) return true;
+  var stored = null; try { stored = (JSON.parse(s['파일맵'] || '{}') || {}).transSig; } catch (e) {}
+  if (!stored) return true;
+  return stored !== manuscriptSig(meta);
+}
+/* 버튼별 산출물 키 — 이 키들이 모두 '만든 적 있음'이면 다시 만들지 묻는다. */
+var CASC_TARGET_KEYS = { docx: ['docx'], card: ['card'], cardpdf: ['card', 'cardpdf'],
+  trans: ['trans'], imgdata: ['imgdata'], bgimg: ['bgimg'],
+  total: ['docx', 'card', 'cardpdf', 'trans', 'imgdata', 'bgimg'] };
+/* 이미 만든 적 있을 때: 결과물 보기 / 다시 생성하기 / 닫기 — 선택을 Promise로 반환 */
+function askCascRegen(){
+  return new Promise(function(resolve){
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--card,#1a1d24);color:var(--fg,#fff);border:1px solid rgba(255,255,255,.14);border-radius:16px;max-width:340px;width:100%;padding:22px 20px;box-shadow:0 14px 44px rgba(0,0,0,.5);text-align:center';
+    box.innerHTML = '<div style="font-size:16px;font-weight:800;margin-bottom:8px">이미 만든 산출물이 있어요</div><div style="font-size:13px;color:var(--dim,#9aa);line-height:1.6;margin-bottom:16px">이 설교는 이전에 생성한 기록이 있습니다.<br>결과물을 보거나, 다시 생성할 수 있어요.</div>';
+    function mk(label, val, primary){ var b = document.createElement('button'); b.textContent = label; b.style.cssText = 'display:block;width:100%;margin:8px 0 0;padding:12px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;' + (primary ? 'background:#4a7dff;color:#fff;border:1px solid #4a7dff' : 'background:transparent;color:inherit;border:1px solid rgba(255,255,255,.18)'); b.onclick = function(){ if (ov.parentNode) document.body.removeChild(ov); resolve(val); }; return b; }
+    box.appendChild(mk('결과물 보기', 'view', true));
+    box.appendChild(mk('다시 생성하기', 'regen', false));
+    box.appendChild(mk('닫기', null, false));
+    ov.appendChild(box);
+    ov.addEventListener('click', function(e){ if (e.target === ov) { if (ov.parentNode) document.body.removeChild(ov); resolve(null); } });
+    document.body.appendChild(ov);
+  });
 }
 async function refreshCascBtns(id){
   var btns = $$('#composeMeta [data-casc]');
   if (!btns.length) return;
-  var meta = id ? findSermon(id) : (state.editing ? findSermon(state.editing) : null);
-  var done = meta ? await cascDone(id, meta) : {};
+  var sid = id || state.editing || '';
+  var done = sid ? cascDone(sid) : {};
   btns.forEach(function(b){ b.classList.toggle('casc-done', !!done[b.dataset.casc]); });
 }
 /* 어느 노드를 눌러도 그 가지의 상위 + 뿌리(DOCX원고)를 순서대로 생성. total=양쪽 가지 전부. 전용 스테퍼 오버레이 유지. */
