@@ -10104,9 +10104,9 @@ function askCascRegen(){
     var ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
     var box = document.createElement('div');
-    box.style.cssText = 'background:var(--card,#1a1d24);color:var(--fg,#fff);border:1px solid rgba(255,255,255,.14);border-radius:16px;max-width:340px;width:100%;padding:22px 20px;box-shadow:0 14px 44px rgba(0,0,0,.5);text-align:center';
-    box.innerHTML = '<div style="font-size:16px;font-weight:800;margin-bottom:8px">이미 만든 산출물이 있어요</div><div style="font-size:13px;color:var(--dim,#9aa);line-height:1.6;margin-bottom:16px">이 설교는 이전에 생성한 기록이 있습니다.<br>결과물을 보거나, 다시 생성할 수 있어요.</div>';
-    function mk(label, val, primary){ var b = document.createElement('button'); b.textContent = label; b.style.cssText = 'display:block;width:100%;margin:8px 0 0;padding:12px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;' + (primary ? 'background:#4a7dff;color:#fff;border:1px solid #4a7dff' : 'background:transparent;color:inherit;border:1px solid rgba(255,255,255,.18)'); b.onclick = function(){ if (ov.parentNode) document.body.removeChild(ov); resolve(val); }; return b; }
+    box.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;max-width:340px;width:100%;padding:22px 20px;box-shadow:0 14px 44px rgba(0,0,0,.4);text-align:center';
+    box.innerHTML = '<div style="font-size:16px;font-weight:800;margin-bottom:8px;color:var(--text)">이미 만든 산출물이 있어요</div><div style="font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:16px">이 설교는 이전에 생성한 기록이 있습니다.<br>결과물을 보거나, 다시 생성할 수 있어요.</div>';
+    function mk(label, val, primary){ var b = document.createElement('button'); b.textContent = label; b.style.cssText = 'display:block;width:100%;margin:8px 0 0;padding:12px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;' + (primary ? 'background:var(--accent);color:#fff;border:1px solid var(--accent)' : 'background:transparent;color:var(--text);border:1px solid var(--line)'); b.onclick = function(){ if (ov.parentNode) document.body.removeChild(ov); resolve(val); }; return b; }
     box.appendChild(mk('결과물 보기', 'view', true));
     box.appendChild(mk('다시 생성하기', 'regen', false));
     box.appendChild(mk('닫기', null, false));
