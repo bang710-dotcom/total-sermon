@@ -3818,10 +3818,28 @@ $$('#c_style .chip').forEach(function(ch){
 });
 
 /* ----- 오른쪽: 구조화 에디터 (왼쪽→오른쪽 단방향 자동 반영) ----- */
+/* 사용자가 드래그로 조절한 textarea 높이를 데이터에 보존 — 재렌더(AI 생성·블록 추가·재정렬) 때 다시 적용해 크기가 초기화되지 않게 한다.
+   블록 textarea는 블록 객체(b._h)에, 상단 필드(서론·결론 등)는 compose._taH 맵에 저장한다(블록과 함께 이동하므로 재정렬에도 안전). */
+function taSavedHeight(k, pi, pk, bi){
+  var c = state.compose;
+  if (k) return (c._taH || {})['k:' + k] || '';
+  var p = c.points && c.points[pi]; if (!p) return '';
+  if (bi != null) { var b = pBlocks(p)[bi]; return (b && b._h) || ''; }
+  return p['_h_' + pk] || '';
+}
+function saveTaHeight(t){
+  var h = t.style.height; if (!h) return;
+  var c = state.compose;
+  if (t.dataset.k) { (c._taH = c._taH || {})['k:' + t.dataset.k] = h; return; }
+  var p = c.points && c.points[+t.dataset.pi]; if (!p) return;
+  if (t.dataset.bi != null) { var b = pBlocks(p)[+t.dataset.bi]; if (b) b._h = h; }
+  else p['_h_' + t.dataset.pk] = h;
+}
 function ta(k, pi, pk, rows, ph, val, cls, bi){
   var attrs = k ? 'data-k="' + k + '"' : 'data-pi="' + pi + '" data-pk="' + pk + '"' + (bi != null ? ' data-bi="' + bi + '"' : '');
+  var hh = taSavedHeight(k, pi, pk, bi);
   return '<textarea class="edTa' + (cls ? ' ' + cls : '') + '" rows="' + rows + '" placeholder="' + esc(ph) + '" ' +
-    attrs + '>' + esc(val) + '</textarea>';
+    attrs + (hh ? ' style="height:' + esc(hh) + '"' : '') + '>' + esc(val) + '</textarea>';
 }
 /* 구조화 도구 칩 정의 — 라벨 + 삽입 코드(줄 맨 앞 토큰). 내보내기 땐 토큰이 보이지 않는다. */
 var STRUCT_CHIPS = [
@@ -3961,6 +3979,11 @@ $('#editorPane').addEventListener('click', function(e){
   var pi = +ab.dataset.pi, bi = +ab.dataset.bi, role = ab.dataset.role;
   if (role === '예화') aiIllustration(pi, bi);
   else aiBlockGen(pi, bi);
+});
+/* 리사이즈 핸들 드래그가 끝나면(또는 칸을 벗어날 때) 현재 높이를 저장 → 재렌더 시 ta()가 다시 적용 */
+$('#editorPane').addEventListener('mouseup', function(e){
+  var t = e.target;
+  if (t && t.classList && t.classList.contains('edTa')) saveTaHeight(t);
 });
 ['c_title', 'c_ref', 'c_series', 'c_seriesNo', 'c_msg'].forEach(function(id){
   $('#' + id).addEventListener('input', debounce(updateAutoBits, 150));
