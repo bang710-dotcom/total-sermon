@@ -10160,7 +10160,12 @@ async function runCascade(target, id, meta){
       if (doBg) { if (needBg) { cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } } else cascStep(k++, '배경 이미지 — 이미 있음, 건너뜀'); }
     }
     toast(fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인');
-  } catch (e) { toast('생성 실패: ' + (e.message || e)); }
+    if (fails.length) {   /* 실패 단계를 화면에 남겨 둠(토스트는 금방 사라지므로) */
+      var cnf = $('#cascNow'); if (cnf) cnf.innerHTML = '⚠ 실패: ' + esc(fails.join(' · '));
+      var ccf = $('#cascCnt'); if (ccf) ccf.textContent = '문제가 생긴 단계입니다 — 콘솔(F12)에 상세 오류가 찍힙니다. 잠시 후 닫힘.';
+      await new Promise(function(r){ setTimeout(r, 8000); });
+    }
+  } catch (e) { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
   finally { cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
