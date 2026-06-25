@@ -5829,14 +5829,18 @@ function buildCardDocx(D, meta, items){
   var series = (meta['예배구분'] || '') ;
   var titleLine = (series ? series + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
   var children = [new D.Paragraph({ spacing: { line: 360 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 40 })] })];
+  var firstGeneralTrans = true;   /* 첫 일반 전환(#2)은 표지가 #1이므로 시작 페이지(제목과 같은 페이지)에 둔다 */
   items.forEach(function(it){
     var x = String(it.x || '');
     if (it.t === 'trans') {
       /* 이미지 전환 시점 = 페이지 넘김 시점: 일반 전환 바(▶ 이미지 #N 전환 ◀)는 새 페이지 맨 위에서 시작.
-         단 '본문 이미지' 바(▶ 본문 이미지 #N 전환 ◀)는 직전 이미지에 귀속되므로 페이지를 넘기지 않고 이어 붙인다. */
+         단 (1) 첫 일반 전환(#2)은 시작 페이지에 그대로 두고(앞 페이지 비우지 않음),
+            (2) '본문 이미지' 바(▶ 본문 이미지 #N 전환 ◀)는 직전 이미지에 귀속되므로 페이지를 넘기지 않고 이어 붙인다. */
       var isBon = x.indexOf('본문') >= 0;
+      var doBreak = false;
+      if (!isBon) { doBreak = !firstGeneralTrans; firstGeneralTrans = false; }
       children.push(new D.Paragraph({
-        pageBreakBefore: !isBon,
+        pageBreakBefore: doBreak,
         shading: { type: D.ShadingType.CLEAR, fill: 'EE0000' },
         alignment: D.AlignmentType.CENTER, spacing: { line: 360, before: 120, after: 120 },
         children: [new D.TextRun({ text: x, bold: true, color: 'FFFFFF' })]
@@ -11807,7 +11811,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v281';
+var APP_VER = 'v282';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
