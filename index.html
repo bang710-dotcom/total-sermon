@@ -11767,7 +11767,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v276';
+var APP_VER = 'v277';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -12211,26 +12211,37 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       try {
         if (window.state && state.compose){
           var c = state.compose;
-          if (String(c.intro || '').trim()) L.push('서론:\n' + String(c.intro).trim());
-          var pts = (c.points || []).map(function(p, i){
-            var t = String(p.text || p['문'] || p.t || '').trim();
-            var seg = [];
-            pBlocks(p).forEach(function(b){
-              if (b.type === 'ill') {
-                var ill = [String(b.ill || '').trim(), String(b.illBody || '').trim()].filter(Boolean).join(' — ');
-                if (ill) seg.push('  예화: ' + ill);
-              } else if (b.type === 'apply') {
-                if (String(b.apply || '').trim()) seg.push('  적용: ' + String(b.apply).trim());
-              } else if (String(b.body || '').trim()) seg.push('  내용: ' + String(b.body).trim());
-            });
-            if (String(p.apply || '').trim()) seg.push('  적용: ' + String(p.apply).trim());
-            if (!t && !seg.length) return '';
-            return (i + 1) + '. ' + t + (seg.length ? '\n' + seg.join('\n') : '');
-          }).filter(Boolean);
-          if (pts.length) L.push('대지:\n' + pts.join('\n'));
-          if (String(c.concBody || '').trim()) L.push('결론(' + String(c.concIntro || '말씀을 정리합니다.').trim() + '):\n' + String(c.concBody).trim());
+          var isFree = (c.style === '자유원고');
           var free = String(c.free || '').trim();
-          if (free && !pts.length) L.push('작성중 원고(자유원고, 발췌):\n' + free.slice(0, 1800));
+          if (isFree && free){
+            /* 자유원고 모드: 구조화 코드가 든 원본을 그대로 + 코드 범례를 함께 보내 AI가 구조 표시까지 읽게 한다.
+               (미리보기·내보내기에서는 코드를 숨기지만, 대화창에서는 구조 파악을 위해 포함한다.) */
+            L.push('작성 방식: 자유원고 — 아래 원고에는 줄 맨 앞에 구조화 코드가 포함되어 있습니다(미리보기·내보내기에서는 숨겨지지만, 구조 파악에 사용하세요).');
+            L.push('구조화 코드 의미: (서론)=서론 / (대지)·"1." 등=대지 명제 / (주해)·(근거)·(내용)=주해근거 / (적용)=대지적용(공감) / (실천)=대지실천 / (정리)=대지정리 / (예화)·"ex)"=예화 / (결론)·"말씀을 정리합니다"=결론. ▶ … ◀ 줄은 이미지 전환 표시입니다.');
+            L.push('작성중 원고(자유원고 · 구조화 코드 포함, 원본 그대로):\n' + free.slice(0, 6000));
+          } else {
+            if (String(c.intro || '').trim()) L.push('서론:\n' + String(c.intro).trim());
+            var pts = (c.points || []).map(function(p, i){
+              var t = String(p.text || p['문'] || p.t || '').trim();
+              var seg = [];
+              pBlocks(p).forEach(function(b){
+                if (b.type === 'ill') {
+                  var ill = [String(b.ill || '').trim(), String(b.illBody || '').trim()].filter(Boolean).join(' — ');
+                  if (ill) seg.push('  예화: ' + ill);
+                } else {
+                  var role = (typeof blockRole === 'function') ? blockRole(b) : (b.type === 'apply' ? '대지실천' : '주해근거');
+                  var field = (typeof blockField === 'function') ? blockField(b) : (b.type === 'apply' ? 'apply' : 'body');
+                  if (String(b[field] || '').trim()) seg.push('  ' + role + ': ' + String(b[field]).trim());
+                }
+              });
+              if (String(p.apply || '').trim()) seg.push('  대지실천: ' + String(p.apply).trim());
+              if (!t && !seg.length) return '';
+              return (i + 1) + '. ' + t + (seg.length ? '\n' + seg.join('\n') : '');
+            }).filter(Boolean);
+            if (pts.length) L.push('대지:\n' + pts.join('\n'));
+            if (String(c.concBody || '').trim()) L.push('결론(' + String(c.concIntro || '말씀을 정리합니다.').trim() + '):\n' + String(c.concBody).trim());
+            if (free && !pts.length) L.push('작성중 원고(자유원고, 발췌):\n' + free.slice(0, 1800));
+          }
         }
       } catch(e){}
       if (val('c_kw')) L.push('키워드: ' + val('c_kw'));
