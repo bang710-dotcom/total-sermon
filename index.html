@@ -9969,14 +9969,14 @@ async function cascDone(id, meta){
         var dir = await xHandle.getDirectoryHandle('_claude_결과함');
         var nm = imgDataNames(meta);
         async function has(name){ try { await dir.getFileHandle(name); return true; } catch (e) { return false; } }
-        if (await has(sermonFileBase(meta, fileTypeTag(meta['원고유형'])) + '.docx')) done.docx = true;
-        if (await has(sermonFileBase(meta, '카드원고') + '.docx')) done.card = true;
         if (await has(sermonFileBase(meta, '[디자인]') + '.pdf')) done.cardpdf = true;
         if (await has(nm.trans)) done.trans = true;
         if (await has(nm.docx)) done.imgdata = true;
         for await (var e of dir.values()) { if (e.kind === 'file' && e.name.indexOf(nm.backstagePrefix) === 0 && /\.zip$/i.test(e.name)) { done.bgimg = true; break; } }
       }
     } catch (e) {}
+    /* 원고·카드 DOCX는 결과함이 아니라 설교 폴더(dirHandle/<연도>년)에 저장됨 → 그쪽에서 확인 */
+    try { if (!done.card && await cardDocxFileHandle(meta)) done.card = true; } catch (e) {}
   }
   return done;
 }
@@ -11956,7 +11956,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v288';
+var APP_VER = 'v289';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
