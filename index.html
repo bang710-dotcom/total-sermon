@@ -5951,17 +5951,78 @@ function cardArrToText(arr){
 /* 디자인 카드 PDF의 '초고'는 이미 완성·축약된 카드원고다. 보관된 게 있으면 그걸 쓰고,
    없으면(단독 호출) 카드원고를 먼저 집필해 그 텍스트를 초고로 삼는다. 실패 시 원고텍스트로 폴백. */
 async function ensureCardScriptText(meta){
-  if (meta['_카드원고'] && String(meta['_카드원고']).trim()) return String(meta['_카드원고']);   /* 같은 실행 내 빠른 경로 */
+  if (meta['_카드원고'] && String(meta['_카드원고']).trim()) return String(meta['_카드원고']);   /* 같은 실행 내(방금 집필) — DOCX와 동일 */
+  /* ★ 저장된 카드원고 DOCX 파일이 있으면 그 '파일 내용'을 읽어 반영(목사님이 Word에서 손본 수정까지).
+     → 실제로 강단에서 볼 디자인 PDF가 편집된 DOCX를 그대로 따른다. */
   try {
-    var arr = await ensureCardArr(meta['ID'], meta);   /* ★ DOCX와 동일한 단일 소스(저장본 재사용) */
+    var fromDoc = await readCardDocxText(meta);
+    if (fromDoc && fromDoc.text && fromDoc.text.trim()) {
+      meta['_카드전환'] = (fromDoc.trans && fromDoc.trans.length) ? fromDoc.trans : null;   /* PDF가 DOCX의 전환 위치·번호를 따르게 */
+      meta['_카드원고'] = fromDoc.text;
+      return fromDoc.text;
+    }
+  } catch (e) {}
+  try {
+    var arr = await ensureCardArr(meta['ID'], meta);   /* DOCX가 없으면 단일 소스(저장본/신규)로 — DOCX·PDF 동시 동일 소스 */
     if (Array.isArray(arr) && arr.length) { meta['_카드원고'] = cardArrToText(arr); return meta['_카드원고']; }
   } catch (e) {}
   return String(meta['원고텍스트'] || '');
 }
+/* 저장된 카드원고 DOCX 파일 핸들 찾기(맥 NFD 파일명 대비 — 정확 일치 실패 시 '카드원고'+날짜 토큰으로 매칭). */
+async function cardDocxFileHandle(meta){
+  function nf(s){ try { return s.normalize('NFC'); } catch (e) { return s; } }
+  var want = nf(sermonFileBase(meta, '카드원고') + '.docx');
+  var dnum = String(meta['날짜'] || '').replace(/-/g, '');
+  async function findIn(d){
+    try { return await d.getFileHandle(want); } catch (e) {}
+    try { for await (var e of d.values()) { if (e.kind !== 'file') continue; var n = nf(e.name); if (n === want) return e; } } catch (e) {}
+    try { for await (var e2 of d.values()) { if (e2.kind !== 'file') continue; var n2 = nf(e2.name); if (/\.docx$/i.test(n2) && n2.indexOf('카드원고') >= 0 && (!dnum || n2.indexOf(dnum) >= 0)) return e2; } } catch (e) {}
+    return null;
+  }
+  try {
+    if (dirHandle && await dirIf(dirHandle)) {
+      var yr = (String(meta['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
+      try { var yd = await dirHandle.getDirectoryHandle(yr); var h = await findIn(yd); if (h) return h; } catch (e) {}
+      var h2 = await findIn(dirHandle); if (h2) return h2;
+    }
+  } catch (e) {}
+  return null;
+}
+/* 카드원고 DOCX 파일 → {text(초고 평문, ex) 보존, 전환 바 제외), trans(전환표 [{n,t,a}])}. */
+async function readCardDocxText(meta){
+  var fh = await cardDocxFileHandle(meta);
+  if (!fh) return null;
+  if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  var f = await fh.getFile();
+  var zip = await window.JSZip.loadAsync(await f.arrayBuffer());
+  var docp = zip.file('word/document.xml'); if (!docp) return null;
+  var xml = await docp.async('string');
+  var paras = docxXmlToText(xml).split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  return parseCardDocxParas(paras);
+}
+function parseCardDocxParas(paras){
+  var trans = [], lines = [];
+  var barRe = /이미지\s*#?\s*(\d+)\s*전환/;
+  for (var i = 0; i < paras.length; i++){
+    var p = paras[i];
+    if (i === 0 && /「[\s\S]*」/.test(p)) continue;   /* 제목 줄 스킵 */
+    var bm = p.match(barRe);
+    if (bm && /[▶◀]/.test(p)) {
+      var a = '';
+      for (var j = i + 1; j < paras.length; j++){ if (!barRe.test(paras[j])) { a = paras[j].replace(/^ex\)\s*/, '').slice(0, 16); break; } }
+      trans.push({ n: parseInt(bm[1], 10), t: /본문/.test(p) ? '본문' : '일반', a: a });
+      continue;
+    }
+    lines.push(p);
+  }
+  return { text: lines.join('\n'), trans: trans };
+}
 async function aiCardDeck(meta){
-  var prevTrans = await ensureTransTable(meta['ID'], meta);
-  /* 디자인 PDF의 초고 = 이미 완성·축약된 카드원고(없으면 먼저 집필). 디자인 PDF는 이걸 재요약/재확장 없이 카드로 조판만 한다. */
+  /* 디자인 PDF의 초고 = 카드원고(저장된 DOCX가 있으면 그 파일 내용을 우선 반영, 없으면 단일 소스로 집필).
+     ensureCardScriptText가 DOCX를 읽으면 meta['_카드전환']에 그 DOCX의 전환표를 채운다. */
   var cardText = await ensureCardScriptText(meta);
+  /* 전환표: DOCX에서 읽은 것이 있으면 그걸 따른다(편집 반영). 없으면 단일 소스 전환표. */
+  var prevTrans = (meta['_카드전환'] && meta['_카드전환'].length) ? meta['_카드전환'] : await ensureTransTable(meta['ID'], meta);
   var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
     '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': cardText, '초고형식': '이미 완성·축약된 카드원고' };
   if (prevTrans) inp['기존전환표'] = prevTrans;
