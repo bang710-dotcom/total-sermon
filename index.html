@@ -6197,6 +6197,109 @@ async function generateCardPdf(id, meta){
     toast('카드 디자인 PDF 저장 완료 — [아웃풋]에서 확인');
   } catch (e) { hideGenOverlay(); toast('카드 PDF 실패: ' + (e.message || e)); }
 }
+/* ===================== 카드 디자인 PPTX (편집 가능) ===================== */
+/* 디자인 PDF와 동일 비주얼이되, 각 줄을 '편집 가능한 텍스트 박스'로 만든다(목사님이 PowerPoint에서 직접 수정).
+   좌표계 = 1240×840 포인트(디자인 PDF와 동일), 폰트는 앱 PDF와 동일(제목·번호 Jua / 본문 Gothic A1). */
+async function ensurePptxLib(){ if (!window.PptxGenJS) await loadScript('https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'); return window.PptxGenJS; }
+async function buildCardPptxBlob(deck){
+  var PptxGenJS = await ensurePptxLib();
+  var W = 1240, H = 840, BL = 0.82;
+  function IN(px){ return px / 72; }
+  function strw(t, size){ var s = 0; for (var i = 0; i < t.length; i++) s += (t.charCodeAt(i) < 128 ? 0.55 : 1.0); return s * size; }
+  var CREAM = 'FAF6F1', NAVY = '2E3191', BODY = '1A1C4A', MINT = '4ED4B0', TEAL = '2AA78E', LAV = 'ECE8FA', WHITE = 'FFFFFF';
+  var FOOTER = (deck.meta && deck.meta.footer) || CARD_FOOTER;
+  var pptx = new PptxGenJS();
+  pptx.defineLayout({ name: 'CARD', width: IN(W), height: IN(H) }); pptx.layout = 'CARD';
+  function colof(e, def){ return e === 'strong' ? NAVY : e === 'green' ? TEAL : def; }
+  function lineRuns(line, def){ return (line || []).map(function(r){ var e = r.e; return { text: r.t || '', options: { color: colof(e, def), bold: !!e } }; }); }
+  function put(s, x, baseY, runs, size, opt){
+    opt = opt || {};
+    var top = H - baseY - BL * size, w = opt.w || (W - 2 * x);
+    var arr = runs.map(function(r){ return { text: r.text, options: Object.assign({ fontFace: opt.face || 'Gothic A1' }, r.options || {}) }; });
+    s.addText(arr, { x: IN(x), y: IN(top), w: IN(w), h: IN(size * 1.5), fontSize: size, align: opt.align || 'left', valign: 'top', margin: 0, lineSpacingMultiple: 1 });
+  }
+  function box(s, x, yBottom, w, h, fill){ s.addShape(pptx.ShapeType.roundRect, { x: IN(x), y: IN(H - (yBottom + h)), w: IN(w), h: IN(h), fill: { color: fill }, line: { type: 'none' }, rectRadius: IN(Math.min(h, w) * 0.28) }); }
+  function badge(s, n, dark){ var lbl = '#' + n, size = 32, bw = strw(lbl, size) + 50, by = H - 200;
+    s.addText(lbl, { shape: pptx.ShapeType.roundRect, x: IN(W - 96 - bw), y: IN(H - (by + 60)), w: IN(bw), h: IN(60), fill: { color: dark ? MINT : NAVY }, line: { type: 'none' }, rectRadius: IN(16), color: dark ? NAVY : WHITE, bold: true, fontFace: 'Gothic A1', fontSize: size, align: 'center', valign: 'middle', margin: 0 }); }
+  function footer(s, light){ put(s, 0, 70, [{ text: FOOTER, options: { color: light ? '8C8EC9' : 'C9C5D6' } }], 25, { align: 'right', w: W - 96 }); }
+  var m = deck.meta || {};
+  var series = m.series || '대학부 · 주일설교';
+  var tlines = (m.titleLines && m.titleLines.length) ? m.titleLines : [m.title || ''];
+  var kw = m.titleKeyword || '', ref = m.ref || '';
+  var imgN = 1;
+  (deck.cards || []).forEach(function(c){
+    var bg = c.bg || {};
+    if (c.type === 'cover') imgN = 1; else if (bg.kind === '전환' || bg.kind === '본문') imgN++;
+    var ino = imgN, s = pptx.addSlide();
+    if (c.type === 'cover'){
+      s.background = { color: NAVY };
+      put(s, 96, H - 200, [{ text: series, options: { color: '8C8EC9' } }], 30);
+      var ty = H - 330;
+      tlines.forEach(function(tl){
+        var runs;
+        if (kw && tl.indexOf(kw) >= 0){ var i = tl.indexOf(kw); runs = [];
+          if (tl.slice(0, i)) runs.push({ text: tl.slice(0, i), options: { color: WHITE, bold: true } });
+          runs.push({ text: kw, options: { color: MINT, bold: true } });
+          if (tl.slice(i + kw.length)) runs.push({ text: tl.slice(i + kw.length), options: { color: WHITE, bold: true } });
+        } else runs = [{ text: tl, options: { color: WHITE, bold: true } }];
+        put(s, 96, ty, runs, 96, { face: 'Jua' }); ty -= 118;
+      });
+      put(s, 96, ty - 10, [{ text: ref, options: { color: 'B9BAE0' } }], 40);
+      footer(s, true); badge(s, ino, true);
+    } else if (c.type === 'point'){
+      s.background = { color: NAVY };
+      put(s, 96, H - 150, [{ text: '핵심 대지', options: { color: '9A9CD6' } }], 27);
+      put(s, 96, H - 360, [{ text: ('0' + (c.num || 1)).slice(-2), options: { color: MINT, bold: true } }], 150, { face: 'Jua' });
+      put(s, 96, H - 470, [{ text: c.text || '', options: { color: WHITE, bold: true } }], 64, { face: 'Jua' });
+      footer(s, true); badge(s, ino, true);
+    } else if (c.type === 'scripture'){
+      s.background = { color: CREAM };
+      var pill = c.ref || '', pw = strw(pill, 35);
+      box(s, 96, H - 205, pw + 64, 70, TEAL);
+      put(s, 96 + 32, H - 188, [{ text: pill, options: { color: WHITE, bold: true } }], 35);
+      var qlines = c.quote || [], qfs = 43, qlh = Math.round(qfs * 1.46);
+      var boxh = qlines.length * qlh + 96, boxtop = H - 250, boxbot = boxtop - boxh;
+      box(s, 96, boxbot, W - 192, boxh, LAV);
+      put(s, 140, boxtop - 86, [{ text: '“', options: { color: NAVY } }], 98, { face: 'Georgia' });
+      var qy = boxtop - 58 - qfs;
+      qlines.forEach(function(ql){ var txt = (ql || []).map(function(r){ return r.t || ''; }).join('');
+        put(s, 96, qy, [{ text: txt, options: { color: '3A3C66' } }], qfs, { align: 'center', w: W - 192 }); qy -= qlh; });
+      var ay = boxbot - 58;
+      (c.after || []).forEach(function(ln){ put(s, 96, ay, lineRuns(ln, BODY), 40); ay -= 60; });
+      if (c.key){ ay -= 6; put(s, 96, ay, [{ text: c.key, options: { color: TEAL, bold: true } }], 42); }
+      footer(s, false); badge(s, ino, false);
+    } else {
+      s.background = { color: CREAM };
+      var nLines = (c.blocks || []).reduce(function(a, b){ return a + (b.lines || []).length; }, 0) + Math.max(0, (c.blocks || []).length - 1);
+      var fs = nLines >= 11 ? 33 : nLines >= 9 ? 37 : 42, lh = Math.round(fs * 1.5), gap = nLines >= 11 ? 22 : nLines >= 9 ? 28 : 40;
+      put(s, 96, H - 150, [{ text: c.section || '', options: { color: NAVY, bold: true } }], 29);
+      badge(s, ino, false);
+      var yy = H - 235;
+      (c.blocks || []).forEach(function(b, bi){
+        if (bi > 0) yy -= gap;
+        (b.lines || []).forEach(function(ln){ put(s, 96, yy, lineRuns(ln, BODY), fs); yy -= lh; });
+      });
+      footer(s, false);
+    }
+  });
+  return pptx.write({ outputType: 'blob' });
+}
+async function generateCardPptx(id, meta){
+  try {
+    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    setGenStage('카드 PPTX — 카드 덱 준비 중…');
+    var deck = await aiCardDeck(meta);
+    if (!deck || !Array.isArray(deck.cards) || !deck.cards.length) throw new Error('카드 덱 응답 형식 오류');
+    setGenStage('카드 PPTX — 조판·저장 중…');
+    var blob = await buildCardPptxBlob(deck);
+    await saveBlobToResults(blob, sermonFileBase(meta, '[디자인]') + '.pptx');
+    hideGenOverlay();
+    if (id) { try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '카드PPTX', '상태': '완료', '링크': '', '비고': '앱 직접 생성' } }); } catch (e) {} }
+    renderSyncState();
+    toast('카드 디자인 PPTX 저장 완료 — [아웃풋]에서 확인(편집 가능)');
+  } catch (e) { hideGenOverlay(); toast('카드 PPTX 실패: ' + (e.message || e)); }
+}
 /* 임시 테스트 훅(3단계 버튼 전): 설교 작성에서 열고 콘솔에 requestCardPdf() */
 window.requestCardPdf = function(){
   var m = (typeof collectCompose === 'function') ? collectCompose() : {};
@@ -10044,6 +10147,9 @@ $$('#composeMeta [data-casc]').forEach(function(b){
     runCascade(b.dataset.casc, state.editing || '', m);
   });
 });
+(function(){ var pb = document.getElementById('btnCardPptx'); if (pb) pb.addEventListener('click', function(){
+  var m = collectCompose(); if (state.editing) m['ID'] = state.editing; generateCardPptx(state.editing || '', m);
+}); })();
 (function(){
   var tg = document.getElementById('cascToggle'), mid = document.getElementById('cascMid');
   if (tg && mid) tg.addEventListener('click', function(){
@@ -11962,7 +12068,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v292';
+var APP_VER = 'v293';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
