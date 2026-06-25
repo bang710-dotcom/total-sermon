@@ -5783,7 +5783,7 @@ var P_CARD = [
 '출력은 반드시 JSON 배열만: [{"t":"trans|quote|ex|head|p","x":"..."}] — 본문 첫 단락부터 끝까지 순서대로(제목 줄은 앱이 만든다).',
 't 규칙: trans=빨간 전환 바 텍스트("▶ 이미지 #N 전환 ◀" 또는 성경 인용 직전 "▶ 본문 이미지 #N 전환 ◀") / quote=성경 인용 / ex="ex) 예화 제목" 한 줄 / head=강조·대지 선언·"말씀을 정리합니다" / p=일반 구어체 단락.',
 '★ 인용(quote) 형식(필수): 반드시 「약어 장:절, "절 단위 전문(개역개정)"」 한 줄. 책 이름은 약어(요·창·고전 등), 맨 앞에 약어 장:절을 적고 쉼표+공백 뒤 큰따옴표로 본문 전문. 같은 절 재인용도 매번 전문. 범위면 "요 7:14-24". 예) 요 7:18, "스스로 말하는 자는 자기 영광만 구하되 그를 보내신 이의 영광을 구하는 자는 참되니 그 속에 불의가 없느니라". (앱이 빨간 볼드로 표시 — 끝 괄호 표기 금지)',
-'전환 바 규칙: 본문 시작에 "▶ 이미지 #2 전환 ◀"(표지가 #1), 모든 성경 인용 직전에 본문 이미지 바. ★번호는 1부터 빠짐없이 연속(중간 점프·건너뜀 절대 금지) — 일반·본문 바를 한 흐름으로 #2,#3,#4… 순서대로.',
+'전환 바 규칙: 본문 시작에 "▶ 이미지 #2 전환 ◀"(표지가 #1). 본문 이미지 바는 ★모든 인용마다가 아니라 강단에서 실제로 화면에 띄워 함께 봉독·집중하는 핵심 성경 본문 직전에만 둔다(스치듯 짧게 언급하는 인라인 인용 제외, 한 장면의 연속 성구는 하나로 묶음). ★번호는 1부터 빠짐없이 연속(중간 점프·건너뜀 절대 금지) — 일반·본문 바를 한 흐름으로 #2,#3,#4… 순서대로. ★전체 표지 포함 15~25장(25 초과 절대 금지).',
 '★ 전환 지점 잡는 법(중요): 이미지 전환은 "설교의 장면이 바뀌어 이전 이미지를 계속 띄워 두기 어색해지는 지점"에 둔다. 새 대지·새 예화·새 국면이 시작될 때처럼 장면이 실제로 바뀌는 곳. 전환을 너무 자주 만들지 마라(한 장면이 이어지면 한 이미지로 길게 간다). 다만 한 이미지에 해당하는 내용이 1~2줄로 짧으면, 한 페이지에 전환 바가 2개 들어가도 괜찮다.',
 '★ 전환=페이지 넘김 동기화: 일반 전환 바("▶ 이미지 #N 전환 ◀")는 강단에서 화면 전환 순간과 원고 페이지를 넘기는 순간이 같도록, 새 페이지 맨 위에 오는 의미 단위(한 호흡) 앞에 둔다(앱이 그 바 앞에서 페이지를 끊는다). "본문 이미지" 바("▶ 본문 이미지 #N 전환 ◀")는 직전 이미지에 귀속되므로 페이지를 넘기지 않고 성경 인용 직전에 이어 붙인다.',
 '★ 기존 전환표 우선: 입력에 "기존전환표"(배열 [{n,t,a}])가 있으면 전환 바를 새로 만들지 말고 그 표를 그대로 따른다 — 각 항목의 a(앵커 텍스트)로 시작하거나 가장 가까운 단락·인용 "직전"에 해당 번호의 trans 블록을 넣는다(t="일반"→"▶ 이미지 #n 전환 ◀", t="본문"→"▶ 본문 이미지 #n 전환 ◀"). 번호·종류·개수·순서를 임의로 바꾸지 않는다. 기존전환표가 없을 때만 위 기본 규칙으로 새로 만든다.',
@@ -5833,15 +5833,18 @@ function buildCardDocx(D, meta, items){
   var titleLine = (series ? series + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
   var children = [new D.Paragraph({ spacing: { line: 360 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 40 })] })];
   var firstGeneralTrans = true;   /* 첫 일반 전환(#2)은 표지가 #1이므로 시작 페이지(제목과 같은 페이지)에 둔다 */
+  var pageLen = (titleLine || '').length;   /* 현재 페이지에 쌓인 본문 글자수(근사) */
+  var MIN_PAGE = 160;   /* 직전 페이지 내용이 이보다 적으면 전환이 와도 페이지를 넘기지 않는다 — 짧은 장면은 한 페이지에 전환 2개 허용(빈 페이지 방지) */
   items.forEach(function(it){
     var x = String(it.x || '');
     if (it.t === 'trans') {
       /* 이미지 전환 시점 = 페이지 넘김 시점: 일반 전환 바(▶ 이미지 #N 전환 ◀)는 새 페이지 맨 위에서 시작.
          단 (1) 첫 일반 전환(#2)은 시작 페이지에 그대로 두고(앞 페이지 비우지 않음),
-            (2) '본문 이미지' 바(▶ 본문 이미지 #N 전환 ◀)는 직전 이미지에 귀속되므로 페이지를 넘기지 않고 이어 붙인다. */
+            (2) '본문 이미지' 바(▶ 본문 이미지 #N 전환 ◀)는 직전 이미지에 귀속되므로 페이지를 넘기지 않고 이어 붙인다,
+            (3) 직전 페이지 내용이 너무 적으면(MIN_PAGE 미만) 페이지를 넘기지 않고 같은 페이지에 둔다(빈 페이지 방지). */
       var isBon = x.indexOf('본문') >= 0;
       var doBreak = false;
-      if (!isBon) { doBreak = !firstGeneralTrans; firstGeneralTrans = false; }
+      if (!isBon) { doBreak = !firstGeneralTrans && pageLen >= MIN_PAGE; firstGeneralTrans = false; if (doBreak) pageLen = 0; }
       children.push(new D.Paragraph({
         pageBreakBefore: doBreak,
         shading: { type: D.ShadingType.CLEAR, fill: 'EE0000' },
@@ -5851,6 +5854,7 @@ function buildCardDocx(D, meta, items){
     } else {
       if (it.t === 'quote') x = toLeadRefQuote(x);   /* 후행 괄호 → 선두 약어 형식 강제 */
       var col = it.t === 'quote' ? 'EE0000' : it.t === 'ex' ? '215E99' : undefined;
+      pageLen += x.length;
       children.push(new D.Paragraph({ spacing: { line: 360 },
         children: [new D.TextRun({ text: x, bold: it.t !== 'p', color: col })] }));
     }
@@ -11959,7 +11963,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v290';
+var APP_VER = 'v291';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
