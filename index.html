@@ -5897,7 +5897,8 @@ function setGenStage(text){
 }
 var P_CARDDECK = [
   '너는 영락교회 대학부 주일설교의 "카드원고 디자인 덱"을 만드는 조판가다.',
-  '입력(설교 초고+메타)을 받아, 강단에서 아이패드로 스치듯 보는 가로(310×210mm) 카드 슬라이드 덱을 JSON으로만 출력한다. 설명·코드펜스 금지.',
+  '입력의 "초고"는 이미 완성·축약된 카드원고(무대 설교문)다. 이걸 받아, 강단에서 아이패드로 스치듯 보는 가로(310×210mm) 카드 슬라이드 덱을 JSON으로만 출력한다. 설명·코드펜스 금지.',
+  '★ 역할은 "재집필"이 아니라 "카드 조판"이다 — 초고를 다시 요약하거나 확장하지 말고, 그 문장을 그대로 카드 줄·카드 단위로 나눠 얹기만 한다(아래 줄바꿈·분할 규칙대로).',
   '스키마: {"meta":{"series","title","titleKeyword","ref","footer"},"cards":[...]}',
   'meta.series="대학부 · 주일설교". titleLines=제목을 자연스러운 2줄로 나눈 배열(예 ["순종이 시선을","드러냅니다"]) — 한두 글자만 다음 줄로 넘기는 어색한 줄바꿈 금지(각 줄이 비슷한 길이로 균형). titleKeyword=제목 중 강조 핵심어. footer는 시스템 고정이므로 출력 불필요.',
   '카드 종류:',
@@ -5914,10 +5915,33 @@ var P_CARDDECK = [
   '강조 매핑: 본문 핵심 어구·대지 리드=strong(남색). 핵심 결론/제목 키워드=green. 성경 장절 인라인 언급=strong.',
   '내용은 초고를 충실히 옮기되 카드용 호흡 줄바꿈만 가한다. 새로운 신학적 내용 추가 금지. 성경 인용문은 초고의 표기를 그대로 사용.'
 ].join('\n');
+/* 카드원고 {t,x} 배열 → 평문(디자인 PDF 초고용). 전환 바는 제외, 예화는 "ex)" 표시 보존. */
+function cardArrToText(arr){
+  return (arr || []).filter(function(b){ return b && b.t !== 'trans'; })
+    .map(function(b){ return b.t === 'ex' ? ('ex) ' + String(b.x || '')) : String(b.x || ''); })
+    .filter(function(s){ return s.trim(); }).join('\n');
+}
+/* 디자인 카드 PDF의 '초고'는 이미 완성·축약된 카드원고다. 보관된 게 있으면 그걸 쓰고,
+   없으면(단독 호출) 카드원고를 먼저 집필해 그 텍스트를 초고로 삼는다. 실패 시 원고텍스트로 폴백. */
+async function ensureCardScriptText(meta){
+  if (meta['_카드원고'] && String(meta['_카드원고']).trim()) return String(meta['_카드원고']);
+  try {
+    var prevTrans = meta['ID'] ? sermonTrans(meta['ID']) : null;
+    var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
+      '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': meta['원고텍스트'] };
+    if (prevTrans) inp['기존전환표'] = prevTrans;
+    var out = await callClaude(P_CARD, JSON.stringify(inp), 32000, aiTick('카드원고(축약)'));
+    var arr = aiJson(out);
+    if (Array.isArray(arr) && arr.length) { meta['_카드원고'] = cardArrToText(arr); return meta['_카드원고']; }
+  } catch (e) {}
+  return String(meta['원고텍스트'] || '');
+}
 async function aiCardDeck(meta){
   var prevTrans = meta['ID'] ? sermonTrans(meta['ID']) : null;
+  /* 디자인 PDF의 초고 = 이미 완성·축약된 카드원고(없으면 먼저 집필). 디자인 PDF는 이걸 재요약/재확장 없이 카드로 조판만 한다. */
+  var cardText = await ensureCardScriptText(meta);
   var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
-    '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': meta['원고텍스트'] };
+    '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': cardText, '초고형식': '이미 완성·축약된 카드원고' };
   if (prevTrans) inp['기존전환표'] = prevTrans;
   var out = await callClaude(P_CARDDECK, JSON.stringify(inp), 32000, aiTick('카드 PDF — 원고(호흡 줄바꿈)'));
   var deck = aiJson(out);
