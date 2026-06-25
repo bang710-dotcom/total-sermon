@@ -1029,7 +1029,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
             <div style="display:flex;gap:8px">
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">카드 가지</div>
-                <button class="btn sub" data-casc="card" style="width:100%"><span class="blab">카드 원고 DOCX</span><small class="bpath">01 Sermons / 연도 폴더</small></button>
+                <button class="btn sub" data-casc="card" style="width:100%"><span class="blab">카드 원고 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button>
                 <button class="btn sub" data-casc="cardpdf" style="width:100%"><span class="blab">카드 디자인 PDF</span><small class="bpath">claude-exchange / 결과함</small></button>
                 <button class="btn sub" id="btnCardPptx" style="width:100%"><span class="blab">카드 디자인 PPTX</span><small class="bpath">claude-exchange / 결과함</small></button>
               </div>
@@ -5902,7 +5902,7 @@ async function aiCardScript(id, meta){
     meta['_카드원고'] = cardArrToText(arr);   /* 같은 실행 내 디자인 PDF가 이 텍스트를 그대로 쓰게 보관 */
     var D = await ensureDocxLib();
     var blob = await D.Packer.toBlob(buildCardDocx(D, meta, arr));
-    await saveDocxBlob(blob, sermonFileBase(meta, '카드원고') + '.docx', meta['날짜']);
+    await saveBlobToResults(blob, sermonFileBase(meta, '카드원고') + '.docx');   /* 결과함에 저장 — 설교 폴더엔 기본원고만 */
     if (id) {
       await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '카드원고', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
       aiMarkDone(id, '카드원고', 'Opus API 직결');
@@ -5981,6 +5981,13 @@ async function cardDocxFileHandle(meta){
     try { for await (var e2 of d.values()) { if (e2.kind !== 'file') continue; var n2 = nf(e2.name); if (/\.docx$/i.test(n2) && n2.indexOf('카드원고') >= 0 && (!dnum || n2.indexOf(dnum) >= 0)) return e2; } } catch (e) {}
     return null;
   }
+  /* 우선: claude-exchange/_claude_결과함(현재 카드원고 저장 위치) */
+  try {
+    if (canFolderSave() && await xHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
+      var rd = await xHandle.getDirectoryHandle('_claude_결과함'); var hr = await findIn(rd); if (hr) return hr;
+    }
+  } catch (e) {}
+  /* 폴백: 예전에 설교 폴더(01 Sermons/연도)에 저장된 카드원고도 계속 읽는다 */
   try {
     if (dirHandle && await dirIf(dirHandle)) {
       var yr = (String(meta['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
