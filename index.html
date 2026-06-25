@@ -10165,34 +10165,39 @@ async function runCascade(target, id, meta){
   cascShow(cascStepList(target));
   var fails = [];   /* 한 단계가 실패해도 멈추지 않고 다음 단계로 — 무엇이 실패했는지 모아 알린다 */
   function rec(label, e){ try { console.error('[Total Sermon] ' + label + ' 실패:', e); } catch (_) {} fails.push(label + '(' + ((e && e.message) || e) + ')'); }
+  function ck(){ if (window._cascAbort) throw new Error('__ABORT__'); }   /* 단계 사이 중단 확인 */
   try {
     /* 단일 소스 전환표 먼저 확정(원고가 그대로면 저장본 재사용, 바뀌었으면 갱신). 이후 카드·컷·전환표시본이 이 표를 따른다. */
     cascStep(k, '이미지 전환표 확인 중…');
     try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); }
 
-    cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); }
+    ck(); cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); }
     if (inA) {
-      cascStep(k++, '카드 원고 집필 중…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); }
+      ck(); cascStep(k++, '카드 원고 집필 중…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); }
       if (target === 'cardpdf' || target === 'total') {
-        cascStep(k++, '카드 디자인 PDF 조판 중…'); try { var deck = await aiCardDeck(meta); if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } else throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 디자인 PDF', e); }
+        ck(); cascStep(k++, '카드 디자인 PDF 조판 중…'); try { var deck = await aiCardDeck(meta); if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } else throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 디자인 PDF', e); }
       }
     }
     if (inB) {
       var doImg = (target === 'imgdata' || target === 'bgimg' || target === 'total');
       var doBg = (target === 'bgimg' || target === 'total');
       var cuts = null;
-      cascStep(k++, '이미지 컷(전환표) 생성 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
-      cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); }
-      if (doImg) { cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
-      if (doBg) { cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
+      ck(); cascStep(k++, '이미지 컷(전환표) 생성 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
+      ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); }
+      if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
+      if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
     }
+    ck();
     toast(fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인');
     if (fails.length) {   /* 실패 단계를 화면에 남겨 둠(토스트는 금방 사라지므로) */
       var cnf = $('#cascNow'); if (cnf) cnf.innerHTML = '⚠ 실패: ' + esc(fails.join(' · '));
       var ccf = $('#cascCnt'); if (ccf) ccf.textContent = '문제가 생긴 단계입니다 — 콘솔(F12)에 상세 오류가 찍힙니다. 잠시 후 닫힘.';
       await new Promise(function(r){ setTimeout(r, 8000); });
     }
-  } catch (e) { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
+  } catch (e) {
+    if ((e && e.message) === '__ABORT__') { toast('생성을 중단했습니다 — 만들던 단계까지만 저장됩니다.'); var cna = $('#cascNow'); if (cna) cna.textContent = '⏹ 중단되었습니다.'; await new Promise(function(r){ setTimeout(r, 1500); }); }
+    else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
+  }
   finally { cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
@@ -11069,6 +11074,7 @@ async function generateImageSetFromCuts(id, meta, cuts){
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [];
   for (var i = 0; i < cuts.length; i++){
+    if (window._cascAbort) { if (made) break; throw new Error('__ABORT__'); }   /* 사용자 중단 — 만든 것까지는 저장 */
     var c = cuts[i], isScr = (c.type === '본문');
     var tag = ('0' + c.n).slice(-2);   /* 이미지 번호만 — 파인더 정렬·혼동 방지 */
     setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
@@ -12123,7 +12129,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v302';
+var APP_VER = 'v303';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
