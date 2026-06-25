@@ -5957,8 +5957,7 @@ async function ensureCardScriptText(meta){
   try {
     var fromDoc = await readCardDocxText(meta);
     if (fromDoc && fromDoc.text && fromDoc.text.trim()) {
-      meta['_카드전환'] = (fromDoc.trans && fromDoc.trans.length) ? fromDoc.trans : null;   /* PDF가 DOCX의 전환 위치·번호를 따르게 */
-      meta['_카드원고'] = fromDoc.text;
+      meta['_카드원고'] = fromDoc.text;   /* 카드 편집(문장·단어)만 반영. 전환표는 기본원고 단일 소스를 그대로 유지 */
       return fromDoc.text;
     }
   } catch (e) {}
@@ -6021,8 +6020,8 @@ async function aiCardDeck(meta){
   /* 디자인 PDF의 초고 = 카드원고(저장된 DOCX가 있으면 그 파일 내용을 우선 반영, 없으면 단일 소스로 집필).
      ensureCardScriptText가 DOCX를 읽으면 meta['_카드전환']에 그 DOCX의 전환표를 채운다. */
   var cardText = await ensureCardScriptText(meta);
-  /* 전환표: DOCX에서 읽은 것이 있으면 그걸 따른다(편집 반영). 없으면 단일 소스 전환표. */
-  var prevTrans = (meta['_카드전환'] && meta['_카드전환'].length) ? meta['_카드전환'] : await ensureTransTable(meta['ID'], meta);
+  /* 전환표는 항상 기본원고 단일 소스(전환표시본·이미지 프롬프트와 동일 기준) — 카드 편집은 문장·단어만, 전환은 안 건드림 */
+  var prevTrans = await ensureTransTable(meta['ID'], meta);
   var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
     '핵심메시지': meta['핵심메시지'], '대지': meta['대지'], '예화': meta['예화'], '초고': cardText, '초고형식': '이미 완성·축약된 카드원고' };
   if (prevTrans) inp['기존전환표'] = prevTrans;
@@ -11956,7 +11955,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v289';
+var APP_VER = 'v290';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
