@@ -6400,8 +6400,37 @@ window.requestCardPdf = function(){
 
 /* ===================== 인앱 이미지자료(프롬프트 DOCX) 생성 (2단계) ===================== */
 var LED_TAIL = 'Strong dark vignette on all edges, left and right sides fading completely into pure black with smooth gradient, all bright elements concentrated in the central area, edges seamlessly dissolving into the surrounding darkness so the image appears intentionally framed within a larger black space. Deep black background. Widescreen 16:9.';
-/* ★ 이미지 생성 안전 제약(Flux 등): 융합·중복 인물(샴쌍둥이형), 여분 팔다리, 물 위 시신 연상 등 오생성 억제 — 모든 배경 프롬프트 끝에 자동 부착 */
-var IMG_SAFETY = 'Anatomically natural and correct; if any human figure appears, render a single clearly separated whole person (or distinct, well-separated silhouettes) — absolutely no conjoined, fused, merged, or duplicated bodies, no Siamese-twin forms, no extra or merged limbs or heads. No corpses, no dead, lifeless, or drowned bodies; do not place people lying in or floating on water.';
+/* ★ 이미지 생성 안전 제약 — ★긍정형으로만 표현(부정문 금지).
+   이유: Flux는 부정문("no corpses/no water")을 무시하거나 오히려 그 단어에 반응해 역효과를 내고,
+   "corpse·dead·drowned" 같은 단어는 이미지 프록시·엔진의 콘텐츠 필터를 건드려 생성 자체가 차단될 수 있다(번호 누락의 원인).
+   그래서 위험 단어를 쓰지 않고, 원하는 결과를 '있는 그대로' 묘사한다. */
+var IMG_SAFETY = 'Any person appears as a single whole living individual with natural, correct anatomy and clearly separated, well-formed limbs.';
+/* style(사실적/추상적) → 영문 화풍 지시 */
+function styleCueEn(styleKo){
+  return (String(styleKo || '') === '추상적')
+    ? 'abstract and symbolic, minimal forms, emphasis on light, color and texture rather than literal objects'
+    : 'realistic and detailed, historically grounded, documentary-like painterly realism';
+}
+/* ★ 엔진 맞춤 배경 프롬프트 빌더.
+   Flux: 주어(장면)를 맨 앞에 두고 간결하게(앞 토큰 가중), 부정문 최소화 — 화풍 키워드 중심.
+   Gemini(nano-banana): 자연어로 더 풍부하게, 지시·사실주의 묘사를 충분히. (둘 다 자연어 산문 선호) */
+function buildBgPrompt(c, engine){
+  var en = String((c && c.en) || '').trim();
+  var sc = styleCueEn(c && c.style);
+  if (engine === 'gemini') {
+    return [ en, 'Render this as a ' + sc + '.', 'Cinematic painterly background with dramatic chiaroscuro lighting and rich atmosphere; keep faces out of view and include no lettering.', IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+  }
+  /* flux */
+  return [ en, sc + ', cinematic painterly, dramatic chiaroscuro, faceless figures, no lettering.', IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+}
+/* 생성 실패(콘텐츠 필터 등) 시 단계적으로 더 안전·추상적인 폴백 프롬프트 — 번호 누락 방지용 */
+function safeFallbackPrompts(c){
+  var sc = styleCueEn(c && c.style);
+  return [
+    'Abstract symbolic cinematic background, soft directional light and deep shadow, ' + sc + ', a quiet reverent mood, no human figures, no lettering. ' + LED_TAIL,
+    'A single soft warm glow at the center of a vast deep black space, calm minimal cinematic atmosphere, no human figures, no lettering. ' + LED_TAIL
+  ];
+}
 var P_IMGDATA = [
   '너는 영락교회 대학부 설교의 "설교 이미지 자료(컷별 LED 배경 프롬프트)"를 만든다. 입력(설교 원고+메타)을 받아 컷 목록을 JSON으로만 출력한다. 설명·코드펜스 금지.',
   '★★입력에 "컷목록(고정)"이 있으면 그것이 절대 기준이다 — n·type·anchor·개수·순서를 하나도 바꾸지 말고 그대로 두고, 각 컷의 프롬프트 필드(style·ko·en·ref·verse)만 채워 같은 개수로 돌려준다. 컷을 더하거나 빼거나 종류를 바꾸지 마라(카드원고·전환표시본·생성이미지가 이 목록을 공유하므로 어긋나면 실패).',
