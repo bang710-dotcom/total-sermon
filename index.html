@@ -1036,7 +1036,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
                 <div class="cnt" style="text-align:center;margin:0">카드 가지</div>
                 <button class="btn sub" data-casc="card" style="width:100%"><span class="blab">카드 원고 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button>
                 <button class="btn sub" data-casc="cardpdf" style="width:100%"><span class="blab">카드 디자인 PDF</span><small class="bpath">claude-exchange / 결과함</small></button>
-                <button class="btn sub" id="btnCardPptx" style="width:100%"><span class="blab">카드 디자인 PPTX</span><small class="bpath">claude-exchange / 결과함</small></button>
+                <button class="btn sub" data-casc="cardpptx" style="width:100%"><span class="blab">카드 디자인 PPTX</span><small class="bpath">claude-exchange / 결과함</small></button>
               </div>
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">이미지 가지</div>
@@ -10071,10 +10071,10 @@ async function saveImgDataDocxFile(meta, cuts){
 }
 /* 캐스케이드 단계 목록(러너의 실행 순서와 동일) */
 function cascStepList(target){
-  var inA = (target === 'card' || target === 'cardpdf' || target === 'total');
+  var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx' || target === 'total');
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
   var s = [{ label: 'DOCX 원고' }];
-  if (inA) { s.push({ label: '카드 원고' }); if (target === 'cardpdf' || target === 'total') s.push({ label: '카드 디자인 PDF' }); }
+  if (inA) { s.push({ label: '카드 원고' }); if (target === 'cardpdf' || target === 'total') s.push({ label: '카드 디자인 PDF' }); if (target === 'cardpptx' || target === 'total') s.push({ label: '카드 디자인 PPTX' }); }
   if (inB) { s.push({ label: '이미지 컷(전환표)' }); s.push({ label: '이미지 전환표시본' }); if (target === 'imgdata' || target === 'bgimg' || target === 'total') s.push({ label: '이미지 프롬프트' }); if (target === 'bgimg' || target === 'total') s.push({ label: '배경 이미지' }); }
   return s;
 }
@@ -10106,7 +10106,7 @@ function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov)
    (파일을 결과함에 계속 쌓아두지 않아도 기록으로 안다. 실제 재생성 여부는 아래 모달로 사용자가 결정.) */
 function cascDone(id){
   var dt = (id && typeof doneTypes === 'function') ? doneTypes(id) : {};
-  return { docx: !!dt['원고DOCX'], card: !!dt['카드원고'], cardpdf: !!dt['카드PDF'],
+  return { docx: !!dt['원고DOCX'], card: !!dt['카드원고'], cardpdf: !!dt['카드PDF'], cardpptx: !!dt['카드PPTX'],
            trans: !!dt['이미지전환표시본'], imgdata: !!dt['이미지프롬프트'], bgimg: !!dt['이미지생성'] };
 }
 /* 원고가 (전환표를 만든 시점 이후) 바뀌었는가 — 바뀌었으면 묻지 않고 새로 만든다. */
