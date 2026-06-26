@@ -952,6 +952,7 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 #mmViewport{position:relative;flex:1;min-height:360px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);touch-action:none;cursor:grab;background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:26px 26px}
 #mmViewport.panning{cursor:grabbing}
 #mmWorld{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
+#mmNodes{position:absolute;left:0;top:0;width:0;height:0}
 #mmEdges{position:absolute;left:-6000px;top:-6000px;overflow:visible;pointer-events:none}
 #mmEdges path{fill:none;stroke:var(--dim);stroke-width:2;opacity:.7}
 #mmEdges path.root{stroke:var(--accent);stroke-width:2.4}
@@ -1466,8 +1467,10 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
         <span class="mmHint" id="mmHint">노드 더블클릭=편집 · 끌기=이동 · 빈 곳 끌기=화면 이동</span>
       </div>
       <div id="mmViewport">
-        <svg id="mmEdges" width="12000" height="12000" viewBox="-6000 -6000 12000 12000"><g id="mmEdgesG"></g></svg>
-        <div id="mmWorld"></div>
+        <div id="mmWorld">
+          <svg id="mmEdges" width="12000" height="12000" viewBox="-6000 -6000 12000 12000"><g id="mmEdgesG"></g></svg>
+          <div id="mmNodes"></div>
+        </div>
         <div id="mmEmpty"></div>
       </div>
     </section>
@@ -4464,7 +4467,7 @@ function mmRenderEdges(){ var m = mmCur(); var g = document.getElementById('mmEd
   var NS = 'http://www.w3.org/2000/svg';
   m.nodes.forEach(function(n){ if (n.parent === null) return; var p = mmNodeById(n.parent); if (!p) return;
     var path = document.createElementNS(NS, 'path'); path.setAttribute('d', mmEdgePath(p, n)); if (p.parent === null) path.setAttribute('class', 'root'); g.appendChild(path); }); }
-function mmRenderAll(){ var m = mmCur(); var world = document.getElementById('mmWorld'); if (!m || !world) return;
+function mmRenderAll(){ var m = mmCur(); var world = document.getElementById('mmNodes'); if (!m || !world) return;
   world.innerHTML = m.nodes.map(function(n){ var cls = 'mmNode' + (n.parent === null ? ' root' : '') + (n.id === MM.sel ? ' sel' : '');
     return '<div class="' + cls + '" data-id="' + n.id + '" data-color="' + (n.color || 1) + '" style="left:' + n.x + 'px;top:' + n.y + 'px">' + esc(n.text || '') + '</div>'; }).join('');
   mmRenderEdges(); mmApplyTransform();
@@ -4519,18 +4522,7 @@ function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 �
   var drag = null, pointers = {};
   function pdist(){ var k = Object.keys(pointers); if (k.length < 2) return 0; var a = pointers[k[0]], b = pointers[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y); }
   function pcenter(){ var k = Object.keys(pointers); var a = pointers[k[0]], b = pointers[k[1]]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
-  vp.addEventListener('pointerdown', function(e){
-    var nodeEl = e.target.closest ? e.target.closest('.mmNode') : null;
-    if (nodeEl && nodeEl.classList.contains('editing')) return;
-    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
-    if (Object.keys(pointers).length === 2) { drag = { type: 'pinch', d0: pdist(), s0: MM.s }; return; }
-    if (nodeEl) { var id = nodeEl.dataset.id; mmSelect(id); var nn = mmNodeById(id);
-      drag = { type: 'node', id: id, moved: false, sx: e.clientX, sy: e.clientY, ox: nn.x, oy: nn.y, el: document.querySelector('#mmWorld .mmNode[data-id="' + id + '"]') };
-      if (drag.el) drag.el.classList.add('dragging'); }
-    else { drag = { type: 'pan', sx: e.clientX, sy: e.clientY, tx0: MM.tx, ty0: MM.ty, moved: false }; vp.classList.add('panning'); }
-    try { vp.setPointerCapture(e.pointerId); } catch (_) {}
-  });
-  vp.addEventListener('pointermove', function(e){
+  function onMove(e){
     if (pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
     if (!drag) return;
     if (drag.type === 'pinch') { var d = pdist(); if (drag.d0 > 0) { var c = pcenter(); mmSetZoom(c.x, c.y, drag.s0 * (d / drag.d0)); } return; }
@@ -4539,13 +4531,27 @@ function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 �
       var n = mmNodeById(drag.id); if (n) { n.x = drag.ox + dx; n.y = drag.oy + dy; if (drag.el) { drag.el.style.left = n.x + 'px'; drag.el.style.top = n.y + 'px'; } mmRenderEdges(); } }
     else if (drag.type === 'pan') { MM.tx = drag.tx0 + (e.clientX - drag.sx); MM.ty = drag.ty0 + (e.clientY - drag.sy);
       if (Math.abs(e.clientX - drag.sx) > 3 || Math.abs(e.clientY - drag.sy) > 3) drag.moved = true; mmApplyTransform(); }
-  });
-  function endPtr(e){ delete pointers[e.pointerId];
+  }
+  function onUp(e){ delete pointers[e.pointerId];
     if (drag) { if (drag.type === 'node') { if (drag.el) drag.el.classList.remove('dragging'); if (drag.moved) mmSave(); }
       else if (drag.type === 'pan') { vp.classList.remove('panning'); if (!drag.moved && MM.sel) { MM.sel = null; mmRenderAll(); } } }
-    if (Object.keys(pointers).length < 1) drag = null; else if (drag && drag.type === 'pinch') drag = null; }
-  vp.addEventListener('pointerup', endPtr);
-  vp.addEventListener('pointercancel', endPtr);
+    if (Object.keys(pointers).length === 0) { drag = null;
+      document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp); }
+    else if (drag && drag.type === 'pinch') drag = null;
+  }
+  vp.addEventListener('pointerdown', function(e){
+    var nodeEl = e.target.closest ? e.target.closest('.mmNode') : null;
+    if (nodeEl && nodeEl.classList.contains('editing')) return;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (Object.keys(pointers).length === 2) { drag = { type: 'pinch', d0: pdist(), s0: MM.s }; }
+    else if (nodeEl) { var id = nodeEl.dataset.id; mmSelect(id); var nn = mmNodeById(id);
+      drag = { type: 'node', id: id, moved: false, sx: e.clientX, sy: e.clientY, ox: nn.x, oy: nn.y, el: nodeEl }; nodeEl.classList.add('dragging'); }
+    else { drag = { type: 'pan', sx: e.clientX, sy: e.clientY, tx0: MM.tx, ty0: MM.ty, moved: false }; vp.classList.add('panning'); }
+    /* setPointerCapture는 click/dblclick 대상을 vp로 바꿔 더블클릭 편집을 깨뜨리므로 쓰지 않고, document에서 추적 */
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  });
   vp.addEventListener('dblclick', function(e){ var nodeEl = e.target.closest ? e.target.closest('.mmNode') : null;
     if (nodeEl) mmStartEdit(nodeEl.dataset.id); else { var w = mmToWorld(e.clientX, e.clientY); mmAddNode(w.x, w.y); } });
   vp.addEventListener('wheel', function(e){ e.preventDefault(); mmZoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 0.89); }, { passive: false });
@@ -13043,7 +13049,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v331';
+var APP_VER = 'v332';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
