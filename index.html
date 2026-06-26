@@ -896,8 +896,8 @@ body.focusMode #editorPane .edHeader,
 body.focusMode #editorPane .sumbox,
 body.focusMode #editorPane .structKit,
 body.focusMode #editorPane .edBlkAi{display:none!important}
-body.focusMode #page-compose.on{display:block;position:fixed;inset:0;z-index:600;background:var(--bg);overflow:auto;padding:0;gap:0;scrollbar-width:none;-ms-overflow-style:none;animation:fmIn .32s cubic-bezier(.22,.61,.36,1) both}
-body.focusMode.fmLeaving #page-compose.on{animation:fmOut .26s ease both}
+body.focusMode #page-compose.on{display:block;position:fixed;inset:0;z-index:600;background:var(--bg);overflow:auto;padding:0;gap:0;scrollbar-width:none;-ms-overflow-style:none;animation:fmIn .6s cubic-bezier(.22,.61,.36,1) both}
+body.focusMode.fmLeaving #page-compose.on{animation:fmOut .5s cubic-bezier(.4,0,.2,1) both}
 body.focusMode #page-compose.on::-webkit-scrollbar{width:0;height:0;display:none}
 @keyframes fmIn{from{opacity:0;transform:scale(1.018)}to{opacity:1;transform:none}}
 @keyframes fmOut{from{opacity:1;transform:none}to{opacity:0;transform:scale(1.012)}}
@@ -913,7 +913,7 @@ body.focusMode #editorPane .edLabel,
 body.focusMode #editorPane .edPointTitle{color:var(--dim);opacity:.45;font-weight:600;border:none!important;background:transparent!important}
 /* ── 가장자리 자동 숨김 미니 툴바 ── */
 #focusBar{display:none}
-body.focusMode #focusBar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;position:fixed;left:50%;bottom:14px;transform:translateX(-50%) translateY(16px);z-index:700;max-width:calc(100vw - 20px);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:5px 7px;box-shadow:0 8px 26px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+body.focusMode #focusBar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;position:fixed;left:50%;bottom:14px;transform:translateX(-50%) translateY(18px);z-index:700;max-width:calc(100vw - 20px);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:5px 7px;box-shadow:0 8px 26px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .5s cubic-bezier(.22,.61,.36,1),transform .5s cubic-bezier(.22,.61,.36,1)}
 body.focusMode.fmBarShow #focusBar{opacity:.97;pointer-events:auto;transform:translateX(-50%) translateY(0)}
 #focusBar button{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1;min-width:26px}
 #focusBar button:hover{border-color:var(--accent)}
@@ -925,7 +925,7 @@ body.focusMode.fmBarShow #focusBar{opacity:.97;pointer-events:auto;transform:tra
 #focusBar .fbChip:hover{border-color:var(--accent)}
 /* 도구를 부르는 아주 작은 손잡이 — 평소엔 옅은 점, 툴바 뜨면 사라짐 */
 #fmHandle{display:none}
-body.focusMode #fmHandle{display:block;position:fixed;left:50%;bottom:5px;transform:translateX(-50%);z-index:699;width:40px;height:5px;border-radius:3px;background:var(--line);opacity:.45;cursor:pointer;transition:opacity .2s}
+body.focusMode #fmHandle{display:block;position:fixed;left:50%;bottom:5px;transform:translateX(-50%);z-index:699;width:40px;height:5px;border-radius:3px;background:var(--line);opacity:.45;cursor:pointer;transition:opacity .45s ease}
 body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 @media (max-width:760px){
   body.focusMode #editorPane{padding:6vh 15px 18vh}
@@ -4010,8 +4010,10 @@ var FREE_PARSE_LEGEND =
 function renderEditor(){
   var c = state.compose;
   var html = '<div class="edHeader"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div>' +
-    '<button class="edFocusBtn" type="button" title="집중 모드 — 다른 화면을 숨기고 글쓰기에만 집중">' +
-    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>집중 모드</button></div>';
+    (c.style === '자유원고'
+      ? '<button class="edFocusBtn" type="button" title="집중 모드 — 다른 화면을 숨기고 글쓰기에만 집중 (자유원고 전용)">' +
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>집중 모드</button>'
+      : '') + '</div>';
   if (c.style === '자유원고') {
     html += '<div class="edFreeWrap">' +
       ta('free', 0, '', 4, '여기에 자유롭게 원고를 작성하세요. 워드로 내보낼 때는 기본원고 서식이 적용됩니다.', c.free, 'edFree') +
@@ -4247,21 +4249,28 @@ function fmShowBar(persist){
   if (!persist) _fmHideTimer = setTimeout(function(){ document.body.classList.remove('fmBarShow'); }, 2400);
 }
 function fmHideBarSoon(){ if (_fmHideTimer) clearTimeout(_fmHideTimer); _fmHideTimer = setTimeout(function(){ document.body.classList.remove('fmBarShow'); }, 1400); }
-document.addEventListener('mousemove', function(){ if (document.body.classList.contains('focusMode')) fmShowBar(false); });
+/* 마우스가 화면 '아래쪽 근처'에 올 때만 도구가 천천히 나타나고, 멀어지면 사라진다 */
+document.addEventListener('mousemove', function(e){
+  if (!document.body.classList.contains('focusMode')) return;
+  var nearBottom = e.clientY > (window.innerHeight - 150);
+  if (nearBottom) fmShowBar(true); else fmHideBarSoon();
+});
 document.addEventListener('mouseover', function(e){ if (e.target.closest && e.target.closest('#focusBar')) fmShowBar(true); });
 document.addEventListener('mouseout', function(e){ if (e.target.closest && e.target.closest('#focusBar')) fmHideBarSoon(); });
+/* 터치 기기: 하단 손잡이를 탭하면 도구가 나타난다(잠시 뒤 사라짐) */
 document.addEventListener('click', function(e){ if (e.target && e.target.id === 'fmHandle') fmShowBar(false); });
 /* ── 진입/종료 (부드러운 애니메이션) ── */
 var _fmLeaving = false;
 function enterFocusMode(){
+  if (!(state.compose && state.compose.style === '자유원고')) return;   /* 집중 모드는 자유원고 전용 */
   fmInjectChips();
   _fmLeaving = false; document.body.classList.remove('fmLeaving');
   document.body.classList.add('focusMode');
   var bar = document.getElementById('focusBar');
-  if (bar) bar.classList.toggle('free', !!(state.compose && state.compose.style === '자유원고'));
+  if (bar) bar.classList.add('free');
   fmRestorePrefs();
   fmRequestFull();
-  fmShowBar(false);   /* 진입 직후 도구를 잠깐 보여줬다가 사라지게 */
+  /* 진입 시엔 도구를 띄우지 않는다 — 마우스를 화면 아래로 가져가야 천천히 나타난다(하단 손잡이가 힌트). */
   setTimeout(function(){ var ta = fmActiveTa(); if (ta) { try { ta.focus({ preventScroll: true }); } catch (_) {} } }, 60);
 }
 function exitFocusMode(){
@@ -12786,7 +12795,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v326';
+var APP_VER = 'v327';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
