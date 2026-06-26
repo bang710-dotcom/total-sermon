@@ -10209,8 +10209,9 @@ function exportManuscriptDocx(meta){
    공백 정규화 후 길이+간이해시. 원고가 바뀌면 값이 달라진다.
    ★ GEN_RULES_VER: 생성 규칙(이미지 장수 상한 등)을 바꾸면 +1 → 저장된 전환표·카드·컷이 일괄 무효화돼
       다음 실행에서 새 규칙으로 다시 만들어진다. (현재 v2 = 표지 포함 15~25장 상한 적용)
-      r3 = 단일 전환표 결정론화(전환표 검증·카드/컷 전환표 정렬·본문컷 선행 일반 보장·Flux 안전 제약). */
-var GEN_RULES_VER = 'r3';
+      r3 = 단일 전환표 결정론화(전환표 검증·카드/컷 전환표 정렬·본문컷 선행 일반 보장·Flux 안전 제약).
+      r4 = 본문컷 봉독마다 1컷(절제 해제)·인용 절 전문 결정론적 치환·엔진맞춤(Flux/Gemini) 프롬프트·긍정형 안전문. */
+var GEN_RULES_VER = 'r4';
 function manuscriptSig(meta){
   var t = String((meta && meta['원고텍스트']) || '').replace(/\s+/g, ' ').trim();
   var h = 0; for (var i = 0; i < t.length; i++){ h = (h * 31 + t.charCodeAt(i)) | 0; }
@@ -11283,12 +11284,28 @@ async function saveImgDataArtifacts(id, meta, cuts){
   await saveBlobToResults(blob, nm.docx);
   if (id) { try { storeTransIfEmpty(id, cuts.filter(function(c){ return c.n !== 1; }).map(function(c){ return { n: c.n, t: c.type === '본문' ? '본문' : '일반', a: String(c.anchor || '').slice(0, 30) }; })); } catch (e) {} }
 }
+/* 일반/표지 배경 생성 — 엔진 맞춤 프롬프트로 시도하고, 실패(콘텐츠 필터 등) 시
+   단계적으로 더 안전·추상적인 폴백 프롬프트로 재시도한다. 성공 캔버스 또는 null 반환.
+   → 한 컷이 막혀도 번호가 비지 않게(7 다음 9 같은 누락 방지) 한다. */
+async function genBgWithRetry(c, engine){
+  var rt = engineRoute('background', engine);
+  var prompts = [ buildBgPrompt(c, engine) ].concat(safeFallbackPrompts(c));
+  for (var k = 0; k < prompts.length; k++){
+    if (window._cascAbort) throw new Error('__ABORT__');
+    try {
+      var r = await genSermonImage({ jobType: 'background', prompt: prompts[k], aspectRatio: '16:9', provider: rt.provider, model: rt.model });
+      if (r && r.b64) return { canvas: processGeneral(await loadImgEl(r.src)), fallback: k > 0 };
+    } catch (e) { /* 다음(더 안전한) 폴백 프롬프트로 */ }
+  }
+  return null;
+}
 /* 컷 배열로 실제 이미지 세트 생성: 일반/표지=선택 엔진(Flux 또는 Gemini) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생 성구 배경 */
 async function generateImageSetFromCuts(id, meta, cuts){
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   renumberCuts(cuts);   /* ★ 번호 #1=표지, #2부터 연속·고유(옛 사이드카 컷도 교정) */
   var fixedCover = hasFixedCover(meta);   /* 시리즈 고정 표지면 #1은 생성하지 않음(자산 표지 사용) */
-  var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [];
+  var eng = imgEngine();
+  var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [], warn = [];
   for (var i = 0; i < cuts.length; i++){
     if (window._cascAbort) { if (made) break; throw new Error('__ABORT__'); }   /* 사용자 중단 — 만든 것까지는 저장 */
     var c = cuts[i], isScr = (c.type === '본문');
@@ -11297,20 +11314,22 @@ async function generateImageSetFromCuts(id, meta, cuts){
     setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
     try {
       var blob;
-      /* 본문 컷은 직전 일반 이미지의 파생본. 단, 파생할 직전 이미지가 없으면(예: 고정표지로 #1 건너뜀)
-         건너뛰지 말고 일반 컷처럼 새로 생성한다 — 번호 누락(예: #2 빠지고 #3부터) 방지. */
+      /* 본문 컷은 직전 일반 이미지의 파생본. 파생할 직전 이미지가 없으면 일반 컷처럼 새로 생성. */
       if (isScr && lastCanvas){
         blob = await deriveScriptureBg(lastCanvas);   /* 직전 일반 이미지를 어둡게·흐리게 — 성구는 직접 얹음 */
       } else {
-        var p = (String(c.en || '').trim() ? c.en.trim() + ' ' : '') + LED_TAIL + ' ' + IMG_SAFETY;
-        var rtBg = engineRoute('background');
-        var res2 = await genSermonImage({ jobType: 'background', prompt: p, aspectRatio: '16:9', provider: rtBg.provider, model: rtBg.model });
-        if (!res2.b64) { fail.push('#' + c.n + '(URL응답)'); continue; }
-        lastCanvas = processGeneral(await loadImgEl(res2.src));
-        blob = await canvasToBlob(lastCanvas);
+        var got = await genBgWithRetry(c, eng);
+        if (got && got.canvas){ lastCanvas = got.canvas; blob = await canvasToBlob(got.canvas); if (got.fallback) warn.push('#' + c.n + '(안전 폴백 프롬프트로 생성)'); }
+        else if (lastCanvas){ blob = await deriveScriptureBg(lastCanvas); warn.push('#' + c.n + '(직전 이미지 파생으로 대체)'); }   /* 번호 누락 방지 */
+        else { fail.push('#' + c.n + '(생성 불가)'); continue; }   /* 첫 컷부터 전부 실패한 극단적 경우만 건너뜀 */
       }
       out.file(tag + '.png', blob); made++;
-    } catch (e2) { fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
+    } catch (e2) {
+      if ((e2 && e2.message) === '__ABORT__') { if (made) break; throw e2; }
+      /* 예외 시에도 가능하면 직전 이미지 파생으로 슬롯을 채워 번호 유지 */
+      try { if (lastCanvas) { out.file(tag + '.png', await deriveScriptureBg(lastCanvas)); made++; warn.push('#' + c.n + '(오류-직전 파생 대체)'); } else fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
+      catch (e3) { fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
+    }
   }
   if (!made) throw new Error('생성 실패: ' + (fail.join(', ') || '알 수 없음'));
   setGenStage('압축·저장 중… (' + made + '장)');
@@ -11319,8 +11338,9 @@ async function generateImageSetFromCuts(id, meta, cuts){
   await saveBlobToResults(blobZ, nm.backstagePrefix + '_' + made + '장.zip');
   hideGenOverlay(); renderSyncState();
   if (id) { aiMarkDone(id, '이미지생성', '앱 직접 생성(' + made + '장)'); try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '이미지생성', '상태': '완료', '링크': '', '비고': '앱 직접 생성(' + made + '장)' } }); } catch (e) {} }
-  toast('이미지 세트 저장 완료 — ' + made + '장' + (fail.length ? (' · 실패 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
-  if (fail.length) console.warn('이미지 생성 실패 컷:', fail);
+  toast('이미지 세트 저장 완료 — ' + made + '장' + (warn.length ? (' · 폴백 ' + warn.length) : '') + (fail.length ? (' · 누락 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
+  if (warn.length) console.warn('이미지 폴백 컷:', warn);
+  if (fail.length) console.warn('이미지 생성 누락 컷:', fail);
 }
 async function generateSermonImageSet(id, meta, opts){
   opts = opts || {};
@@ -12357,7 +12377,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v318';
+var APP_VER = 'v319';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
