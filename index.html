@@ -963,7 +963,8 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 .mmNode.dragging{cursor:grabbing;opacity:.92}
 .mmNode[data-color="2"]{border-color:var(--accent2)} .mmNode[data-color="2"].sel{box-shadow:0 0 0 3px rgba(224,182,92,.35)}
 .mmNode[data-color="3"]{border-color:#5fcf80} .mmNode[data-color="4"]{border-color:#e08c8c}
-#mmEmpty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:14px;text-align:center;pointer-events:none;padding:20px}
+#mmEmpty{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;color:var(--dim);font-size:12.5px;text-align:center;pointer-events:none;padding:0 16px}
+#mmEmpty:empty{display:none}
 </style>
 </head>
 <body>
@@ -4459,7 +4460,10 @@ function mmRenderSel(){ var sel = document.getElementById('mmMapSel'); if (!sel 
   sel.innerHTML = MM.data.maps.map(function(m){ return '<option value="' + m.id + '"' + (m.id === MM.curId ? ' selected' : '') + '>' + esc(m.name || '(이름없음)') + '</option>'; }).join(''); }
 function mmEdgePath(p, n){ var x1 = p.x, y1 = p.y, x2 = n.x, y2 = n.y, mx = (x1 + x2) / 2; return 'M' + x1 + ' ' + y1 + ' C ' + mx + ' ' + y1 + ' ' + mx + ' ' + y2 + ' ' + x2 + ' ' + y2; }
 function mmRenderEdges(){ var m = mmCur(); var g = document.getElementById('mmEdgesG'); if (!m || !g) return;
-  g.innerHTML = m.nodes.filter(function(n){ return n.parent !== null; }).map(function(n){ var p = mmNodeById(n.parent); if (!p) return ''; return '<path class="' + (p.parent === null ? 'root' : '') + '" d="' + mmEdgePath(p, n) + '"/>'; }).join(''); }
+  while (g.firstChild) g.removeChild(g.firstChild);   /* SVG는 innerHTML로 path를 못 만드는 환경이 있어 createElementNS 사용 */
+  var NS = 'http://www.w3.org/2000/svg';
+  m.nodes.forEach(function(n){ if (n.parent === null) return; var p = mmNodeById(n.parent); if (!p) return;
+    var path = document.createElementNS(NS, 'path'); path.setAttribute('d', mmEdgePath(p, n)); if (p.parent === null) path.setAttribute('class', 'root'); g.appendChild(path); }); }
 function mmRenderAll(){ var m = mmCur(); var world = document.getElementById('mmWorld'); if (!m || !world) return;
   world.innerHTML = m.nodes.map(function(n){ var cls = 'mmNode' + (n.parent === null ? ' root' : '') + (n.id === MM.sel ? ' sel' : '');
     return '<div class="' + cls + '" data-id="' + n.id + '" data-color="' + (n.color || 1) + '" style="left:' + n.x + 'px;top:' + n.y + 'px">' + esc(n.text || '') + '</div>'; }).join('');
@@ -4475,7 +4479,9 @@ function mmFit(){ var m = mmCur(); var r = mmVpRect(); var vw = r.width || 600, 
   var pad = 140, bw = (maxX - minX) + pad * 2, bh = (maxY - minY) + pad * 2;
   var s = Math.min(vw / bw, vh / bh, 1.4); s = Math.max(0.25, s); MM.s = s;
   var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2; MM.tx = vw / 2 - cx * s; MM.ty = vh / 2 - cy * s; mmApplyTransform(); }
-function mmSelect(id){ MM.sel = id; mmRenderAll(); }
+function mmSelect(id){ MM.sel = id; var world = document.getElementById('mmWorld'); if (!world) return;
+  /* 전체 재렌더 금지(요소 교체 시 더블클릭이 깨짐) — 선택 표시만 토글 */
+  var els = world.querySelectorAll('.mmNode'); for (var i = 0; i < els.length; i++) els[i].classList.toggle('sel', els[i].dataset.id === id); }
 function mmAddChild(parentId){ var m = mmCur(); if (!m) return; var p = mmNodeById(parentId) || mmNodeById(MM.sel) || m.nodes[0]; if (!p) return;
   var sibs = mmChildren(p.id).length; var n = { id: mmUid(), text: '아이디어', x: p.x + 200, y: p.y + sibs * 84, parent: p.id, color: p.parent === null ? 2 : (p.color || 1) };
   m.nodes.push(n); MM.sel = n.id; mmSave(); mmRenderAll(); mmStartEdit(n.id); }
@@ -13037,7 +13043,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v330';
+var APP_VER = 'v331';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
