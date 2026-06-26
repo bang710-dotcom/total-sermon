@@ -7389,7 +7389,7 @@ var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '�
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 / 리더스앱 업로드', '원고작성': '스킬사용 원고요청' };
 var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재<br>리더스앱 업로드', '원고작성': '스킬사용<br>원고요청' };
 /* 버튼별 산출물 최종 저장 위치(버튼 아래 캡션) */
-var REQ_PATH = { '원고작성': '작성창에 채움·저장 없음', '설교요약': '토탈 설교 시트', 'LTC교재': 'LTC 폴더 / 책 폴더', '리더스앱업로드': '리더스앱 통합시트', '카드원고': 'claude-exchange / 결과함', '이미지프롬프트': 'claude-exchange / 결과함', '이미지생성': 'claude-exchange / 결과함' };
+var REQ_PATH = { '원고작성': '작성창에 채움·초안 자동저장', '설교요약': '토탈 설교 시트', 'LTC교재': 'LTC 폴더 / 책 폴더', '리더스앱업로드': '리더스앱 통합시트', '카드원고': 'claude-exchange / 결과함', '이미지프롬프트': 'claude-exchange / 결과함', '이미지생성': 'claude-exchange / 결과함' };
 function bpathHtml(t){ return REQ_PATH[t] ? '<small class="bpath">' + REQ_PATH[t] + '</small>' : ''; }
 function doneTypes(sermonId){
   var set = {};
