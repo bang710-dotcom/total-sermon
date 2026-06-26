@@ -896,12 +896,19 @@ body.focusMode #editorPane .edHeader,
 body.focusMode #editorPane .sumbox,
 body.focusMode #editorPane .structKit,
 body.focusMode #editorPane .edBlkAi{display:none!important}
-body.focusMode #page-compose.on{display:block;position:fixed;inset:0;z-index:600;background:var(--bg);overflow:auto;padding:0;gap:0;scrollbar-width:none;-ms-overflow-style:none;animation:fmIn .6s cubic-bezier(.22,.61,.36,1) both}
-body.focusMode.fmLeaving #page-compose.on{animation:fmOut .5s cubic-bezier(.4,0,.2,1) both}
+body.focusMode #page-compose.on{display:block;position:fixed;inset:0;z-index:600;background:var(--bg);overflow:auto;padding:0;gap:0;scrollbar-width:none;-ms-overflow-style:none}
 body.focusMode #page-compose.on::-webkit-scrollbar{width:0;height:0;display:none}
-@keyframes fmIn{from{opacity:0;transform:scale(1.018)}to{opacity:1;transform:none}}
-@keyframes fmOut{from{opacity:1;transform:none}to{opacity:0;transform:scale(1.012)}}
-@media (prefers-reduced-motion:reduce){body.focusMode #page-compose.on,body.focusMode.fmLeaving #page-compose.on{animation-duration:.01ms}}
+/* PHASE 1 — 주변(사이드바·헤더·탭바·메타패널·에디터 헤더)만 천천히 사라지고/나타나며, 작성창은 제자리.
+   작성창이 가운데로/원래대로 이동하는 건 JS FLIP(transform)로 처리한다. */
+.sidebar,header.mobile,.tabbar,#composeMeta,#aiFab,#tabAi,#editorPane .edHeader{transition:opacity .5s ease}
+body.fmPhase1 .sidebar,
+body.fmPhase1 header.mobile,
+body.fmPhase1 .tabbar,
+body.fmPhase1 #composeMeta,
+body.fmPhase1 #aiFab,
+body.fmPhase1 #tabAi,
+body.fmPhase1 #editorPane .edHeader{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.sidebar,header.mobile,.tabbar,#composeMeta,#aiFab,#tabAi,#editorPane .edHeader{transition-duration:.01ms}}
 body.focusMode #editorPane{max-width:760px;margin:0 auto;padding:8vh 26px 16vh;min-height:100vh;box-sizing:border-box}
 /* 텍스트 칸: 선 없이 투명, 포커스해도 테두리 없음, 스크롤바 없음 */
 body.focusMode #editorPane .edTa,
@@ -4267,31 +4274,74 @@ document.addEventListener('mouseout', function(e){ if (e.target.closest && e.tar
 document.addEventListener('click', function(e){ if (e.target && e.target.id === 'fmHandle') fmShowBar(false); });
 /* ── 진입/종료 (부드러운 애니메이션) ── */
 var _fmLeaving = false;
+function fmPrefersReduced(){ try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+/* FLIP — el을 firstRect(직전 위치)에서 현재(레이아웃 변경 후) 위치로 매끄럽게 슬라이드 */
+function fmFlip(el, firstRect){
+  if (!el || !firstRect) return;
+  var last = el.getBoundingClientRect();
+  var dx = firstRect.left - last.left, dy = firstRect.top - last.top;
+  if (fmPrefersReduced() || (Math.abs(dx) < 1 && Math.abs(dy) < 1)) return;
+  el.style.transformOrigin = 'top left';
+  el.style.transition = 'none';
+  el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  void el.offsetWidth;   /* 리플로우 강제 — 시작 위치 확정 */
+  requestAnimationFrame(function(){
+    el.style.transition = 'transform .58s cubic-bezier(.22,.61,.36,1)';
+    el.style.transform = 'none';
+  });
+  var clear = function(){ el.style.transition = ''; el.style.transform = ''; el.style.transformOrigin = ''; el.removeEventListener('transitionend', clear); };
+  el.addEventListener('transitionend', clear);
+  setTimeout(clear, 760);
+}
+/* 전체화면을 요청하고, 전환이 정착되면(또는 거부/미발화 시 폴백) cb 실행 */
+function fmAfterFsChange(action, cb){
+  var done = false;
+  var on = function(){ if (done) return; done = true;
+    document.removeEventListener('fullscreenchange', on); document.removeEventListener('webkitfullscreenchange', on);
+    requestAnimationFrame(cb); };
+  document.addEventListener('fullscreenchange', on);
+  document.addEventListener('webkitfullscreenchange', on);
+  action();
+  setTimeout(function(){ if (!done){ done = true;
+    document.removeEventListener('fullscreenchange', on); document.removeEventListener('webkitfullscreenchange', on);
+    cb(); } }, 440);
+}
 function enterFocusMode(){
   if (!(state.compose && state.compose.style === '자유원고')) return;   /* 집중 모드는 자유원고 전용 */
+  if (document.body.classList.contains('focusMode') || document.body.classList.contains('fmPhase1')) return;
   fmInjectChips();
-  _fmLeaving = false; document.body.classList.remove('fmLeaving');
-  document.body.classList.add('focusMode');
-  var bar = document.getElementById('focusBar');
-  if (bar) bar.classList.add('free');
-  fmRestorePrefs();
-  fmRequestFull();
-  /* 진입 시엔 도구를 띄우지 않는다 — 마우스를 화면 아래로 가져가야 천천히 나타난다(하단 손잡이가 힌트). */
-  setTimeout(function(){ var ta = fmActiveTa(); if (ta) { try { ta.focus({ preventScroll: true }); } catch (_) {} } }, 60);
+  _fmLeaving = false;
+  var ed = document.getElementById('editorPane');
+  /* PHASE 1 — 주변만 천천히 사라짐(작성창 제자리) */
+  document.body.classList.add('fmPhase1');
+  setTimeout(function(){
+    /* PHASE 2 — 전체화면 전환 후, 작성창을 가운데로 FLIP 슬라이드 */
+    fmAfterFsChange(fmRequestFull, function(){
+      var first = ed ? ed.getBoundingClientRect() : null;     /* 그리드(우측) 위치 */
+      document.body.classList.add('focusMode');
+      document.body.classList.remove('fmPhase1');
+      var bar = document.getElementById('focusBar'); if (bar) bar.classList.add('free');
+      fmRestorePrefs();
+      fmFlip(ed, first);                                       /* 우측 → 가운데 */
+      setTimeout(function(){ var ta = fmActiveTa(); if (ta) { try { ta.focus({ preventScroll: true }); } catch (_) {} } }, 80);
+    });
+  }, 480);
 }
 function exitFocusMode(){
   if (!document.body.classList.contains('focusMode') || _fmLeaving) return;
   _fmLeaving = true;
   document.body.classList.remove('fmBarShow');
-  document.body.classList.add('fmLeaving');   /* fmOut 애니메이션 재생 */
-  fmExitFull();
-  var pg = document.getElementById('page-compose');
-  var done = function(){
-    document.body.classList.remove('focusMode'); document.body.classList.remove('fmLeaving');
-    _fmLeaving = false;
-    if (pg) pg.removeEventListener('animationend', done);
+  var ed = document.getElementById('editorPane');
+  /* PHASE 3 — 역순: 전체화면 해제 → 작성창이 원래 자리로 슬라이드 → 주변이 다시 나타남 */
+  var doReverse = function(){
+    var first = ed ? ed.getBoundingClientRect() : null;       /* 가운데(현재) 위치 */
+    document.body.classList.remove('focusMode');
+    document.body.classList.add('fmPhase1');                  /* 그리드 복귀(주변은 아직 투명) */
+    fmFlip(ed, first);                                        /* 가운데 → 원래 자리 */
+    setTimeout(function(){ document.body.classList.remove('fmPhase1'); _fmLeaving = false; }, 600);
   };
-  if (pg) { pg.addEventListener('animationend', done); setTimeout(done, 420); } else done();
+  if (document.fullscreenElement || document.webkitFullscreenElement) fmAfterFsChange(fmExitFull, doReverse);
+  else doReverse();
 }
 window.enterFocusMode = enterFocusMode; window.exitFocusMode = exitFocusMode;
 /* 에디터 헤더 [집중 모드] 진입 버튼 */
@@ -12801,7 +12851,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v328';
+var APP_VER = 'v329';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
