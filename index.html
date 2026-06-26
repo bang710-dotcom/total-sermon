@@ -5906,7 +5906,7 @@ async function ensureCardArr(id, meta){
   var s = id ? findSermon(id) : null;
   var stored = null, storedSig = null;
   if (s) { try { var fm = JSON.parse(s['파일맵'] || '{}') || {}; stored = fm.cardArr; storedSig = fm.cardSig; } catch (e) {} }
-  if (stored && stored.length && storedSig && storedSig === sig) return renumberCardTransBars(stored);   /* 같은 원고 → 저장본 재사용(번호 교정) */
+  if (!window._cascForce && stored && stored.length && storedSig && storedSig === sig) return renumberCardTransBars(stored);   /* 같은 원고 → 저장본 재사용(번호 교정). [다시 생성]이면 건너뜀 */
   if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) return (stored && stored.length) ? renumberCardTransBars(stored) : null;
   _cardRegen = true;
   var prevTrans = await ensureTransTable(id, meta);   /* 단일 소스 전환표 — 카드·컷·전환표시본 공통 */
@@ -7512,7 +7512,8 @@ async function ensureTransTable(id, meta){
   var stored = id ? sermonTrans(id) : null;
   var storedSig = null;
   if (s) { try { storedSig = (JSON.parse(s['파일맵'] || '{}') || {}).transSig; } catch (e) {} }
-  if (stored && stored.length && storedSig && storedSig === sig) return normalizeTransTable(stored);   /* 같은 원고 → 재사용(번호 정규화) */
+  var force = !!(window._cascForce && !window._cascTableFresh);   /* [다시 생성] — 이번 실행 첫 호출에서 한 번만 새로, 이후 같은 표 재사용 */
+  if (!force && stored && stored.length && storedSig && storedSig === sig) return normalizeTransTable(stored);   /* 같은 원고 → 재사용(번호 정규화) */
   if (!txt) return stored ? normalizeTransTable(stored) : null;   /* 원고 없으면 계획 불가 — 기존 것 반환 */
   _transRegen = true;   /* 여기부터는 새로 생성(원고가 바뀌었거나 최초) */
   var out = await callClaude(P_TRANSPLAN, JSON.stringify({ 제목: meta['제목'], 본문: meta['본문'], 예배구분: meta['예배구분'], 원고: txt }), 16000, aiTick('이미지 전환표'));
@@ -7527,6 +7528,7 @@ async function ensureTransTable(id, meta){
     } catch (e) {}
   }
   table = normalizeTransTable(table);   /* ★ 번호 결정론화: #2부터 연속·고유(본문컷 번호 중복 차단) */
+  window._cascTableFresh = true;   /* 이번 실행에서 표를 새로 만듦 — 같은 실행의 카드·컷은 이 표를 재사용 */
   if (table.length && id) {
     setSermonFileMap(id, 'trans', table); setSermonFileMap(id, 'transSig', sig);
     /* 기본원고에 묶인 전환표 JSON 동봉(투명성·백업) */
@@ -10133,7 +10135,7 @@ async function saveCutsSidecar(id, meta, cuts){
   if (id) { try { storeTransIfEmpty(id, cuts.filter(function(c){ return c.n !== 1; }).map(function(c){ return { n: c.n, t: c.type === '본문' ? '본문' : '일반', a: String(c.anchor || '').slice(0, 30) }; })); } catch (e) {} }
 }
 async function ensureCuts(id, meta){
-  var raw = await loadCutsSidecarRaw(meta);
+  var raw = window._cascForce ? null : await loadCutsSidecarRaw(meta);   /* [다시 생성]이면 사이드카 무시하고 새로 만든다 */
   if (raw && raw.cuts && raw.cuts.length) {
     /* 전환표가 만들어진 뒤 원고가 바뀌었으면 재생성 여부 확인 (origSig가 있는 경우에만 비교 — 구버전 사이드카는 그냥 사용) */
     if (raw.origSig && raw.origSig !== manuscriptSig(meta)) {
@@ -10233,6 +10235,7 @@ async function refreshCascBtns(id){
 async function runCascade(target, id, meta){
   if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
   if (target !== 'docx' && !canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+  window._cascForce = false; window._cascTableFresh = false;   /* 강제 전체 재생성 플래그 초기화 */
   /* 이미 만든 적 있고 원고가 그대로면 — 다시 만들지 묻는다(결과물 보기 / 다시 생성하기 / 닫기).
      원고가 바뀌었으면 묻지 않고 새로 만든다. */
   if (id && !manuscriptChanged(id, meta)) {
@@ -10241,6 +10244,7 @@ async function runCascade(target, id, meta){
       var choice = await askCascRegen();
       if (choice === 'view') { showPage('outputs'); return; }
       if (choice !== 'regen') return;   /* 닫기/바깥클릭 → 아무것도 안 함 */
+      window._cascForce = true;   /* ★ [다시 생성하기] = 전부 처음부터 새로(캐시 무시, 전환표·카드·컷 재생성) */
     }
   }
   if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
@@ -10292,7 +10296,7 @@ async function runCascade(target, id, meta){
     if ((e && e.message) === '__ABORT__') { toast('생성을 중단했습니다 — 만들던 단계까지만 저장됩니다.'); var cna = $('#cascNow'); if (cna) cna.textContent = '⏹ 중단되었습니다.'; await new Promise(function(r){ setTimeout(r, 1500); }); }
     else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
   }
-  finally { cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
+  finally { window._cascForce = false; window._cascTableFresh = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
   b.addEventListener('click', function(){
