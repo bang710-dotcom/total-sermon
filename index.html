@@ -5883,14 +5883,27 @@ function buildCardDocx(D, meta, items){
    카드 블록 배열을 원고서명(manuscriptSig)에 묶어 파일맵에 영구 저장한다(전환표와 동일 패턴).
    같은 원고면 저장본 재사용, 원고가 바뀌면 새로 집필해 저장. → DOCX·PDF는 항상 이 한 소스에서 파생. */
 var _cardRegen = false;
+/* ★ 카드원고 빨간 전환 바 번호 결정론화: 배열 순서대로 #2,#3,#4… 고유·연속(본문 바도 자기 번호).
+   LLM이 본문 바에 직전 번호를 재사용하는 버그를 코드에서 차단한다(종류=본문/일반은 LLM 판단 유지, 번호만 교정). */
+function renumberCardTransBars(arr){
+  if (!Array.isArray(arr)) return arr;
+  var n = 2;
+  arr.forEach(function(it){
+    if (!it || it.t !== 'trans') return;
+    var isBody = /본문/.test(String(it.x || ''));
+    it.x = isBody ? ('▶ 본문 이미지 #' + n + ' 전환 ◀') : ('▶ 이미지 #' + n + ' 전환 ◀');
+    n++;
+  });
+  return arr;
+}
 async function ensureCardArr(id, meta){
   _cardRegen = false;
   var sig = manuscriptSig(meta);
   var s = id ? findSermon(id) : null;
   var stored = null, storedSig = null;
   if (s) { try { var fm = JSON.parse(s['파일맵'] || '{}') || {}; stored = fm.cardArr; storedSig = fm.cardSig; } catch (e) {} }
-  if (stored && stored.length && storedSig && storedSig === sig) return stored;   /* 같은 원고 → 저장본 재사용 */
-  if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) return (stored && stored.length) ? stored : null;
+  if (stored && stored.length && storedSig && storedSig === sig) return renumberCardTransBars(stored);   /* 같은 원고 → 저장본 재사용(번호 교정) */
+  if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) return (stored && stored.length) ? renumberCardTransBars(stored) : null;
   _cardRegen = true;
   var prevTrans = await ensureTransTable(id, meta);   /* 단일 소스 전환표 — 카드·컷·전환표시본 공통 */
   var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'],
@@ -5898,7 +5911,8 @@ async function ensureCardArr(id, meta){
   if (prevTrans) inp['기존전환표'] = prevTrans;
   var out = await callClaude(P_CARD, JSON.stringify(inp), 32000, aiTick('카드원고'));
   var arr = aiJson(out);
-  if (!Array.isArray(arr) || !arr.length) return (stored && stored.length) ? stored : null;
+  if (!Array.isArray(arr) || !arr.length) return (stored && stored.length) ? renumberCardTransBars(stored) : null;
+  renumberCardTransBars(arr);   /* ★ 전환 바 번호 #2부터 연속·고유로 교정 */
   if (id) { setSermonFileMap(id, 'cardArr', arr); setSermonFileMap(id, 'cardSig', sig); }
   return arr;
 }
@@ -6335,13 +6349,37 @@ var P_IMGDATA = [
   'role=한국어 역할(예: "서론 — …", "1대지 선언 — …", "본문 — 요 7:17"). ko=한국어 설명 1~2문장. anchor=그 전환이 들어갈 위치(원고에서 전환 직후 단락/인용 첫 30자 그대로).',
   '원고 내용에 충실하라. 컷 수는 표지 포함 15~25장(기존전환표가 있으면 그 개수·번호·지점을 그대로 따른다).'
 ].join('\n');
+/* ★ 컷 번호 결정론화: 표지(또는 첫 컷)=#1, 나머지는 배열 순서대로 #2,#3,#4… 고유·연속.
+   본문 컷도 직전 일반과 같은 번호를 쓰지 않고 자기 고유 번호를 받는다(중복 차단). */
+function renumberCuts(cuts){
+  if (!Array.isArray(cuts)) return cuts;
+  var n = 2, sawCover = false;
+  cuts.forEach(function(c, i){
+    if (!c) return;
+    if (!sawCover && (c.type === '표지' || c.n === 1 || i === 0)) { c.n = 1; sawCover = true; }
+    else c.n = n++;
+  });
+  return cuts;
+}
+/* ── 시리즈 고정 표지: 아래 시리즈/본문은 외부 표지 자산을 #1로 쓴다.
+   → 표지(#1)는 앱이 생성하지 않고 #2부터 생성한다(01.png 자리는 자산 표지를 직접 넣음). ── */
+var FIXED_COVER_SERIES = ['요한복음'];
+function hasFixedCover(meta){
+  if (!meta) return false;
+  var series = String(meta['시리즈'] || '');
+  var ref = String(meta['본문'] || '').trim();
+  if (FIXED_COVER_SERIES.some(function(name){ return name && series.indexOf(name) >= 0; })) return true;
+  if (/^요한복음/.test(ref) || /^요\s*\d/.test(ref)) return true;   /* 본문이 요한복음(약어 "요") */
+  return false;
+}
 async function aiImgData(meta){
   var prevTrans = await ensureTransTable(meta['ID'], meta);
   var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'], '날짜': meta['날짜'], '원고': meta['원고텍스트'] };
   if (prevTrans) inp['기존전환표'] = prevTrans;
   var out = await callClaude(P_IMGDATA, JSON.stringify(inp), 32000, aiTick('이미지자료(프롬프트)'));
   var j = aiJson(out);
-  return (j && Array.isArray(j.cuts)) ? j.cuts : (Array.isArray(j) ? j : []);
+  var cuts = (j && Array.isArray(j.cuts)) ? j.cuts : (Array.isArray(j) ? j : []);
+  return renumberCuts(cuts);   /* ★ 번호 #1=표지, #2부터 연속·고유로 교정 */
 }
 function buildImgDataDocx(D, meta, cuts){
   var FONT = { ascii: '함초롬바탕', eastAsia: '함초롬바탕', hAnsi: '함초롬바탕' };
@@ -6355,6 +6393,7 @@ function buildImgDataDocx(D, meta, cuts){
   ch.push(P((meta['날짜'] || '') + ' · 영락교회 대학부', { size: 24, color: '555555' }, 120));
   ch.push(P('■ 이미지 구성 안내', { bold: true, size: 24 }));
   ch.push(P('· 총 ' + cuts.length + '장 = 표지 1장 + 전환 ' + (cuts.length - 1) + '장', { size: 22 }));
+  if (hasFixedCover(meta)) ch.push(P('· ※ 시리즈 고정 표지 — 표지(#1)는 앱이 생성하지 않습니다. 시리즈 표지 자산을 01.png로 직접 넣으세요(생성 이미지는 #2부터).', { size: 22, color: '215E99' }));
   ch.push(P('· 일반 이미지 ' + (gen.length - 1) + '장: ' + gen.filter(function(c){ return c.n !== 1; }).map(function(c){ return '#' + c.n; }).join(' '), { size: 22 }));
   ch.push(P('· 본문 이미지 ' + scr.length + '장: ' + scr.map(function(c){ return '#' + c.n; }).join(' ') + ' — 새로 생성하지 않고 직전 일반 이미지의 파생본(채도↓·밝기↓·블러)', { size: 22 }));
   ch.push(P('· LED 처리 공통: 좌우 완전 페이드 + 네 모서리 비네트 + 중앙 집중, 깊은 검정 배경, 16:9.', { size: 22 }, 160));
@@ -11089,10 +11128,13 @@ async function saveImgDataArtifacts(id, meta, cuts){
 /* 컷 배열로 실제 이미지 세트 생성: 일반/표지=선택 엔진(Flux 또는 Gemini) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생 성구 배경 */
 async function generateImageSetFromCuts(id, meta, cuts){
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  renumberCuts(cuts);   /* ★ 번호 #1=표지, #2부터 연속·고유(옛 사이드카 컷도 교정) */
+  var fixedCover = hasFixedCover(meta);   /* 시리즈 고정 표지면 #1은 생성하지 않음(자산 표지 사용) */
   var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [];
   for (var i = 0; i < cuts.length; i++){
     if (window._cascAbort) { if (made) break; throw new Error('__ABORT__'); }   /* 사용자 중단 — 만든 것까지는 저장 */
     var c = cuts[i], isScr = (c.type === '본문');
+    if (fixedCover && (c.n === 1 || c.type === '표지')) continue;   /* ★ 시리즈 고정 표지 — 표지(#1) 생성 건너뜀(자산 01.png를 직접 넣음) */
     var tag = ('0' + c.n).slice(-2);   /* 이미지 번호만 — 파인더 정렬·혼동 방지 */
     setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
     try {
@@ -12146,7 +12188,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v305';
+var APP_VER = 'v306';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
