@@ -312,7 +312,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #cascOverlay .cascNow{font-size:17px;font-weight:800;color:#fff;min-height:1.4em;line-height:1.4}
 #cascOverlay .cascCnt{font-size:13px;color:var(--dim);min-height:1.2em;margin-top:3px}
 #cascOverlay .cascHint{font-size:12px;color:var(--dim);margin-top:12px}
-.btn[data-casc].casc-done .blab::after{content:'●';color:#2e9d68;font-size:11px;margin-left:6px}
+.btn[data-casc]{position:relative}
+.btn[data-casc] .blab{white-space:nowrap}
+.btn[data-casc].casc-done::after{content:'●';color:#2e9d68;font-size:11px;position:absolute;top:7px;right:9px;pointer-events:none}
 /* ── 시트 재동기화 중 흐림 처리 ── */
 .page{transition:opacity .32s ease}
 .page.stale{opacity:.38;pointer-events:none}
@@ -12296,7 +12298,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v316';
+var APP_VER = 'v317';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
