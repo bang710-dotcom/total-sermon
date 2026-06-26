@@ -2222,7 +2222,8 @@ function openDetail(kind, id){
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
     if (state.settings && (state.settings.vidProxyUrl || state.settings.proxyUrl))   /* 프록시(이미지/영상) 설정 시 노출 */
       html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
-    html += '<div class="toolrow"><button class="btn sub mini" onclick="shareSermon(\'' + esc(s['ID']) + '\')">↗ 공유 (카카오·메시지)</button></div>';
+    html += '<div class="toolrow"><button class="btn sub mini" onclick="shareSermon(\'' + esc(s['ID']) + '\')">↗ 공유 (카카오·메시지)</button>'
+      + '<button class="btn sub mini" onclick="shareSermonCards(\'' + esc(s['ID']) + '\')">🖼 카드뉴스 공유 (5장)</button></div>';
     html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
     var txt = stripStructText(String(s['원고텍스트'] || ''));
     var hasSum = !!String(s['요약본'] || '').trim();
@@ -5651,6 +5652,163 @@ function shareSermon(id){
   shareContent({ title: s['제목'] || '설교', text: parts.join('\n') });
 }
 window.shareSermon = shareSermon;
+
+/* ── 카드뉴스 공유 (요약본 → 검은 배경 5장 PNG → 카카오·메시지) ─────────────
+   요약본 텍스트를 Opus가 카드용 카피로 다시 다듬어 5컷 JSON으로 만들고,
+   화면 밖에 숨긴 세로 카드(1080x1350) DOM을 html2canvas로 PNG 5장으로 떠서
+   navigator.share로 낱장째 공유한다(다중 파일 미지원 기기는 세로 합본 1장 폴백). */
+var P_CARDNEWS = [
+'당신은 영락교회 대학부 담임 설교자의 설교 요약을 SNS 카드뉴스 카피로 재구성하는 편집자다.',
+'입력(설교 제목·본문·핵심메시지·요약본)을 받아, 카카오톡으로 회중에게 공유할 "5장짜리 카드뉴스"의 글을 만든다.',
+'',
+'■ 출력은 오직 JSON 하나. 코드블록·설명·머리말 금지. 형태:',
+'{"cards":[',
+'  {"type":"cover","label":"<예배 구분, 예: 주일 대학부 설교>","title":"<설교 제목 — **강조**로 한두 단어 감쌀 수 있음>","ref":"<본문, 예: 마가복음 12:38-44>"},',
+'  {"type":"body","kicker":"<짧은 라벨 6자 이내>","lines":["<짧은 문장>","..."]},',
+'  {"type":"body","kicker":"...","lines":["..."]},',
+'  {"type":"body","kicker":"...","lines":["..."]},',
+'  {"type":"closing","kicker":"오늘, 우리에게","lines":["..."],"cta":"<오늘 안에 실행할 한 줄 결단>"}',
+']}',
+'',
+'■ 규칙',
+'- 카드는 정확히 5장. 1번=cover, 5번=closing, 가운데 3장=body.',
+'- body/closing의 lines는 카드당 2~4줄, 각 줄은 한 호흡(권장 22자 이내, 최대 30자). 길면 줄을 나눠라.',
+'- 흐름: ②들어가며(오늘의 정서·후크) ③핵심 메시지(본문이 말하는 한 가지) ④본문 속 근거·장면 ⑤적용·결단. 요약본의 [서론]·[대지]·[결론·적용] 구조를 살려라.',
+'- 구어체 후크를 살리되 설교를 베끼지 말고 카드뉴스답게 짧고 선명하게 압축한다. "~잖아요","~거예요" 같은 결어를 자연스럽게.',
+'- 각 카드에서 가장 중요한 한 구절은 **강조**(별표 2개)로 감싼다(카드당 1개 정도, 과용 금지).',
+'- cta는 추상적 다짐이 아니라 오늘 실제로 할 수 있는 구체 행동 한 줄.',
+'- 본문 인용 절은 정확히. 지어내지 말 것.'
+].join('\n');
+async function aiCardNews(s){
+  var inp = { '제목': s['제목'] || '', '본문': s['본문'] || '', '예배구분': s['예배구분'] || '대학부',
+    '핵심메시지': s['핵심메시지'] || '', '요약본': String(s['요약본'] || '').trim() };
+  var out = await callClaude(P_CARDNEWS, JSON.stringify(inp), 4000, aiTick('카드뉴스'));
+  var deck = aiJson(out);
+  if (!deck || !deck.cards || !deck.cards.length) throw new Error('카드뉴스 데이터를 만들지 못했습니다.');
+  return deck;
+}
+var CARDNEWS_CSS = ".cn-card{width:1080px;height:1350px;position:relative;overflow:hidden;background:#0B0B0D;font-family:'Gothic A1',sans-serif;color:#fff}"
+ + ".cn-card .pad{position:absolute;inset:0;padding:96px 92px;display:flex;flex-direction:column}"
+ + ".cn-card .ln{display:block;word-break:keep-all;line-break:strict}"
+ + ".cn-card b{color:#4ED4B0;font-weight:800}"
+ + ".cn-card .kick{color:#4ED4B0;font-weight:800;font-size:34px;letter-spacing:.22em}"
+ + ".cn-card .body-lines{margin-top:64px;display:flex;flex-direction:column;gap:34px}"
+ + ".cn-card .body-lines .ln{font-family:'Jua';font-size:74px;line-height:1.34;color:#F4F4F6}"
+ + ".cn-card.dense .body-lines .ln{font-size:60px;line-height:1.32}.cn-card.dense .body-lines{gap:28px}"
+ + ".cn-card .pageno{margin-top:auto;color:#6B6B78;font-size:30px;font-weight:700;letter-spacing:.1em}"
+ + ".cn-card .barwrap{display:flex;gap:12px;margin-top:24px}"
+ + ".cn-card .bar{height:7px;flex:1;border-radius:4px;background:#26262E}.cn-card .bar.on{background:#4ED4B0}"
+ + ".cn-card.cover .label{color:#4ED4B0;font-weight:800;font-size:36px;letter-spacing:.3em;margin-top:120px}"
+ + ".cn-card.cover .title{font-family:'Jua';font-size:108px;line-height:1.22;margin-top:44px;color:#fff}"
+ + ".cn-card.cover .ref{color:#9A9AB8;font-size:46px;font-weight:600;margin-top:54px}"
+ + ".cn-card.cover .brand{margin-top:auto;color:#6B6B78;font-size:32px;font-weight:600}"
+ + ".cn-card.cover .swipe{color:#4ED4B0;font-size:30px;font-weight:700;margin-top:20px}"
+ + ".cn-card.closing .cta{margin-top:48px;background:#13251F;border:2px solid #2AA78E;border-radius:28px;padding:46px 50px}"
+ + ".cn-card.closing .cta .ctt{color:#4ED4B0;font-weight:800;font-size:30px;letter-spacing:.18em}"
+ + ".cn-card.closing .cta .ctx{font-family:'Jua';color:#fff;font-size:62px;line-height:1.32;margin-top:18px}";
+function cnInline(t){
+  return esc(String(t || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+}
+function cnLines(arr){
+  return (arr || []).map(function(s){ return '<span class="ln">' + cnInline(s) + '</span>'; }).join('');
+}
+function cnBars(idx, total){
+  var h = '';
+  for (var i = 0; i < total; i++) h += '<span class="bar' + (i <= idx ? ' on' : '') + '"></span>';
+  return '<div class="barwrap">' + h + '</div>';
+}
+function renderCardNewsHtml(deck){
+  var cards = deck.cards || [], total = cards.length, html = '';
+  cards.forEach(function(c, i){
+    var page = '<div class="pageno">' + (i + 1) + ' / ' + total + '</div>' + cnBars(i, total);
+    if (c.type === 'cover'){
+      html += '<div class="cn-card cover"><div class="pad">'
+        + '<div class="label">' + esc(c.label || '설교') + '</div>'
+        + '<div class="title">' + cnInline(c.title || '') + '</div>'
+        + (c.ref ? '<div class="ref">' + esc(c.ref) + '</div>' : '')
+        + '<div class="brand">' + esc(CARD_FOOTER) + '</div>'
+        + '<div class="swipe">밀어서 보기 →</div></div></div>';
+    } else if (c.type === 'closing'){
+      var nL = (c.lines || []).length;
+      html += '<div class="cn-card closing' + (nL >= 4 ? ' dense' : '') + '"><div class="pad">'
+        + '<div class="kick">' + esc(c.kicker || '오늘, 우리에게') + '</div>'
+        + '<div class="body-lines">' + cnLines(c.lines) + '</div>'
+        + (c.cta ? '<div class="cta"><div class="ctt">한 걸음</div><div class="ctx">' + cnInline(c.cta) + '</div></div>' : '')
+        + page + '</div></div>';
+    } else {
+      var n = (c.lines || []).length;
+      html += '<div class="cn-card body' + (n >= 4 ? ' dense' : '') + '"><div class="pad">'
+        + '<div class="kick">' + esc(c.kicker || '') + '</div>'
+        + '<div class="body-lines">' + cnLines(c.lines) + '</div>'
+        + page + '</div></div>';
+    }
+  });
+  return html;
+}
+async function buildCardNewsCanvases(deck){
+  await loadPdfLibs(); ensureCardFonts();
+  try { await document.fonts.load("90px 'Jua'"); await document.fonts.load("40px 'Gothic A1'"); await document.fonts.ready; } catch (e) {}
+  var host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-99999px;top:0;width:1080px';
+  host.innerHTML = '<style>' + CARDNEWS_CSS + '</style>' + renderCardNewsHtml(deck);
+  document.body.appendChild(host);
+  try {
+    var nodes = host.querySelectorAll('.cn-card'), out = [];
+    for (var i = 0; i < nodes.length; i++){
+      setGenStage('카드뉴스 — 이미지로 만드는 중 (' + (i + 1) + '/' + nodes.length + ')');
+      out.push(await window.html2canvas(nodes[i], { scale: 1, backgroundColor: '#0B0B0D', logging: false, width: 1080, height: 1350 }));
+    }
+    return out;
+  } finally { document.body.removeChild(host); }
+}
+function canvasToPngBlob(cv){ return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, 'image/png'); }); }
+/* 다중 파일 공유 미지원 기기용: 카드들을 세로로 이어붙인 합본 1장 */
+function stackCanvases(list){
+  var w = list[0].width, h = 0, i;
+  for (i = 0; i < list.length; i++) h += list[i].height;
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  var ctx = cv.getContext('2d'); ctx.fillStyle = '#0B0B0D'; ctx.fillRect(0, 0, w, h);
+  var y = 0;
+  for (i = 0; i < list.length; i++){ ctx.drawImage(list[i], 0, y); y += list[i].height; }
+  return cv;
+}
+async function shareSermonCards(id){
+  var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
+  if (!String(s['요약본'] || '').trim()) { toast('먼저 요약본을 만들어 주세요.'); return; }
+  try {
+    var deck = await aiCardNews(s);
+    if (deck && deck.cards && deck.cards[0] && deck.cards[0].type === 'cover')
+      deck.cards[0].label = s['예배구분'] || deck.cards[0].label || '설교';
+    setGenStage('카드뉴스 — 이미지로 만드는 중');
+    var cvs = await buildCardNewsCanvases(deck);
+    var base = (s['제목'] || '설교').replace(/[\\/:*?"<>|]/g, '').trim() || '설교';
+    var files = [];
+    for (var i = 0; i < cvs.length; i++){
+      var b = await canvasToPngBlob(cvs[i]);
+      files.push(new File([b], base + '_카드' + (i + 1) + '.png', { type: 'image/png' }));
+    }
+    if (navigator.canShare && navigator.canShare({ files: files })){
+      await navigator.share({ title: s['제목'] || '설교', text: '「' + (s['제목'] || '설교') + '」 ' + (s['본문'] || ''), files: files });
+      return;
+    }
+    /* 폴백: 합본 1장 */
+    var oneBlob = await canvasToPngBlob(stackCanvases(cvs));
+    var oneFile = new File([oneBlob], base + '_카드뉴스.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [oneFile] })){
+      await navigator.share({ title: s['제목'] || '설교', text: '「' + (s['제목'] || '설교') + '」 ' + (s['본문'] || ''), files: [oneFile] });
+      return;
+    }
+    /* 최후: 합본 다운로드 */
+    var url = URL.createObjectURL(oneBlob), a = document.createElement('a');
+    a.href = url; a.download = base + '_카드뉴스.png'; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    toast('이 기기는 이미지 공유를 지원하지 않아 합본을 저장했습니다.');
+  } catch (e){
+    if (e && e.name === 'AbortError') return;
+    toast('카드뉴스 공유 실패: ' + ((e && e.message) || e));
+  }
+}
+window.shareSermonCards = shareSermonCards;
 
 async function aiManuscript(id, meta){
   try {
@@ -12425,7 +12583,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v320';
+var APP_VER = 'v321';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
