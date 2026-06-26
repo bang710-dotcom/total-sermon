@@ -5685,6 +5685,12 @@ async function aiCardNews(s){
   var out = await callClaude(P_CARDNEWS, JSON.stringify(inp), 4000, aiTick('카드뉴스'));
   var deck = aiJson(out);
   if (!deck || !deck.cards || !deck.cards.length) throw new Error('카드뉴스 데이터를 만들지 못했습니다.');
+  /* 정확히 5장으로 정규화: 6장 이상이면 표지(첫 장)·결론(끝 장)을 살리고 가운데에서 3장만 취한다. */
+  var cs = deck.cards;
+  if (cs.length > 5){
+    var cover = cs[0], closing = cs[cs.length - 1], mid = cs.slice(1, cs.length - 1).slice(0, 3);
+    deck.cards = [cover].concat(mid, [closing]);
+  }
   return deck;
 }
 var CARDNEWS_CSS = ".cn-card{width:1080px;height:1350px;position:relative;overflow:hidden;background:#0B0B0D;font-family:'Gothic A1',sans-serif;color:#fff}"
@@ -5787,25 +5793,30 @@ async function shareSermonCards(id){
       var b = await canvasToPngBlob(cvs[i]);
       files.push(new File([b], base + '_카드' + (i + 1) + '.png', { type: 'image/png' }));
     }
-    if (navigator.canShare && navigator.canShare({ files: files })){
-      await navigator.share({ title: s['제목'] || '설교', text: '「' + (s['제목'] || '설교') + '」 ' + (s['본문'] || ''), files: files });
-      return;
-    }
-    /* 폴백: 합본 1장 */
     var oneBlob = await canvasToPngBlob(stackCanvases(cvs));
     var oneFile = new File([oneBlob], base + '_카드뉴스.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [oneFile] })){
-      await navigator.share({ title: s['제목'] || '설교', text: '「' + (s['제목'] || '설교') + '」 ' + (s['본문'] || ''), files: [oneFile] });
-      return;
+    /* 이미지 준비 완료 — 오버레이를 먼저 내려 공유창이 가려지지 않게 한다. */
+    hideGenOverlay();
+    var msg = '「' + (s['제목'] || '설교') + '」 ' + (s['본문'] || '');
+    if (navigator.canShare && navigator.canShare({ files: files })){
+      try { await navigator.share({ title: s['제목'] || '설교', text: msg, files: files }); return; }
+      catch (e){ if (e && e.name === 'AbortError') return; }
     }
-    /* 최후: 합본 다운로드 */
+    /* 폴백: 합본 1장 공유 */
+    if (navigator.canShare && navigator.canShare({ files: [oneFile] })){
+      try { await navigator.share({ title: s['제목'] || '설교', text: msg, files: [oneFile] }); return; }
+      catch (e){ if (e && e.name === 'AbortError') return; }
+    }
+    /* 최후: 합본 다운로드(데스크탑 등 파일 공유 미지원) */
     var url = URL.createObjectURL(oneBlob), a = document.createElement('a');
     a.href = url; a.download = base + '_카드뉴스.png'; document.body.appendChild(a); a.click();
     document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-    toast('이 기기는 이미지 공유를 지원하지 않아 합본을 저장했습니다.');
+    toast('이 기기는 이미지 공유를 지원하지 않아 합본 이미지를 저장했습니다.');
   } catch (e){
     if (e && e.name === 'AbortError') return;
     toast('카드뉴스 공유 실패: ' + ((e && e.message) || e));
+  } finally {
+    hideGenOverlay();
   }
 }
 window.shareSermonCards = shareSermonCards;
