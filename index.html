@@ -5906,7 +5906,7 @@ async function ensureCardArr(id, meta){
   var s = id ? findSermon(id) : null;
   var stored = null, storedSig = null;
   if (s) { try { var fm = JSON.parse(s['파일맵'] || '{}') || {}; stored = fm.cardArr; storedSig = fm.cardSig; } catch (e) {} }
-  if (!window._cascForce && stored && stored.length && storedSig && storedSig === sig) return renumberCardTransBars(stored);   /* 같은 원고 → 저장본 재사용(번호 교정). [다시 생성]이면 건너뜀 */
+  if (!(window._cascForce || window._cascForceCard) && stored && stored.length && storedSig && storedSig === sig) return renumberCardTransBars(stored);   /* 같은 원고 → 저장본 재사용(번호 교정). [다시 생성]이면 건너뜀 */
   if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) return (stored && stored.length) ? renumberCardTransBars(stored) : null;
   _cardRegen = true;
   var prevTrans = await ensureTransTable(id, meta);   /* 단일 소스 전환표 — 카드·컷·전환표시본 공통 */
@@ -10156,13 +10156,26 @@ async function saveImgDataDocxFile(meta, cuts){
   var D = await ensureDocxLib();
   await saveBlobToResults(await D.Packer.toBlob(buildImgDataDocx(D, meta, cuts)), imgDataNames(meta).docx);
 }
-/* 캐스케이드 단계 목록(러너의 실행 순서와 동일) */
+/* 캐스케이드 단계 목록(러너의 실행 순서와 동일).
+   ★ 의존관계 기반: 요청한 산출물 + 그것이 필요로 하는 이전 단계만 — 형제 산출물은 만들지 않는다.
+   (예: [배경 이미지]는 전환표·이미지 컷만 거쳐 이미지로 — 전환표시본·프롬프트는 건너뜀) */
 function cascStepList(target){
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx' || target === 'total');
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
-  var s = [{ label: 'DOCX 원고' }];
-  if (inA) { s.push({ label: '카드 원고' }); if (target === 'cardpdf' || target === 'total') s.push({ label: '카드 디자인 PDF' }); if (target === 'cardpptx' || target === 'total') s.push({ label: '카드 디자인 PPTX' }); }
-  if (inB) { s.push({ label: '이미지 컷(전환표)' }); s.push({ label: '이미지 전환표시본' }); if (target === 'imgdata' || target === 'bgimg' || target === 'total') s.push({ label: '이미지 프롬프트' }); if (target === 'bgimg' || target === 'total') s.push({ label: '배경 이미지' }); }
+  var s = [];
+  if (inA || inB) s.push({ label: '이미지 전환표' });
+  if (target === 'docx' || target === 'total') s.push({ label: 'DOCX 원고' });
+  if (inA) {
+    s.push({ label: '카드 원고' });
+    if (target === 'cardpdf' || target === 'total') s.push({ label: '카드 디자인 PDF' });
+    if (target === 'cardpptx' || target === 'total') s.push({ label: '카드 디자인 PPTX' });
+  }
+  if (inB) {
+    s.push({ label: '이미지 컷' });
+    if (target === 'trans' || target === 'total') s.push({ label: '이미지 전환표시본' });
+    if (target === 'imgdata' || target === 'total') s.push({ label: '이미지 프롬프트' });
+    if (target === 'bgimg' || target === 'total') s.push({ label: '배경 이미지' });
+  }
   return s;
 }
 function cascShow(steps){
@@ -10235,7 +10248,7 @@ async function refreshCascBtns(id){
 async function runCascade(target, id, meta){
   if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
   if (target !== 'docx' && !canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
-  window._cascForce = false; window._cascTableFresh = false;   /* 강제 전체 재생성 플래그 초기화 */
+  window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false;   /* 강제 재생성 플래그 초기화 */
   /* 이미 만든 적 있고 원고가 그대로면 — 다시 만들지 묻는다(결과물 보기 / 다시 생성하기 / 닫기).
      원고가 바뀌었으면 묻지 않고 새로 만든다. */
   if (id && !manuscriptChanged(id, meta)) {
@@ -10246,7 +10259,10 @@ async function runCascade(target, id, meta){
       var choice = await askCascRegen();
       if (choice === 'view') { showPage('outputs'); return; }
       if (choice !== 'regen') return;   /* 닫기/바깥클릭 → 아무것도 안 함 */
-      window._cascForce = true;   /* ★ [다시 생성하기] = 전부 처음부터 새로(캐시 무시, 전환표·카드·컷 재생성) */
+      /* ★ Total = 무조건 전부 처음부터 새로(전환표·카드·컷 전부 무효화).
+         단일 버튼 = 요청한 산출물만 새로, 이전 단계 필수 산출물은 파일이 있으면 재사용. */
+      if (target === 'total') window._cascForce = true;
+      else if (target === 'card') window._cascForceCard = true;   /* 카드원고 자체를 새로 집필 */
     }
   }
   if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
@@ -10258,15 +10274,26 @@ async function runCascade(target, id, meta){
   function rec(label, e){ try { console.error('[Total Sermon] ' + label + ' 실패:', e); } catch (_) {} fails.push(label + '(' + ((e && e.message) || e) + ')'); }
   function ck(){ if (window._cascAbort) throw new Error('__ABORT__'); }   /* 단계 사이 중단 확인 */
   try {
-    /* 단일 소스 전환표 먼저 확정(원고가 그대로면 저장본 재사용, 바뀌었으면 갱신). 이후 카드·컷·전환표시본이 이 표를 따른다. */
-    cascStep(k, '이미지 전환표 확인 중…');
-    try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); }
+    /* 1) 단일 소스 전환표 — 카드·이미지 가지의 공통 이전 단계. (Total/[다시생성]이면 새로, 아니면 재사용) */
+    if (inA || inB) { ck(); cascStep(k++, '이미지 전환표 확인 중…'); try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); } }
 
-    ck(); cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); }
+    /* 2) 기본원고 DOCX — docx·Total에서만(다른 산출물의 이전 단계가 아니다). */
+    if (target === 'docx' || target === 'total') {
+      ck(); cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); }
+    }
+
+    /* 3) 카드 가지 */
     if (inA) {
-      ck(); cascStep(k++, '카드 원고 집필 중…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); }
       var needPdf = (target === 'cardpdf' || target === 'total');
       var needPptx = (target === 'cardpptx' || target === 'total');
+      var cardRequested = (target === 'card' || target === 'total');
+      /* 카드원고: 요청이거나(Total 포함)·강제이거나·파일이 없으면 생성. 있으면 재사용(PDF/PPTX의 이전 단계). */
+      var cardExists = false; if (!cardRequested && !window._cascForce) { try { cardExists = !!(await cardDocxFileHandle(meta)); } catch (e) { cardExists = false; } }
+      if (cardRequested || window._cascForce || window._cascForceCard || !cardExists) {
+        ck(); cascStep(k++, cardRequested ? '카드 원고 집필 중…' : '카드 원고 생성 중(이전 단계 보완)…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); }
+      } else {
+        ck(); cascStep(k++, '카드 원고 재사용…');   /* 기존 파일 참고 — 재생성 안 함 */
+      }
       if (needPdf || needPptx) {
         var deck = null;
         try { deck = await aiCardDeck(meta); if (!deck || !deck.cards || !deck.cards.length) throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 덱', e); deck = null; }
@@ -10278,12 +10305,15 @@ async function runCascade(target, id, meta){
         }
       }
     }
+
+    /* 4) 이미지 가지 — 요청한 산출물만. 이미지 컷(이전 단계)은 사이드카가 있으면 재사용(없으면 생성). */
     if (inB) {
-      var doImg = (target === 'imgdata' || target === 'bgimg' || target === 'total');
+      var doTrans = (target === 'trans' || target === 'total');
+      var doImg = (target === 'imgdata' || target === 'total');
       var doBg = (target === 'bgimg' || target === 'total');
       var cuts = null;
-      ck(); cascStep(k++, '이미지 컷(전환표) 생성 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
-      ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); }
+      ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
+      if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); } }
       if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
       if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
     }
@@ -10298,7 +10328,7 @@ async function runCascade(target, id, meta){
     if ((e && e.message) === '__ABORT__') { toast('생성을 중단했습니다 — 만들던 단계까지만 저장됩니다.'); var cna = $('#cascNow'); if (cna) cna.textContent = '⏹ 중단되었습니다.'; await new Promise(function(r){ setTimeout(r, 1500); }); }
     else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
   }
-  finally { window._cascForce = false; window._cascTableFresh = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
+  finally { window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
   b.addEventListener('click', function(){
