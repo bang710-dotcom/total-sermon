@@ -11413,7 +11413,8 @@ function renderLibRow(s){
     return '<div class="cnt" style="word-break:break-all">' + lbl + ': ' + esc(f.map[k]) + '</div>';
   }).join('');
   var id = esc(s['ID'] || '');
-  return '<details class="card libItem" style="margin-bottom:7px"><summary>' +
+  return '<details class="card libItem" style="margin-bottom:7px;position:relative"><summary>' +
+    '<button class="linkbtn" style="position:absolute;top:8px;right:10px;color:var(--warn);padding:2px 4px;font-size:12.5px;z-index:2" title="이 설교 삭제" onclick="event.stopPropagation();event.preventDefault();deleteSermon(\'' + id + '\')">삭제</button>' +
     '<div class="meta">' +
       '<span class="badge b-state">' + esc(s['상태'] || '') + '</span>' +
       (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
@@ -12263,7 +12264,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v310';
+var APP_VER = 'v311';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
