@@ -2117,7 +2117,9 @@ function runSearch(){
         if (v && terms.some(function(t){ return v.toLowerCase().indexOf(t) >= 0; }))
           body += '<div class="snippet"><b style="color:var(--dim)">' + f + '</b> ' + hl(v, terms, 90) + '</div>';
       });
-      return '<div class="item" data-kind="sermon" data-id="' + esc(s['ID']) + '"><div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
+      return '<div class="item" data-kind="sermon" data-id="' + esc(s['ID']) + '" style="position:relative;padding-right:46px">' +
+        '<button class="linkbtn" style="position:absolute;top:8px;right:10px;color:var(--warn);padding:2px 4px;font-size:12.5px;z-index:2" title="이 설교 삭제" onclick="event.stopPropagation();deleteSermon(\'' + esc(s['ID']) + '\')">삭제</button>' +
+        '<div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
         (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') +
         '<span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
         '<div class="title">' + hl(s['제목'], terms) + ' <span style="color:var(--dim);font-weight:400;font-size:13px">' + hl(s['본문'], terms) + '</span></div>' + body + '</div>';
