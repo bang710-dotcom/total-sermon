@@ -10117,9 +10117,9 @@ function manuscriptChanged(id, meta){
   return stored !== manuscriptSig(meta);
 }
 /* 버튼별 산출물 키 — 이 키들이 모두 '만든 적 있음'이면 다시 만들지 묻는다. */
-var CASC_TARGET_KEYS = { docx: ['docx'], card: ['card'], cardpdf: ['card', 'cardpdf'],
+var CASC_TARGET_KEYS = { docx: ['docx'], card: ['card'], cardpdf: ['card', 'cardpdf'], cardpptx: ['card', 'cardpptx'],
   trans: ['trans'], imgdata: ['imgdata'], bgimg: ['bgimg'],
-  total: ['docx', 'card', 'cardpdf', 'trans', 'imgdata', 'bgimg'] };
+  total: ['docx', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg'] };
 /* 이미 만든 적 있을 때: 결과물 보기 / 다시 생성하기 / 닫기 — 선택을 Promise로 반환 */
 function askCascRegen(){
   return new Promise(function(resolve){
@@ -10159,7 +10159,7 @@ async function runCascade(target, id, meta){
     }
   }
   if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
-  var inA = (target === 'card' || target === 'cardpdf' || target === 'total');
+  var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx' || target === 'total');
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
   var k = 0;
   cascShow(cascStepList(target));
@@ -10174,8 +10174,17 @@ async function runCascade(target, id, meta){
     ck(); cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); }
     if (inA) {
       ck(); cascStep(k++, '카드 원고 집필 중…'); try { await aiCardScript(id, meta); } catch (e) { rec('카드 원고', e); }
-      if (target === 'cardpdf' || target === 'total') {
-        ck(); cascStep(k++, '카드 디자인 PDF 조판 중…'); try { var deck = await aiCardDeck(meta); if (deck && deck.cards && deck.cards.length) { var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } else throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 디자인 PDF', e); }
+      var needPdf = (target === 'cardpdf' || target === 'total');
+      var needPptx = (target === 'cardpptx' || target === 'total');
+      if (needPdf || needPptx) {
+        var deck = null;
+        try { deck = await aiCardDeck(meta); if (!deck || !deck.cards || !deck.cards.length) throw new Error('카드 덱 비어 있음'); } catch (e) { rec('카드 덱', e); deck = null; }
+        if (needPdf) {
+          ck(); cascStep(k++, '카드 디자인 PDF 조판 중…'); try { if (!deck) throw new Error('카드 덱 없음'); var pblob = await buildCardPdfBlob(deck); await saveBlobToResults(pblob, sermonFileBase(meta, '[디자인]') + '.pdf'); await markOutput(id, '카드PDF', '앱 직접 생성'); } catch (e) { rec('카드 디자인 PDF', e); }
+        }
+        if (needPptx) {
+          ck(); cascStep(k++, '카드 디자인 PPTX 조판 중…'); try { if (!deck) throw new Error('카드 덱 없음'); var ptblob = await buildCardPptxBlob(deck); await saveBlobToResults(ptblob, sermonFileBase(meta, '[디자인]') + '.pptx'); await markOutput(id, '카드PPTX', '앱 직접 생성'); } catch (e) { rec('카드 디자인 PPTX', e); }
+        }
       }
     }
     if (inB) {
@@ -10207,9 +10216,6 @@ $$('#composeMeta [data-casc]').forEach(function(b){
     runCascade(b.dataset.casc, state.editing || '', m);
   });
 });
-(function(){ var pb = document.getElementById('btnCardPptx'); if (pb) pb.addEventListener('click', function(){
-  var m = collectCompose(); if (state.editing) m['ID'] = state.editing; generateCardPptx(state.editing || '', m);
-}); })();
 (function(){
   var tg = document.getElementById('cascToggle'), mid = document.getElementById('cascMid');
   if (tg && mid) tg.addEventListener('click', function(){
@@ -12129,7 +12135,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v304';
+var APP_VER = 'v305';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
