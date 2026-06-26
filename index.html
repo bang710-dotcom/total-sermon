@@ -879,6 +879,45 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
 #moreSheet .msGroupLabel:first-child{margin-top:0;padding-top:0;border-top:none}
 .emptyCta{display:inline-block;margin-top:12px;background:var(--accent);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 .emptyCta:hover{filter:brightness(1.08)}
+
+/* ===== 글쓰기 집중 모드 (focus mode) ===== */
+.edFocusBtn{margin-left:auto;flex:0 0 auto;background:var(--card2);color:var(--accent2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px}
+.edFocusBtn:hover{border-color:var(--accent)}
+.edHeader{display:flex;align-items:center;gap:8px}
+body.focusMode{overflow:hidden}
+body.focusMode .sidebar,
+body.focusMode header.mobile,
+body.focusMode .tabbar,
+body.focusMode #composeMeta,
+body.focusMode #aiPanel,
+body.focusMode #tabAi{display:none!important}
+body.focusMode #page-compose.on{display:block;position:fixed;inset:0;z-index:600;background:var(--bg);overflow:auto;padding:0;gap:0}
+body.focusMode #editorPane{max-width:780px;margin:0 auto;padding:30px 24px 170px;min-height:100vh;box-sizing:border-box}
+body.focusMode #editorPane .edTa,
+body.focusMode #editorPane .edFree{font-size:calc(15px * var(--edScale,1));color:var(--edColor,var(--text));line-height:1.72;background:transparent;border-color:transparent;transition:background .12s,border-color .12s}
+body.focusMode #editorPane .edTa:focus,
+body.focusMode #editorPane .edFree:focus{background:var(--card2);border-color:var(--line)}
+body.focusMode #editorPane .structKit{opacity:.55}
+/* 플로팅 툴바 */
+#focusBar{display:none}
+body.focusMode #focusBar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:700;max-width:calc(100vw - 24px);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px;box-shadow:0 12px 34px rgba(0,0,0,.38)}
+#focusBar button{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1;min-width:34px}
+#focusBar button:hover{border-color:var(--accent)}
+#focusBar .fbSep{width:1px;align-self:stretch;background:var(--line);margin:2px 3px}
+#focusBar .fbExit{color:var(--accent2)}
+#focusBar .fbB{font-weight:900;font-size:15px}
+#focusBar .fbSw{width:22px;min-width:22px;height:22px;padding:0;border-radius:50%;border-width:2px}
+#focusBar .fbSw.on{outline:2px solid var(--accent);outline-offset:1px}
+#focusBar .fbChips{display:flex;flex-wrap:wrap;gap:5px}
+#focusBar:not(.free) .fbChips,#focusBar:not(.free) .fbChipSep{display:none}
+#focusBar .fbChip{background:var(--card2);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;min-width:0}
+#focusBar .fbChip:hover{border-color:var(--accent)}
+@media (max-width:760px){
+  body.focusMode #editorPane{padding:22px 13px 156px}
+  body.focusMode #focusBar{bottom:10px;gap:4px;padding:7px 8px}
+  body.focusMode #focusBar button{padding:7px 9px;font-size:12.5px;min-width:30px}
+  body.focusMode #focusBar .fbSw{width:20px;min-width:20px;height:20px}
+}
 </style>
 </head>
 <body>
@@ -3957,7 +3996,9 @@ var FREE_PARSE_LEGEND =
 
 function renderEditor(){
   var c = state.compose;
-  var html = '<div class="edHeader"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div></div>';
+  var html = '<div class="edHeader"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div>' +
+    '<button class="edFocusBtn" type="button" title="집중 모드 — 다른 화면을 숨기고 글쓰기에만 집중">' +
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>집중 모드</button></div>';
   if (c.style === '자유원고') {
     html += '<div class="edFreeWrap">' +
       ta('free', 0, '', 4, '여기에 자유롭게 원고를 작성하세요. 워드로 내보낼 때는 기본원고 서식이 적용됩니다.', c.free, 'edFree') +
@@ -12923,6 +12964,24 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }, true);
 })();
 </script>
+
+<!-- ============ 글쓰기 집중 모드 플로팅 툴바 ============ -->
+<div id="focusBar" role="toolbar" aria-label="집중 모드 도구">
+  <button class="fbExit" data-act="exit" type="button" title="집중 모드 끝내기 (Esc)">✕ 나가기</button>
+  <span class="fbSep"></span>
+  <button class="fbB" data-act="bold" type="button" title="굵게 — 선택 영역을 **강조**로 감쌈 (Ctrl/Cmd+B)">B</button>
+  <span class="fbSep"></span>
+  <button data-act="dec" type="button" title="글자 작게 (화면 표시용)">A−</button>
+  <button data-act="size0" type="button" title="기본 글자 크기">A</button>
+  <button data-act="inc" type="button" title="글자 크게 (화면 표시용)">A＋</button>
+  <span class="fbSep"></span>
+  <button class="fbSw" data-act="color" data-color="" type="button" title="기본 글자색" style="background:var(--text)"></button>
+  <button class="fbSw" data-act="color" data-color="#7c9aff" type="button" title="남색 (화면 표시용)" style="background:#7c9aff"></button>
+  <button class="fbSw" data-act="color" data-color="#5fcf80" type="button" title="초록 (화면 표시용)" style="background:#5fcf80"></button>
+  <button class="fbSw" data-act="color" data-color="#caa46a" type="button" title="세피아 (화면 표시용)" style="background:#caa46a"></button>
+  <span class="fbSep fbChipSep"></span>
+  <span class="fbChips" aria-label="구조화 도구"></span>
+</div>
 
 <!-- ============ AI 대화창 (설교 작성·상황 구상·시리즈 계획) ============ -->
 <button id="aiFab" type="button" aria-label="설교 대화 열기">
