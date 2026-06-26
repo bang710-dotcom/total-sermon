@@ -5795,23 +5795,12 @@ async function shareSermonCards(id){
     }
     var oneBlob = await canvasToPngBlob(stackCanvases(cvs));
     var oneFile = new File([oneBlob], base + '_카드뉴스.png', { type: 'image/png' });
-    /* 이미지 준비 완료 — 오버레이를 먼저 내려 공유창이 가려지지 않게 한다. */
+    /* 이미지 준비 완료 — 오버레이를 내리고, 사용자가 "공유"를 탭하면 그 탭(유효한 사용자 동작)으로
+       navigator.share를 호출한다. iOS는 비동기 생성 뒤 곧장 share()를 부르면 권한 만료로 거부하므로,
+       탭을 한 번 더 받아 5장 공유가 정상 동작하게 한다. */
     hideGenOverlay();
     var msg = '「' + (s['제목'] || '설교') + '」 ' + (s['본문'] || '');
-    if (navigator.canShare && navigator.canShare({ files: files })){
-      try { await navigator.share({ title: s['제목'] || '설교', text: msg, files: files }); return; }
-      catch (e){ if (e && e.name === 'AbortError') return; }
-    }
-    /* 폴백: 합본 1장 공유 */
-    if (navigator.canShare && navigator.canShare({ files: [oneFile] })){
-      try { await navigator.share({ title: s['제목'] || '설교', text: msg, files: [oneFile] }); return; }
-      catch (e){ if (e && e.name === 'AbortError') return; }
-    }
-    /* 최후: 합본 다운로드(데스크탑 등 파일 공유 미지원) */
-    var url = URL.createObjectURL(oneBlob), a = document.createElement('a');
-    a.href = url; a.download = base + '_카드뉴스.png'; document.body.appendChild(a); a.click();
-    document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-    toast('이 기기는 이미지 공유를 지원하지 않아 합본 이미지를 저장했습니다.');
+    cnPresentShare({ files: files, oneFile: oneFile, title: s['제목'] || '설교', msg: msg, base: base });
   } catch (e){
     if (e && e.name === 'AbortError') return;
     toast('카드뉴스 공유 실패: ' + ((e && e.message) || e));
@@ -5820,6 +5809,38 @@ async function shareSermonCards(id){
   }
 }
 window.shareSermonCards = shareSermonCards;
+/* 준비된 카드 이미지를 "공유" 탭 한 번으로 내보내는 패널 — iOS 사용자 동작(transient activation) 확보용. */
+function cnPresentShare(p){
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(6,8,13,.82);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)';
+  ov.innerHTML = '<div style="background:#15171d;border:1px solid #2a2d36;border-radius:20px;padding:26px 24px;max-width:340px;width:100%;text-align:center;color:#fff">'
+    + '<div style="font-size:38px;line-height:1;margin-bottom:12px">🖼</div>'
+    + '<div style="font-weight:800;font-size:17px;margin-bottom:6px">카드뉴스 ' + (p.files.length) + '장 준비 완료</div>'
+    + '<div style="color:#9aa0ad;font-size:13.5px;line-height:1.55;margin-bottom:20px">아래 버튼을 누르면 카카오톡·메시지로<br>카드를 한 번에 공유합니다.</div>'
+    + '<button id="cnGo" style="width:100%;padding:14px;border:none;border-radius:12px;background:#2AA78E;color:#fff;font-weight:800;font-size:15.5px">📤 공유하기</button>'
+    + '<button id="cnCancel" style="width:100%;padding:12px;margin-top:8px;border:none;border-radius:12px;background:transparent;color:#9aa0ad;font-size:14px">취소</button>'
+    + '</div>';
+  document.body.appendChild(ov);
+  function close(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }
+  ov.querySelector('#cnCancel').onclick = close;
+  ov.addEventListener('click', function(ev){ if (ev.target === ov) close(); });
+  ov.querySelector('#cnGo').onclick = async function(){
+    close();
+    try {
+      if (navigator.canShare && navigator.canShare({ files: p.files })){
+        await navigator.share({ title: p.title, text: p.msg, files: p.files }); return;
+      }
+      if (navigator.canShare && navigator.canShare({ files: [p.oneFile] })){
+        await navigator.share({ title: p.title, text: p.msg, files: [p.oneFile] }); return;
+      }
+      var url = URL.createObjectURL(p.oneFile), a = document.createElement('a');
+      a.href = url; a.download = p.base + '_카드뉴스.png'; document.body.appendChild(a); a.click();
+      document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      toast('이 기기는 이미지 공유를 지원하지 않아 합본 이미지를 저장했습니다.');
+    } catch (e){ if (e && e.name === 'AbortError') return; toast('공유 실패: ' + ((e && e.message) || e)); }
+  };
+}
+window.cnPresentShare = cnPresentShare;
 
 async function aiManuscript(id, meta){
   try {
@@ -12594,7 +12615,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v322';
+var APP_VER = 'v323';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
