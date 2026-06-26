@@ -952,7 +952,7 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 #mmViewport{position:relative;flex:1;min-height:360px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);touch-action:none;cursor:grab;background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:26px 26px}
 #mmViewport.panning{cursor:grabbing}
 #mmWorld{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
-#mmEdges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+#mmEdges{position:absolute;left:-6000px;top:-6000px;overflow:visible;pointer-events:none}
 #mmEdges path{fill:none;stroke:var(--dim);stroke-width:2;opacity:.7}
 #mmEdges path.root{stroke:var(--accent);stroke-width:2.4}
 .mmNode{position:absolute;transform:translate(-50%,-50%);max-width:230px;min-width:64px;box-sizing:border-box;background:var(--card2);color:var(--text);border:1.5px solid var(--line);border-radius:12px;padding:9px 13px;font-size:14px;line-height:1.4;font-weight:600;cursor:grab;user-select:none;white-space:pre-wrap;word-break:break-word;box-shadow:0 3px 10px rgba(0,0,0,.18);text-align:center}
@@ -1465,7 +1465,7 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
         <span class="mmHint" id="mmHint">노드 더블클릭=편집 · 끌기=이동 · 빈 곳 끌기=화면 이동</span>
       </div>
       <div id="mmViewport">
-        <svg id="mmEdges"><g id="mmEdgesG"></g></svg>
+        <svg id="mmEdges" width="12000" height="12000" viewBox="-6000 -6000 12000 12000"><g id="mmEdgesG"></g></svg>
         <div id="mmWorld"></div>
         <div id="mmEmpty"></div>
       </div>
@@ -4431,6 +4431,134 @@ document.addEventListener('keydown', function(e){
   if (!document.body.classList.contains('focusMode')) return;
   if (e.key === 'Escape') { exitFocusMode(); return; }
 });
+
+/* ===== 마인드맵 (설교 아이디어 확장) ===== */
+var MM = { data: null, loaded: false, curId: null, sel: null, tx: 0, ty: 0, s: 1, _saveT: null };
+function mmUid(){ return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function mmDefaultMap(){
+  var rootId = mmUid();
+  return { id: mmUid(), name: '새 마인드맵', updated: Date.now(), rootId: rootId,
+    nodes: [{ id: rootId, text: '설교 주제 / 본문', x: 0, y: 0, parent: null, color: 1 }] };
+}
+function mmLoad(){
+  return idbGet('mindmaps').then(function(d){
+    if (!d || !d.maps || !d.maps.length) { d = { maps: [mmDefaultMap()] }; d.curId = d.maps[0].id; }
+    MM.data = d; MM.curId = d.curId || d.maps[0].id; MM.loaded = true;
+  }).catch(function(){ MM.data = { maps: [mmDefaultMap()] }; MM.curId = MM.data.maps[0].id; MM.data.curId = MM.curId; MM.loaded = true; });
+}
+function mmSave(){ if (!MM.data) return; MM.data.curId = MM.curId; var m = mmCur(); if (m) m.updated = Date.now();
+  if (MM._saveT) clearTimeout(MM._saveT); MM._saveT = setTimeout(function(){ idbSet('mindmaps', MM.data).catch(function(){}); }, 400); }
+function mmCur(){ if (!MM.data) return null; for (var i = 0; i < MM.data.maps.length; i++) if (MM.data.maps[i].id === MM.curId) return MM.data.maps[i]; return MM.data.maps[0]; }
+function mmNodeById(id){ var m = mmCur(); if (!m) return null; for (var i = 0; i < m.nodes.length; i++) if (m.nodes[i].id === id) return m.nodes[i]; return null; }
+function mmChildren(id){ var m = mmCur(); return m ? m.nodes.filter(function(n){ return n.parent === id; }) : []; }
+function mmVpRect(){ var vp = document.getElementById('mmViewport'); return vp ? vp.getBoundingClientRect() : { left: 0, top: 0, width: 600, height: 400 }; }
+function mmToWorld(sx, sy){ var r = mmVpRect(); return { x: (sx - r.left - MM.tx) / MM.s, y: (sy - r.top - MM.ty) / MM.s }; }
+function mmApplyTransform(){ var w = document.getElementById('mmWorld'); if (w) w.style.transform = 'translate(' + MM.tx + 'px,' + MM.ty + 'px) scale(' + MM.s + ')'; }
+function renderMindmap(){ if (!MM.loaded) { mmLoad().then(function(){ mmRenderSel(); mmFit(); mmRenderAll(); }); return; } mmRenderSel(); mmRenderAll(); }
+function mmRenderSel(){ var sel = document.getElementById('mmMapSel'); if (!sel || !MM.data) return;
+  sel.innerHTML = MM.data.maps.map(function(m){ return '<option value="' + m.id + '"' + (m.id === MM.curId ? ' selected' : '') + '>' + esc(m.name || '(이름없음)') + '</option>'; }).join(''); }
+function mmEdgePath(p, n){ var x1 = p.x, y1 = p.y, x2 = n.x, y2 = n.y, mx = (x1 + x2) / 2; return 'M' + x1 + ' ' + y1 + ' C ' + mx + ' ' + y1 + ' ' + mx + ' ' + y2 + ' ' + x2 + ' ' + y2; }
+function mmRenderEdges(){ var m = mmCur(); var g = document.getElementById('mmEdgesG'); if (!m || !g) return;
+  g.innerHTML = m.nodes.filter(function(n){ return n.parent !== null; }).map(function(n){ var p = mmNodeById(n.parent); if (!p) return ''; return '<path class="' + (p.parent === null ? 'root' : '') + '" d="' + mmEdgePath(p, n) + '"/>'; }).join(''); }
+function mmRenderAll(){ var m = mmCur(); var world = document.getElementById('mmWorld'); if (!m || !world) return;
+  world.innerHTML = m.nodes.map(function(n){ var cls = 'mmNode' + (n.parent === null ? ' root' : '') + (n.id === MM.sel ? ' sel' : '');
+    return '<div class="' + cls + '" data-id="' + n.id + '" data-color="' + (n.color || 1) + '" style="left:' + n.x + 'px;top:' + n.y + 'px">' + esc(n.text || '') + '</div>'; }).join('');
+  mmRenderEdges(); mmApplyTransform();
+  var emp = document.getElementById('mmEmpty'); if (emp) emp.textContent = m.nodes.length <= 1 ? '가운데 노드를 더블클릭해 주제를 적고, [＋ 자식]으로 아이디어를 뻗어 보세요.' : ''; }
+function mmSetZoom(sx, sy, ns){ ns = Math.min(2.4, Math.max(0.25, ns)); var r = mmVpRect();
+  var wx = (sx - r.left - MM.tx) / MM.s, wy = (sy - r.top - MM.ty) / MM.s; MM.s = ns; MM.tx = sx - r.left - wx * MM.s; MM.ty = sy - r.top - wy * MM.s; mmApplyTransform(); }
+function mmZoomAt(sx, sy, factor){ mmSetZoom(sx, sy, MM.s * factor); }
+function mmFit(){ var m = mmCur(); var r = mmVpRect(); var vw = r.width || 600, vh = r.height || 400;
+  if (!m || !m.nodes.length) { MM.s = 1; MM.tx = vw / 2; MM.ty = vh / 2; mmApplyTransform(); return; }
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  m.nodes.forEach(function(n){ if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x; if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y; });
+  var pad = 140, bw = (maxX - minX) + pad * 2, bh = (maxY - minY) + pad * 2;
+  var s = Math.min(vw / bw, vh / bh, 1.4); s = Math.max(0.25, s); MM.s = s;
+  var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2; MM.tx = vw / 2 - cx * s; MM.ty = vh / 2 - cy * s; mmApplyTransform(); }
+function mmSelect(id){ MM.sel = id; mmRenderAll(); }
+function mmAddChild(parentId){ var m = mmCur(); if (!m) return; var p = mmNodeById(parentId) || mmNodeById(MM.sel) || m.nodes[0]; if (!p) return;
+  var sibs = mmChildren(p.id).length; var n = { id: mmUid(), text: '아이디어', x: p.x + 200, y: p.y + sibs * 84, parent: p.id, color: p.parent === null ? 2 : (p.color || 1) };
+  m.nodes.push(n); MM.sel = n.id; mmSave(); mmRenderAll(); mmStartEdit(n.id); }
+function mmAddNode(wx, wy){ var m = mmCur(); if (!m) return; if (wx == null) { var r = mmVpRect(); var c = mmToWorld(r.left + r.width / 2, r.top + r.height / 2); wx = c.x; wy = c.y; }
+  var n = { id: mmUid(), text: '아이디어', x: wx, y: wy, parent: null, color: 1 }; m.nodes.push(n); MM.sel = n.id; mmSave(); mmRenderAll(); mmStartEdit(n.id); }
+function mmDeleteNode(id){ var m = mmCur(); var n = mmNodeById(id); if (!n) return;
+  if (m.nodes.length <= 1) { toast('마지막 노드는 삭제할 수 없습니다 — 내용을 비우고 다시 쓰세요.'); return; }
+  var ids = {}; (function collect(i){ ids[i] = 1; mmChildren(i).forEach(function(c){ collect(c.id); }); })(id);
+  var cnt = Object.keys(ids).length; if (cnt > 1 && !confirm('이 노드와 하위 ' + (cnt - 1) + '개를 함께 삭제할까요?')) return;
+  m.nodes = m.nodes.filter(function(x){ return !ids[x.id]; });
+  if (!m.nodes.length) { var dm = mmDefaultMap(); m.nodes = dm.nodes; m.rootId = dm.rootId; }
+  MM.sel = null; mmSave(); mmRenderAll(); }
+function mmCycleColor(){ var n = mmNodeById(MM.sel); if (!n) { toast('노드를 먼저 선택하세요'); return; } n.color = ((n.color || 1) % 4) + 1; mmSave(); mmRenderAll(); }
+function mmStartEdit(id){ var el = document.querySelector('#mmWorld .mmNode[data-id="' + id + '"]'); if (!el) return; MM.sel = id;
+  el.classList.add('editing'); el.setAttribute('contenteditable', 'true'); el.focus();
+  try { var rng = document.createRange(); rng.selectNodeContents(el); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rng); } catch (e) {}
+  var fin = function(){ el.removeAttribute('contenteditable'); el.classList.remove('editing'); var n = mmNodeById(id); if (n) n.text = (el.textContent || '').trim() || '...';
+    el.removeEventListener('blur', fin); el.removeEventListener('keydown', kd); mmSave(); mmRenderAll(); };
+  var kd = function(e){ e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); } else if (e.key === 'Escape') { e.preventDefault(); el.blur(); } };
+  el.addEventListener('blur', fin); el.addEventListener('keydown', kd); }
+function mmOutline(){ var m = mmCur(); if (!m) return ''; var out = [];
+  function walk(n, d){ out.push(new Array(d + 1).join('  ') + '- ' + String(n.text || '').replace(/\s*\n\s*/g, ' ')); mmChildren(n.id).forEach(function(c){ walk(c, d + 1); }); }
+  m.nodes.filter(function(n){ return n.parent === null; }).forEach(function(r){ walk(r, 0); }); return out.join('\n'); }
+function mmFallbackCopy(t){ try { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); toast('개요를 복사했습니다 — 자유원고에 붙여넣으세요'); } catch (e) { toast('복사 실패'); } }
+function mmCopyOutline(){ var t = mmOutline(); if (!t.trim()) { toast('내용이 없습니다'); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ toast('개요를 복사했습니다 — 자유원고에 붙여넣으세요'); }, function(){ mmFallbackCopy(t); });
+  else mmFallbackCopy(t); }
+function mmNewMap(){ if (!MM.data) return; var nm = prompt('새 마인드맵 이름', '마인드맵 ' + (MM.data.maps.length + 1)); if (nm === null) return;
+  var mp = mmDefaultMap(); mp.name = nm.trim() || mp.name; MM.data.maps.unshift(mp); MM.curId = mp.id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
+function mmRenameMap(){ var m = mmCur(); if (!m) return; var nm = prompt('맵 이름', m.name || ''); if (nm === null) return; m.name = nm.trim() || m.name; mmSave(); mmRenderSel(); }
+function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 하나뿐입니다 — 삭제할 수 없습니다'); return; } var m = mmCur(); if (!confirm('맵 "' + (m.name || '') + '"을(를) 삭제할까요?')) return;
+  MM.data.maps = MM.data.maps.filter(function(x){ return x.id !== MM.curId; }); MM.curId = MM.data.maps[0].id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
+(function(){
+  var vp = document.getElementById('mmViewport'); if (!vp) return;
+  var drag = null, pointers = {};
+  function pdist(){ var k = Object.keys(pointers); if (k.length < 2) return 0; var a = pointers[k[0]], b = pointers[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y); }
+  function pcenter(){ var k = Object.keys(pointers); var a = pointers[k[0]], b = pointers[k[1]]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+  vp.addEventListener('pointerdown', function(e){
+    var nodeEl = e.target.closest ? e.target.closest('.mmNode') : null;
+    if (nodeEl && nodeEl.classList.contains('editing')) return;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (Object.keys(pointers).length === 2) { drag = { type: 'pinch', d0: pdist(), s0: MM.s }; return; }
+    if (nodeEl) { var id = nodeEl.dataset.id; mmSelect(id); var nn = mmNodeById(id);
+      drag = { type: 'node', id: id, moved: false, sx: e.clientX, sy: e.clientY, ox: nn.x, oy: nn.y, el: document.querySelector('#mmWorld .mmNode[data-id="' + id + '"]') };
+      if (drag.el) drag.el.classList.add('dragging'); }
+    else { drag = { type: 'pan', sx: e.clientX, sy: e.clientY, tx0: MM.tx, ty0: MM.ty, moved: false }; vp.classList.add('panning'); }
+    try { vp.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  vp.addEventListener('pointermove', function(e){
+    if (pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (!drag) return;
+    if (drag.type === 'pinch') { var d = pdist(); if (drag.d0 > 0) { var c = pcenter(); mmSetZoom(c.x, c.y, drag.s0 * (d / drag.d0)); } return; }
+    if (drag.type === 'node') { var dx = (e.clientX - drag.sx) / MM.s, dy = (e.clientY - drag.sy) / MM.s;
+      if (Math.abs(e.clientX - drag.sx) > 3 || Math.abs(e.clientY - drag.sy) > 3) drag.moved = true;
+      var n = mmNodeById(drag.id); if (n) { n.x = drag.ox + dx; n.y = drag.oy + dy; if (drag.el) { drag.el.style.left = n.x + 'px'; drag.el.style.top = n.y + 'px'; } mmRenderEdges(); } }
+    else if (drag.type === 'pan') { MM.tx = drag.tx0 + (e.clientX - drag.sx); MM.ty = drag.ty0 + (e.clientY - drag.sy);
+      if (Math.abs(e.clientX - drag.sx) > 3 || Math.abs(e.clientY - drag.sy) > 3) drag.moved = true; mmApplyTransform(); }
+  });
+  function endPtr(e){ delete pointers[e.pointerId];
+    if (drag) { if (drag.type === 'node') { if (drag.el) drag.el.classList.remove('dragging'); if (drag.moved) mmSave(); }
+      else if (drag.type === 'pan') { vp.classList.remove('panning'); if (!drag.moved && MM.sel) { MM.sel = null; mmRenderAll(); } } }
+    if (Object.keys(pointers).length < 1) drag = null; else if (drag && drag.type === 'pinch') drag = null; }
+  vp.addEventListener('pointerup', endPtr);
+  vp.addEventListener('pointercancel', endPtr);
+  vp.addEventListener('dblclick', function(e){ var nodeEl = e.target.closest ? e.target.closest('.mmNode') : null;
+    if (nodeEl) mmStartEdit(nodeEl.dataset.id); else { var w = mmToWorld(e.clientX, e.clientY); mmAddNode(w.x, w.y); } });
+  vp.addEventListener('wheel', function(e){ e.preventDefault(); mmZoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 0.89); }, { passive: false });
+  function bind(id, fn){ var el = document.getElementById(id); if (el) el.addEventListener('click', fn); }
+  bind('mmNewMap', mmNewMap); bind('mmRenameMap', mmRenameMap); bind('mmDelMap', mmDelMap);
+  bind('mmAddChild', function(){ mmAddChild(MM.sel); }); bind('mmAddNode', function(){ mmAddNode(); });
+  bind('mmColor', mmCycleColor); bind('mmDelNode', function(){ if (MM.sel) mmDeleteNode(MM.sel); else toast('노드를 선택하세요'); });
+  bind('mmZoomIn', function(){ var r = mmVpRect(); mmZoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.15); });
+  bind('mmZoomOut', function(){ var r = mmVpRect(); mmZoomAt(r.left + r.width / 2, r.top + r.height / 2, 0.87); });
+  bind('mmFit', mmFit); bind('mmCopyOutline', mmCopyOutline);
+  var selEl = document.getElementById('mmMapSel'); if (selEl) selEl.addEventListener('change', function(){ MM.curId = selEl.value; MM.sel = null; mmSave(); mmFit(); mmRenderAll(); });
+  document.addEventListener('keydown', function(e){
+    if (((document.querySelector('.page.on') || {}).id) !== 'page-mindmap') return;
+    if (document.querySelector('.mmNode.editing')) return;
+    if (e.key === 'Tab' || (e.key === 'Enter' && MM.sel)) { if (MM.sel) { e.preventDefault(); mmAddChild(MM.sel); } }
+    else if (e.key === 'Delete') { if (MM.sel) { e.preventDefault(); mmDeleteNode(MM.sel); } }
+    else if (e.key === 'F2') { if (MM.sel) { e.preventDefault(); mmStartEdit(MM.sel); } }
+  });
+})();
 
 /* ----- 원고 조립·저장 ----- */
 function assembleText(){
