@@ -9205,7 +9205,7 @@ function weekSig(w){
    skipUnchanged=true(전체 확정)면 직전 확정 후 바뀐 게 없는 주는 건너뛴다. */
 async function confirmSermonWeeks(idxs, skipUnchanged){
   var S = state.series, m = S.meta || {};
-  var adds = [], ups = [], demotes = [];
+  var adds = [], ups = [], demotes = [], addWi = [];
   function rowById(id){ return state.data.sermons.filter(function(s){ return s['ID'] === id; })[0]; }
   idxs.forEach(function(wi){
     var w = S.sermon.weeks[wi]; if (!w) return;
