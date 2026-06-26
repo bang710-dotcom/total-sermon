@@ -4248,28 +4248,30 @@ window.enterFocusMode = enterFocusMode; window.exitFocusMode = exitFocusMode;
 $('#editorPane').addEventListener('click', function(e){
   if (e.target.closest && e.target.closest('.edFocusBtn')) { e.preventDefault(); enterFocusMode(); }
 });
-/* 툴바: 구조화 칩 주입 + 버튼 동작 */
-(function(){
-  var bar = document.getElementById('focusBar'); if (!bar) return;
-  var chips = bar.querySelector('.fbChips');
-  if (chips && typeof STRUCT_CHIPS !== 'undefined') {
+/* 구조화 칩 주입 — #focusBar는 이 스크립트 블록보다 뒤에서 파싱되므로,
+   진입 시점에 한 번만 주입한다(파싱 시점에 바로 찾으면 null이라 동작 안 함). */
+function fmInjectChips(){
+  var chips = document.querySelector('#focusBar .fbChips');
+  if (chips && !chips.firstChild && typeof STRUCT_CHIPS !== 'undefined') {
     chips.innerHTML = STRUCT_CHIPS.map(function(ch){
       return '<button class="fbChip" type="button" data-code="' + esc(ch.code) + '">' + esc(ch.label) + '</button>';
     }).join('');
   }
-  bar.addEventListener('click', function(e){
-    var chip = e.target.closest('.fbChip');
-    if (chip) { if (typeof insertStructCode === 'function') insertStructCode(chip.dataset.code || ''); return; }
-    var b = e.target.closest('button'); if (!b) return;
-    var act = b.dataset.act;
-    if (act === 'exit') exitFocusMode();
-    else if (act === 'bold') fmBold();
-    else if (act === 'inc') fmSetScale(0.08);
-    else if (act === 'dec') fmSetScale(-0.08);
-    else if (act === 'size0') fmSetScale('reset');
-    else if (act === 'color') fmSetColor(b.dataset.color || '');
-  });
-})();
+}
+/* 툴바 버튼 동작 — 문서 위임으로 붙여, focusBar가 늦게 파싱돼도 항상 동작 */
+document.addEventListener('click', function(e){
+  if (!(e.target.closest && e.target.closest('#focusBar'))) return;
+  var chip = e.target.closest('.fbChip');
+  if (chip) { if (typeof insertStructCode === 'function') insertStructCode(chip.dataset.code || ''); return; }
+  var b = e.target.closest('button'); if (!b) return;
+  var act = b.dataset.act;
+  if (act === 'exit') exitFocusMode();
+  else if (act === 'bold') fmBold();
+  else if (act === 'inc') fmSetScale(0.08);
+  else if (act === 'dec') fmSetScale(-0.08);
+  else if (act === 'size0') fmSetScale('reset');
+  else if (act === 'color') fmSetColor(b.dataset.color || '');
+});
 document.addEventListener('keydown', function(e){
   if (!document.body.classList.contains('focusMode')) return;
   if (e.key === 'Escape') { exitFocusMode(); return; }
