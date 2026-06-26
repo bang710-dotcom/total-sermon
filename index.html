@@ -938,6 +938,32 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
   body.focusMode #editorPane{padding:6vh 15px 18vh}
   body.focusMode #focusBar{gap:4px;padding:5px 6px}
 }
+
+/* ===== 마인드맵 (설교 아이디어 확장) ===== */
+#page-mindmap.on{display:flex;flex-direction:column;gap:0;padding:0;height:calc(100vh - 24px);min-height:480px}
+@media (max-width:760px){ #page-mindmap.on{height:calc(100vh - 120px)} }
+#mmBar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 4px 12px}
+#mmBar .mmSep{width:1px;align-self:stretch;background:var(--line);margin:2px 4px}
+#mmBar select{width:auto;min-width:150px;max-width:240px;padding:7px 10px;font-size:13.5px}
+.mmBtn{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1;white-space:nowrap}
+.mmBtn:hover{border-color:var(--accent)}
+.mmBtn.mmDel{color:var(--warn)}
+.mmHint{color:var(--dim);font-size:12px;margin-left:4px}
+#mmViewport{position:relative;flex:1;min-height:360px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);touch-action:none;cursor:grab;background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:26px 26px}
+#mmViewport.panning{cursor:grabbing}
+#mmWorld{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
+#mmEdges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+#mmEdges path{fill:none;stroke:var(--dim);stroke-width:2;opacity:.7}
+#mmEdges path.root{stroke:var(--accent);stroke-width:2.4}
+.mmNode{position:absolute;transform:translate(-50%,-50%);max-width:230px;min-width:64px;box-sizing:border-box;background:var(--card2);color:var(--text);border:1.5px solid var(--line);border-radius:12px;padding:9px 13px;font-size:14px;line-height:1.4;font-weight:600;cursor:grab;user-select:none;white-space:pre-wrap;word-break:break-word;box-shadow:0 3px 10px rgba(0,0,0,.18);text-align:center}
+.mmNode:hover{border-color:var(--accent)}
+.mmNode.root{background:linear-gradient(180deg,rgba(124,154,255,.22),var(--card2));border-color:var(--accent);font-size:15px;font-weight:800;min-width:90px}
+.mmNode.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,154,255,.35),0 4px 14px rgba(0,0,0,.28)}
+.mmNode.editing{cursor:text;outline:none;background:var(--bg)}
+.mmNode.dragging{cursor:grabbing;opacity:.92}
+.mmNode[data-color="2"]{border-color:var(--accent2)} .mmNode[data-color="2"].sel{box-shadow:0 0 0 3px rgba(224,182,92,.35)}
+.mmNode[data-color="3"]{border-color:#5fcf80} .mmNode[data-color="4"]{border-color:#e08c8c}
+#mmEmpty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:14px;text-align:center;pointer-events:none;padding:20px}
 </style>
 </head>
 <body>
@@ -1415,6 +1441,34 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
         <div class="cnt" style="margin-top:8px">설교 기본원고 저장 폴더는 아이클라우드 설교 폴더, 클로드 연동 폴더는 코워크 작업 폴더(예: Developer/claude-exchange)를 지정하세요.</div>
       </div>
     </section>
+
+    <!-- ============ 마인드맵 (설교 아이디어 확장) ============ -->
+    <section class="page" id="page-mindmap">
+      <div id="mmBar">
+        <select id="mmMapSel" title="맵 선택"></select>
+        <button class="mmBtn" id="mmNewMap" type="button" title="새 마인드맵">＋ 맵</button>
+        <button class="mmBtn" id="mmRenameMap" type="button" title="맵 이름 변경">이름</button>
+        <button class="mmBtn mmDel" id="mmDelMap" type="button" title="이 맵 삭제">맵 삭제</button>
+        <span class="mmSep"></span>
+        <button class="mmBtn" id="mmAddChild" type="button" title="선택한 노드에 자식 추가 (Tab / Enter)">＋ 자식</button>
+        <button class="mmBtn" id="mmAddNode" type="button" title="새 노드 추가 (빈 곳 더블클릭으로도)">＋ 노드</button>
+        <button class="mmBtn" id="mmColor" type="button" title="선택 노드 색상 바꾸기">색</button>
+        <button class="mmBtn mmDel" id="mmDelNode" type="button" title="선택 노드(가지) 삭제 (Delete)">삭제</button>
+        <span class="mmSep"></span>
+        <button class="mmBtn" id="mmZoomOut" type="button" title="축소">－</button>
+        <button class="mmBtn" id="mmZoomIn" type="button" title="확대">＋</button>
+        <button class="mmBtn" id="mmFit" type="button" title="전체 보기">맞춤</button>
+        <span class="mmSep"></span>
+        <button class="mmBtn" id="mmCopyOutline" type="button" title="개요를 글머리표 텍스트로 복사 — 자유원고에 붙여넣기">개요 복사</button>
+        <span class="mmHint" id="mmHint">노드 더블클릭=편집 · 끌기=이동 · 빈 곳 끌기=화면 이동</span>
+      </div>
+      <div id="mmViewport">
+        <svg id="mmEdges"><g id="mmEdgesG"></g></svg>
+        <div id="mmWorld"></div>
+        <div id="mmEmpty"></div>
+      </div>
+    </section>
+
   </div>
 
   <nav class="tabbar">
