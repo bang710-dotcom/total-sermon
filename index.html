@@ -3648,6 +3648,7 @@ $('#addPoint').addEventListener('click', function(){
 
 /* ===== 블록(예화·내용) 핸들 드래그 이동 + 우클릭/롱프레스 삭제 ===== */
 function cwBlockDelete(i, bi){
+  var _now = Date.now(); if (_now - (cwBlockDelete._t || 0) < 350) return; cwBlockDelete._t = _now;  /* 우클릭이 pointerdown+contextmenu 둘 다 발화해도 1회만 삭제 */
   var p = state.compose.points[i]; if (!p) return;
   var bl = p.blocks, b = bl[bi]; if (!b) return;
   var lbl = b.type === 'ill' ? '이 예화를' : '이 ' + blockRole(b) + ' 블록을';
@@ -3706,7 +3707,8 @@ function cwBlockMove(srcI, srcBi, dstI, dstIdx){
   }
   listEl.addEventListener('pointerdown', function(e){
     var h = e.target.closest ? e.target.closest('.dragH') : null;
-    if (!h || e.button === 2) return;
+    if (!h) return;
+    if (e.button === 2) { e.preventDefault(); cwBlockDelete(+h.dataset.i, +h.dataset.bi); return; }  /* 우클릭 = 즉시 삭제(설치형 PWA에서 contextmenu 미발화 대비) */
     var i = +h.dataset.i, bi = +h.dataset.bi;
     st = { i: i, bi: bi, h: h, sx: e.clientX, sy: e.clientY, pid: e.pointerId,
            started: false, allowSect: i, dwellSect: null, dwellTimer: null, dst: null,
@@ -3749,12 +3751,16 @@ function cwBlockMove(srcI, srcBi, dstI, dstIdx){
 /* ── 구조화 코드(구조화 도구 칩) ──
    자유원고에 끼워 넣는 '코드'. 앱은 이걸 읽어 구조로 나누고, 내보내기 때는 코드 토큰을 찍지 않는다.
    대지 명제=(대지)[또는 1.], 예화=(예화)[또는 ex)], 결론=(결론)[또는 "말씀을 정리"]. */
-function isStructHead(l){ return /^\s*\d+\s*[.)]\s/.test(l) || /^\s*\(대지\)\s*/.test(l); }
+/* 머리글·결론 표시는 사용자가 **볼드**로 감싸는 경우가 많다(예: "**1. 정보 – …**").
+   구조 인식 시 양끝의 ** 볼드 마커는 무시한다(내용은 보존). */
+function stripBoldEnds(l){ return String(l == null ? '' : l).replace(/^\s*\*\*\s*/, '').replace(/\s*\*\*\s*$/, ''); }
+function isStructHead(l){ var s = stripBoldEnds(l); return /^\s*\d+\s*[.)]\s/.test(s) || /^\s*\(대지\)\s*/.test(s); }
 function structHeadProp(l){
-  if (/^\s*\(대지\)\s*/.test(l)) return l.replace(/^\s*\(대지\)\s*/, '').trim();
-  return l.replace(/^\s*\d+\s*[.)]\s*/, '').trim();
+  var s = stripBoldEnds(l);
+  if (/^\s*\(대지\)\s*/.test(s)) return s.replace(/^\s*\(대지\)\s*/, '').trim();
+  return s.replace(/^\s*\d+\s*[.)]\s*/, '').trim();
 }
-function isStructConc(l){ return l.indexOf('말씀을 정리') >= 0 || /^\s*\(결론\)/.test(l); }
+function isStructConc(l){ var s = stripBoldEnds(l); return s.indexOf('말씀을 정리') >= 0 || /^\s*\(결론\)/.test(s); }
 /* 내보내기용: 줄 맨 앞 구조화 코드 토큰만 제거(내용은 보존). 서식 판단은 호출부에서 따로. */
 function stripStructCode(l){
   return String(l).replace(/^\s*\((?:서론|대지|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론)\)\s*/, '');
@@ -3813,7 +3819,7 @@ function parseFreeToStructure(){
   closePoint();
   if (pts.length) c.points = pts;
   if (concIdx >= 0) {
-    var ch = lines[concIdx];
+    var ch = stripBoldEnds(lines[concIdx]);
     c.concIntro = /^\s*\(결론\)/.test(ch) ? (ch.replace(/^\s*\(결론\)\s*/, '').trim() || '말씀을 정리합니다.') : ch.trim();
     var concL = [];
     for (var k = concIdx + 1; k < lines.length; k++) {
@@ -12795,7 +12801,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v327';
+var APP_VER = 'v328';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
