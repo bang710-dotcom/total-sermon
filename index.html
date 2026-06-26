@@ -1026,7 +1026,7 @@ header.mobile .queueBadge{margin-left:8px;align-self:center}
           <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
           <button class="btn sub mini" data-req="리더스앱업로드"><span>LTC 교재<br>리더스앱 업로드</span></button>
         </div>
-        <label style="display:block;margin-top:12px">📦 설교 산출물 — 누르면 그 단계까지 한 번에 생성(이미 만든 산출물은 건너뜀, 원고를 고치면 다시 생성)</label>
+        <label style="display:block;margin-top:12px">📦 설교 산출물 — 누르면 그 산출물을 생성(이전 단계 결과물은 있으면 재사용·없으면 생성). 이미 있는 걸 다시 누르면 그것만 새로. Total Sermon은 전체를 새로 생성</label>
         <button class="btn gold" data-casc="docx" style="width:100%;margin-top:4px"><span class="blab">DOCX 원고 내보내기</span><small class="bpath">01 Sermons / 연도 폴더</small></button>
         <div class="desktop-only">
           <button class="linkbtn" id="cascToggle" style="margin:6px 0">▾ 중간 단계 펼치기</button>
@@ -10266,6 +10266,7 @@ async function runCascade(target, id, meta){
     }
   }
   if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
+  if (target === 'total') window._cascForce = true;   /* ★ Total Sermon = 무조건 전체 재생성(이전 산출물 유무와 무관) */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx' || target === 'total');
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
   var k = 0;
@@ -12260,7 +12261,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v309';
+var APP_VER = 'v310';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
