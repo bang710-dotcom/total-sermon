@@ -7312,17 +7312,22 @@ async function aiOccGen(){
   finally { b.disabled = false; b.innerHTML = old; }
 }
 
-/* 상황설교 개요 3세트를 설교마스터에 [보관]으로 기록 → [미래설교 보관함]에서 기기 무관 열람 */
+/* 상황설교 개요 1개 → 설교마스터 레코드 */
+function occArchiveRec(O, o, status){
+  return { '날짜': O.date || '', '예배구분': '대학부', '시리즈': '상황설교',
+    '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': status || '초안',
+    '핵심메시지': o['핵심메시지'] || '', '대지': djSer(o['대지']),
+    '비고': (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (O.sit ? ' / 상황: ' + O.sit.replace(/\s+/g, ' ').slice(0, 150) : '') };
+}
+/* 생성 직후: 3세트를 [초안] 상태로만 임시 동기화(기기 간엔 보이되 미래설교 보관함·검색엔 숨김).
+   → 미래설교 보관함에는 사용자가 카드별 [미래설교 저장]을 누른 것만 올라간다(시리즈와 동일 방식). */
 async function archiveOccOptions(O){
   if (!(state.settings && state.settings.url && state.settings.token)) return 0;
   if (!(O && Array.isArray(O.opts))) return 0;
   var rows = [], map = [];
   O.opts.forEach(function(o, i){
     if (o._id) return;
-    rows.push({ '날짜': O.date || '', '예배구분': '대학부', '시리즈': '상황설교',
-      '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': '보관',
-      '핵심메시지': o['핵심메시지'] || '', '대지': djSer(o['대지']),
-      '비고': (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (O.sit ? ' / 상황: ' + O.sit.replace(/\s+/g, ' ').slice(0, 150) : '') });
+    rows.push(occArchiveRec(O, o, '초안'));
     map.push(i);
   });
   if (!rows.length) return 0;
@@ -7331,10 +7336,32 @@ async function archiveOccOptions(O){
     var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: rows.slice(b, b + 50) });
     ids = ids.concat((res && res.ids) || []);
   }
-  ids.forEach(function(id, k){ var i = map[k]; if (i != null) O.opts[i]._id = id; });
+  ids.forEach(function(id, k){ var i = map[k]; if (i != null) { O.opts[i]._id = id; O.opts[i]._status = '초안'; } });
   occSaveSoon(); sync();
   return ids.length || rows.length;
 }
+/* 카드별 [미래설교 저장](수동) — 그 선택지만 [보관]으로 승격(있으면 갱신, 없으면 추가). */
+window.occArchiveOne = async function(i){
+  var O = state.occ, o = O && O.opts && O.opts[i];
+  if (!o) return;
+  if (o._status === '보관') { toast('이미 미래설교 보관함에 있습니다.'); return; }
+  if (!(state.settings && state.settings.url && state.settings.token)) { toast('시트 설정이 필요합니다 (설정 탭에서 URL·토큰).'); return; }
+  var rec = occArchiveRec(O, o, '보관');
+  try {
+    if (o._id) {
+      rec.ID = o._id;
+      await apiPost({ action: 'update', sheet: 'sermons', data: rec });
+      var lr = (state.data.sermons || []).filter(function(s){ return String(s['ID']) === String(o._id); })[0];
+      if (lr) { for (var k in rec) lr[k] = rec[k]; }
+    } else {
+      var res = await apiPost({ action: 'bulkAdd', sheet: 'sermons', rows: [rec] });
+      var id = (res && res.ids && res.ids[0]) || '';
+      if (id) { o._id = id; var nr = {}; for (var k2 in rec) nr[k2] = rec[k2]; nr['ID'] = id; state.data.sermons.push(nr); }
+    }
+    o._status = '보관'; occSaveSoon(); renderOccPane(); sync();
+    toast('「' + (o['제목'] || '선택지 ' + (i + 1)) + '」를 미래설교 보관함에 저장했습니다.');
+  } catch (e) { toast('보관 실패: ' + (e.message || e)); }
+};
 
 window.occPick = function(i){
   var O = state.occ, o = O.opts[i];
