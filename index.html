@@ -956,9 +956,9 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 #mmEdges{position:absolute;left:-6000px;top:-6000px;overflow:visible;pointer-events:none}
 #mmEdges path{fill:none;stroke:var(--dim);stroke-width:2;opacity:.7}
 #mmEdges path.root{stroke:var(--accent);stroke-width:2.4}
-.mmNode{position:absolute;transform:translate(-50%,-50%);max-width:230px;min-width:64px;box-sizing:border-box;background:var(--card2);color:var(--text);border:1.5px solid var(--line);border-radius:12px;padding:9px 13px;font-size:14px;line-height:1.4;font-weight:600;cursor:grab;user-select:none;white-space:pre-wrap;word-break:break-word;box-shadow:0 3px 10px rgba(0,0,0,.18);text-align:center}
+.mmNode{position:absolute;transform:translate(-50%,-50%);width:max-content;max-width:240px;min-width:54px;box-sizing:border-box;background:var(--card);color:var(--text);border:1.5px solid var(--line);border-radius:12px;padding:9px 14px;font-size:14px;line-height:1.45;font-weight:600;cursor:grab;user-select:none;white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word;box-shadow:0 4px 12px rgba(0,0,0,.16);text-align:center}
 .mmNode:hover{border-color:var(--accent)}
-.mmNode.root{background:linear-gradient(180deg,rgba(124,154,255,.22),var(--card2));border-color:var(--accent);font-size:15px;font-weight:800;min-width:90px}
+.mmNode.root{background:var(--card);border-color:var(--accent);border-width:2px;font-size:15px;font-weight:800;min-width:96px}
 .mmNode.sel{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,154,255,.35),0 4px 14px rgba(0,0,0,.28)}
 .mmNode.editing{cursor:text;outline:none;background:var(--bg)}
 .mmNode.dragging{cursor:grabbing;opacity:.92}
@@ -13049,7 +13049,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v332';
+var APP_VER = 'v333';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
