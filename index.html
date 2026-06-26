@@ -6343,13 +6343,17 @@ window.requestCardPdf = function(){
 
 /* ===================== 인앱 이미지자료(프롬프트 DOCX) 생성 (2단계) ===================== */
 var LED_TAIL = 'Strong dark vignette on all edges, left and right sides fading completely into pure black with smooth gradient, all bright elements concentrated in the central area, edges seamlessly dissolving into the surrounding darkness so the image appears intentionally framed within a larger black space. Deep black background. Widescreen 16:9.';
+/* ★ 이미지 생성 안전 제약(Flux 등): 융합·중복 인물(샴쌍둥이형), 여분 팔다리, 물 위 시신 연상 등 오생성 억제 — 모든 배경 프롬프트 끝에 자동 부착 */
+var IMG_SAFETY = 'Anatomically natural and correct; if any human figure appears, render a single clearly separated whole person (or distinct, well-separated silhouettes) — absolutely no conjoined, fused, merged, or duplicated bodies, no Siamese-twin forms, no extra or merged limbs or heads. No corpses, no dead, lifeless, or drowned bodies; do not place people lying in or floating on water.';
 var P_IMGDATA = [
-  '너는 영락교회 대학부 설교의 "설교 이미지 자료(컷별 LED 배경 프롬프트)"를 만든다. 입력(설교 원고+메타, 있으면 기존전환표)을 받아 컷 목록을 JSON으로만 출력한다. 설명·코드펜스 금지.',
+  '너는 영락교회 대학부 설교의 "설교 이미지 자료(컷별 LED 배경 프롬프트)"를 만든다. 입력(설교 원고+메타)을 받아 컷 목록을 JSON으로만 출력한다. 설명·코드펜스 금지.',
+  '★★입력에 "컷목록(고정)"이 있으면 그것이 절대 기준이다 — n·type·anchor·개수·순서를 하나도 바꾸지 말고 그대로 두고, 각 컷의 프롬프트 필드(style·ko·en·ref·verse)만 채워 같은 개수로 돌려준다. 컷을 더하거나 빼거나 종류를 바꾸지 마라(카드원고·전환표시본·생성이미지가 이 목록을 공유하므로 어긋나면 실패).',
   '출력: {"cuts":[{"n":1,"type":"표지|일반|본문","role":"한국어 역할","style":"사실적|추상적","ko":"한국어 설명 1~2문장","en":"영문 장면 묘사(일반·표지만)","ref":"장절 약어(본문만, 예 요 7:17)","verse":"인용 성구 원문 그대로(본문만)","anchor":"전환 직후 단락/인용 첫 30자"}]}',
   '전환표 규칙: #1=표지. #2부터 ★빠짐없이 연속 번호(점프·건너뜀 금지). 본문 시작 #2(일반). 본문 컷은 ★모든 인용마다가 아니라 강단에서 실제로 화면에 띄워 함께 봉독·집중하는 핵심 성경 본문에만 둔다(스치듯 짧게 언급하는 인라인 인용 제외, 한 장면의 연속 성구는 하나로 묶음). 전환 지점은 "설교 장면이 바뀌어 이전 이미지를 계속 두기 어색해지는 곳"(새 예화·새 국면)에 둔다 — 너무 자주 만들지 말 것(★표지 포함 15~25장, 25 초과 절대 금지). ★한 이미지는 최소 한 단락을 덮는다 — 한 문장 뒤 즉시 전환·대지 선언 단독 이미지 금지(선언은 본론과 같은 이미지로 묶음). ★★입력에 "기존전환표"가 있으면 카드원고와 100% 동일해야 한다 — n·종류·개수·지점(anchor)을 하나도 바꾸지 말고 그대로 따른다(이미지와 카드원고·전환표시본의 번호·지점이 어긋나면 실패).',
   'type 의미: 표지(#1만, 영문 프롬프트), 일반(분위기 배경 — 영문 프롬프트), 본문(성경 본문을 얹을 배경 — 새 이미지를 만들지 않고 직전 일반 이미지를 어둡게·흐리게 가공해서 쓴다. en은 빈 문자열. ref=장절 약어, verse=원고에 인용된 그 성구 원문 그대로(나중에 사람이 글자를 얹을 때 참고용)).',
   '★표현 방식(style) — 일반·표지 컷은 두 갈래로 명확히 구분한다: (가) 정보성 = 본문의 시대·장소·상황·역사적 배경을 청중이 이해하도록 돕는 장면 → style "사실적": 사실적이고 디테일하게(realistic, detailed, historically grounded, documentary-like painterly). (나) 메시지·상징·정서 = 설교의 메시지·상징적 의미·감정을 담는 장면 → style "추상적": 추상적·상징적으로(abstract, symbolic, minimal, evocative — 구체적 사물보다 빛·색·질감·형상 중심). 추상 이미지는 여러 단락을 한 화면으로 길게 덮어도 어색하지 않다. (본문 컷의 style은 직전 일반 컷을 따른다.)',
   'en(일반·표지만): 위 style을 그대로 반영해 그 단락의 장면을 묘사한다 — 사실적이면 구체적 디테일·고증, 추상적이면 상징·빛·색·질감 중심(특정 사물 최소화). 공통: 시네마틱 회화풍(cinematic painterly), 극적 명암(dramatic chiaroscuro), 사람 얼굴 없음·글자 없음(no visible faces, no text). 1~2문장. ※ "deep black background / vignette / 16:9" 같은 LED 마무리 문구는 절대 쓰지 마라(시스템이 자동 추가). 오직 장면 묘사.',
+  '★en 안전 규칙(오생성 방지): 인물은 한 명 또는 명확히 분리된 실루엣으로만 묘사하고(겹치거나 융합된 형상·여러 몸이 붙은 구도 금지), 강·물·바다 장면에 사람을 눕히거나 떠 있게 묘사하지 마라(시신 연상). 모호하게 뭉친 군중·포개진 몸 대신 빛·길·손짓 등 명료한 단일 요소로 표현한다.',
   'role=한국어 역할(예: "서론 — …", "1대지 선언 — …", "본문 — 요 7:17"). ko=한국어 설명 1~2문장. anchor=그 전환이 들어갈 위치(원고에서 전환 직후 단락/인용 첫 30자 그대로).',
   '원고 내용에 충실하라. 컷 수는 표지 포함 15~25장(기존전환표가 있으면 그 개수·번호·지점을 그대로 따른다).'
 ].join('\n');
@@ -11169,11 +11173,12 @@ async function generateImageSetFromCuts(id, meta, cuts){
     setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
     try {
       var blob;
-      if (isScr){
-        if (!lastCanvas) { fail.push('#' + c.n + '(파생원본없음)'); continue; }
+      /* 본문 컷은 직전 일반 이미지의 파생본. 단, 파생할 직전 이미지가 없으면(예: 고정표지로 #1 건너뜀)
+         건너뛰지 말고 일반 컷처럼 새로 생성한다 — 번호 누락(예: #2 빠지고 #3부터) 방지. */
+      if (isScr && lastCanvas){
         blob = await deriveScriptureBg(lastCanvas);   /* 직전 일반 이미지를 어둡게·흐리게 — 성구는 직접 얹음 */
       } else {
-        var p = (String(c.en || '').trim() ? c.en.trim() + ' ' : '') + LED_TAIL;
+        var p = (String(c.en || '').trim() ? c.en.trim() + ' ' : '') + LED_TAIL + ' ' + IMG_SAFETY;
         var rtBg = engineRoute('background');
         var res2 = await genSermonImage({ jobType: 'background', prompt: p, aspectRatio: '16:9', provider: rtBg.provider, model: rtBg.model });
         if (!res2.b64) { fail.push('#' + c.n + '(URL응답)'); continue; }
@@ -12218,7 +12223,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v306';
+var APP_VER = 'v307';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
