@@ -2369,6 +2369,8 @@ function renderRefPast(){
   var ref = $('#c_ref'); if (ref) ref.addEventListener('input', debounce(renderRefPast, 200));
   var box = $('#c_refPast');
   if (box) box.addEventListener('click', function(e){
+    var h = e.target.closest && e.target.closest('.pastbox > h4');
+    if (h){ h.parentNode.classList.toggle('collapsed'); return; }
     var t = e.target.closest && e.target.closest('[data-refpast]');
     if (t){ var id = t.getAttribute('data-refpast'); if (id) try { window.previewSermon(id); } catch (err) {} }
   });
@@ -2445,6 +2447,8 @@ function renderRefIllust(){
   var ref = $('#c_ref'); if (ref) ref.addEventListener('input', debounce(renderRefIllust, 250));
   var box = $('#c_illust');
   if (box) box.addEventListener('click', function(e){
+    var h = e.target.closest && e.target.closest('.pastbox > h4');
+    if (h){ h.parentNode.classList.toggle('collapsed'); return; }
     var b = e.target.closest && e.target.closest('.illInsertU'); if (!b) return;
     e.preventDefault();
     var it = ILLUST.refMap && ILLUST.refMap[b.getAttribute('data-illkey')]; if (!it) return;
@@ -12292,7 +12296,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v314';
+var APP_VER = 'v315';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
