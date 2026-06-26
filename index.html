@@ -7406,7 +7406,17 @@ function extractTransTable(arr){
 /* 먼저 만들어진 표가 없을 때만 저장(기준표 보존) */
 function storeTransIfEmpty(id, table){
   if (!id || !table || !table.length || sermonTrans(id)) return;
-  setSermonFileMap(id, 'trans', table);
+  setSermonFileMap(id, 'trans', normalizeTransTable(table));
+}
+/* ★ 번호 결정론화: 표지(#1) 제외, 전환표는 배열 순서대로 #2,#3,#4… 고유·연속 번호를 강제한다.
+   본문 컷이 "직전 일반 이미지의 변형"이라 LLM이 같은 번호를 재사용하는 버그를 코드에서 차단한다
+   (본문 컷도 자기 고유 번호를 받는다 — 카드원고·이미지자료·전환표시본·PDF/PPTX 배지가 모두 이 표를 따르므로 한 번에 일관). */
+function normalizeTransTable(table){
+  if (!Array.isArray(table)) return table;
+  return table.map(function(r, i){
+    r = r || {};
+    return { n: i + 2, t: /본문/.test(String(r.t || '')) ? '본문' : '일반', a: r.a || '', role: r.role || '' };
+  });
 }
 /* ★ 이미지 전환표 = 단일 진실 소스. 기본원고(원고텍스트)로 한 번 확정해 파일맵에 박고,
    원고가 바뀌면(서명 불일치) 갱신. 카드원고·이미지컷·전환표시본이 모두 이 표만 따른다 →
@@ -7429,8 +7439,8 @@ async function ensureTransTable(id, meta){
   var stored = id ? sermonTrans(id) : null;
   var storedSig = null;
   if (s) { try { storedSig = (JSON.parse(s['파일맵'] || '{}') || {}).transSig; } catch (e) {} }
-  if (stored && stored.length && storedSig && storedSig === sig) return stored;   /* 같은 원고 → 재사용 */
-  if (!txt) return stored || null;   /* 원고 없으면 계획 불가 — 기존 것 반환 */
+  if (stored && stored.length && storedSig && storedSig === sig) return normalizeTransTable(stored);   /* 같은 원고 → 재사용(번호 정규화) */
+  if (!txt) return stored ? normalizeTransTable(stored) : null;   /* 원고 없으면 계획 불가 — 기존 것 반환 */
   _transRegen = true;   /* 여기부터는 새로 생성(원고가 바뀌었거나 최초) */
   var out = await callClaude(P_TRANSPLAN, JSON.stringify({ 제목: meta['제목'], 본문: meta['본문'], 예배구분: meta['예배구분'], 원고: txt }), 16000, aiTick('이미지 전환표'));
   var j = aiJson(out);
@@ -7443,12 +7453,13 @@ async function ensureTransTable(id, meta){
       if (t2.length && t2.length < table.length) table = t2;   /* 더 적게 나왔을 때만 채택 */
     } catch (e) {}
   }
+  table = normalizeTransTable(table);   /* ★ 번호 결정론화: #2부터 연속·고유(본문컷 번호 중복 차단) */
   if (table.length && id) {
     setSermonFileMap(id, 'trans', table); setSermonFileMap(id, 'transSig', sig);
     /* 기본원고에 묶인 전환표 JSON 동봉(투명성·백업) */
     try { await saveBlobToResults(new Blob([JSON.stringify({ ref: meta['본문'] || '', sig: sig, trans: table }, null, 1)], { type: 'application/json' }), sermonFileBase(meta, '전환표') + '.json'); } catch (e) {}
   }
-  return table.length ? table : (stored || null);
+  return table.length ? table : (stored ? normalizeTransTable(stored) : null);
 }
 async function refToken(ref){
   try {
