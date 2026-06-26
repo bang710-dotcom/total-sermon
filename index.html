@@ -7275,10 +7275,12 @@ function renderOccPane(){
   var h = '<div class="card"><b>설교 개요 선택지 3세트</b><div class="cnt" style="margin-top:4px">' +
     (O.at ? '생성 ' + esc(O.at) + ' · ' : '') + '각 칸은 그 자리에서 바로 수정됩니다. 대지 칸은 「1. 명제 / - 근거: / - 적용:」 줄 형식을 유지해 주세요.</div></div>';
   h += O.opts.map(function(o, i){
+    var saved = (o._status === '보관');
     return '<div class="edPoint" id="occOpt' + i + '">' +
-      '<div style="display:flex;align-items:center;gap:10px"><b style="font-size:15.5px">선택지 ' + (i + 1) + '</b>' +
-      '<button class="btn sub" style="flex:0 0 auto;width:auto;padding:8px 16px;font-size:13px" onclick="occPreview(' + i + ')">미리보기</button>' +
-      '<button class="btn" style="margin-left:auto;flex:0 0 auto;width:auto;padding:8px 16px;font-size:13px" onclick="occPick(' + i + ')">이 개요로 설교 작성</button></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:15.5px">선택지 ' + (i + 1) + '</b>' +
+      '<button class="btn sub" style="flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px" onclick="occArchiveOne(' + i + ')"' + (saved ? ' disabled' : '') + '>' + (saved ? '✓ 보관됨' : '＋ 미래설교 저장') + '</button>' +
+      '<button class="btn sub" style="flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px" onclick="occPreview(' + i + ')">미리보기</button>' +
+      '<button class="btn" style="margin-left:auto;flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px" onclick="occPick(' + i + ')">이 개요로 설교 작성</button></div>' +
       '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="occF" data-i="' + i + '" data-f="제목" value="' + esc(o['제목'] || '') + '"></div>' +
       '<div><label>본문</label><input type="text" class="occF" data-i="' + i + '" data-f="본문" value="' + esc(o['본문'] || '') + '"></div></div>' +
       '<label>핵심메시지 (주제)</label><input type="text" class="occF" data-i="' + i + '" data-f="핵심메시지" value="' + esc(o['핵심메시지'] || '') + '">' +
@@ -7305,9 +7307,9 @@ async function aiOccGen(){
     O.opts = arr.slice(0, 3).map(optEdit);
     O.at = new Date().toISOString().slice(0, 16).replace('T', ' ');
     occSaveSoon(); renderOccPane(); renderSyncState();
-    toast('개요 3세트 도착 — 다듬은 뒤 [이 개요로 설교 작성]을 누르세요.');
-    try { var on = await archiveOccOptions(O); if (on) toast(on + '개 상황설교 개요를 [미래설교 보관함]에 보관했습니다 — 어느 기기에서나 열람.'); }
-    catch (ae) { toast('자동 보관 실패(생성은 정상): ' + ae.message); }
+    toast('개요 3세트 도착 — 다듬은 뒤, 보관할 선택지마다 [＋ 미래설교 저장]을 누르세요(자동 보관 아님).');
+    try { await archiveOccOptions(O); }   /* [초안]으로만 임시 동기화(보관함엔 수동 저장한 것만) */
+    catch (ae) { toast('임시 동기화 실패(생성은 정상): ' + ae.message); }
   } catch (e) { renderSyncState(); toast('개요 생성 실패: ' + e.message); }
   finally { b.disabled = false; b.innerHTML = old; }
 }
@@ -7383,6 +7385,7 @@ window.occPick = function(i){
      (이전: 선택분도 보관에 남고 저장 시 중복 행이 생기던 문제 수정) */
   if (o._id) {
     state.editing = o._id; state.versionOf = null;
+    o._status = '구상/연구';   /* 더 이상 초안 아님 — 카드 버튼·재생성 정리에서 제외 */
     $('#c_series').value = '상황설교';
     $('#c_state').value = '구상/연구';
     var sLoc = findSermon(o._id); if (sLoc) sLoc['상태'] = '구상/연구';
