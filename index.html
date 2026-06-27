@@ -1216,7 +1216,7 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
     <!-- ============ 시리즈 계획 (데스크탑) ============ -->
     <section class="page" id="page-series">
       <div id="seriesListView">
-        <div class="toolrow seriesCreateRow" style="max-width:560px;margin-bottom:6px;gap:8px"><button class="btn" id="sl_new">＋ 대학부 시리즈 만들기</button><button class="btn" id="sl_topic">＋ 주제별 시리즈 만들기</button><button class="btn gold" id="sl_dawn"><svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg><span>새벽기도 시리즈 만들기</span></button></div>
+        <div class="toolrow seriesCreateRow" style="max-width:560px;margin-bottom:6px;gap:8px"><button class="btn" id="sl_new">＋ 대학부 시리즈</button><button class="btn" id="sl_topic">＋ 주제별 시리즈</button><button class="btn gold" id="sl_dawn"><svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg><span>새벽기도 시리즈</span></button></div>
         <div class="cnt" style="margin-bottom:12px">시리즈를 선택하면 마법사로 들어가 단계별로 확인·수정하고 그 시점부터 재사용할 수 있습니다.</div>
         <div id="slCoverage"></div>
         <div id="slItems"></div>
@@ -8803,7 +8803,7 @@ function renderSeriesList(){
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 새벽 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
   });
-  box.innerHTML = html || '<div class="empty">아직 시리즈 계획이 없습니다.<br>[＋ 대학부 시리즈 만들기]로 시작하세요.</div>';
+  box.innerHTML = html || '<div class="empty">아직 시리즈 계획이 없습니다.<br>[＋ 대학부 시리즈]로 시작하세요.</div>';
 }
 window.slOpen = function(i){
   var S = state.seriesList[i];
@@ -13150,7 +13150,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v352';
+var APP_VER = 'v353';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
