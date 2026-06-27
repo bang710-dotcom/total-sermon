@@ -4308,11 +4308,26 @@ function fmSetScale(d){
   cur = Math.round(cur * 100) / 100;
   try { document.body.style.setProperty('--edScale', cur); localStorage.setItem('tsa.fmScale', cur); } catch (e) {}
 }
+/* 집중 모드 글꼴(화면 표시용) — 고딕 / IBM Plex Sans KR / 나눔명조 순환 */
+var FM_FONTS = [
+  { k: '고딕', css: "'Apple SD Gothic Neo','Noto Sans KR',sans-serif", load: null },
+  { k: 'IBM Plex', css: "'IBM Plex Sans KR','Apple SD Gothic Neo',sans-serif", load: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500&display=swap' },
+  { k: '나눔명조', css: "'Nanum Myeongjo','AppleMyungjo',serif", load: 'https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap' }
+];
+var _fmFontLoaded = {};
+function fmEnsureFontLoaded(url){ if (!url || _fmFontLoaded[url]) return; _fmFontLoaded[url] = 1;
+  try { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = url; document.head.appendChild(l); } catch (e) {} }
+function fmApplyFont(i){ if (!FM_FONTS.length) return; i = ((i % FM_FONTS.length) + FM_FONTS.length) % FM_FONTS.length;
+  var f = FM_FONTS[i]; fmEnsureFontLoaded(f.load);
+  try { document.body.style.setProperty('--edFont', f.css); localStorage.setItem('tsa.fmFont', i); } catch (e) {}
+  var b = document.getElementById('fmFontBtn'); if (b) b.textContent = '글꼴 · ' + f.k; }
+function fmCycleFont(){ var i = (parseInt(localStorage.getItem('tsa.fmFont') || '0', 10) || 0) + 1; fmApplyFont(i); }
 function fmRestorePrefs(){
   try {
     document.body.style.removeProperty('--edColor');   /* 색 도구 제거 — 잔여 색조 정리 */
     var s = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
     document.body.style.setProperty('--edScale', s);
+    fmApplyFont(parseInt(localStorage.getItem('tsa.fmFont') || '0', 10) || 0);
   } catch (e) {}
 }
 /* ── 전체화면 진입/해제 (사용자 클릭 제스처에서만 허용됨) ── */
@@ -4453,6 +4468,7 @@ document.addEventListener('click', function(e){
   else if (act === 'inc') fmSetScale(0.08);
   else if (act === 'dec') fmSetScale(-0.08);
   else if (act === 'size0') fmSetScale('reset');
+  else if (act === 'font') fmCycleFont();
 });
 document.addEventListener('keydown', function(e){
   if (!document.body.classList.contains('focusMode')) return;
@@ -13072,7 +13088,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v344';
+var APP_VER = 'v345';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
