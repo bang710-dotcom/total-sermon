@@ -2526,6 +2526,12 @@ function illustLoad(){
   return ILLUST._p;
 }
 /* 예화 출처 표시(확정/전언/미상). 확정은 정자체, 전언·미상은 이탤릭. note는 작은 보조줄. */
+/* 출처 등급 아이콘(카테고리 배지 왼쪽에 작게). 확정=✅ 전언=⚠️ 미상=❓ */
+function illGrade(conf){
+  var m = { '확정': '✅', '전언': '⚠️', '미상': '❓' };
+  if (!m[conf]) return '';
+  return '<span title="출처 ' + conf + '" style="font-size:12px;margin-right:4px;vertical-align:middle">' + m[conf] + '</span>';
+}
 function illSrc(src, conf, note){
   if (!src) return '';
   var em = (conf === '확정') ? 'normal' : 'italic';
@@ -2536,7 +2542,7 @@ function illSrc(src, conf, note){
 }
 function illCard(it){
   return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
-    + '<summary style="cursor:pointer;list-style:none"><span class="badge b-idea">' + esc(it.category || '') + '</span> <b>' + esc(it.title || '') + '</b>'
+    + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConfidence) + '<span class="badge b-idea">' + esc(it.category || '') + '</span> <b>' + esc(it.title || '') + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story || '') + '</div>'
     + ((it.bibleRefs && it.bibleRefs.length) ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + esc(it.bibleRefs.join('  ·  ')) + '</div>' : '')
@@ -2646,7 +2652,7 @@ function illCardU(it){
       + (used.length > 5 ? ' 외' : '') + '</div>'
     : '';
   return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
-    + '<summary style="cursor:pointer;list-style:none"><span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
+    + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConf) + '<span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
     + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
@@ -13066,7 +13072,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v343';
+var APP_VER = 'v344';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
