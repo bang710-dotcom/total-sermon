@@ -1348,6 +1348,7 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
         <span class="chip" data-v="">전체</span>
       </div>
       <div class="toolrow" style="margin-bottom:10px"><button class="btn sub mini" id="enhanceIdeasBtn" type="button" style="flex:0 0 auto">✦ 강화 안 된 예화 일괄 강화</button><span class="cnt" id="enhanceIdeasHint" style="margin-left:8px"></span></div>
+      <div class="cnt" style="margin-bottom:12px;line-height:1.65;background:var(--card,#0000000a);border-radius:8px;padding:9px 11px">💡 <b>예화</b>로 저장한 항목은 저장 즉시 <b>예화 도서관</b>의 「내 인박스」에도 나타나 검색·설교 삽입까지 됩니다. 인박스는 새로 들어온 예화를 <b>검토하는 자리</b>예요. 검토 후 도서관에서 「인박스 예화 라이브러리로 편입」을 누르면, 이 목록에서는 숨겨지고 도서관에만 정리됩니다.</div>
       <div id="inboxList"></div>
     </section>
 
@@ -1365,6 +1366,7 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
           <span class="cnt" id="illCount"></span>
         </div>
         <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto">📥 인박스 예화 라이브러리로 편입</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
+        <div class="cnt" style="margin-top:8px;line-height:1.6">「<b>내 인박스</b>」=빠른 입력으로 넣어 아직 인박스에 남아 있는 예화 · 「<b>인박스 편입</b>」=검토 끝나 도서관에만 정리한 예화 · 「<b>강화 라이브러리</b>」=기본 제공 예화. 모두 검색·설교 삽입이 됩니다.</div>
       </div>
       <div id="illResults"></div>
     </section>
@@ -2523,15 +2525,25 @@ function illustLoad(){
   });
   return ILLUST._p;
 }
+/* 예화 출처 표시(확정/전언/미상). 확정은 정자체, 전언·미상은 이탤릭. note는 작은 보조줄. */
+function illSrc(src, conf, note){
+  if (!src) return '';
+  var em = (conf === '확정') ? 'normal' : 'italic';
+  var tag = conf ? '[' + conf + '] ' : '';
+  var html = '<div style="margin-top:5px;font-size:11px;color:var(--dim);font-style:' + em + '">📎 ' + esc(tag + src) + '</div>';
+  if (note) html += '<div style="margin-top:2px;font-size:11px;color:var(--dim);opacity:.75">※ ' + esc(note) + '</div>';
+  return html;
+}
 function illCard(it){
   return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
     + '<summary style="cursor:pointer;list-style:none"><span class="badge b-idea">' + esc(it.category || '') + '</span> <b>' + esc(it.title || '') + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story || '') + '</div>'
     + ((it.bibleRefs && it.bibleRefs.length) ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + esc(it.bibleRefs.join('  ·  ')) + '</div>' : '')
+    + illSrc(it.source, it.sourceConfidence, it.sourceNote)
     + '<div style="margin-top:6px"><button class="linkbtn illInsert" data-illid="' + esc(it.id) + '">＋ 이 예화를 대지에 삽입</button></div></details>';
 }
-function illNormLib(it){ return { key:'lib:'+it.id, src:'lib', category:it.category||'', title:it.title||'', message:it.message||'', story:it.story||'', refs:it.bibleRefs||[] }; }
+function illNormLib(it){ return { key:'lib:'+it.id, src:'lib', category:it.category||'', title:it.title||'', message:it.message||'', story:it.story||'', refs:it.bibleRefs||[], source:it.source||'', sourceConf:it.sourceConfidence||'', sourceNote:it.sourceNote||'' }; }
 function illNormInbox(d){ var story=String(d['내용']||'').trim(); var folded=(d['상태']==='편입됨'); return { key:'inbox:'+d['ID'], src: folded?'lib':'inbox', category: folded?'인박스 편입':'내 인박스', title:d['제목']||illFirstLine(story), message:d['강조메시지']||'', story:story, refs:String(d['관련본문']||'').split(/;\s*/).filter(Boolean) }; }
 function renderRefIllust(){
   var box = $('#c_illust'); if (!box) return;
@@ -2595,7 +2607,8 @@ function illUnified(){
   if (ILLUST && ILLUST.items){
     ILLUST.items.forEach(function(it){ if (!it.enhanced) return;
       out.push({ key: 'lib:' + it.id, src: 'lib', category: it.category || '', title: it.title || '',
-        message: it.message || '', story: it.story || '', refs: it.bibleRefs || [], keywords: it.keywords || '' });
+        message: it.message || '', story: it.story || '', refs: it.bibleRefs || [], keywords: it.keywords || '',
+        source: it.source || '', sourceConf: it.sourceConfidence || '', sourceNote: it.sourceNote || '' });
     });
   }
   var libT = {}; out.forEach(function(x){ libT[String(x.title).trim()] = 1; });
@@ -2637,6 +2650,7 @@ function illCardU(it){
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
     + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
+    + illSrc(it.source, it.sourceConf, it.sourceNote)
     + usedHtml
     + '<div style="margin-top:6px"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button></div></details>';
 }
@@ -13052,7 +13066,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v334';
+var APP_VER = 'v335';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
