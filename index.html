@@ -318,6 +318,14 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .btn[data-casc]{position:relative}
 .btn[data-casc] .blab{white-space:nowrap}
 .btn[data-casc].casc-done::after{content:'●';color:#2e9d68;font-size:11px;position:absolute;top:7px;right:9px;pointer-events:none}
+/* ── Total 포함 토글 스위치 (6개 가지 버튼) ── */
+.cascitem{position:relative;width:100%}
+.cascitem .btn.sub{padding-left:46px;padding-right:46px}
+.cascitem .btn[data-casc].casc-done::after{left:10px;right:auto}
+.cascsw{position:absolute;top:50%;right:9px;transform:translateY(-50%);width:40px;height:23px;border-radius:999px;background:var(--line);border:1px solid var(--line);cursor:pointer;z-index:3;transition:background .15s,border-color .15s}
+.cascsw::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.35);transition:left .15s}
+.cascsw.on{background:var(--accent);border-color:var(--accent)}
+.cascsw.on::after{left:19px}
 /* ── 시트 재동기화 중 흐림 처리 ── */
 .page{transition:opacity .32s ease}
 .page.stale{opacity:.38;pointer-events:none}
@@ -1146,21 +1154,21 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
             <div style="display:flex;gap:8px">
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">카드 가지</div>
-                <button class="btn sub" data-casc="card" style="width:100%"><span class="blab">카드 원고 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button>
-                <button class="btn sub" data-casc="cardpdf" style="width:100%"><span class="blab">카드 디자인 PDF</span><small class="bpath">claude-exchange / 결과함</small></button>
-                <button class="btn sub" data-casc="cardpptx" style="width:100%"><span class="blab">카드 디자인 PPTX</span><small class="bpath">claude-exchange / 결과함</small></button>
+                <div class="cascitem"><button class="btn sub" data-casc="card" style="width:100%"><span class="blab">카드 원고 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="card" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="cardpdf" style="width:100%"><span class="blab">카드 디자인 PDF</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="cardpdf" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (카드 원고 자동 포함)"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="cardpptx" style="width:100%"><span class="blab">카드 디자인 PPTX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="cardpptx" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (카드 원고 자동 포함)"></span></div>
               </div>
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">이미지 가지</div>
-                <button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button>
-                <button class="btn sub" data-casc="imgdata" style="width:100%"><span class="blab">프롬프트 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button>
-                <button class="btn sub" data-casc="bgimg" style="width:100%"><span class="blab">배경 이미지 생성</span><small class="bpath">claude-exchange / 결과함</small></button>
+                <div class="cascitem"><button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="trans" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="imgdata" style="width:100%"><span class="blab">프롬프트 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="imgdata" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="bgimg" style="width:100%"><span class="blab">배경 이미지 생성</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="bgimg" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
               </div>
             </div>
           </div>
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
         </div>
-        <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 [중간 단계 펼치기]. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
+        <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(원고 DOCX는 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">설교 기본원고 저장 폴더 지정</button>
         <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
@@ -10965,21 +10973,22 @@ async function saveImgDataDocxFile(meta, cuts){
    ★ 의존관계 기반: 요청한 산출물 + 그것이 필요로 하는 이전 단계만 — 형제 산출물은 만들지 않는다.
    (예: [배경 이미지]는 전환표·이미지 컷만 거쳐 이미지로 — 전환표시본·프롬프트는 건너뜀) */
 function cascStepList(target){
-  var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx' || target === 'total');
-  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
+  var sel = (target === 'total') ? cascSel() : null;   /* Total은 켜둔 산출물만 단계로 표시 */
+  var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
+  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg));
   var s = [];
   if (inA || inB) s.push({ label: '이미지 전환표' });
   if (target === 'docx' || target === 'total') s.push({ label: 'DOCX 원고' });
   if (inA) {
     s.push({ label: '카드 원고' });
-    if (target === 'cardpdf' || target === 'total') s.push({ label: '카드 디자인 PDF' });
-    if (target === 'cardpptx' || target === 'total') s.push({ label: '카드 디자인 PPTX' });
+    if (target === 'cardpdf' || (sel && sel.cardpdf)) s.push({ label: '카드 디자인 PDF' });
+    if (target === 'cardpptx' || (sel && sel.cardpptx)) s.push({ label: '카드 디자인 PPTX' });
   }
   if (inB) {
     s.push({ label: '이미지 컷' });
-    if (target === 'trans' || target === 'total') s.push({ label: '이미지 전환표시본' });
-    if (target === 'imgdata' || target === 'total') s.push({ label: '이미지 프롬프트' });
-    if (target === 'bgimg' || target === 'total') s.push({ label: '배경 이미지' });
+    if (target === 'trans' || (sel && sel.trans)) s.push({ label: '이미지 전환표시본' });
+    if (target === 'imgdata' || (sel && sel.imgdata)) s.push({ label: '이미지 프롬프트' });
+    if (target === 'bgimg' || (sel && sel.bgimg)) s.push({ label: '배경 이미지' });
   }
   return s;
 }
@@ -11053,11 +11062,15 @@ async function refreshCascBtns(id){
 async function runCascade(target, id, meta){
   if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
   if (target !== 'docx' && !canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+  /* ★ Total = 가지 토글에서 켜둔 산출물만 생성(원고 DOCX는 항상 포함). 단일 버튼은 sel=null. */
+  var sel = (target === 'total') ? cascSel() : null;
+  if (sel && !cascSelAny(sel)) { toast('생성할 산출물을 하나 이상 켜 주세요 — 각 가지 버튼 오른쪽 토글.'); return; }
   window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false;   /* 강제 재생성 플래그 초기화 */
   /* 이미 만든 적 있고 원고가 그대로면 — 다시 만들지 묻는다(결과물 보기 / 다시 생성하기 / 닫기).
      원고가 바뀌었으면 묻지 않고 새로 만든다. */
   if (id && !manuscriptChanged(id, meta)) {
-    var dmap = cascDone(id), keys = CASC_TARGET_KEYS[target] || [];
+    var keys = sel ? ['docx'].concat(CASC_SEL_KEYS.filter(function(k){ return sel[k]; })) : (CASC_TARGET_KEYS[target] || []);
+    var dmap = cascDone(id);
     /* ★ 하나라도 이미 만든 산출물이 있으면 묻는다(전혀 없으면 바로 생성).
        사용자가 버튼을 다시 누른 것 = 다시 만들 의지 → [다시 생성하기]는 처음부터 전부 새로. */
     if (keys.length && keys.some(function(kk){ return dmap[kk]; })) {
@@ -11070,10 +11083,10 @@ async function runCascade(target, id, meta){
       else if (target === 'card') window._cascForceCard = true;   /* 카드원고 자체를 새로 집필 */
     }
   }
-  if ((target === 'bgimg' || target === 'total') && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
-  if (target === 'total') window._cascForce = true;   /* ★ Total Sermon = 무조건 전체 재생성(이전 산출물 유무와 무관) */
-  var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx' || target === 'total');
-  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'total');
+  if ((target === 'bgimg' || (sel && sel.bgimg)) && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
+  if (target === 'total') window._cascForce = true;   /* ★ Total Sermon = 켜둔 산출물 전체 재생성(이전 산출물 유무와 무관) */
+  var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
+  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg));
   var k = 0;
   cascShow(cascStepList(target));
   var fails = [];   /* 한 단계가 실패해도 멈추지 않고 다음 단계로 — 무엇이 실패했는지 모아 알린다 */
@@ -11090,9 +11103,9 @@ async function runCascade(target, id, meta){
 
     /* 3) 카드 가지 */
     if (inA) {
-      var needPdf = (target === 'cardpdf' || target === 'total');
-      var needPptx = (target === 'cardpptx' || target === 'total');
-      var cardRequested = (target === 'card' || target === 'total');
+      var needPdf = (target === 'cardpdf' || !!(sel && sel.cardpdf));
+      var needPptx = (target === 'cardpptx' || !!(sel && sel.cardpptx));
+      var cardRequested = (target === 'card' || !!(sel && sel.card));
       /* 카드원고: 요청이거나(Total 포함)·강제이거나·파일이 없으면 생성. 있으면 재사용(PDF/PPTX의 이전 단계). */
       var cardExists = false; if (!cardRequested && !window._cascForce) { try { cardExists = !!(await cardDocxFileHandle(meta)); } catch (e) { cardExists = false; } }
       if (cardRequested || window._cascForce || window._cascForceCard || !cardExists) {
@@ -11114,9 +11127,9 @@ async function runCascade(target, id, meta){
 
     /* 4) 이미지 가지 — 요청한 산출물만. 이미지 컷(이전 단계)은 사이드카가 있으면 재사용(없으면 생성). */
     if (inB) {
-      var doTrans = (target === 'trans' || target === 'total');
-      var doImg = (target === 'imgdata' || target === 'total');
-      var doBg = (target === 'bgimg' || target === 'total');
+      var doTrans = (target === 'trans' || !!(sel && sel.trans));
+      var doImg = (target === 'imgdata' || !!(sel && sel.imgdata));
+      var doBg = (target === 'bgimg' || !!(sel && sel.bgimg));
       var cuts = null;
       ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
       if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var Dt = await ensureDocxLib(); await saveBlobToResults(await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)), imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); } }
@@ -11149,6 +11162,38 @@ $$('#composeMeta [data-casc]').forEach(function(b){
     var open = mid.style.display === 'none';
     mid.style.display = open ? 'block' : 'none';
     tg.textContent = open ? '▴ 중간 단계 접기' : '▾ 중간 단계 펼치기';
+  });
+})();
+/* ===== Total 포함 토글(가지 6개) — 선택·종속관계·기억 ===== */
+var CASC_SEL_KEYS = ['card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg'];
+var CASC_DEPS = { cardpdf: ['card'], cardpptx: ['card'] };   /* 켤 때 함께 켜질 필수 하위 소스 */
+var CASC_DEPENDENTS = { card: ['cardpdf', 'cardpptx'] };       /* 끌 때 함께 꺼질 상위(이 소스가 필요함) */
+function cascSwEl(k){ return document.querySelector('#composeMeta .cascsw[data-cascsel="' + k + '"]'); }
+function cascSwSet(k, on){ var el = cascSwEl(k); if (el) { el.classList.toggle('on', !!on); el.setAttribute('aria-checked', on ? 'true' : 'false'); } }
+function cascSwOn(k){ var el = cascSwEl(k); return !!(el && el.classList.contains('on')); }
+function cascSwSave(){ try { var o = {}; CASC_SEL_KEYS.forEach(function(k){ o[k] = cascSwOn(k); }); localStorage.setItem('cascSel', JSON.stringify(o)); } catch (e) {} }
+/* 현재 선택(종속관계 보정 포함) — runCascade·cascStepList 공용 */
+function cascSel(){
+  var s = {}; CASC_SEL_KEYS.forEach(function(k){ s[k] = cascSwOn(k); });
+  if (s.cardpdf || s.cardpptx) s.card = true;   /* PDF/PPTX는 카드 원고를 소스로 필요 */
+  return s;
+}
+function cascSelAny(s){ return CASC_SEL_KEYS.some(function(k){ return s[k]; }); }
+function cascSwToggle(k){
+  var on = !cascSwOn(k);
+  cascSwSet(k, on);
+  if (on) (CASC_DEPS[k] || []).forEach(function(d){ cascSwSet(d, true); });        /* 켜면 필수 소스 함께 켜기 */
+  else (CASC_DEPENDENTS[k] || []).forEach(function(d){ cascSwSet(d, false); });     /* 끄면 이 소스가 필요한 상위 함께 끄기 */
+  cascSwSave();
+}
+(function(){
+  var sw = $$('#composeMeta .cascsw'); if (!sw.length) return;
+  var o = {}; try { o = JSON.parse(localStorage.getItem('cascSel') || '{}') || {}; } catch (e) {}
+  CASC_SEL_KEYS.forEach(function(k){ cascSwSet(k, !!o[k]); });
+  if (cascSwOn('cardpdf') || cascSwOn('cardpptx')) cascSwSet('card', true);   /* 저장값 종속 보정 */
+  sw.forEach(function(el){
+    el.addEventListener('click', function(ev){ ev.stopPropagation(); ev.preventDefault(); cascSwToggle(el.dataset.cascsel); });
+    el.addEventListener('keydown', function(ev){ if (ev.key === ' ' || ev.key === 'Enter') { ev.stopPropagation(); ev.preventDefault(); cascSwToggle(el.dataset.cascsel); } });
   });
 })();
 window.exportSermonDocx = function(id){
