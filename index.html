@@ -1101,12 +1101,6 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
           <div id="cwResults" style="margin-top:9px;max-height:320px;overflow:auto"></div>
         </div>
         <div class="cnt" id="c_editing" style="margin-bottom:8px">새 설교</div>
-        <label style="margin-top:0">원고 스타일</label>
-        <div class="chips" id="c_style">
-          <span class="chip gold" data-v="카드원고">카드원고</span>
-          <span class="chip on" data-v="기본원고">기본원고</span>
-          <span class="chip" data-v="자유원고">자유원고</span>
-        </div>
         <div class="row2" style="margin-top:10px">
           <div><label>날짜</label><input type="date" id="c_date"></div>
           <div><label>예배구분</label><input type="text" id="c_service" placeholder="대학부"></div>
@@ -1123,6 +1117,12 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
         <label>상태</label>
         <select id="c_state"><option>구상/연구</option><option>작성중</option><option>완료</option><option>설교함</option></select>
         <label>핵심메시지</label><input type="text" id="c_msg">
+        <label>원고 스타일</label>
+        <div class="chips" id="c_style">
+          <span class="chip gold" data-v="카드원고">카드원고</span>
+          <span class="chip on" data-v="기본원고">기본원고</span>
+          <span class="chip" data-v="자유원고">자유원고</span>
+        </div>
         <label>대지 · 예화 (회색 ↑↓=대지 이동 · 파란 ↑↓=내부 순서 · ＋예화 추가)</label>
         <div id="pointList"></div>
         <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
@@ -13141,7 +13141,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v348';
+var APP_VER = 'v349';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
