@@ -5768,7 +5768,7 @@ $('#devoDate').addEventListener('change', function(){ if (!this.value) return; i
    키가 없으면 기존 요청함 흐름으로 자동 폴백. */
 var AI_MODEL = 'claude-opus-4-8';
 function aiKey(){ return String(state.settings.claudeKey || '').trim(); }
-async function callClaude(system, user, maxTokens, onTick){
+async function callClaude(system, user, maxTokens, onTick, modelOverride){
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
   var genLabel = (onTick && onTick.genLabel) || '결과물';
@@ -5784,8 +5784,9 @@ async function callClaude(system, user, maxTokens, onTick){
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
-    body: JSON.stringify({ model: AI_MODEL, max_tokens: maxTokens || 8000, stream: true,
-      system: system, messages: [{ role: 'user', content: user }] })
+    body: JSON.stringify({ model: modelOverride || AI_MODEL, max_tokens: maxTokens || 8000, stream: true,
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: user }] })
   });
   if (!res.ok) {
     var et = '';
@@ -6457,7 +6458,7 @@ async function aiIdeaImages(imgs){
       var out = await callClaude(P_OCR, [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
         { type: 'text', text: '이 이미지의 예화를 정리해 주세요.' }
-      ], 32000, aiTick('예화 인식'));
+      ], 8000, aiTick('예화 인식'), 'claude-haiku-4-5-20251001');
       var j = aiJson(out);
       if (!j['내용']) throw new Error('형식 오류');
       if (aiKey()) toast('예화 강화 중… (' + (i + 1) + '/' + imgs.length + ')');
@@ -7226,7 +7227,7 @@ var P_TRANSDOC = [
 ].join('\n');
 async function aiTransDoc(meta, cuts){
   var table = cuts.filter(function(c){ return c.n >= 2; }).map(function(c){ return { n: c.n, type: c.type, anchor: c.anchor || '' }; });
-  var out = await callClaude(P_TRANSDOC, JSON.stringify({ 원고: meta['원고텍스트'], 전환표: table }), 32000, aiTick('전환표시본'));
+  var out = await callClaude(P_TRANSDOC, JSON.stringify({ 원고: meta['원고텍스트'], 전환표: table }), 32000, aiTick('전환표시본'), 'claude-sonnet-4-6');
   var j = aiJson(out);
   return (j && typeof j.body === 'string') ? j.body : (typeof j === 'string' ? j : '');
 }
@@ -7642,10 +7643,10 @@ async function aiSeriesDevo(m){
       '성경범위': m['성경범위'], '시리즈명': m['시리즈명'], '요청사항': m['요청사항'], '묵상일': m['묵상일']
     });
     /* 1단계: 전체 본문 배분(질문 없음) — 출력이 짧아 한 번에 안정적. 사이클(앞 책 회귀)이면 1회 교정 재시도. */
-    toast('Opus가 묵상 ' + nDays + '일 본문을 배분합니다 (1/2단계) — 잠시만요');
+    toast('AI가 묵상 ' + nDays + '일 본문을 배분합니다 (1/2단계) — 잠시만요');
     var rows = null, cyc = null, fix = '';
     for (var attempt = 0; attempt < 2; attempt++) {
-      var out = await callClaude(P_DEVO_PLAN, baseUser + fix, 16000, aiTick('묵상 본문 배분'));
+      var out = await callClaude(P_DEVO_PLAN, baseUser + fix, 16000, aiTick('묵상 본문 배분'), 'claude-sonnet-4-6');
       rows = aiJson(out);
       if (!Array.isArray(rows) || rows.length !== nDays)
         throw new Error('일수 불일치(' + ((rows && rows.length) || 0) + '/' + nDays + ') — 한 번 더 시도해 주세요.');
@@ -13095,7 +13096,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v346';
+var APP_VER = 'v347';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -13769,7 +13770,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body: JSON.stringify({ model: model, max_tokens: 4000, stream: true, system: system, messages: messages })
+      body: JSON.stringify({ model: model, max_tokens: 4000, stream: true,
+        cache_control: { type: 'ephemeral' },
+        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        messages: messages })
     });
     if (!res.ok){
       var et = ''; try { et = (await res.json()).error.message; } catch(e){ et = 'HTTP ' + res.status; }
