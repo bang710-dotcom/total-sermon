@@ -4302,6 +4302,11 @@ function fmActiveTa(){
   if (_fmLastTa && document.body.contains(_fmLastTa)) return _fmLastTa;
   return $('#editorPane .edFree') || $('#editorPane .edTa');
 }
+/* 집중 모드에서는 맞춤법 도움 밑줄(브라우저 spellcheck)을 끈다 */
+function fmSetSpellcheck(on){
+  try { var els = document.querySelectorAll('#editorPane .edTa, #editorPane .edFree');
+    for (var i = 0; i < els.length; i++) { els[i].spellcheck = on; els[i].setAttribute('spellcheck', on ? 'true' : 'false'); } } catch (e) {}
+}
 function fmSetScale(d){
   var cur = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
   if (d === 'reset') cur = 1; else cur = Math.min(1.8, Math.max(0.85, cur + d));
@@ -4421,6 +4426,7 @@ function enterFocusMode(){
       document.body.classList.remove('fmPhase1');
       var bar = document.getElementById('focusBar'); if (bar) bar.classList.add('free');
       fmRestorePrefs();
+      fmSetSpellcheck(false);                                  /* 맞춤법 밑줄 숨김 */
       fmFlip(ed, first);                                       /* 우측 → 가운데 */
       setTimeout(function(){ var ta = fmActiveTa(); if (ta) { try { ta.focus({ preventScroll: true }); } catch (_) {} } }, 80);
     });
@@ -4433,6 +4439,7 @@ function exitFocusMode(){
   var ed = document.getElementById('editorPane');
   /* PHASE 3 — 역순: 전체화면 해제 → 작성창이 원래 자리로 슬라이드 → 주변이 다시 나타남 */
   var doReverse = function(){
+    fmSetSpellcheck(true);                                     /* 일반 화면에선 맞춤법 도움 복원 */
     var first = ed ? ed.getBoundingClientRect() : null;       /* 가운데(현재) 위치 */
     document.body.classList.remove('focusMode');
     document.body.classList.add('fmPhase1');                  /* 그리드 복귀(주변은 아직 투명) */
@@ -13088,7 +13095,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v345';
+var APP_VER = 'v346';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
