@@ -469,6 +469,9 @@ input[type=date]{cursor:pointer}
 .imp .fname{font-size:12.5px;color:var(--dim);word-break:break-all}
 .toolrow{display:flex;gap:9px;margin-top:14px}
 .toolrow .btn{width:auto;flex:1}
+/* 시리즈 생성 버튼 3개 — 폭·높이 동일하게(모바일 포함) */
+.seriesCreateRow .btn{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;text-align:center;gap:6px;white-space:normal;word-break:keep-all;line-height:1.3}
+.seriesCreateRow .btn .dawn-ic{flex:0 0 auto}
 /* 대지 동적 목록 (왼쪽) */
 .ptRow{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px}
 .ptRow .ptHead{display:flex;gap:6px;align-items:center}
@@ -8800,7 +8803,7 @@ function renderSeriesList(){
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 새벽 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
   });
-  box.innerHTML = html || '<div class="empty">아직 시리즈 계획이 없습니다.<br>[＋ 새 시리즈 만들기]로 시작하세요.</div>';
+  box.innerHTML = html || '<div class="empty">아직 시리즈 계획이 없습니다.<br>[＋ 대학부 시리즈 만들기]로 시작하세요.</div>';
 }
 window.slOpen = function(i){
   var S = state.seriesList[i];
@@ -13147,7 +13150,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v351';
+var APP_VER = 'v352';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
