@@ -319,13 +319,18 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .btn[data-casc] .blab{white-space:nowrap}
 .btn[data-casc].casc-done::after{content:'●';color:#2e9d68;font-size:11px;position:absolute;top:7px;right:9px;pointer-events:none}
 /* ── Total 포함 토글 스위치 (6개 가지 버튼) ── */
-.cascitem{position:relative;width:100%}
-.cascitem .btn.sub{padding-left:46px;padding-right:46px}
-.cascitem .btn[data-casc].casc-done::after{left:10px;right:auto}
-.cascsw{position:absolute;top:50%;right:9px;transform:translateY(-50%);width:40px;height:23px;border-radius:999px;background:var(--line);border:1px solid var(--line);cursor:pointer;z-index:3;transition:background .15s,border-color .15s}
-.cascsw::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.35);transition:left .15s}
+.cascitem{position:relative;width:100%;min-width:0}
+.cascitem .btn.sub{padding-left:10px;padding-right:40px;font-size:13.5px;box-sizing:border-box}
+.cascitem .btn[data-casc] .blab{white-space:normal;word-break:keep-all;line-height:1.2}
+.cascitem .bpath{font-size:9.5px}
+.cascitem .btn[data-casc].casc-done::after{left:7px;top:6px;right:auto}
+.cascsw{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:34px;height:20px;border-radius:999px;background:var(--line);border:1px solid var(--line);cursor:pointer;z-index:3;transition:background .15s,border-color .15s}
+.cascsw::after{content:'';position:absolute;top:1.5px;left:1.5px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.35);transition:left .15s}
 .cascsw.on{background:var(--accent);border-color:var(--accent)}
-.cascsw.on::after{left:19px}
+.cascsw.on::after{left:15px}
+/* 가지 칼럼: 내용보다 좁아질 수 있게(가로 스크롤 방지) */
+#cascMid > div{min-width:0}
+#cascMid > div > div{min-width:0}
 /* ── 시트 재동기화 중 흐림 처리 ── */
 .page{transition:opacity .32s ease}
 .page.stale{opacity:.38;pointer-events:none}
@@ -13141,7 +13146,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v349';
+var APP_VER = 'v350';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
