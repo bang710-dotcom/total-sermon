@@ -71,16 +71,18 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn.done{background:#16324a;border-color:#2d6da8;color:#7fc4ff}
 .btn.req{background:#43320e;border-color:#b8860b;color:#ffc24d}
 .btn.fin{background:#16324a;border-color:#2d6da8;color:#7fc4ff}
-.btn.mini .ck{flex:0 0 auto;font-size:14px}
-/* 요청버튼(data-req) 결과 도트 — 하단 캐스케이드 버튼과 동일하게 우측 상단 고정 */
+.btn.mini .ck{flex:0 0 auto;font-size:11px}
+/* 완료/요청 도트(●/▲) — 모든 버튼에서 좌측 상단으로 통일(캐스케이드 버튼과 동일) */
+.btn:has(.ck){position:relative}
+.btn .ck{position:absolute;top:7px;left:9px;right:auto;font-size:11px;line-height:1;flex:none;margin:0;pointer-events:none}
 .btn.mini[data-req]{position:relative}
-.btn.mini[data-req] .ck{position:absolute;top:7px;right:9px;font-size:11px;line-height:1;flex:none;margin:0}
+.btn.mini[data-req] .ck{position:absolute;top:7px;left:9px;right:auto;font-size:11px;line-height:1;flex:none;margin:0}
 /* 버튼 아래 저장경로 캡션 */
 .btn .bpath{display:block;font-size:10px;font-weight:500;line-height:1.25;opacity:.62;margin-top:3px;white-space:normal;letter-spacing:0}
 .btn.mini.haspath{flex-direction:column;gap:1px}
 .btn .blab{display:flex;align-items:center;justify-content:center;gap:6px}
 #seriesMeta .toolrow .btn{display:flex;align-items:center;justify-content:center;gap:7px}
-#seriesMeta .btn .ck{font-size:14px}
+#seriesMeta .btn .ck{font-size:11px}
 .btn .inbtn{flex:0 0 auto;margin-left:auto;background:rgba(0,0,0,.28);border:1px solid currentColor;border-radius:8px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer}
 .btn .inbtn:hover{background:rgba(0,0,0,.45)}
 /* 아웃풋 날짜 그룹 */
@@ -317,13 +319,12 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #cascOverlay .cascHint{font-size:12px;color:var(--dim);margin-top:12px}
 .btn[data-casc]{position:relative}
 .btn[data-casc] .blab{white-space:nowrap}
-.btn[data-casc].casc-done::after{content:'●';color:#2e9d68;font-size:11px;position:absolute;top:7px;right:9px;pointer-events:none}
+.btn[data-casc].casc-done::after{content:'●';color:#2e9d68;font-size:11px;position:absolute;top:7px;left:9px;pointer-events:none}
 /* ── Total 포함 토글 스위치 (6개 가지 버튼) ── */
 .cascitem{position:relative;width:100%;min-width:0}
 .cascitem .btn.sub{padding-left:10px;padding-right:40px;font-size:13.5px;box-sizing:border-box}
 .cascitem .btn[data-casc] .blab{white-space:normal;word-break:keep-all;line-height:1.2}
 .cascitem .bpath{font-size:9.5px}
-.cascitem .btn[data-casc].casc-done::after{left:7px;top:6px;right:auto}
 .cascsw{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:34px;height:20px;border-radius:999px;background:var(--line);border:1px solid var(--line);cursor:pointer;z-index:3;transition:background .15s,border-color .15s}
 .cascsw::after{content:'';position:absolute;top:1.5px;left:1.5px;width:15px;height:15px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.35);transition:left .15s}
 .cascsw.on{background:var(--accent);border-color:var(--accent)}
@@ -13146,7 +13147,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v350';
+var APP_VER = 'v351';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
