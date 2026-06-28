@@ -960,7 +960,11 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
   /* 모바일 집중모드: 작성칸 높이는 JS(fmAutosize)가 내용에 맞춰 잡으므로 큰 고정 패딩/높이 불필요.
      하단패딩은 안전영역 + 약간만(짧은 글일 때 작성칸이 화면을 채우도록 fmAutosize가 보정). */
   body.focusMode #editorPane{padding:5vh 15px calc(2vh + env(safe-area-inset-bottom));min-height:auto}
-  body.focusMode #focusBar{gap:4px;padding:5px 6px}
+  /* 도구바·손잡이를 '상단'으로: 키보드가 올라오면 하단 고정 도구바가 키보드 바로 위(=타이핑하는 줄)를 가리므로,
+     모바일에선 상단(안전영역 아래)에 두어 활성 타이핑 영역을 가리지 않게 한다. 보임/숨김은 위로 슬라이드. */
+  body.focusMode #focusBar{top:calc(env(safe-area-inset-top) + 6px);bottom:auto;transform:translateX(-50%) translateY(-20px);gap:4px;padding:5px 6px}
+  body.focusMode.fmBarShow #focusBar{transform:translateX(-50%) translateY(0)}
+  body.focusMode #fmHandle{top:calc(env(safe-area-inset-top) + 4px);bottom:auto}
 }
 
 /* ===== 마인드맵 (설교 아이디어 확장) ===== */
@@ -13192,7 +13196,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v359';
+var APP_VER = 'v360';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
