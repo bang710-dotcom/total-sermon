@@ -960,11 +960,25 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
   /* 모바일 집중모드: 작성칸 높이는 JS(fmAutosize)가 내용에 맞춰 잡으므로 큰 고정 패딩/높이 불필요.
      하단패딩은 안전영역 + 약간만(짧은 글일 때 작성칸이 화면을 채우도록 fmAutosize가 보정). */
   body.focusMode #editorPane{padding:5vh 15px calc(2vh + env(safe-area-inset-bottom));min-height:auto}
-  /* 도구바·손잡이를 '상단'으로: 키보드가 올라오면 하단 고정 도구바가 키보드 바로 위(=타이핑하는 줄)를 가리므로,
-     모바일에선 상단(안전영역 아래)에 두어 활성 타이핑 영역을 가리지 않게 한다. 보임/숨김은 위로 슬라이드. */
-  body.focusMode #focusBar{top:calc(env(safe-area-inset-top) + 6px);bottom:auto;transform:translateX(-50%) translateY(-20px);gap:4px;padding:5px 6px}
-  body.focusMode.fmBarShow #focusBar{transform:translateX(-50%) translateY(0)}
-  body.focusMode #fmHandle{top:calc(env(safe-area-inset-top) + 4px);bottom:auto}
+  /* 도구바: 상단 '가로 한 줄'(좌우 스크롤)로 얇게. 오른쪽엔 도트 토글 자리를 비워 둠.
+     키보드가 올라와도 상단이라 타이핑 줄을 가리지 않는다. 보임/숨김은 위로 슬라이드. */
+  body.focusMode #focusBar{left:10px;right:52px;top:calc(env(safe-area-inset-top) + 6px);bottom:auto;
+    transform:translateY(-140%);
+    flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+    justify-content:flex-start;max-width:none;gap:5px;padding:5px 7px;scrollbar-width:none}
+  body.focusMode #focusBar::-webkit-scrollbar{display:none}
+  body.focusMode.fmBarShow #focusBar{transform:translateY(0)}
+  body.focusMode #focusBar .fbChips{display:contents}   /* 칩들을 같은 한 줄에 나란히 */
+  body.focusMode #focusBar>button,body.focusMode #focusBar .fbChip{flex:0 0 auto;white-space:nowrap}
+  /* 열기/닫기 도트 토글: 다이내믹 아일랜드(중앙)를 피해 '오른쪽 상단(배터리 옆)', 글쓰기 영역 밖.
+     탭하면 도구바 열고/닫기(토글). 열렸을 때 강조색으로 표시. */
+  body.focusMode #fmHandle{left:auto;right:13px;top:calc(env(safe-area-inset-top) + 6px);bottom:auto;transform:none;
+    width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--line);
+    box-shadow:0 2px 8px rgba(0,0,0,.28);opacity:1;display:flex;align-items:center;justify-content:center;z-index:701}
+  body.focusMode #fmHandle::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--accent2);
+    box-shadow:8px 0 0 var(--accent2),-8px 0 0 var(--accent2)}   /* 가로 3점(⋯) 도트 */
+  body.focusMode.fmBarShow #fmHandle{opacity:1;pointer-events:auto;background:var(--accent);border-color:var(--accent)}
+  body.focusMode.fmBarShow #fmHandle::before{background:#0c1020;box-shadow:8px 0 0 #0c1020,-8px 0 0 #0c1020}
 }
 
 /* ===== 마인드맵 (설교 아이디어 확장) ===== */
@@ -4436,7 +4450,14 @@ document.addEventListener('mousemove', function(e){
 document.addEventListener('mouseover', function(e){ if (e.target.closest && e.target.closest('#focusBar')) fmShowBar(true); });
 document.addEventListener('mouseout', function(e){ if (e.target.closest && e.target.closest('#focusBar')) fmHideBarSoon(); });
 /* 터치 기기: 하단 손잡이를 탭하면 도구가 나타난다(잠시 뒤 사라짐) */
-document.addEventListener('click', function(e){ if (e.target && e.target.id === 'fmHandle') fmShowBar(false); });
+document.addEventListener('click', function(e){
+  var h = e.target && e.target.closest && e.target.closest('#fmHandle');
+  if (!h) return;
+  e.preventDefault();
+  /* 도트 토글: 열려 있으면 닫고, 닫혀 있으면 연다(자동 사라짐 없이 유지 → 다시 도트로 닫음) */
+  if (document.body.classList.contains('fmBarShow')) { if (_fmHideTimer) { clearTimeout(_fmHideTimer); _fmHideTimer = null; } document.body.classList.remove('fmBarShow'); }
+  else fmShowBar(true);
+});
 /* ── 진입/종료 (부드러운 애니메이션) ── */
 var _fmLeaving = false;
 function fmPrefersReduced(){ try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
