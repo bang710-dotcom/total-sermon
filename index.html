@@ -2438,7 +2438,7 @@ window.closeDetail = function(){ $('#detailPane').classList.remove('open'); docu
 window.deleteSermon = async function(id){
   var s = findSermon(id);
   if (!s) return;
-  if (!await uiConfirm('「' + (s['제목'] || id) + '」 설교를 삭제할까요?\n휴지통(설교 라이브러리 → 🗑 휴지통)으로 이동하며, 거기서 다시 복구할 수 있습니다.')) return;
+  if (!await uiConfirm('「' + (s['제목'] || id) + '」 설교를 삭제할까요?\n휴지통(설교 라이브러리 → 🗑 휴지통)으로 이동하며, 거기서 다시 복구할 수 있습니다.', { danger: true, okText: '삭제' })) return;
   /* 낙관적 처리: 확인 즉시 카드를 화면에서 치우고(즉각 반응), 시트 작업은 백그라운드로.
      실패하면 카드를 되돌린다(롤백). */
   var _removed = s, _wasEditing = (state.editing === id);
@@ -3742,7 +3742,7 @@ $('#pointList').addEventListener('click', async function(e){
     else if (sb.dataset.act === 'down' && i < pts.length - 1) { pts.splice(i + 1, 0, pts.splice(i, 1)[0]); }
     else if (sb.dataset.act === 'del') {
       var p = pts[i];
-      if (pHasContent(p) && !await uiConfirm((i + 1) + '번 대지를 삭제할까요? 해당 작성 내용도 사라집니다.')) return;
+      if (pHasContent(p) && !await uiConfirm((i + 1) + '번 대지를 삭제할까요? 해당 작성 내용도 사라집니다.', { danger: true, okText: '삭제' })) return;
       pts.splice(i, 1);
       if (!pts.length) pts.push(newPoint());
     } else return;
@@ -3781,7 +3781,7 @@ async function cwBlockDelete(i, bi){
   var bl = p.blocks, b = bl[bi]; if (!b) return;
   var lbl = b.type === 'ill' ? '이 예화를' : '이 ' + blockRole(b) + ' 블록을';
   var hasC = b.type === 'ill' ? ((b.ill || '').trim() || (b.illBody || '').trim()) : b.type === 'apply' ? (b.apply || '').trim() : (b.body || '').trim();
-  if (hasC && !await uiConfirm(lbl + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
+  if (hasC && !await uiConfirm(lbl + ' 삭제할까요? 작성 내용도 사라집니다.', { danger: true, okText: '삭제' })) return;
   bl.splice(bi, 1);
   if (!bl.length) bl.push(newBodyBlock(''));
   renderPoints(); renderEditor();
@@ -4576,7 +4576,7 @@ function mmAddNode(wx, wy){ var m = mmCur(); if (!m) return; if (wx == null) { v
 async function mmDeleteNode(id){ var m = mmCur(); var n = mmNodeById(id); if (!n) return;
   if (m.nodes.length <= 1) { toast('마지막 노드는 삭제할 수 없습니다 — 내용을 비우고 다시 쓰세요.'); return; }
   var ids = {}; (function collect(i){ ids[i] = 1; mmChildren(i).forEach(function(c){ collect(c.id); }); })(id);
-  var cnt = Object.keys(ids).length; if (cnt > 1 && !await uiConfirm('이 노드와 하위 ' + (cnt - 1) + '개를 함께 삭제할까요?')) return;
+  var cnt = Object.keys(ids).length; if (cnt > 1 && !await uiConfirm('이 노드와 하위 ' + (cnt - 1) + '개를 함께 삭제할까요?', { danger: true, okText: '삭제' })) return;
   m.nodes = m.nodes.filter(function(x){ return !ids[x.id]; });
   if (!m.nodes.length) { var dm = mmDefaultMap(); m.nodes = dm.nodes; m.rootId = dm.rootId; }
   MM.sel = null; mmSave(); mmRenderAll(); }
@@ -4598,7 +4598,7 @@ function mmCopyOutline(){ var t = mmOutline(); if (!t.trim()) { toast('내용이
 async function mmNewMap(){ if (!MM.data) return; var nm = await uiPrompt('새 마인드맵 이름', '마인드맵 ' + (MM.data.maps.length + 1)); if (nm === null) return;
   var mp = mmDefaultMap(); mp.name = nm.trim() || mp.name; MM.data.maps.unshift(mp); MM.curId = mp.id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
 async function mmRenameMap(){ var m = mmCur(); if (!m) return; var nm = await uiPrompt('맵 이름', m.name || ''); if (nm === null) return; m.name = nm.trim() || m.name; mmSave(); mmRenderSel(); }
-async function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 하나뿐입니다 — 삭제할 수 없습니다'); return; } var m = mmCur(); if (!await uiConfirm('맵 "' + (m.name || '') + '"을(를) 삭제할까요?')) return;
+async function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 하나뿐입니다 — 삭제할 수 없습니다'); return; } var m = mmCur(); if (!await uiConfirm('맵 "' + (m.name || '') + '"을(를) 삭제할까요?', { danger: true, okText: '삭제' })) return;
   MM.data.maps = MM.data.maps.filter(function(x){ return x.id !== MM.curId; }); MM.curId = MM.data.maps[0].id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
 (function(){
   var vp = document.getElementById('mmViewport'); if (!vp) return;
@@ -8834,7 +8834,7 @@ window.slOpen = function(i){
 window.slDel = async function(i){
   var S = state.seriesList[i];
   if (!S) return;
-  if (!await uiConfirm('「' + ((S.meta || {})['시리즈명'] || '이름 없는 시리즈') + '」를 목록에서 삭제할까요?\n(시트에 등록된 묵상·설교는 그대로 둡니다)')) return;
+  if (!await uiConfirm('「' + ((S.meta || {})['시리즈명'] || '이름 없는 시리즈') + '」를 목록에서 삭제할까요?\n(시트에 등록된 묵상·설교는 그대로 둡니다)', { danger: true, okText: '삭제' })) return;
   if (state.series === S) state.series = null;
   state.seriesList.splice(i, 1);
   idbSet('seriesList', state.seriesList).catch(function(){});
@@ -12400,7 +12400,7 @@ window.restoreSermon = async function(id){
   });
 };
 window.trashPurge = async function(id){
-  if (!await uiConfirm('이 설교를 휴지통에서 완전히 삭제할까요?\n이 작업은 되돌릴 수 없습니다.')) return;
+  if (!await uiConfirm('이 설교를 휴지통에서 완전히 삭제할까요?\n이 작업은 되돌릴 수 없습니다.', { danger: true, okText: '삭제' })) return;
   /* 낙관적: 카드를 즉시 치우고, 시트 작업은 백그라운드. 실패 시 되돌린다. */
   var _item = (state.trashList || []).filter(function(x){ return String(x['ID']) === String(id); })[0];
   state.trashList = (state.trashList || []).filter(function(x){ return String(x['ID']) !== String(id); });
@@ -12840,7 +12840,7 @@ window.archivePromote = async function(id){
   submit({ action: 'update', sheet: 'sermons', data: { ID: id, '상태': '구상/연구' } }, '[구상/연구]로 승격 완료');
 };
 window.archiveDelete = async function(id){
-  if (!await uiConfirm('이 보관 개요를 삭제할까요? (되돌릴 수 없습니다)')) return;
+  if (!await uiConfirm('이 보관 개요를 삭제할까요? (되돌릴 수 없습니다)', { danger: true, okText: '삭제' })) return;
   submit({ action: 'delete', sheet: 'sermons', data: { ID: id } }, '삭제 완료');
 };
 var aqSearchSoon = debounce(renderArchive, 180);
@@ -13170,7 +13170,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v356';
+var APP_VER = 'v357';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -14232,7 +14232,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     if (typeof toast === 'function') toast('이전 대화를 불러왔습니다 — 이어서 질문할 수 있습니다.');
   }
   async function deleteSession(id){
-    if (!await uiConfirm('이 대화 기록을 삭제할까요?')) return;
+    if (!await uiConfirm('이 대화 기록을 삭제할까요?', { danger: true, okText: '삭제' })) return;
     var all = loadSessions(), gone = all.filter(function(s){ return s && s.id === id; })[0];
     var arr = all.filter(function(s){ return s && s.id !== id; });
     saveSessions(arr);
