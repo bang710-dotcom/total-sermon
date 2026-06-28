@@ -4381,7 +4381,8 @@ function fmEnsureFontLoaded(url){ if (!url || _fmFontLoaded[url]) return; _fmFon
 function fmApplyFont(i){ if (!FM_FONTS.length) return; i = ((i % FM_FONTS.length) + FM_FONTS.length) % FM_FONTS.length;
   var f = FM_FONTS[i]; fmEnsureFontLoaded(f.load);
   try { document.body.style.setProperty('--edFont', f.css); localStorage.setItem('tsa.fmFont', i); } catch (e) {}
-  var b = document.getElementById('fmFontBtn'); if (b) b.textContent = '글꼴 · ' + f.k; }
+  var b = document.getElementById('fmFontBtn'); if (b) b.textContent = '글꼴 · ' + f.k;
+  fmAutosize(); setTimeout(fmAutosize, 400); }   /* 글꼴 교체(웹폰트 로드 후) 높이 재계산 */
 function fmCycleFont(){ var i = (parseInt(localStorage.getItem('tsa.fmFont') || '0', 10) || 0) + 1; fmApplyFont(i); }
 function fmRestorePrefs(){
   try {
@@ -4484,7 +4485,8 @@ function enterFocusMode(){
       fmRestorePrefs();
       fmSetSpellcheck(false);                                  /* 맞춤법 밑줄 숨김 */
       fmFlip(ed, first);                                       /* 우측 → 가운데 */
-      setTimeout(function(){ var ta = fmActiveTa(); if (ta) { try { ta.focus({ preventScroll: true }); } catch (_) {} } }, 80);
+      setTimeout(function(){ var ta = fmActiveTa(); if (ta) { try { ta.focus({ preventScroll: true }); } catch (_) {} } fmAutosize(); }, 80);
+      setTimeout(fmAutosize, 260);   /* FLIP 전환 정착 후 한 번 더 보정 */
     });
   }, 480);
 }
@@ -4496,6 +4498,7 @@ function exitFocusMode(){
   /* PHASE 3 — 역순: 전체화면 해제 → 작성창이 원래 자리로 슬라이드 → 주변이 다시 나타남 */
   var doReverse = function(){
     fmSetSpellcheck(true);                                     /* 일반 화면에선 맞춤법 도움 복원 */
+    var fta = ed && ed.querySelector('.edFree'); if (fta) fta.style.height = '';   /* 집중모드 인라인 높이 해제 → 일반 에디터 CSS 높이 복원 */
     var first = ed ? ed.getBoundingClientRect() : null;       /* 가운데(현재) 위치 */
     document.body.classList.remove('focusMode');
     document.body.classList.add('fmPhase1');                  /* 그리드 복귀(주변은 아직 투명) */
@@ -13189,7 +13192,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v358';
+var APP_VER = 'v359';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
