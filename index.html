@@ -956,7 +956,12 @@ body.focusMode.fmBarShow #focusBar{opacity:.97;pointer-events:auto;transform:tra
 body.focusMode #fmHandle{display:block;position:fixed;left:50%;bottom:5px;transform:translateX(-50%);z-index:699;width:40px;height:5px;border-radius:3px;background:var(--line);opacity:.45;cursor:pointer;transition:opacity .45s ease}
 body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 @media (max-width:760px){
-  body.focusMode #editorPane{padding:6vh 15px 18vh}
+  /* 모바일 집중모드 하단 여백 과다 수정:
+     · #editorPane의 min-height:100vh + 큰 하단패딩이 60vh 작성칸 '아래'에 죽은 빈 공간을 만들었음
+       → min-height:auto로 내용+여백만큼만 차지(한 화면 넘는 빈 스크롤 제거), 하단패딩도 축소(+안전영역)
+     · .edFree(작성칸)를 화면을 채우게 키워, 본문 아래 빈 곳도 '입력 가능한 작성 영역'이 되도록(=죽은 여백 아님) */
+  body.focusMode #editorPane{padding:5vh 15px calc(6vh + env(safe-area-inset-bottom));min-height:auto}
+  body.focusMode #editorPane .edFree{min-height:76vh}
   body.focusMode #focusBar{gap:4px;padding:5px 6px}
 }
 
