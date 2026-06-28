@@ -2435,10 +2435,10 @@ function openDetail(kind, id){
 window.openDetail = openDetail;
 window.closeDetail = function(){ $('#detailPane').classList.remove('open'); document.body.classList.remove('detailOpen'); };
 
-window.deleteSermon = function(id){
+window.deleteSermon = async function(id){
   var s = findSermon(id);
   if (!s) return;
-  if (!confirm('「' + (s['제목'] || id) + '」 설교를 삭제할까요?\n휴지통(설교 라이브러리 → 🗑 휴지통)으로 이동하며, 거기서 다시 복구할 수 있습니다.')) return;
+  if (!await uiConfirm('「' + (s['제목'] || id) + '」 설교를 삭제할까요?\n휴지통(설교 라이브러리 → 🗑 휴지통)으로 이동하며, 거기서 다시 복구할 수 있습니다.')) return;
   /* 낙관적 처리: 확인 즉시 카드를 화면에서 치우고(즉각 반응), 시트 작업은 백그라운드로.
      실패하면 카드를 되돌린다(롤백). */
   var _removed = s, _wasEditing = (state.editing === id);
@@ -2748,7 +2748,7 @@ async function requestFoldInbox(){
     return d['유형'] === '예화' && String(d['강조메시지'] || '').trim() && d['상태'] !== '편입됨';
   });
   if (!targets.length){ toast('편입할 예화가 없습니다 (강화된 인박스 예화가 이미 모두 편입됨).'); return; }
-  if (!confirm('강화된 인박스 예화 ' + targets.length + '건을 라이브러리로 편입합니다.\n인박스 리스트에서는 사라지고, 예화 도서관·연결예화에서 계속 쓸 수 있습니다. 진행할까요?')) return;
+  if (!await uiConfirm('강화된 인박스 예화 ' + targets.length + '건을 라이브러리로 편입합니다.\n인박스 리스트에서는 사라지고, 예화 도서관·연결예화에서 계속 쓸 수 있습니다. 진행할까요?')) return;
   var btn = $('#foldInboxBtn'); if (btn) btn.disabled = true;
   var ok = 0;
   for (var i = 0; i < targets.length; i++){
@@ -3451,7 +3451,7 @@ async function aiBlockGen(pi, bi){
   else if (role === '대지실천'){ prompt = P_APPLY_ONE; input.역할 = '실천'; }
   else prompt = P_SUMM;
   try {
-    if (String(b[field] || '').trim() && !confirm('이미 ' + role + ' 내용이 있습니다. AI로 다시 생성해 덮어쓸까요?')) return;
+    if (String(b[field] || '').trim() && !await uiConfirm('이미 ' + role + ' 내용이 있습니다. AI로 다시 생성해 덮어쓸까요?')) return;
     var out = await callClaude(prompt, JSON.stringify(input), 2500, aiTick(label + ' 생성'));
     var j = aiJson(out);
     var text = String((j && j.결과) || '').trim();
@@ -3733,7 +3733,7 @@ $('#pointList').addEventListener('input', function(e){
     if (b) { b.ill = t.value; updateAutoBits(); renderDup($('#c_dupCheck'), t.value.trim(), 6); }
   }
 });
-$('#pointList').addEventListener('click', function(e){
+$('#pointList').addEventListener('click', async function(e){
   /* ① 대지 섹션 단위 이동·삭제 */
   var sb = e.target.closest('.ptBtn');
   if (sb) {
@@ -3742,7 +3742,7 @@ $('#pointList').addEventListener('click', function(e){
     else if (sb.dataset.act === 'down' && i < pts.length - 1) { pts.splice(i + 1, 0, pts.splice(i, 1)[0]); }
     else if (sb.dataset.act === 'del') {
       var p = pts[i];
-      if (pHasContent(p) && !confirm((i + 1) + '번 대지를 삭제할까요? 해당 작성 내용도 사라집니다.')) return;
+      if (pHasContent(p) && !await uiConfirm((i + 1) + '번 대지를 삭제할까요? 해당 작성 내용도 사라집니다.')) return;
       pts.splice(i, 1);
       if (!pts.length) pts.push(newPoint());
     } else return;
@@ -3775,13 +3775,13 @@ $('#addPoint').addEventListener('click', function(){
 });
 
 /* ===== 블록(예화·내용) 핸들 드래그 이동 + 우클릭/롱프레스 삭제 ===== */
-function cwBlockDelete(i, bi){
+async function cwBlockDelete(i, bi){
   var _now = Date.now(); if (_now - (cwBlockDelete._t || 0) < 350) return; cwBlockDelete._t = _now;  /* 우클릭이 pointerdown+contextmenu 둘 다 발화해도 1회만 삭제 */
   var p = state.compose.points[i]; if (!p) return;
   var bl = p.blocks, b = bl[bi]; if (!b) return;
   var lbl = b.type === 'ill' ? '이 예화를' : '이 ' + blockRole(b) + ' 블록을';
   var hasC = b.type === 'ill' ? ((b.ill || '').trim() || (b.illBody || '').trim()) : b.type === 'apply' ? (b.apply || '').trim() : (b.body || '').trim();
-  if (hasC && !confirm(lbl + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
+  if (hasC && !await uiConfirm(lbl + ' 삭제할까요? 작성 내용도 사라집니다.')) return;
   bl.splice(bi, 1);
   if (!bl.length) bl.push(newBodyBlock(''));
   renderPoints(); renderEditor();
@@ -4009,7 +4009,7 @@ function parseSummaryToStructure(){
   return true;
 }
 $$('#c_style .chip').forEach(function(ch){
-  ch.addEventListener('click', function(){
+  ch.addEventListener('click', async function(){
     var from = state.compose.style;
     var to = ch.dataset.v;
     if (from === to) { setStyleChips(); return; }
@@ -4022,7 +4022,7 @@ $$('#c_style .chip').forEach(function(ch){
       if (collectCompose()['제목']) {
         var r = doSaveCompose();          /* 현재(전환 전) 형식으로 직렬화·저장 */
         if (r === false) return;          /* 저장 단계에서 사용자가 취소 → 전환 중단 */
-      } else if (!confirm('아직 시트에 저장하지 않았습니다. 제목이 없어 자동 저장할 수 없어요.\n형식을 바꾸면 변환 과정에서 내용이 일부 사라질 수 있습니다. 그래도 계속할까요?')) {
+      } else if (!await uiConfirm('아직 시트에 저장하지 않았습니다. 제목이 없어 자동 저장할 수 없어요.\n형식을 바꾸면 변환 과정에서 내용이 일부 사라질 수 있습니다. 그래도 계속할까요?')) {
         return;
       }
     }
@@ -4573,10 +4573,10 @@ function mmAddChild(parentId){ var m = mmCur(); if (!m) return; var p = mmNodeBy
   m.nodes.push(n); MM.sel = n.id; mmSave(); mmRenderAll(); mmStartEdit(n.id); }
 function mmAddNode(wx, wy){ var m = mmCur(); if (!m) return; if (wx == null) { var r = mmVpRect(); var c = mmToWorld(r.left + r.width / 2, r.top + r.height / 2); wx = c.x; wy = c.y; }
   var n = { id: mmUid(), text: '아이디어', x: wx, y: wy, parent: null, color: 1 }; m.nodes.push(n); MM.sel = n.id; mmSave(); mmRenderAll(); mmStartEdit(n.id); }
-function mmDeleteNode(id){ var m = mmCur(); var n = mmNodeById(id); if (!n) return;
+async function mmDeleteNode(id){ var m = mmCur(); var n = mmNodeById(id); if (!n) return;
   if (m.nodes.length <= 1) { toast('마지막 노드는 삭제할 수 없습니다 — 내용을 비우고 다시 쓰세요.'); return; }
   var ids = {}; (function collect(i){ ids[i] = 1; mmChildren(i).forEach(function(c){ collect(c.id); }); })(id);
-  var cnt = Object.keys(ids).length; if (cnt > 1 && !confirm('이 노드와 하위 ' + (cnt - 1) + '개를 함께 삭제할까요?')) return;
+  var cnt = Object.keys(ids).length; if (cnt > 1 && !await uiConfirm('이 노드와 하위 ' + (cnt - 1) + '개를 함께 삭제할까요?')) return;
   m.nodes = m.nodes.filter(function(x){ return !ids[x.id]; });
   if (!m.nodes.length) { var dm = mmDefaultMap(); m.nodes = dm.nodes; m.rootId = dm.rootId; }
   MM.sel = null; mmSave(); mmRenderAll(); }
@@ -4598,7 +4598,7 @@ function mmCopyOutline(){ var t = mmOutline(); if (!t.trim()) { toast('내용이
 async function mmNewMap(){ if (!MM.data) return; var nm = await uiPrompt('새 마인드맵 이름', '마인드맵 ' + (MM.data.maps.length + 1)); if (nm === null) return;
   var mp = mmDefaultMap(); mp.name = nm.trim() || mp.name; MM.data.maps.unshift(mp); MM.curId = mp.id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
 async function mmRenameMap(){ var m = mmCur(); if (!m) return; var nm = await uiPrompt('맵 이름', m.name || ''); if (nm === null) return; m.name = nm.trim() || m.name; mmSave(); mmRenderSel(); }
-function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 하나뿐입니다 — 삭제할 수 없습니다'); return; } var m = mmCur(); if (!confirm('맵 "' + (m.name || '') + '"을(를) 삭제할까요?')) return;
+async function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 하나뿐입니다 — 삭제할 수 없습니다'); return; } var m = mmCur(); if (!await uiConfirm('맵 "' + (m.name || '') + '"을(를) 삭제할까요?')) return;
   MM.data.maps = MM.data.maps.filter(function(x){ return x.id !== MM.curId; }); MM.curId = MM.data.maps[0].id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
 (function(){
   var vp = document.getElementById('mmViewport'); if (!vp) return;
@@ -4905,7 +4905,7 @@ function restoreComposeDraft(){
   window.addEventListener('pagehide', saveComposeDraft);
 })();
 
-function doSaveCompose(){
+async function doSaveCompose(){
   var data = collectCompose();
   if (!data['제목']) { toast('제목을 입력해 주세요.'); return null; }
   if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
@@ -4913,7 +4913,7 @@ function doSaveCompose(){
   if (state.versionOf && !state.editing) {
     var org = findSermon(state.versionOf);
     if (org && docxFileName(org) === docxFileName(data) &&
-        !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return false;
+        !await uiConfirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return false;
   }
   var origId = state.editing;
   var _un = _lockSaveBtns();   /* 느린 저장 중 더블클릭으로 신규 설교가 중복 생성되는 것 방지 */
@@ -4921,16 +4921,16 @@ function doSaveCompose(){
   function fail(e){ _un(); throw e; }
 
   /* 실제 저장(충돌 해결 포함) — 저장 직전 동기화로 최신 충돌 상태를 반영한 뒤 호출된다. */
-  function finishSave(){
+  async function finishSave(){
     /* ── 동시 편집 충돌(무손실 해결) ──
        내가 편집하는 동안 다른 기기가 같은 설교를 바꿨으면, 덮어쓰기/포기의 이지선다(둘 다 손해)가 아니라
        기본을 "검토본으로 따로 저장(둘 다 보존)"으로 둔다. 검토본은 원본당 1개로 재사용되어 사본이 난립하지 않는다. */
     if (origId && state.remoteConflict) {
       var rc = state.remoteConflict;
-      var pick = confirm('⚠ 이 설교는 다른 기기에서도 수정되었습니다' + (rc['수정일'] ? ' (' + rc['수정일'] + ')' : '') +
+      var pick = await uiConfirm('⚠ 이 설교는 다른 기기에서도 수정되었습니다' + (rc['수정일'] ? ' (' + rc['수정일'] + ')' : '') +
         '.\n\n[확인] = 내 작업을 “검토본”으로 따로 저장\n  → 다른 기기 내용도, 내 작업도 모두 보존(원본당 검토본 1개로 합쳐짐 — 나중에 비교해서 정리)\n\n[취소] = 다른 방법 선택');
       if (pick) return saveReconcileCopy(data, origId);
-      var ow = confirm('그러면 내 작업으로 “원본을 덮어쓸까요”?\n\n[확인] = 덮어쓰기 (다른 기기의 변경 내용은 사라집니다)\n[취소] = 저장하지 않고 편집 계속 (상단 “다른 기기 내용 불러오기”로 비교 가능)');
+      var ow = await uiConfirm('그러면 내 작업으로 “원본을 덮어쓸까요”?\n\n[확인] = 덮어쓰기 (다른 기기의 변경 내용은 사라집니다)\n[취소] = 저장하지 않고 편집 계속 (상단 “다른 기기 내용 불러오기”로 비교 가능)');
       if (!ow) return Promise.resolve(false);
       /* ow=true → 아래에서 그대로 update(덮어쓰기) 진행 */
     }
@@ -4984,16 +4984,16 @@ function _lockSaveBtns(){
 $('#c_save').addEventListener('click', function(){ doSaveCompose(); });
 /* 다른 이름으로 저장(Save As) — 편집 중이든 아니든 항상 새 행으로 등록(원본 보존).
    저장 후에는 새로 만든 사본을 편집하는 상태로 전환(이후 [저장]은 사본을 갱신). */
-function doSaveAsNew(){
+async function doSaveAsNew(){
   var data = collectCompose();
   if (!data['제목']) { toast('제목을 입력해 주세요.'); return null; }
   if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
   var src = state.editing ? findSermon(state.editing) : (state.versionOf ? findSermon(state.versionOf) : null);
   /* 수정 중인 설교가 있으면 — 사본(새 설교) 생성임을 분명히 확인(중복 설교 방지) */
   if (state.editing){
-    if (!confirm('“' + ((src && src['제목']) || state.editing) + '” (' + state.editing + ')은 그대로 두고,\n똑같은 내용의 새 설교(사본)를 하나 더 만듭니다.\n\n이 설교를 수정·갱신하려면 [취소] 후 [수정 저장]을 누르세요.\n\n사본을 만들까요?')) return false;
+    if (!await uiConfirm('“' + ((src && src['제목']) || state.editing) + '” (' + state.editing + ')은 그대로 두고,\n똑같은 내용의 새 설교(사본)를 하나 더 만듭니다.\n\n이 설교를 수정·갱신하려면 [취소] 후 [수정 저장]을 누르세요.\n\n사본을 만들까요?')) return false;
   } else if (src && docxFileName(src) === docxFileName(data) &&
-      !confirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
+      !await uiConfirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 새 설교로 저장할까요?')) return false;
   delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
   var _sig = composeSig();
   var _un = _lockSaveBtns();
@@ -6073,7 +6073,7 @@ async function aiSummarize(id, s, force){
     if (!id) { toast('먼저 [시트에 저장]으로 설교를 저장해 주세요.'); return; }
     var txt = String(s['원고텍스트'] || '').trim();
     if (!txt) { toast('원고 텍스트가 없어 요약할 수 없습니다.'); return; }
-    if (!force && String(s['요약본'] || '').trim() && !confirm('이미 요약본이 있습니다. 다시 생성할까요?')) return;
+    if (!force && String(s['요약본'] || '').trim() && !await uiConfirm('이미 요약본이 있습니다. 다시 생성할까요?')) return;
     toast('Opus가 요약본을 생성합니다…');
     var out = await callClaude(P_SUM,
       '제목: ' + (s['제목'] || '') + '\n본문: ' + (s['본문'] || '') + '\n예배: ' + (s['예배구분'] || '') + '\n\n[설교 원고 전문]\n' + txt,
@@ -6106,8 +6106,8 @@ async function aiYouTubeSummarize(id){
     /* 예배구분에 '대학'이 있으면 예배 전체 영상(full)으로 추정, 그 외는 설교만(sermon). 사용자가 확인·변경. */
     var looksFull = /대학/.test(String(s['예배구분'] || ''));
     var isFull = looksFull
-      ? confirm('이 링크는 「예배 전체 영상」인가요?\n\n[확인] = 예배 전체 → 설교 부분을 자동으로 찾습니다\n[취소] = 설교 부분만 업로드된 영상')
-      : !confirm('이 링크는 「설교 부분만」 업로드된 영상인가요?\n\n[확인] = 설교만 (장년·새벽 등)\n[취소] = 예배 전체 영상 → 설교 부분 자동 탐지');
+      ? await uiConfirm('이 링크는 「예배 전체 영상」인가요?\n\n[확인] = 예배 전체 → 설교 부분을 자동으로 찾습니다\n[취소] = 설교 부분만 업로드된 영상')
+      : !await uiConfirm('이 링크는 「설교 부분만」 업로드된 영상인가요?\n\n[확인] = 설교만 (장년·새벽 등)\n[취소] = 예배 전체 영상 → 설교 부분 자동 탐지');
     var serviceType = isFull ? 'full' : 'sermon';
     showGenOverlay('유튜브 전사');
     var r, j;
@@ -7541,7 +7541,7 @@ async function aiLeadersTsv(id, meta){
         var dd = await readLtcDocxData(meta, tmpl);
         if (dd) {
           if (ltcContentSig(dd) !== ltcContentSig(tmpl)) {
-            if (confirm('저장된 교재 DOCX에서 수정 사항(본문 수정·공지사항 등)이 발견되었습니다.\n수정 사항을 포함해서 업로드할까요?\n\n[확인] 수정 반영 · [취소] 원래 생성본으로 업로드')) {
+            if (await uiConfirm('저장된 교재 DOCX에서 수정 사항(본문 수정·공지사항 등)이 발견되었습니다.\n수정 사항을 포함해서 업로드할까요?\n\n[확인] 수정 반영 · [취소] 원래 생성본으로 업로드')) {
               data = dd; fromDocx = true;
             }
           }
@@ -8105,8 +8105,8 @@ window.occPick = function(i){
 };
 
 $('#occ_gen').addEventListener('click', aiOccGen);
-$('#occPane').addEventListener('click', function(e){
-  if (e.target.closest('#occRegen') && confirm('선택지 3세트를 새로 생성할까요? 현재 선택지는 사라집니다.')) aiOccGen();
+$('#occPane').addEventListener('click', async function(e){
+  if (e.target.closest('#occRegen') && await uiConfirm('선택지 3세트를 새로 생성할까요? 현재 선택지는 사라집니다.')) aiOccGen();
 });
 $('#occPane').addEventListener('input', function(e){
   var t = e.target;
@@ -8460,14 +8460,14 @@ async function reqOrDownload(id, type, meta){
   if (st === 'req') { toast('이미 요청되어 처리를 기다리고 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
   if (st === 'fin' || st === 'done') {
     if (type === '설교요약') {
-      if (!confirm('요약본/주제어 작업을 다시 하기 원하시나요?')) return;
+      if (!await uiConfirm('요약본/주제어 작업을 다시 하기 원하시나요?')) return;
       if (aiKey()) { aiSummarize(id, meta, true); return; }
       writeRequestFile(type, meta); return;
     }
     /* 리더스앱업로드는 '다운로드 파일'이 아니라 '업로드 동작' — 완료 상태에서도 저장된 파일을 받는 대신 다시 업로드를 실행한다.
        (이렇게 해야 DOCX 수정 감지·직접 업로드가 동작한다. 통합시트는 새 행이 맨 위에 추가됨) */
     if (type === '리더스앱업로드') {
-      if (!confirm('지금 생성된 교재로 다시 업로드 할까요?\n시트에 올라가 있던 이전 버전은 게시여부가 자동으로 해제되고, 새 버전이 게시됩니다.')) return;
+      if (!await uiConfirm('지금 생성된 교재로 다시 업로드 할까요?\n시트에 올라가 있던 이전 버전은 게시여부가 자동으로 해제되고, 새 버전이 게시됩니다.')) return;
       if (aiKey()) { aiLeadersTsv(id, meta); return; }
       writeRequestFile(type, meta); return;
     }
@@ -8476,7 +8476,7 @@ async function reqOrDownload(id, type, meta){
       var q = type === '이미지생성'
         ? '이미 생성된 이미지 세트가 있습니다: ' + a.hit.name
         : '저장된 파일이 있습니다: ' + a.hit.name;
-      if (confirm(q + '\n\n[확인] 최신 파일 받기 · [취소] 재생성 여부 묻기')) {
+      if (await uiConfirm(q + '\n\n[확인] 최신 파일 받기 · [취소] 재생성 여부 묻기')) {
         try {
           var f = await (await a.hit.dir.getFileHandle(a.hit.name)).getFile();
           var el = document.createElement('a');
@@ -8488,11 +8488,11 @@ async function reqOrDownload(id, type, meta){
         } catch (e) { toast('파일을 읽지 못했습니다 — 삭제·이동되었을 수 있습니다: ' + e.message); checkAssets(id).then(refreshReqBtns); }
         return;
       }
-      if (!confirm('「' + REQ_LABELS[type] + '」를 다시 생성할까요?')) return;
+      if (!await uiConfirm('「' + REQ_LABELS[type] + '」를 다시 생성할까요?')) return;
     } else {
       var ok = await dlReqResult(id, type);
       if (ok) return;
-      if (!confirm('내려받을 결과 파일을 찾지 못했습니다.\n「' + REQ_LABELS[type] + '」 작업을 다시 생성할까요?')) return;
+      if (!await uiConfirm('내려받을 결과 파일을 찾지 못했습니다.\n「' + REQ_LABELS[type] + '」 작업을 다시 생성할까요?')) return;
     }
   }
   /* 이미지생성: 프록시+폴더가 준비된 데스크탑이면 앱에서 전 컷 직접 생성(2단계).
@@ -8509,14 +8509,14 @@ window.requestSermonOutput = function(id, type){
   if (s) reqOrDownload(id, type, s);
 };
 $$('#composeMeta [data-req]').forEach(function(b){
-  b.addEventListener('click', function(){
+  b.addEventListener('click', async function(){
     if (b.dataset.busy === '1') return; /* 연타·중복요청 방지(오버레이가 뜨기 전 구간 포함) */
     var meta0 = collectCompose();
     if (!meta0['제목'] && !meta0['원고텍스트']) { toast('요청할 내용이 없습니다. 제목이나 원고를 먼저 작성해 주세요.'); return; }
     /* 작성 화면: 저장하지 않은 변경이 있으면 저장 여부를 먼저 확인 — 산출물이 '저장한 최종본' 기준으로 만들어지도록 */
     var pre = Promise.resolve(true);
     if (composeDirty()) {
-      if (!confirm('저장하지 않은 변경이 있습니다.\n저장한 내용을 기준으로 생성합니다.\n\n[확인] 저장하고 생성 · [취소] 중단')) return;
+      if (!await uiConfirm('저장하지 않은 변경이 있습니다.\n저장한 내용을 기준으로 생성합니다.\n\n[확인] 저장하고 생성 · [취소] 중단')) return;
       var r = doSaveCompose();
       if (r === null || r === false) return; /* 제목 없음 / 사용자 취소 → 중단 */
       pre = Promise.resolve(r).then(function(){ return true; });
@@ -8831,10 +8831,10 @@ window.slOpen = function(i){
   state.series = S; state.seriesMode = 'wizard';
   renderSeriesPage(); scanRequests(true);
 };
-window.slDel = function(i){
+window.slDel = async function(i){
   var S = state.seriesList[i];
   if (!S) return;
-  if (!confirm('「' + ((S.meta || {})['시리즈명'] || '이름 없는 시리즈') + '」를 목록에서 삭제할까요?\n(시트에 등록된 묵상·설교는 그대로 둡니다)')) return;
+  if (!await uiConfirm('「' + ((S.meta || {})['시리즈명'] || '이름 없는 시리즈') + '」를 목록에서 삭제할까요?\n(시트에 등록된 묵상·설교는 그대로 둡니다)')) return;
   if (state.series === S) state.series = null;
   state.seriesList.splice(i, 1);
   idbSet('seriesList', state.seriesList).catch(function(){});
@@ -8911,7 +8911,7 @@ $('#topicMeta').addEventListener('input', function(e){
   if (e.target.id === 'tp_count') { twRenderSessions(); twPreview(); }
   else if (e.target.id === 'tp_topic' || e.target.id === 'tp_series') twPreview();
 });
-$('#tp_gen').addEventListener('click', function(){
+$('#tp_gen').addEventListener('click', async function(){
   var S = state.series; if (!S) return;
   var m = twReadMeta();
   if (!m) { toast('주제·횟수·배경 설명을 입력해 주세요.'); return; }
@@ -8919,9 +8919,9 @@ $('#tp_gen').addEventListener('click', function(){
   var pend = (state.seriesReqs || {})['주제설교'];
   if (pend === '진행중') { toast('생성 중입니다 — 잠시만 기다려 주세요.'); return; }
   var changed = !!(S.sermon && S.meta && (S.meta['주제'] !== m['주제'] || (S.meta['회차'] || []).length !== (m['회차'] || []).length));
-  if (changed && !confirm('주제 또는 회차 수가 바뀌었습니다.\n이전 선택지를 지우고 새로 생성할까요?')) return;
+  if (changed && !await uiConfirm('주제 또는 회차 수가 바뀌었습니다.\n이전 선택지를 지우고 새로 생성할까요?')) return;
   if (changed) { S.sermon = null; S.sermonDone = false; }
-  else if (S.sermon && !confirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?')) return;
+  else if (S.sermon && !await uiConfirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?')) return;
   S.meta = m; saveSeries(); renderSeriesPane();
   aiSeriesTopic();
 });
@@ -8940,21 +8940,21 @@ $('#dawnMeta').addEventListener('input', function(e){
   var i = +e.target.dataset.i;
   if (S.sched[i]) { S.sched[i]['통독범위'] = e.target.value; saveSeries(); }
 });
-$('#dawnMeta').addEventListener('click', function(e){
+$('#dawnMeta').addEventListener('click', async function(e){
   if (e.target.id !== 'dwRangeReset') return;
-  if (!confirm('통독 범위를 달력 기본값으로 되돌릴까요?\n직접 고친 내용은 지워집니다.')) return;
+  if (!await uiConfirm('통독 범위를 달력 기본값으로 되돌릴까요?\n직접 고친 내용은 지워집니다.')) return;
   dwSyncSched(true); dwPreview(); toast('통독 범위를 달력 기본값으로 되돌렸습니다.');
 });
-$('#dw_gen').addEventListener('click', function(){
+$('#dw_gen').addEventListener('click', async function(){
   var S = state.series; if (!S) return;
   var m = dwReadMeta();
   if (!m) { toast('설교할 날짜를 먼저 입력해 주세요.'); return; }
   var pend = (state.seriesReqs || {})['새벽설교'];
   if (pend === '진행중') { toast('생성 중입니다 — 잠시만 기다려 주세요.'); return; }
   var changed = !!(S.sermon && S.meta && S.meta['시작일'] !== m['시작일']);
-  if (changed && !confirm('날짜(주간)가 바뀌었습니다.\n이전 선택지를 지우고 새 주간으로 다시 생성할까요?')) return;
+  if (changed && !await uiConfirm('날짜(주간)가 바뀌었습니다.\n이전 선택지를 지우고 새 주간으로 다시 생성할까요?')) return;
   if (changed) { S.sermon = null; S.sermonDone = false; }
-  else if (S.sermon && !confirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?\n(아래 [재작업] 버튼으로도 다시 만들 수 있습니다)')) return;
+  else if (S.sermon && !await uiConfirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?\n(아래 [재작업] 버튼으로도 다시 만들 수 있습니다)')) return;
   S.meta = m; saveSeries(); renderSeriesPane();
   if (aiKey()) { aiSeriesDawn(); return; }
   toast('새벽기도 마법사는 Claude API 직결로 동작합니다. 설정에서 Claude API 키를 입력해 주세요.');
@@ -9346,7 +9346,7 @@ $('#sp_reqDevo').addEventListener('click', async function(e){
       toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return;
     }
   } else {
-    if (!confirm('계획(본문 범위·기간)이 바뀌었습니다.\n이전 묵상 일정 초안' + (S.sermon ? '과 설교 선택지' : '') + '을 지우고 새 조건으로 다시 생성할까요?')) return;
+    if (!await uiConfirm('계획(본문 범위·기간)이 바뀌었습니다.\n이전 묵상 일정 초안' + (S.sermon ? '과 설교 선택지' : '') + '을 지우고 새 조건으로 다시 생성할까요?')) return;
     S.devo = null; S.devoDone = false; S.devoSig = null;
     S.sermon = null; S.sermonDone = false; S.sermonSig = null;
     state.seriesReqs = state.seriesReqs || {};
@@ -9392,13 +9392,13 @@ async function spRedo(type){
   }
 }
 /* [묵상집 PDF 요청]: 확정(또는 검토 중) 일정으로 책형 PDF 제작 요청 */
-function spReqPdf(){
+async function spReqPdf(){
   var S = state.series;
   if (!S || !S.devo) { toast('묵상 일정이 먼저 필요합니다.'); return; }
   var p = (state.seriesReqs || {})['묵상집PDF'];
   if (p === '대기' || p === '진행중') { toast('이미 PDF 작업이 요청되어 있습니다 — Cowork에 "요청함 처리해줘"라고 말씀하세요.'); return; }
-  if (p === '완료' && !confirm('이미 완성된 묵상집 PDF가 있습니다 (버튼 안 [내려받기]로 받을 수 있습니다).\n수정된 일정으로 다시 요청할까요?')) return;
-  if (!S.devoDone && !confirm('묵상 일정이 아직 시트에 확정되지 않았습니다.\n현재 검토본 그대로 PDF를 요청할까요?')) return;
+  if (p === '완료' && !await uiConfirm('이미 완성된 묵상집 PDF가 있습니다 (버튼 안 [내려받기]로 받을 수 있습니다).\n수정된 일정으로 다시 요청할까요?')) return;
+  if (!S.devoDone && !await uiConfirm('묵상 일정이 아직 시트에 확정되지 않았습니다.\n현재 검토본 그대로 PDF를 요청할까요?')) return;
   var _pdfPayload = { '계획': S.meta, '묵상확정': S.devo.rows };
   if (S.theme && S.theme.cover) _pdfPayload['테마'] = { 'label': S.theme.label, 'cover': S.theme.cover, 'paper': S.theme.paper, 'weekly': S.theme.weekly };
   spWriteReq('묵상집PDF', _pdfPayload, '묵상집 PDF (' + ((S.meta || {})['시리즈명'] || '') + ')');
@@ -9802,7 +9802,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     var wiR = +wrg.dataset.w;
     var wR = (state.series.sermon.weeks || [])[wiR];
     if (!wR) return;
-    if (!confirm('이 회차의 주제 선택지를 새로 생성합니다.\n현재 이 회차의 선택지·수정 내용은 교체됩니다. 계속할까요?')) return;
+    if (!await uiConfirm('이 회차의 주제 선택지를 새로 생성합니다.\n현재 이 회차의 선택지·수정 내용은 교체됩니다. 계속할까요?')) return;
     await aiRegenWeek(wiR, wrg);
     return;
   }
@@ -9829,7 +9829,7 @@ $('#seriesPane').addEventListener('click', async function(e){
     var c = state.compose;
     var hasContent = (c.free || '').trim() || (c.intro || '').trim() ||
       (c.points || []).some(function(p){ return pStructFilled(p); });
-    if (hasContent && !confirm(wSeq(w, wi) + '주차 설교 작성을 시작할까요?\n(현재 작성 중인 내용은 비워집니다)')) return;
+    if (hasContent && !await uiConfirm(wSeq(w, wi) + '주차 설교 작성을 시작할까요?\n(현재 작성 중인 내용은 비워집니다)')) return;
     clearCompose();
     /* 날짜·메타 채우기 */
     var setF = function(id, v){ var el = $('#' + id); if (el) el.value = v || ''; };
@@ -9873,7 +9873,7 @@ async function confirmDevo(){
   var S = state.series, rows = S.devo.rows, m = S.meta || {};
   var empty = rows.filter(function(r){ return !String(r['본문범위'] || '').trim(); }).length;
   if (empty) { toast('본문범위가 비어 있는 날이 ' + empty + '일 있습니다.'); return; }
-  if (!confirm('묵상 ' + rows.length + '일을 묵상집 시트에 등록할까요?\n(같은 날짜의 기존 항목은 수정됩니다)')) return;
+  if (!await uiConfirm('묵상 ' + rows.length + '일을 묵상집 시트에 등록할까요?\n(같은 날짜의 기존 항목은 수정됩니다)')) return;
   var adds = [], ups = [];
   rows.forEach(function(r){
     var rec = { '날짜': r['날짜'], '본문범위': r['본문범위'] || '', '제목': r['제목'] || '',
@@ -9994,7 +9994,7 @@ async function confirmSermon(){
   if (!use.length) { toast('등록할 주일이 없습니다.'); return; }
   var noTitle = use.filter(function(w){ return !String((w.edit || {})['제목'] || '').trim(); }).length;
   if (noTitle) { toast('제목이 비어 있는 주가 ' + noTitle + '주 있습니다.'); return; }
-  if (!confirm('선택된 항목으로 전체 확정할까요?\n변경 없는 확정분은 건너뛰고, 바뀐 주는 새 선택지를 [구상/연구]으로 올리며 이전 선택지는 [보관]으로 되돌립니다.')) return;
+  if (!await uiConfirm('선택된 항목으로 전체 확정할까요?\n변경 없는 확정분은 건너뛰고, 바뀐 주는 새 선택지를 [구상/연구]으로 올리며 이전 선택지는 [보관]으로 되돌립니다.')) return;
   var idxs = S.sermon.weeks.map(function(_, i){ return i; });
   var r = await confirmSermonWeeks(idxs, true);
   await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': '', '유형': '시리즈설교', '상태': '완료', '링크': '',
@@ -10981,7 +10981,7 @@ async function ensureCuts(id, meta){
   if (raw && raw.cuts && raw.cuts.length) {
     /* 전환표가 만들어진 뒤 원고가 바뀌었으면 재생성 여부 확인 (origSig가 있는 경우에만 비교 — 구버전 사이드카는 그냥 사용) */
     if (raw.origSig && raw.origSig !== manuscriptSig(meta)) {
-      if (confirm('원고가 전환표를 만든 이후로 바뀌었습니다.\n전환표(이미지 컷 위치)를 다시 만들까요?\n\n[확인] 다시 생성 · [취소] 기존 전환표 사용')) {
+      if (await uiConfirm('원고가 전환표를 만든 이후로 바뀌었습니다.\n전환표(이미지 컷 위치)를 다시 만들까요?\n\n[확인] 다시 생성 · [취소] 기존 전환표 사용')) {
         setGenStage('이미지 컷(전환표) 다시 생성 중…');
         var fresh = await aiImgData(meta);
         if (fresh && fresh.length) { await saveCutsSidecar(id, meta, fresh); return fresh; }
@@ -11112,7 +11112,7 @@ async function runCascade(target, id, meta){
       else if (target === 'card') window._cascForceCard = true;   /* 카드원고 자체를 새로 집필 */
     }
   }
-  if ((target === 'bgimg' || (sel && sel.bgimg)) && !confirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
+  if ((target === 'bgimg' || (sel && sel.bgimg)) && !await uiConfirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
   if (target === 'total') window._cascForce = true;   /* ★ Total Sermon = 켜둔 산출물 전체 재생성(이전 산출물 유무와 무관) */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg));
@@ -12146,7 +12146,7 @@ async function generateSermonImageSet(id, meta, opts){
       if (cuts && cuts.length) await saveImgDataArtifacts(id, meta, cuts);
     }
     if (!cuts || !cuts.length) throw new Error('컷 생성 실패');
-    if (!opts.auto && !confirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) return;
+    if (!opts.auto && !await uiConfirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) return;
     await generateImageSetFromCuts(id, meta, cuts);
   } catch (e) { hideGenOverlay(); toast('이미지 세트 생성 실패: ' + (e.message || e)); }
 }
@@ -12384,8 +12384,8 @@ function renderTrashView(){
       '</div></div></details>';
   }).join('');
 }
-window.restoreSermon = function(id){
-  if (!confirm('이 설교를 복구할까요? (설교 목록으로 되돌아갑니다)')) return;
+window.restoreSermon = async function(id){
+  if (!await uiConfirm('이 설교를 복구할까요? (설교 목록으로 되돌아갑니다)')) return;
   /* 낙관적: 휴지통 카드를 즉시 치우고, 시트 작업은 백그라운드. 실패 시 되돌린다. */
   var _item = (state.trashList || []).filter(function(x){ return String(x['ID']) === String(id); })[0];
   state.trashList = (state.trashList || []).filter(function(x){ return String(x['ID']) !== String(id); });
@@ -12399,8 +12399,8 @@ window.restoreSermon = function(id){
     else toast('복구 실패 — 되돌렸습니다: ' + e.message);
   });
 };
-window.trashPurge = function(id){
-  if (!confirm('이 설교를 휴지통에서 완전히 삭제할까요?\n이 작업은 되돌릴 수 없습니다.')) return;
+window.trashPurge = async function(id){
+  if (!await uiConfirm('이 설교를 휴지통에서 완전히 삭제할까요?\n이 작업은 되돌릴 수 없습니다.')) return;
   /* 낙관적: 카드를 즉시 치우고, 시트 작업은 백그라운드. 실패 시 되돌린다. */
   var _item = (state.trashList || []).filter(function(x){ return String(x['ID']) === String(id); })[0];
   state.trashList = (state.trashList || []).filter(function(x){ return String(x['ID']) !== String(id); });
@@ -12835,12 +12835,12 @@ function renderArchive(){
   }).join('');
 }
 window.archiveCompose = function(id){ editSermon(id); };
-window.archivePromote = function(id){
-  if (!confirm('이 개요를 [구상/연구] 상태로 승격할까요?\n승격하면 일반 검색·설교 목록에 정식 설교로 나타납니다.')) return;
+window.archivePromote = async function(id){
+  if (!await uiConfirm('이 개요를 [구상/연구] 상태로 승격할까요?\n승격하면 일반 검색·설교 목록에 정식 설교로 나타납니다.')) return;
   submit({ action: 'update', sheet: 'sermons', data: { ID: id, '상태': '구상/연구' } }, '[구상/연구]로 승격 완료');
 };
-window.archiveDelete = function(id){
-  if (!confirm('이 보관 개요를 삭제할까요? (되돌릴 수 없습니다)')) return;
+window.archiveDelete = async function(id){
+  if (!await uiConfirm('이 보관 개요를 삭제할까요? (되돌릴 수 없습니다)')) return;
   submit({ action: 'delete', sheet: 'sermons', data: { ID: id } }, '삭제 완료');
 };
 var aqSearchSoon = debounce(renderArchive, 180);
@@ -12875,7 +12875,7 @@ async function enhanceExistingIdeas(){
     return d['유형'] === '예화' && !String(d['강조메시지'] || '').trim() && String(d['내용'] || '').trim();
   });
   if (!targets.length){ toast('강화할 예화가 없습니다 (모두 강화됨).'); return; }
-  if (!confirm('미강화 예화 ' + targets.length + '건을 강화합니다. API 사용량이 차감됩니다. 진행할까요?')) return;
+  if (!await uiConfirm('미강화 예화 ' + targets.length + '건을 강화합니다. API 사용량이 차감됩니다. 진행할까요?')) return;
   var btn = $('#enhanceIdeasBtn'); if (btn) btn.disabled = true;
   var ok = 0, fail = 0;
   for (var i = 0; i < targets.length; i++){
@@ -13132,9 +13132,9 @@ window.weekConfirmBtn = async function(wi, btn){
 /* 회차 요약(summary) 안의 버튼은 onclick에서 event.stopPropagation()으로 <details> 토글을 막는데,
    그 때문에 #seriesPane 위임(버블) 클릭 핸들러까지 막혀 data-act 위임이 안 먹는다.
    그래서 확정·재생성은 위임에 기대지 않고 여기서 직접(인라인) 호출한다. aiRegenWeek가 스피너·재렌더를 자체 처리. */
-window.weekRegenBtn = function(wi, btn){
+window.weekRegenBtn = async function(wi, btn){
   if (btn && btn.dataset.busy) return;
-  if (!confirm('이 회차의 주제 선택지를 새로 생성합니다.\n현재 이 회차의 선택지·수정 내용은 교체됩니다. 계속할까요?')) return;
+  if (!await uiConfirm('이 회차의 주제 선택지를 새로 생성합니다.\n현재 이 회차의 선택지·수정 내용은 교체됩니다. 계속할까요?')) return;
   aiRegenWeek(wi, btn);
 };
 /* 설교계획 미리보기 — 스킬(sermon-plan-docx)에 저장된 내보내기 표 양식을 그대로 화면에 재현
@@ -13170,7 +13170,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v355';
+var APP_VER = 'v356';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -14231,8 +14231,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     closeHistory();
     if (typeof toast === 'function') toast('이전 대화를 불러왔습니다 — 이어서 질문할 수 있습니다.');
   }
-  function deleteSession(id){
-    if (!confirm('이 대화 기록을 삭제할까요?')) return;
+  async function deleteSession(id){
+    if (!await uiConfirm('이 대화 기록을 삭제할까요?')) return;
     var all = loadSessions(), gone = all.filter(function(s){ return s && s.id === id; })[0];
     var arr = all.filter(function(s){ return s && s.id !== id; });
     saveSessions(arr);
