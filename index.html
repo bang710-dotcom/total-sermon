@@ -987,6 +987,25 @@ body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 .mmNode[data-color="3"]{border-color:#5fcf80} .mmNode[data-color="4"]{border-color:#e08c8c}
 #mmEmpty{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;color:var(--dim);font-size:12.5px;text-align:center;pointer-events:none;padding:0 16px}
 #mmEmpty:empty{display:none}
+/* ── 공통 모달 다이얼로그 (네이티브 alert/confirm/prompt 대체) ── */
+body.uiDlgOpen{overflow:hidden}
+#uiDlgOv{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+#uiDlgOv.on{display:flex;animation:fade .12s ease}
+#uiDlgOv .uiDlgBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:400px;max-width:100%;padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.5);max-height:calc(100vh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+#uiDlgOv .uiDlgMsg{font-size:15px;line-height:1.6;color:var(--text);white-space:pre-line;word-break:break-word}
+#uiDlgOv .uiDlgIn{width:100%;margin-top:13px;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 12px;font-size:15px;font-family:inherit;outline:none}
+#uiDlgOv .uiDlgIn:focus{border-color:var(--accent)}
+#uiDlgOv textarea.uiDlgIn{min-height:88px;resize:vertical;line-height:1.55}
+#uiDlgOv .uiDlgFt{display:flex;gap:9px;margin-top:16px}
+#uiDlgOv .uiDlgFt button{flex:1;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid var(--line);transition:filter .12s ease}
+#uiDlgOv .uiDlgCancel{background:var(--card2);color:var(--text)}
+#uiDlgOv .uiDlgOk{background:var(--accent);color:#0c1020;border-color:var(--accent)}
+#uiDlgOv .uiDlgOk.danger{background:var(--warn);border-color:var(--warn);color:#fff}
+#uiDlgOv .uiDlgCancel:active,#uiDlgOv .uiDlgOk:active{filter:brightness(.9)}
+@media (max-width:899px),(hover:none){
+  #uiDlgOv .uiDlgIn{font-size:16px;padding:13px 13px}
+  #uiDlgOv .uiDlgFt button{padding:14px 0;font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -3542,12 +3561,12 @@ function renderInbox(){
       }).join('') + '</div></div>';
   }).join('');
 }
-window.setIdeaState = function(id, st){
+window.setIdeaState = async function(id, st){
   var d = findIdea(id);
   if (!d) return;
   var payload = { action: 'update', sheet: 'ideas', data: { ID: id, '상태': st } };
   if (st === '사용됨') {
-    var sid = prompt('사용된 설교 ID를 입력하세요 (예: S0012, 모르면 비워두세요)', d['사용설교ID'] || '');
+    var sid = await uiPrompt('사용된 설교 ID를 입력하세요 (예: S0012, 모르면 비워두세요)', d['사용설교ID'] || '');
     if (sid != null && sid.trim()) { payload.data['사용설교ID'] = sid.trim(); d['사용설교ID'] = sid.trim(); }
   }
   d['상태'] = st; saveData(); renderInbox();
@@ -13321,6 +13340,111 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     grid.innerHTML = '';
     grid.appendChild(frag);
   })();
+})();
+
+/* ══ 공통 모달 다이얼로그 — 네이티브 confirm()/prompt() 대체 ══
+   uiConfirm(message, opts) → Promise<boolean>
+   uiPrompt(message, defVal, opts) → Promise<string|null>  (취소=null, 네이티브 prompt와 동일)
+   opts: { okText, cancelText, danger, placeholder, multiline }
+   · Enter=확인 / Esc·바깥클릭=취소 / 포커스 트랩 / 배경 스크롤 잠금 / 포커스 복원
+   · 멀티라인 prompt는 Enter=줄바꿈, Cmd/Ctrl+Enter=확인 */
+(function(){
+  var ov = document.createElement('div');
+  ov.id = 'uiDlgOv';
+  ov.innerHTML =
+    '<div class="uiDlgBox" role="dialog" aria-modal="true">' +
+      '<div class="uiDlgMsg" id="uiDlgMsg"></div>' +
+      '<div id="uiDlgInWrap"></div>' +
+      '<div class="uiDlgFt">' +
+        '<button type="button" class="uiDlgCancel" id="uiDlgCancel"></button>' +
+        '<button type="button" class="uiDlgOk" id="uiDlgOk"></button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  var msgEl = ov.querySelector('#uiDlgMsg'),
+      inWrap = ov.querySelector('#uiDlgInWrap'),
+      okBtn = ov.querySelector('#uiDlgOk'),
+      cancelBtn = ov.querySelector('#uiDlgCancel');
+  var cur = null;        /* { resolve, isPrompt, multiline, input } */
+  var lastFocus = null;
+  var chain = Promise.resolve();   /* 동시에 여러 다이얼로그가 뜨지 않도록 순차 처리 */
+
+  function finish(result){
+    if (!cur) return;
+    var resolve = cur.resolve;
+    cur = null;
+    ov.classList.remove('on');
+    document.body.classList.remove('uiDlgOpen');
+    inWrap.innerHTML = '';
+    try { if (lastFocus && lastFocus.focus) lastFocus.focus(); } catch(e){}
+    lastFocus = null;
+    resolve(result);
+  }
+  function onOk(){ if (!cur) return; finish(cur.isPrompt ? cur.input.value : true); }
+  function onCancel(){ if (!cur) return; finish(cur.isPrompt ? null : false); }
+
+  okBtn.addEventListener('click', onOk);
+  cancelBtn.addEventListener('click', onCancel);
+  ov.addEventListener('mousedown', function(e){ if (e.target === ov) onCancel(); });
+  ov.addEventListener('keydown', function(e){
+    if (!cur) return;
+    if (e.key === 'Escape'){ e.preventDefault(); onCancel(); return; }
+    if (e.key === 'Enter'){
+      if (e.isComposing) return;
+      if (cur.isPrompt && cur.multiline && !(e.metaKey || e.ctrlKey)) return;  /* 멀티라인은 줄바꿈 */
+      e.preventDefault(); onOk(); return;
+    }
+    if (e.key === 'Tab'){
+      var f = Array.prototype.filter.call(
+        ov.querySelectorAll('button,textarea,input,[tabindex]:not([tabindex="-1"])'),
+        function(el){ return el.offsetParent !== null; });
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    }
+  });
+
+  function show(opts){
+    return new Promise(function(resolve){
+      lastFocus = document.activeElement;
+      msgEl.textContent = opts.message || '';
+      inWrap.innerHTML = '';
+      var input = null;
+      if (opts.isPrompt){
+        input = document.createElement(opts.multiline ? 'textarea' : 'input');
+        if (!opts.multiline) input.type = 'text';
+        input.className = 'uiDlgIn';
+        input.value = opts.defVal != null ? String(opts.defVal) : '';
+        if (opts.placeholder) input.placeholder = opts.placeholder;
+        inWrap.appendChild(input);
+      }
+      okBtn.textContent = opts.okText || '확인';
+      cancelBtn.textContent = opts.cancelText || '취소';
+      okBtn.classList.toggle('danger', !!opts.danger);
+      cur = { resolve: resolve, isPrompt: !!opts.isPrompt, multiline: !!opts.multiline, input: input };
+      ov.classList.add('on');
+      document.body.classList.add('uiDlgOpen');
+      setTimeout(function(){
+        if (input){ input.focus(); try { input.select(); } catch(e){} }
+        else okBtn.focus();
+      }, 30);
+    });
+  }
+  function enqueue(opts){
+    var run = function(){ return show(opts); };
+    chain = chain.then(run, run);
+    return chain;
+  }
+
+  window.uiConfirm = function(message, opts){
+    opts = opts || {};
+    return enqueue({ message: message, isPrompt: false, okText: opts.okText, cancelText: opts.cancelText, danger: opts.danger });
+  };
+  window.uiPrompt = function(message, defVal, opts){
+    opts = opts || {};
+    return enqueue({ message: message, isPrompt: true, defVal: defVal, okText: opts.okText, cancelText: opts.cancelText, placeholder: opts.placeholder, multiline: opts.multiline });
+  };
 })();
 
 /* ══ 커스텀 달력 날짜 선택기 ══
