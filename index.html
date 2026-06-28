@@ -930,10 +930,11 @@ body.fmPhase1 #aiFab,
 body.fmPhase1 #tabAi,
 body.fmPhase1 #editorPane .edHeader{opacity:0;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.sidebar,header.mobile,.tabbar,#composeMeta,#aiFab,#tabAi,#editorPane .edHeader{transition-duration:.01ms}}
-body.focusMode #editorPane{max-width:760px;margin:0 auto;padding:8vh 26px 16vh;min-height:100vh;box-sizing:border-box}
+body.focusMode #editorPane{max-width:760px;margin:0 auto;padding:8vh 26px 4vh;min-height:auto;box-sizing:border-box}
 /* 텍스트 칸: 선 없이 투명, 포커스해도 테두리 없음, 스크롤바 없음 */
 body.focusMode #editorPane .edTa,
-body.focusMode #editorPane .edFree{font-size:calc(15.5px * var(--edScale,1));font-family:var(--edFont,inherit);color:var(--text);line-height:1.85;background:transparent!important;border-color:transparent!important;box-shadow:none!important;resize:none;scrollbar-width:none}
+body.focusMode #editorPane .edFree{font-size:calc(15.5px * var(--edScale,1));font-family:var(--edFont,inherit);color:var(--text);line-height:1.85;background:transparent!important;border-color:transparent!important;box-shadow:none!important;resize:none;scrollbar-width:none;overflow:hidden}
+/* 집중모드 작성칸은 JS(fmAutosize)가 내용 높이에 맞춰 height를 인라인으로 지정 → 잘림 없이 전체 표시, 페이지가 스크롤. 짧은 글이면 화면을 채워 본문 아래도 입력영역이 됨. */
 body.focusMode #editorPane .edTa::-webkit-scrollbar,
 body.focusMode #editorPane .edFree::-webkit-scrollbar{width:0;height:0;display:none}
 /* 대지/역할 라벨은 아주 옅게(흐름만 보이도록), 선·버튼 제거 */
@@ -956,12 +957,9 @@ body.focusMode.fmBarShow #focusBar{opacity:.97;pointer-events:auto;transform:tra
 body.focusMode #fmHandle{display:block;position:fixed;left:50%;bottom:5px;transform:translateX(-50%);z-index:699;width:40px;height:5px;border-radius:3px;background:var(--line);opacity:.45;cursor:pointer;transition:opacity .45s ease}
 body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
 @media (max-width:760px){
-  /* 모바일 집중모드 하단 여백 과다 수정:
-     · #editorPane의 min-height:100vh + 큰 하단패딩이 60vh 작성칸 '아래'에 죽은 빈 공간을 만들었음
-       → min-height:auto로 내용+여백만큼만 차지(한 화면 넘는 빈 스크롤 제거), 하단패딩도 축소(+안전영역)
-     · .edFree(작성칸)를 화면을 채우게 키워, 본문 아래 빈 곳도 '입력 가능한 작성 영역'이 되도록(=죽은 여백 아님) */
-  body.focusMode #editorPane{padding:5vh 15px calc(6vh + env(safe-area-inset-bottom));min-height:auto}
-  body.focusMode #editorPane .edFree{min-height:76vh}
+  /* 모바일 집중모드: 작성칸 높이는 JS(fmAutosize)가 내용에 맞춰 잡으므로 큰 고정 패딩/높이 불필요.
+     하단패딩은 안전영역 + 약간만(짧은 글일 때 작성칸이 화면을 채우도록 fmAutosize가 보정). */
+  body.focusMode #editorPane{padding:5vh 15px calc(2vh + env(safe-area-inset-bottom));min-height:auto}
   body.focusMode #focusBar{gap:4px;padding:5px 6px}
 }
 
@@ -4238,7 +4236,10 @@ $('#editorPane').addEventListener('input', function(e){
     if (t.dataset.bi != null) { var b = pBlocks(p)[+t.dataset.bi]; if (b) b[t.dataset.pk] = t.value; }
     else p[t.dataset.pk] = t.value;
   }
+  if (t.classList.contains('edFree')) fmAutosize();   /* 집중모드: 입력 즉시 작성칸 높이 재계산 */
 });
+window.addEventListener('resize', fmAutosize);
+window.addEventListener('orientationchange', function(){ setTimeout(fmAutosize, 250); });
 $('#editorPane').addEventListener('click', function(e){
   var ab = e.target.closest && e.target.closest('.edBlkAi');
   if (!ab) return;
@@ -4349,11 +4350,24 @@ function fmSetSpellcheck(on){
   try { var els = document.querySelectorAll('#editorPane .edTa, #editorPane .edFree');
     for (var i = 0; i < els.length; i++) { els[i].spellcheck = on; els[i].setAttribute('spellcheck', on ? 'true' : 'false'); } } catch (e) {}
 }
+/* 집중모드 작성칸 자동 높이: 내용 전체가 잘리지 않게 height를 콘텐츠에 맞추고(페이지가 스크롤),
+   글이 짧아 editorPane이 화면보다 작으면 모자란 만큼 작성칸을 늘려 화면을 채운다(본문 아래도 입력영역). */
+function fmAutosize(){
+  if (!document.body.classList.contains('focusMode')) return;
+  var ed = document.getElementById('editorPane'); if (!ed) return;
+  var ta = ed.querySelector('.edFree'); if (!ta) return;
+  ta.style.height = 'auto';
+  var content = ta.scrollHeight;
+  ta.style.height = content + 'px';
+  var deficit = window.innerHeight - ed.offsetHeight;   /* editorPane이 화면보다 짧으면(짧은 글) 그만큼 채움 */
+  if (deficit > 0) ta.style.height = (content + deficit) + 'px';
+}
 function fmSetScale(d){
   var cur = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
   if (d === 'reset') cur = 1; else cur = Math.min(1.8, Math.max(0.85, cur + d));
   cur = Math.round(cur * 100) / 100;
   try { document.body.style.setProperty('--edScale', cur); localStorage.setItem('tsa.fmScale', cur); } catch (e) {}
+  fmAutosize();
 }
 /* 집중 모드 글꼴(화면 표시용) — 고딕 / IBM Plex Sans KR / 나눔명조 순환 */
 var FM_FONTS = [
