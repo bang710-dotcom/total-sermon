@@ -2410,7 +2410,7 @@ function openDetail(kind, id){
     if (d['원문']) html += '<details class="sumbox" style="margin-top:10px"><summary>원문 보기 (강화 전)</summary><div class="fulltext" style="margin-top:6px;color:var(--dim)">' + esc(d['원문']) + '</div></details>';
     html += '<div style="margin-top:10px">' +
       ['검토','사용됨','보류','새것'].filter(function(st){ return st !== d['상태']; }).map(function(st){
-        return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + st + '\');openDetail(\'idea\',\'' + d['ID'] + '\')">' + ro(st) + '</button>';
+        return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + st + '\').then(function(){openDetail(\'idea\',\'' + d['ID'] + '\')})">' + ro(st) + '</button>';
       }).join('') + '</div>';
   }
   pane.innerHTML = html;
@@ -4595,9 +4595,9 @@ function mmFallbackCopy(t){ try { var ta = document.createElement('textarea'); t
 function mmCopyOutline(){ var t = mmOutline(); if (!t.trim()) { toast('내용이 없습니다'); return; }
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ toast('개요를 복사했습니다 — 자유원고에 붙여넣으세요'); }, function(){ mmFallbackCopy(t); });
   else mmFallbackCopy(t); }
-function mmNewMap(){ if (!MM.data) return; var nm = prompt('새 마인드맵 이름', '마인드맵 ' + (MM.data.maps.length + 1)); if (nm === null) return;
+async function mmNewMap(){ if (!MM.data) return; var nm = await uiPrompt('새 마인드맵 이름', '마인드맵 ' + (MM.data.maps.length + 1)); if (nm === null) return;
   var mp = mmDefaultMap(); mp.name = nm.trim() || mp.name; MM.data.maps.unshift(mp); MM.curId = mp.id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
-function mmRenameMap(){ var m = mmCur(); if (!m) return; var nm = prompt('맵 이름', m.name || ''); if (nm === null) return; m.name = nm.trim() || m.name; mmSave(); mmRenderSel(); }
+async function mmRenameMap(){ var m = mmCur(); if (!m) return; var nm = await uiPrompt('맵 이름', m.name || ''); if (nm === null) return; m.name = nm.trim() || m.name; mmSave(); mmRenderSel(); }
 function mmDelMap(){ if (!MM.data || MM.data.maps.length <= 1) { toast('맵이 하나뿐입니다 — 삭제할 수 없습니다'); return; } var m = mmCur(); if (!confirm('맵 "' + (m.name || '') + '"을(를) 삭제할까요?')) return;
   MM.data.maps = MM.data.maps.filter(function(x){ return x.id !== MM.curId; }); MM.curId = MM.data.maps[0].id; MM.sel = null; mmSave(); mmRenderSel(); mmFit(); mmRenderAll(); }
 (function(){
@@ -6099,7 +6099,7 @@ async function aiYouTubeSummarize(id){
     var c = vidProxyCfg();
     if (!c.url || !c.token) { toast('설정 탭에서 유튜브 영상분석 프록시 URL과 토큰을 먼저 입력해 주세요.'); showPage('settings'); return; }
     if (!aiKey()) { toast('설정 탭에 Claude API 키를 입력해야 요약본을 만들 수 있습니다.'); return; }
-    var url = prompt('설교 유튜브 링크를 입력하세요\n(대학부 예배 전체 영상도 가능 — 설교 부분을 자동으로 찾습니다)', '');
+    var url = await uiPrompt('설교 유튜브 링크를 입력하세요\n(대학부 예배 전체 영상도 가능 — 설교 부분을 자동으로 찾습니다)', '', { placeholder: 'https://youtu.be/...' });
     if (url === null) return;
     url = url.trim();
     if (!/youtu\.?be/.test(url)) { toast('유효한 유튜브 링크가 아닙니다.'); return; }
@@ -8925,9 +8925,9 @@ $('#tp_gen').addEventListener('click', function(){
   S.meta = m; saveSeries(); renderSeriesPane();
   aiSeriesTopic();
 });
-function spTopicRedo(){
+async function spTopicRedo(){
   var S = state.series; if (!S || !S.meta) return;
-  var note = prompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '');
+  var note = await uiPrompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '', { multiline: true });
   if (note === null) return;
   var add = '[재작업] 이전 선택지가 마음에 들지 않아 다시 요청합니다. 이전과 다른 본문·주제·접근 갈래로 보완해 주세요.' + (note.trim() ? ' — ' + note.trim() : '');
   if (aiKey()) { aiSeriesTopic(add); return; }
@@ -8959,9 +8959,9 @@ $('#dw_gen').addEventListener('click', function(){
   if (aiKey()) { aiSeriesDawn(); return; }
   toast('새벽기도 마법사는 Claude API 직결로 동작합니다. 설정에서 Claude API 키를 입력해 주세요.');
 });
-function spDawnRedo(){
+async function spDawnRedo(){
   var S = state.series; if (!S || !S.meta) return;
-  var note = prompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '');
+  var note = await uiPrompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '', { multiline: true });
   if (note === null) return;
   var add = '[재작업] 이전 선택지가 마음에 들지 않아 다시 요청합니다. 이전과 다른 본문·주제·접근 갈래로 보완해 주세요.' + (note.trim() ? ' — ' + note.trim() : '');
   if (aiKey()) { aiSeriesDawn(add); return; }
@@ -9374,10 +9374,10 @@ $('#sp_reqSermon').addEventListener('click', async function(e){
 });
 
 /* [재작업 요청]: 같은 계획으로 보완 지시를 붙여 다시 요청 */
-function spRedo(type){
+async function spRedo(type){
   var S = state.series;
   if (!S || !S.meta) return;
-  var note = prompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '');
+  var note = await uiPrompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '', { multiline: true });
   if (note === null) return;
   var m = JSON.parse(JSON.stringify(S.meta));
   m['요청사항'] = (m['요청사항'] ? m['요청사항'] + '\n' : '') +
@@ -13170,7 +13170,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v354';
+var APP_VER = 'v355';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
