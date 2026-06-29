@@ -8602,16 +8602,15 @@ async function checkAssets(id){
   } else if (ltcHandle) a.__noDir = true;
   if (await dirIf(xHandle)) {
     try {
-      var ex = await xHandle.getDirectoryHandle('_claude_결과함');
+      await resultsRootDir(false);   /* 결과함 없으면 throw → catch에서 __noEx */
       var tok = await refToken(s['본문']);
       var ip = null, ig = null;
-      for await (var e2 of ex.values()) {
-        if (e2.kind !== 'file') continue;
+      await eachResultFile(async function(e2, parent){
         var n = e2.name, nn = n.normalize ? n.normalize('NFC') : n;
-        if (!ip && ymd && n.indexOf(ymd) === 0 && nn.indexOf('이미지자료') >= 0) ip = { dir: ex, name: n };
-        if (!ig && /백스테이지.*\.zip$/.test(nn) && tok && n.indexOf(tok.ab) >= 0) ig = { dir: ex, name: n };
-        if (!cardExHit && /\.docx$/i.test(nn) && nn.indexOf('카드원고') >= 0 && (!ymd || n.indexOf(ymd) >= 0)) cardExHit = { dir: ex, name: n };
-      }
+        if (!ip && ymd && n.indexOf(ymd) === 0 && nn.indexOf('이미지자료') >= 0) ip = { dir: parent, name: n };
+        if (!ig && /백스테이지.*\.zip$/.test(nn) && tok && n.indexOf(tok.ab) >= 0) ig = { dir: parent, name: n };
+        if (!cardExHit && /\.docx$/i.test(nn) && nn.indexOf('카드원고') >= 0 && (!ymd || n.indexOf(ymd) >= 0)) cardExHit = { dir: parent, name: n };
+      });
       a['이미지프롬프트'] = ip ? { ok: true, hit: ip } : null;
       a['이미지생성'] = ig ? { ok: true, hit: ig } : null;
     } catch (e) { a.__noEx = true; }
@@ -9621,10 +9620,9 @@ async function spPdfDownload(){
       if (!best || f.lastModified > best.m) best = { m: f.lastModified, rf: String(j['결과파일'] || '') };
     }
     if (!best || !best.rf) { toast('결과 파일 기록을 찾지 못했습니다 — 아웃풋에서 확인해 주세요.'); showPage('outputs'); return; }
-    var out = await xHandle.getDirectoryHandle('_claude_결과함');
     var n = 0;
-    for await (var e2 of out.values()) {
-      if (e2.kind !== 'file' || best.rf.indexOf(e2.name) < 0) continue;
+    await eachResultFile(async function(e2){
+      if (best.rf.indexOf(e2.name) < 0) return;
       var fl = await e2.getFile();
       var a = document.createElement('a');
       a.href = URL.createObjectURL(fl);
@@ -9632,7 +9630,7 @@ async function spPdfDownload(){
       a.click();
       setTimeout(function(u){ URL.revokeObjectURL(u); }.bind(null, a.href), 4000);
       n++;
-    }
+    });
     toast(n ? '내려받기 시작 (' + n + '건)' : '결과함에서 파일을 찾지 못했습니다: ' + best.rf);
   } catch (e) { toast('내려받기 실패: ' + e.message); }
 }
@@ -10820,8 +10818,9 @@ async function scanRequests(quiet){
               await dirHandle.requestPermission({ mode: 'readwrite' });
             }
             if (await dirHandle.queryPermission({ mode: 'readwrite' }) === 'granted') {
-              var outD = await xHandle.getDirectoryHandle('_claude_결과함');
-              var srcF = await (await outD.getFileHandle(rfName)).getFile();
+              var srcHit = await findResultFile(function(nm){ return _nfcEq(nm, rfName); });
+              if (!srcHit) continue;
+              var srcF = await srcHit.h.getFile();
               var yr = String((j['설교'] || {})['날짜'] || '').slice(0, 4) || String(new Date().getFullYear());
               var ydir = await dirHandle.getDirectoryHandle(yr + '년', { create: true });
               var wOut = await (await ydir.getFileHandle(rfName, { create: true })).createWritable();
@@ -11690,7 +11689,7 @@ function b64ToBlob(b64, type){
 async function saveImageToResults(b64, fname){
   if (!canFolderSave()) throw new Error('no-folder');
   await xPerm();
-  var dir = await xHandle.getDirectoryHandle('_claude_결과함', { create: true });
+  var dir = await resultsTodayDir();
   var fh = await dir.getFileHandle(fname, { create: true });
   var w = await fh.createWritable();
   await w.write(b64ToBlob(b64)); await w.close();
@@ -12211,17 +12210,14 @@ function parseImageDoc(text){
 async function findImageDoc(meta){
   if (!canFolderSave()) throw new Error('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.');
   await xPerm();
-  var dir;
-  try { dir = await xHandle.getDirectoryHandle('_claude_결과함'); }
-  catch (e) { return null; }   /* 결과함 자체가 아직 없음 → 이미지자료도 없음 */
   var ymd = String(meta['날짜'] || '').replace(/-/g, '');
   var best = null;
-  for await (var e of dir.values()){
-    if (e.kind !== 'file' || !/\.docx$/i.test(e.name) || e.name.indexOf('이미지자료') < 0) continue;
-    if (ymd && e.name.indexOf(ymd) < 0) continue;
+  await eachResultFile(async function(e){
+    if (!/\.docx$/i.test(e.name) || e.name.indexOf('이미지자료') < 0) return;
+    if (ymd && e.name.indexOf(ymd) < 0) return;
     var f = await e.getFile();
     if (!best || f.lastModified > best.m) best = { m: f.lastModified, entry: e, name: e.name };
-  }
+  });
   return best;   /* 없으면 null */
 }
 function setAutoImg(id){ state.autoImg = state.autoImg || {}; state.autoImg[id] = true; save(LS.autoImg, state.autoImg); }
@@ -12272,10 +12268,12 @@ function imgDataNames(meta){
 }
 async function loadCutsSidecarRaw(meta){
   if (!canFolderSave()) return null;
-  var dir;
-  try { await xPerm(); dir = await xHandle.getDirectoryHandle('_claude_결과함'); } catch (e) { return null; }
+  try { await xPerm(); } catch (e) { return null; }
   try {
-    var f = await (await dir.getFileHandle(imgDataNames(meta).json)).getFile();
+    var want = imgDataNames(meta).json;
+    var hit = await findResultFile(function(nm){ return _nfcEq(nm, want); });
+    if (!hit) return null;
+    var f = await hit.h.getFile();
     var j = JSON.parse(await f.text());
     var cuts = Array.isArray(j.cuts) ? j.cuts : (Array.isArray(j) ? j : null);
     return cuts ? { cuts: cuts, origSig: (j && j.origSig) || '' } : null;
