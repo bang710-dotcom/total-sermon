@@ -3500,14 +3500,20 @@ async function aiBlockGen(pi, bi){
   else if (role === '대지실천'){ prompt = P_APPLY_ONE; input.역할 = '실천'; }
   else prompt = P_SUMM;
   try {
-    if (String(b[field] || '').trim() && !await uiConfirm('이미 ' + role + ' 내용이 있습니다. AI로 다시 생성해 덮어쓸까요?')) return;
+    var append = false;
+    if (String(b[field] || '').trim()){
+      var ch = await uiChoose('이미 ' + role + ' 내용이 있습니다. AI로 생성한 내용을 어떻게 넣을까요?',
+        { okText: '덮어쓰기', extraText: '아래 이어쓰기', cancelText: '취소' });
+      if (ch === 'cancel') return;
+      append = (ch === 'extra');
+    }
     var out = await callClaude(prompt, JSON.stringify(input), 2500, aiTick(label + ' 생성'));
     var j = aiJson(out);
     var text = String((j && j.결과) || '').trim();
     if (!text) throw new Error('생성 결과가 비었습니다 — 다시 시도해 주세요.');
-    b[field] = text;
+    b[field] = (append && String(b[field] || '').trim()) ? (String(b[field]).trim() + '\n' + text) : text;
     renderPoints(); renderEditor(); updateAutoBits();
-    toast(role + ' 생성 완료 — 칸에 넣었습니다.');
+    toast(role + (append ? ' 이어쓰기' : ' 생성') + ' 완료 — 칸에 넣었습니다.');
   } catch (e){ toast(label + ' 생성 실패: ' + e.message); }
 }
 
@@ -13590,7 +13596,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v378';
+var APP_VER = 'v379';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
