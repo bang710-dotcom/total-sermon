@@ -7141,19 +7141,22 @@ async function buildCardPdfBlob(deck){
    읽기는 루트 + 모든 하위폴더를 재귀로 훑어, 옛 평면 파일도·새 일자폴더 파일도 모두 찾는다.
    → 사용자가 직접 정리한 폴더든 앱이 만든 폴더든 한 코드로 일관 처리. */
 function resultsTodayName(){ var d = new Date(); function z(n){ return ('0' + n).slice(-2); } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+/* 폴더명이 날짜(YYYY-MM-DD · YYYYMMDD · 2026-06-29 (월) 등)면 그 날짜 키, 아니면 null */
+function resultsDateKey(name){ var m = String(name).match(/(20\d{2})[.\-_ ]?(\d{2})[.\-_ ]?(\d{2})/); if (!m) return null; var mo = +m[2], dd = +m[3]; return (mo >= 1 && mo <= 12 && dd >= 1 && dd <= 31) ? (m[1] + '-' + m[2] + '-' + m[3]) : null; }
 async function resultsRootDir(create){ return xHandle.getDirectoryHandle('_claude_결과함', { create: !!create }); }
 async function resultsTodayDir(){ return (await resultsRootDir(true)).getDirectoryHandle(resultsTodayName(), { create: true }); }
-/* 결과함(루트+하위 일자폴더)의 모든 파일에 대해 await cb(entry, parentDir) 호출 */
+/* 결과함의 모든 결과 파일에 대해 await cb(entry, parentDir) 호출.
+   루트 + "날짜 이름" 하위폴더만 훑는다(백스테이지·받은파일 같은 콘텐츠 폴더는 건너뜀 → 목록 오염 방지). */
 async function eachResultFile(cb){
   var root = await resultsRootDir(false);
-  async function walk(d){
+  async function walk(d, depth){
     for await (var e of d.values()){
-      if (e.kind === 'directory') { await walk(e); continue; }
+      if (e.kind === 'directory') { if (depth === 0 && resultsDateKey(e.name)) await walk(e, depth + 1); continue; }
       if (e.kind !== 'file') continue;
       await cb(e, d);
     }
   }
-  await walk(root);
+  await walk(root, 0);
 }
 /* 이름 조건(match(name)->bool)에 맞는 '최신' 파일을 결과함 전체에서 찾는다. 반환 {m,dir,name,h} 또는 null */
 async function findResultFile(match){
