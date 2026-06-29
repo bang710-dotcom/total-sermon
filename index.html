@@ -3341,6 +3341,26 @@ function fillPointApply(pidx, text){
   renderPoints(); renderEditor(); updateAutoBits();
   toast('대지 ' + (pidx + 1) + ' 적용에 넣었습니다.');
 }
+/* 지정한 role의 블록(대지정리·대지적용 등)에 채운다. 없으면 생성한다.
+   opts.afterRole 가 있으면 그 role 블록 바로 뒤에, 없으면 대지 맨 아래에 새 블록을 둔다. */
+function fillPointRoleBlock(pidx, role, text, opts){
+  opts = opts || {};
+  var p = state.compose.points[pidx]; if (!p || !role) return;
+  var field = (ROLE_FIELD[role] === 'apply') ? 'apply' : 'body';
+  var blk = pBlocks(p).filter(function(b){ return b.type !== 'ill' && blockField(b) === field && blockRole(b) === role; })[0];
+  if (!blk){
+    blk = (field === 'apply') ? newApplyBlock('', role) : newBodyBlock('', role);
+    if (!Array.isArray(p.blocks)) p.blocks = [];
+    if (opts.afterRole){
+      var idx = -1;
+      p.blocks.forEach(function(b, k){ if (blockRole(b) === opts.afterRole) idx = k; });  /* 마지막 해당 role 뒤 */
+      if (idx >= 0) p.blocks.splice(idx + 1, 0, blk); else p.blocks.push(blk);
+    } else { p.blocks.push(blk); }   /* 대지 맨 아래 */
+  }
+  blk[field] = (blk[field] ? blk[field].trim() + '\n' : '') + text;
+  renderPoints(); renderEditor(); updateAutoBits();
+  toast('대지 ' + (pidx + 1) + ' [' + role + ']에 넣었습니다.');
+}
 function studyFillFromChip(e){
   var t = e.target.closest && e.target.closest('.rfFill'); if (!t) return;
   var item = t.closest('.rfItem'); if (!item) return;
@@ -3348,9 +3368,10 @@ function studyFillFromChip(e){
   var valEl = t.nextElementSibling, val = valEl ? valEl.textContent.trim() : '';
   if (!val) return;
   var kind = t.getAttribute('data-fill');
-  if (kind === 'text') fillPointText(pidx, val);
+  if (kind === 'role') fillPointRoleBlock(pidx, t.getAttribute('data-role'), val, { afterRole: t.getAttribute('data-after') || null });
+  else if (kind === 'text') fillPointText(pidx, val);
   else if (kind === 'body') fillPointBody(pidx, val);
-  else if (kind === 'apply') fillPointApply(pidx, (t.getAttribute('data-gen') ? t.getAttribute('data-gen') + ': ' : '') + val);
+  else if (kind === 'apply') fillPointApply(pidx, val);
 }
 async function aiReframe(){
   if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 대지 보강을 쓸 수 있습니다.'); return; }
@@ -3361,12 +3382,12 @@ async function aiReframe(){
     var out = await callClaude(P_REFRAME, JSON.stringify(input), 6000, aiTick('대지 보강'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
-    $('#ptReframe').innerHTML = '<div class="rfBox"><div class="rfHd">대지 보강 제안 <small>· 칩을 누르면 해당 칸에 채워집니다</small></div>'
+    $('#ptReframe').innerHTML = '<div class="rfBox"><div class="rfHd">대지 보강 제안 <small>· 칩을 누르면 대지 맨 아래 [대지정리] 칸에 채워집니다</small></div>'
       + arr.map(function(d, i){
         var pidx = pts[i] ? pts[i]._i : i;
         return '<div class="rfItem" data-pidx="' + pidx + '"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
-          + (d.재정의 ? '<div class="rfLine"><span class="rfTag rfFill" data-fill="text">재정의</span><span class="rfVal">' + esc(d.재정의) + '</span></div>' : '')
-          + (d.대조 ? '<div class="rfLine"><span class="rfTag rfFill" data-fill="body">대조</span><span class="rfVal">' + esc(d.대조) + '</span></div>' : '') + '</div>';
+          + (d.재정의 ? '<div class="rfLine"><span class="rfTag rfFill" data-fill="role" data-role="대지정리">재정의</span><span class="rfVal">' + esc(d.재정의) + '</span></div>' : '')
+          + (d.대조 ? '<div class="rfLine"><span class="rfTag rfFill" data-fill="role" data-role="대지정리">대조</span><span class="rfVal">' + esc(d.대조) + '</span></div>' : '') + '</div>';
       }).join('') + '</div>';
   } catch (e){ toast('대지 보강 실패: ' + e.message); }
 }
@@ -3399,14 +3420,14 @@ async function aiApplyGen(){
     var out = await callClaude(P_APPLY, JSON.stringify(input), 6000, aiTick('적용 강화'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
-    $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">적용·실천 강화 <small>· 적용=내 얘기로 느끼게(→내용) · 실천=세대별 결단(→적용칸)</small></div>'
+    $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">적용·실천 강화 <small>· 적용=주해근거 다음 [대지적용] 칸 · 실천=세대별 결단 [대지실천] 칸</small></div>'
       + arr.map(function(d, i){
         var pidx = pts[i] ? pts[i]._i : i, sil = d.실천 || {};
         return '<div class="rfItem" data-pidx="' + pidx + '"><div class="rfOrig">' + (i + 1) + '. ' + esc(d.문 || '') + '</div>'
-          + (d.적용 ? '<div class="rfLine"><span class="rfTag apA rfFill" data-fill="body">적용</span><span class="rfVal">' + esc(d.적용) + '</span></div>' : '')
-          + (sil.청년 ? '<div class="rfLine"><span class="rfTag apY rfFill" data-fill="apply" data-gen="청년">실천·청년</span><span class="rfVal">' + esc(sil.청년) + '</span></div>' : '')
-          + (sil.장년 ? '<div class="rfLine"><span class="rfTag apM rfFill" data-fill="apply" data-gen="장년">실천·장년</span><span class="rfVal">' + esc(sil.장년) + '</span></div>' : '')
-          + (sil.노년 ? '<div class="rfLine"><span class="rfTag apO rfFill" data-fill="apply" data-gen="노년">실천·노년</span><span class="rfVal">' + esc(sil.노년) + '</span></div>' : '') + '</div>';
+          + (d.적용 ? '<div class="rfLine"><span class="rfTag apA rfFill" data-fill="role" data-role="대지적용" data-after="주해근거">적용</span><span class="rfVal">' + esc(d.적용) + '</span></div>' : '')
+          + (sil.청년 ? '<div class="rfLine"><span class="rfTag apY rfFill" data-fill="apply">실천·청년</span><span class="rfVal">' + esc(sil.청년) + '</span></div>' : '')
+          + (sil.장년 ? '<div class="rfLine"><span class="rfTag apM rfFill" data-fill="apply">실천·장년</span><span class="rfVal">' + esc(sil.장년) + '</span></div>' : '')
+          + (sil.노년 ? '<div class="rfLine"><span class="rfTag apO rfFill" data-fill="apply">실천·노년</span><span class="rfVal">' + esc(sil.노년) + '</span></div>' : '') + '</div>';
       }).join('') + '</div>';
   } catch (e){ toast('적용 강화 실패: ' + e.message); }
 }
@@ -13565,7 +13586,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v374';
+var APP_VER = 'v375';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
