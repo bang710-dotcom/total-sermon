@@ -12454,6 +12454,76 @@ function libFiles(s){
   return { 원고: !!(m.docx || m.hwp), pdf: !!m.pdf, card: !!m.card, ltc: !!m.ltc,
            요약: !!String(s['요약본'] || '').trim(), map: m };
 }
+/* ===================== 지식연결망: 관련 설교 (읽기전용·비파괴) =====================
+   같은 본문(절 겹침 가산)·공유 키워드·같은 시리즈로 설교를 엮는다.
+   인덱스는 한 번 만들어 캐시하고, 패널은 카드를 펼칠 때만 계산한다.
+   bibleBookOf·topicsOf·parseRange·isLiveSermon·findSermon 재사용. */
+function graphIndex(){
+  var stamp = (state.data.sermons || []).length + '|' + (state.data.fetchedAt || '');
+  if (state._gi && state._gi.stamp === stamp) return state._gi;
+  var byTag = {}, byBook = {}, bySeries = {};
+  (state.data.sermons || []).forEach(function(o){
+    if (!isLiveSermon(o)) return;
+    var id = String(o['ID']);
+    var b = bibleBookOf(o); if (b) (byBook[b.idx] = byBook[b.idx] || []).push(id);
+    topicsOf(o).forEach(function(t){ (byTag[t] = byTag[t] || []).push(id); });
+    var se = String(o['시리즈'] || '').trim(); if (se) (bySeries[se] = bySeries[se] || []).push(id);
+  });
+  state._gi = { stamp: stamp, byTag: byTag, byBook: byBook, bySeries: bySeries };
+  return state._gi;
+}
+function refOverlap(r1, r2){
+  var a1 = r1.c1 * 1000 + r1.v1, a2 = r1.c2 * 1000 + r1.v2,
+      b1 = r2.c1 * 1000 + r2.v1, b2 = r2.c2 * 1000 + r2.v2;
+  return a1 <= b2 && b1 <= a2;
+}
+function relatedSermons(s, limit){
+  var gi = graphIndex(), meId = String(s['ID']);
+  var mb = bibleBookOf(s), mr = parseRange(s['본문']), mtags = topicsOf(s), mse = String(s['시리즈'] || '').trim();
+  var cand = {}, push = function(id){ if (id !== meId) cand[id] = 1; };
+  if (mb && gi.byBook[mb.idx]) gi.byBook[mb.idx].forEach(push);
+  mtags.forEach(function(t){ (gi.byTag[t] || []).forEach(push); });
+  if (mse && gi.bySeries[mse]) gi.bySeries[mse].forEach(push);
+  var out = [];
+  Object.keys(cand).forEach(function(id){
+    var o = findSermon(id); if (!o || !isLiveSermon(o)) return;
+    var score = 0, reasons = [], ob = bibleBookOf(o);
+    if (mb && ob && ob.idx === mb.idx){
+      var orr = parseRange(o['본문']);
+      if (mr && orr && refOverlap(mr, orr)){ score += 3; reasons.push('같은 본문'); }
+      else { score += 2; reasons.push('같은 책'); }
+    }
+    var sh = mtags.filter(function(t){ return topicsOf(o).indexOf(t) >= 0; });
+    if (sh.length){ score += sh.length * 2; reasons.push('주제 ' + sh.slice(0, 3).join('·')); }
+    if (mse && String(o['시리즈'] || '').trim() === mse){ score += 3; reasons.push('같은 시리즈'); }
+    if (score > 0) out.push({ s: o, score: score, reasons: reasons });
+  });
+  out.sort(function(a, b){ return b.score - a.score || String(b.s['날짜'] || '').localeCompare(String(a.s['날짜'] || '')); });
+  return out.slice(0, limit || 6);
+}
+function onLibToggle(e){
+  var d = e.target;
+  if (!d || d.tagName !== 'DETAILS' || !d.classList || !d.classList.contains('libItem') || !d.open) return;
+  var box = d.querySelector('.relBox[data-relid]');
+  if (!box || box.getAttribute('data-filled')) return;
+  box.setAttribute('data-filled', '1');
+  var s = findSermon(box.getAttribute('data-relid')); if (!s) return;
+  var rel = relatedSermons(s, 6);
+  if (!rel.length){ box.innerHTML = '<div class="cnt" style="color:var(--dim)">관련 설교를 찾지 못했습니다.</div>'; return; }
+  box.innerHTML = '<div class="kv"><span class="k">🔗 관련</span><span class="v">' + rel.map(function(r){
+    return '<a href="#" data-relgo="' + esc(r.s['ID']) + '" style="color:var(--accent)">' + esc(r.s['제목'] || '(제목 없음)') + '</a>'
+      + (r.s['본문'] ? ' <small style="color:var(--accent2)">' + esc(r.s['본문']) + '</small>' : '')
+      + ' <small style="color:var(--dim)">' + esc(r.reasons.join(' · ')) + '</small>';
+  }).join('<br>') + '</span></div>';
+}
+(function(){
+  var lr = $('#libResults'); if (!lr) return;
+  lr.addEventListener('toggle', onLibToggle, true);
+  lr.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('[data-relgo]');
+    if (a){ e.preventDefault(); try { window.previewSermon(a.getAttribute('data-relgo')); } catch (_){} }
+  });
+})();
 function renderLibRow(s){
   var f = libFiles(s);
   function chip(on, label){ return '<span class="lchip' + (on ? ' on' : '') + '">' + (on ? '● ' : '') + label + '</span>'; }
@@ -12485,6 +12555,7 @@ function renderLibRow(s){
         '<button class="btn gold desktop-only" onclick="exportSermonDocx(\'' + id + '\')">DOCX 내보내기</button>' +
         '<button class="btn sub" style="margin-left:auto;color:var(--warn);border-color:var(--warn)" onclick="deleteSermon(\'' + id + '\')">삭제</button>' +
       '</div>' +
+      '<div class="relBox" data-relid="' + id + '" style="margin-top:9px"></div>' +
     '</div></details>';
 }
 /* ===== 휴지통(삭제설교) 보기·복구 ===== */
