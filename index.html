@@ -7428,14 +7428,14 @@ function buildTransDocx(D, meta, body){
   var refRe = new RegExp('^\\s*(' + BOOKS + ')\\s*\\d+[:장]');
   var barRe = /^\s*▶.*◀\s*$/;
   var titleLine = (meta['예배구분'] ? meta['예배구분'] + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
-  var ch = [new D.Paragraph({ spacing: { line: 360, after: 200 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 32, color: 'C00000' })] })];
+  var ch = [new D.Paragraph({ spacing: { line: 360, after: 200 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 32, color: '000000' })] })];
   String(body || '').split('\n').forEach(function(line){
     var t = line.replace(/\s+$/, '').trim();
     if (!t) return;
     if (barRe.test(t)) {
       ch.push(new D.Paragraph({ shading: { type: D.ShadingType.CLEAR, fill: 'B12121' }, alignment: D.AlignmentType.CENTER, spacing: { line: 360, before: 160, after: 160 }, children: [new D.TextRun({ text: t, bold: true, color: 'FFFFFF', size: 26 })] }));
     } else if (refRe.test(t)) {
-      ch.push(new D.Paragraph({ spacing: { line: 360, after: 80 }, children: [new D.TextRun({ text: t, bold: true, color: 'C00000', size: 26 })] }));
+      ch.push(new D.Paragraph({ spacing: { line: 360, after: 80 }, children: [new D.TextRun({ text: t, bold: true, color: '000000', size: 32 })] }));
     } else {
       ch.push(new D.Paragraph({ spacing: { line: 360, after: 80 }, indent: { firstLine: mm(8) }, children: [new D.TextRun({ text: t, size: 26 })] }));
     }
@@ -13394,7 +13394,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v365';
+var APP_VER = 'v366';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
