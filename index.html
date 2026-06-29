@@ -956,29 +956,31 @@ body.focusMode.fmBarShow #focusBar{opacity:.97;pointer-events:auto;transform:tra
 #fmHandle{display:none}
 body.focusMode #fmHandle{display:block;position:fixed;left:50%;bottom:5px;transform:translateX(-50%);z-index:699;width:40px;height:5px;border-radius:3px;background:var(--line);opacity:.45;cursor:pointer;transition:opacity .45s ease}
 body.focusMode.fmBarShow #fmHandle{opacity:0;pointer-events:none}
-@media (max-width:760px){
-  /* 모바일 집중모드: 작성칸 높이는 JS(fmAutosize)가 내용에 맞춰 잡으므로 큰 고정 패딩/높이 불필요.
-     하단패딩은 안전영역 + 약간만(짧은 글일 때 작성칸이 화면을 채우도록 fmAutosize가 보정). */
+/* 좁은 폰(max-width:760px) + 모든 터치 기기(hover:none) → 아이패드 세로·가로 포함.
+   상단 가로 도구바 + 우상단 도트 토글 방식. 하단 iOS 입력도구·키보드와 겹치지 않게 한다. */
+@media (max-width:760px), (hover:none){
+  /* 집중모드 작성칸 높이는 JS(fmAutosize)가 내용에 맞춰 잡으므로 큰 고정 패딩/높이 불필요. */
   body.focusMode #editorPane{padding:5vh 15px calc(2vh + env(safe-area-inset-bottom));min-height:auto}
-  /* 도구바: 상단 '가로 한 줄'(좌우 스크롤)로 얇게. 오른쪽엔 도트 토글 자리를 비워 둠.
-     키보드가 올라와도 상단이라 타이핑 줄을 가리지 않는다. 보임/숨김은 위로 슬라이드. */
-  body.focusMode #focusBar{left:10px;right:52px;top:calc(env(safe-area-inset-top) + 6px);bottom:auto;
-    transform:translateY(-140%);
+  /* 도구바: 상단 '가로 한 줄'(좌우 스크롤). 오른쪽엔 도트 토글 자리를 비워 둠. 보임/숨김은 위로 슬라이드. */
+  body.focusMode #focusBar{left:10px;right:62px;top:calc(env(safe-area-inset-top) + 6px);bottom:auto;
+    transform:translateY(-150%);
     flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
-    justify-content:flex-start;max-width:none;gap:5px;padding:5px 7px;scrollbar-width:none}
+    align-items:center;justify-content:flex-start;max-width:none;gap:6px;padding:5px 8px;scrollbar-width:none}
   body.focusMode #focusBar::-webkit-scrollbar{display:none}
   body.focusMode.fmBarShow #focusBar{transform:translateY(0)}
   body.focusMode #focusBar .fbChips{display:contents}   /* 칩들을 같은 한 줄에 나란히 */
-  body.focusMode #focusBar>button,body.focusMode #focusBar .fbChip{flex:0 0 auto;white-space:nowrap}
-  /* 열기/닫기 도트 토글: 다이내믹 아일랜드(중앙)를 피해 '오른쪽 상단(배터리 옆)', 글쓰기 영역 밖.
-     탭하면 도구바 열고/닫기(토글). 열렸을 때 강조색으로 표시. */
+  /* 터치 대상 확대: 버튼·칩 높이 ≥44px(애플 권장), 폭·패딩도 넉넉히 → 오탭 방지 */
+  body.focusMode #focusBar button,body.focusMode #focusBar .fbChip{flex:0 0 auto;white-space:nowrap;
+    min-height:44px;min-width:48px;padding:0 15px;font-size:14.5px;border-radius:9px}
+  body.focusMode #focusBar .fbSep{flex:0 0 auto;align-self:center;height:22px}
+  /* 열기/닫기 도트 토글: 우상단(배터리 옆), 글쓰기 영역 밖. 44px 터치 영역. 탭=열기/닫기 토글, 열리면 강조색. */
   body.focusMode #fmHandle{left:auto;right:13px;top:calc(env(safe-area-inset-top) + 6px);bottom:auto;transform:none;
-    width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--line);
-    box-shadow:0 2px 8px rgba(0,0,0,.28);opacity:1;display:flex;align-items:center;justify-content:center;z-index:701}
-  body.focusMode #fmHandle::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--accent2);
-    box-shadow:8px 0 0 var(--accent2),-8px 0 0 var(--accent2)}   /* 가로 3점(⋯) 도트 */
+    width:44px;height:44px;border-radius:50%;background:var(--card);border:1px solid var(--line);
+    box-shadow:0 2px 10px rgba(0,0,0,.30);opacity:1;display:flex;align-items:center;justify-content:center;z-index:701}
+  body.focusMode #fmHandle::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent2);
+    box-shadow:9px 0 0 var(--accent2),-9px 0 0 var(--accent2)}   /* 가로 3점(⋯) 도트 */
   body.focusMode.fmBarShow #fmHandle{opacity:1;pointer-events:auto;background:var(--accent);border-color:var(--accent)}
-  body.focusMode.fmBarShow #fmHandle::before{background:#0c1020;box-shadow:8px 0 0 #0c1020,-8px 0 0 #0c1020}
+  body.focusMode.fmBarShow #fmHandle::before{background:#0c1020;box-shadow:9px 0 0 #0c1020,-9px 0 0 #0c1020}
 }
 
 /* ===== 마인드맵 (설교 아이디어 확장) ===== */
@@ -13217,7 +13219,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v361';
+var APP_VER = 'v362';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
