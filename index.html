@@ -10862,12 +10862,26 @@ async function renderOutputs(){
     var dir;
     try { dir = await xHandle.getDirectoryHandle('_claude_결과함'); }
     catch (e) { box.innerHTML = '<div class="empty">아직 결과함이 비어 있습니다.</div>'; return; }
-    var items = [];
-    for await (var entry of dir.values()) {
-      if (entry.kind !== 'file') continue;
-      var f = await entry.getFile();
-      items.push({ h: entry, name: entry.name, m: f.lastModified, size: f.size });
+    function folderDateKey(name){
+      var m = String(name).match(/(20\d{2})[.\-_ ]?(\d{2})[.\-_ ]?(\d{2})/);
+      if (!m) return null;
+      var mo = +m[2], dd = +m[3];
+      if (mo < 1 || mo > 12 || dd < 1 || dd > 31) return null;
+      return m[1] + '-' + m[2] + '-' + m[3];
     }
+    var items = [];
+    /* _claude_결과함을 재귀로 훑어 하위(일자별) 폴더 안의 파일도 모두 수집한다.
+       파일이 든 상위 폴더명이 날짜(YYYY-MM-DD · YYYYMMDD · 2026-06-29 (월) 등)면 그 날짜를
+       그룹 키로 쓴다 → Dropbox 동기화로 수정시각이 바뀌어도 폴더 정리 기준으로 묶인다. */
+    async function walkResults(d, gkey){
+      for await (var entry of d.values()) {
+        if (entry.kind === 'directory') { await walkResults(entry, folderDateKey(entry.name) || gkey); continue; }
+        if (entry.kind !== 'file' || entry.name.charAt(0) === '.') continue;
+        var f = await entry.getFile();
+        items.push({ h: entry, name: entry.name, m: f.lastModified, size: f.size, gk: gkey });
+      }
+    }
+    await walkResults(dir, null);
     items.sort(function(a, b){ return b.m - a.m; });
     _outFiles = items;
     /* 작업대기중 요청도 함께 표시 */
@@ -10907,11 +10921,11 @@ async function renderOutputs(){
     } catch (e) {}
     /* 날짜별 그룹: 요청 카드 + 결과 파일을 함께 묶고, 오늘 그룹만 기본 펼침 */
     var entries = [];
-    pend2.forEach(function(p, k){ entries.push({ m: p.m, h: reqCards[k] }); });
+    pend2.forEach(function(p, k){ entries.push({ m: p.m, h: reqCards[k], gk: null }); });
     items.forEach(function(it, i){
       var d = new Date(it.m);
       function p2(n){ return ('0' + n).slice(-2); }
-      entries.push({ m: it.m, h: '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px;border-left:3px solid #2e7d4f">' +
+      entries.push({ m: it.m, gk: it.gk, h: '<div class="item" style="cursor:default;display:flex;align-items:center;gap:12px;border-left:3px solid #2e7d4f">' +
         '<div style="flex:1;min-width:0"><div class="title" style="font-size:14px;word-break:break-all">' + esc(it.name) + '</div>' +
         '<div class="snippet">' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) +
         ' · ' + (it.size > 1048576 ? (it.size / 1048576).toFixed(1) + 'MB' : Math.round(it.size / 1024) + 'KB') + '</div></div>' +
@@ -10923,10 +10937,11 @@ async function renderOutputs(){
     function dkey(ms){ var d = new Date(ms); return d.getFullYear() + '-' + z2(d.getMonth() + 1) + '-' + z2(d.getDate()); }
     var groups = {}, order = [];
     entries.forEach(function(e){
-      var k = dkey(e.m);
+      var k = e.gk || dkey(e.m);
       if (!groups[k]) { groups[k] = []; order.push(k); }
       groups[k].push(e.h);
     });
+    order.sort(function(a, b){ return a < b ? 1 : (a > b ? -1 : 0); });  /* 날짜 내림차순(최신 먼저) */
     var today = dkey(Date.now());
     var GW = ['일', '월', '화', '수', '목', '금', '토'];
     box.innerHTML = order.map(function(k){
@@ -13394,7 +13409,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v366';
+var APP_VER = 'v367';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
