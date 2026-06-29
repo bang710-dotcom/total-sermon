@@ -5632,6 +5632,101 @@ async function exportSeriesIcs(){
 }
 window.exportSeriesIcs = exportSeriesIcs;
 
+/* ===================== 옵시디언 vault 내보내기 (한 방향·읽기전용) =====================
+   설교 데이터를 frontmatter+콜아웃+위키링크 .md로 변환해 zip으로 내려받는다.
+   데이터를 변형하지 않으며, bibleBookOf·topicsOf·parseRange·isLiveSermon·BOOK_FULL을 재사용한다. */
+function obsRefCode(s){
+  var r = parseRange(s['본문']); var b = bibleBookOf(s);
+  if (!r || !b) return String(s['본문'] || '').trim();
+  var ab = BOOK_FULL[66 + b.idx] || b.name;
+  if (r.wholeChapter) return ab + ' ' + r.c1 + (r.c2 !== r.c1 ? '-' + r.c2 : '') + '장';
+  var t = ab + ' ' + r.c1 + ':' + r.v1;
+  if (r.c2 !== r.c1) t += '-' + r.c2 + ':' + r.v2;
+  else if (r.v2 !== r.v1) t += '-' + r.v2;
+  return t;
+}
+function obsChapLink(s){
+  var r = parseRange(s['본문']); var b = bibleBookOf(s);
+  if (!r || !b) return '';
+  return (BOOK_FULL[66 + b.idx] || b.name) + ' ' + r.c1 + '장';
+}
+function obsYaml(v){
+  v = String(v == null ? '' : v);
+  if (/[:#\[\]{}&*!|>'"%@`\n]/.test(v) || /^\s|\s$/.test(v)) return '"' + v.replace(/"/g, '\\"') + '"';
+  return v;
+}
+/* 표준 요약본 마크다운 → 옵시디언 콜아웃. 매칭 안 되면 원문 통과(안전). */
+function obsBody(s){
+  var sum = String(s['요약본'] || '').trim();
+  if (!sum){ var dae = String(s['대지'] || '').trim(); return dae ? ('## 대지\n\n' + dae) : ''; }
+  var lines = sum.split(/\r?\n/), out = [], m;
+  for (var i = 0; i < lines.length; i++){
+    var ln = lines[i];
+    if (/^\*\*\[서론\]\*\*\s*$/.test(ln)){ out.push('## 서론'); continue; }
+    if (/^\*\*\[결론(?:[·.]?적용)?\]\*\*\s*$/.test(ln)){ out.push('## 결론·적용'); continue; }
+    if ((m = ln.match(/^\*\*\[대지\s*(\d+)\]\s*(.*?)\*\*\s*$/))){ out.push('## 대지 ' + m[1] + (m[2].trim() ? ' — ' + m[2].trim() : '')); continue; }
+    if ((m = ln.match(/^-\s*ex\)\s*\*\*(.+?)\*\*\s*[—–-]\s*(.*)$/))){ out.push('> [!example] 예화 — ' + m[1].trim()); if (m[2].trim()) out.push('> ' + m[2].trim()); continue; }
+    if ((m = ln.match(/^-\s*\*\*적용:?\*\*\s*(.*)$/))){ out.push('> [!tip] 적용'); if (m[1].trim()) out.push('> ' + m[1].trim()); continue; }
+    if ((m = ln.match(/^-\s+(.*)$/))){ out.push(m[1].trim()); continue; }
+    out.push(ln);
+  }
+  return out.join('\n');
+}
+function obsNote(s){
+  var fm = ['---'];
+  function f(k, v){ if (v != null && String(v).trim() !== '') fm.push(k + ': ' + obsYaml(v)); }
+  f('id', s['ID']); f('날짜', s['날짜']); f('예배구분', s['예배구분']);
+  fm.push('제목: ' + obsYaml(s['제목'] || '(제목 없음)'));
+  f('본문', s['본문']);
+  var code = obsRefCode(s); if (code) fm.push('본문코드: ["' + code.replace(/"/g, '') + '"]');
+  f('시리즈', s['시리즈']); f('시리즈순번', s['시리즈순번']); f('상태', s['상태']); f('핵심메시지', s['핵심메시지']);
+  var tags = topicsOf(s);
+  if (tags.length) fm.push('키워드: [' + tags.map(function(t){ return obsYaml(t); }).join(', ') + ']');
+  fm.push('---');
+  var head = [];
+  if (String(s['핵심메시지'] || '').trim()) head.push('> [!info] 한 줄 메시지\n> ' + String(s['핵심메시지']).trim());
+  var links = [];
+  var cl = obsChapLink(s); if (cl) links.push('본문: [[본문/' + cl + ']]');
+  if (String(s['시리즈'] || '').trim()) links.push('시리즈: [[시리즈/' + String(s['시리즈']).trim() + ']]');
+  if (tags.length) links.push('주제: ' + tags.map(function(t){ return '#' + t.replace(/\s+/g, '_'); }).join(' '));
+  if (links.length) head.push(links.join(' · '));
+  var body = obsBody(s);
+  var blocks = [fm.join('\n')];
+  if (head.length) blocks.push(head.join('\n\n'));
+  if (body) blocks.push(body);
+  return blocks.join('\n\n') + '\n';
+}
+function obsFname(s){
+  var date = String(s['날짜'] || '').slice(0, 10);
+  var title = String(s['제목'] || '무제').replace(/[\\\/:*?"<>|#\[\]^]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return (date ? date + ' ' : '') + (title || '무제');
+}
+async function exportObsidianVault(){
+  var all = (state.data.sermons || []).filter(function(s){ return isLiveSermon(s); });
+  if (!all.length){ toast('내보낼 설교가 없습니다.'); return; }
+  try {
+    if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    var zip = new window.JSZip(), root = zip.folder('설교 보관함'), sf = root.folder('설교'), used = {};
+    all.forEach(function(s){
+      var y = String(s['날짜'] || '').slice(0, 4) || '연도미상';
+      var base = obsFname(s), key = y + '/' + base, n = 1;
+      while (used[key]){ n++; key = y + '/' + base + ' (' + n + ')'; }
+      used[key] = 1;
+      sf.folder(y).file(base + (n > 1 ? ' (' + n + ')' : '') + '.md', obsNote(s));
+    });
+    root.file('_보관함 안내.md', '# 설교 보관함\n\n토탈 설교 앱에서 한 방향으로 내보낸 옵시디언 보관함입니다.\n\n- 설교: `설교/<연도>/`\n- 본문·시리즈·주제는 위키링크/태그로 자동 연결됩니다.\n- 앱이 덮어쓰는 사본이므로, 보관함에서 직접 수정한 내용은 다음 내보내기에서 사라질 수 있습니다.\n\n총 ' + all.length + '편 · 내보낸 날짜 ' + new Date().toISOString().slice(0, 10) + '\n');
+    var blob = await zip.generateAsync({ type: 'blob' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '설교보관함_옵시디언_' + new Date().toISOString().slice(0, 10) + '.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    toast(all.length + '편을 옵시디언 보관함(zip)으로 내보냈습니다.');
+  } catch (e){ toast('옵시디언 내보내기 실패: ' + (e && e.message || e)); }
+}
+window.exportObsidianVault = exportObsidianVault;
+(function(){ var b = $('#btnObsidianExport'); if (b) b.addEventListener('click', function(){ exportObsidianVault(); }); })();
+
 /* ===================== 이달의 묵상 ===================== */
 var devoState = { date: new Date().toISOString().slice(0, 10), entry: null, note: {}, bibleCache: {} };
 var DEVO_FIELDS = ['본문개요', '본문주제', '관찰답', '묵상답', '적용답', '묵상메시지', '적용', '기도'];
