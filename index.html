@@ -8817,7 +8817,7 @@ function pushSeriesDraft(){
   if (!s.url || !s.token || !navigator.onLine) return;
   var S = state.series; if (!S || !S.meta) return;
   var name = S.meta['시리즈명']; if (!name) return;
-  if (!(S.meta['시작일'] || S.meta['종료일'])) return;   /* 이름만 있고 기간 미정이면 보내지 않음 */
+  if (!(S.meta['시작일'] || S.meta['종료일']) && !isTopic(S)) return;   /* 이름만 있고 기간 미정이면 보내지 않음 — 단, 주제별 시리즈는 본래 날짜가 없으므로 통과시켜 시트 백업·기기간 복원 */
   if (seriesHasSheetRecords(name)) return;               /* 이미 생성됨 → 정상 동기화가 담당 */
   var blob; try { blob = seriesDraftBlob(S); } catch (e) { return; }
   if (blob.length > 20000) return;                       /* 비정상적으로 큰 초안은 보내지 않음(안전) */
@@ -9050,6 +9050,21 @@ function renderSeriesList(){
       '<span class="badge b-idea">' + DAWN_ICON + ' 새벽 · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span><span>설교 ' + ds.length + '일</span>' : '') + '</div>' +
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 새벽 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
+  });
+  /* 시트에 등록된 설교-only 시리즈(묵상 없음·새벽 아님) — 주제별 시리즈가 로컬 목록에 없을 때 여기서 복원.
+     주제별은 날짜가 없을 수 있으므로 날짜 유무와 무관하게 회차 수만 보여준다. */
+  var topicSheet = {};
+  (state.data.sermons || []).forEach(function(s){
+    var n = s['시리즈'];
+    if (!n || localNames[n] || sheet[n] || dawnSheet[n]) return;
+    (topicSheet[n] = topicSheet[n] || []).push(s['날짜'] || '');
+  });
+  Object.keys(topicSheet).forEach(function(n){
+    var ds = topicSheet[n].filter(Boolean).sort(), cnt = topicSheet[n].length;
+    html += '<div class="item" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
+      '<span class="badge b-sermon">주제별 · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span>' : '') + '<span>설교 ' + cnt + '회</span></div>' +
+      '<div class="title">' + esc(n) + '</div>' +
+      '<div class="snippet">시트에 등록된 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
   });
   box.innerHTML = html || '<div class="empty">아직 시리즈 계획이 없습니다.<br>[＋ 대학부 시리즈]로 시작하세요.</div>';
 }
