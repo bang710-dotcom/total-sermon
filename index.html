@@ -5666,16 +5666,16 @@ function obsBody(s){
   if (!sum){ var dae = String(s['대지'] || '').trim(); return dae ? ('## 대지\n\n' + dae) : ''; }
   var lines = sum.split(/\r?\n/), out = [], m;
   for (var i = 0; i < lines.length; i++){
-    var ln = lines[i];
+    var ln = lines[i]; if (!ln.trim()) continue;
     if (/^\*\*\[서론\]\*\*\s*$/.test(ln)){ out.push('## 서론'); continue; }
     if (/^\*\*\[결론(?:[·.]?적용)?\]\*\*\s*$/.test(ln)){ out.push('## 결론·적용'); continue; }
     if ((m = ln.match(/^\*\*\[대지\s*(\d+)\]\s*(.*?)\*\*\s*$/))){ out.push('## 대지 ' + m[1] + (m[2].trim() ? ' — ' + m[2].trim() : '')); continue; }
-    if ((m = ln.match(/^-\s*ex\)\s*\*\*(.+?)\*\*\s*[—–-]\s*(.*)$/))){ out.push('> [!example] 예화 — ' + m[1].trim()); if (m[2].trim()) out.push('> ' + m[2].trim()); continue; }
-    if ((m = ln.match(/^-\s*\*\*적용:?\*\*\s*(.*)$/))){ out.push('> [!tip] 적용'); if (m[1].trim()) out.push('> ' + m[1].trim()); continue; }
+    if ((m = ln.match(/^-\s*ex\)\s*\*\*(.+?)\*\*\s*[—–-]\s*(.*)$/))){ out.push('> [!example] 예화 — ' + m[1].trim() + (m[2].trim() ? '\n> ' + m[2].trim() : '')); continue; }
+    if ((m = ln.match(/^-\s*\*\*적용:?\*\*\s*(.*)$/))){ out.push('> [!tip] 적용' + (m[1].trim() ? '\n> ' + m[1].trim() : '')); continue; }
     if ((m = ln.match(/^-\s+(.*)$/))){ out.push(m[1].trim()); continue; }
-    out.push(ln);
+    out.push(ln.trim());
   }
-  return out.join('\n');
+  return out.join('\n\n');
 }
 function obsNote(s){
   var fm = ['---'];
