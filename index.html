@@ -9052,17 +9052,20 @@ function renderSeriesList(){
       '<div class="snippet">시트에 등록된 새벽 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
   });
   /* 시트에 등록된 설교-only 시리즈(묵상 없음·새벽 아님) — 주제별 시리즈가 로컬 목록에 없을 때 여기서 복원.
-     주제별은 날짜가 없을 수 있으므로 날짜 유무와 무관하게 회차 수만 보여준다. */
+     주제별은 날짜가 없을 수 있으므로 날짜 유무와 무관하게 회차 수를 보여준다.
+     '회차:' 표시나 날짜 없음이면 주제별로 라벨링한다. */
   var topicSheet = {};
   (state.data.sermons || []).forEach(function(s){
     var n = s['시리즈'];
     if (!n || localNames[n] || sheet[n] || dawnSheet[n]) return;
-    (topicSheet[n] = topicSheet[n] || []).push(s['날짜'] || '');
+    var t = (topicSheet[n] = topicSheet[n] || { dates: [], cnt: 0, tp: false });
+    t.dates.push(s['날짜'] || ''); t.cnt++;
+    if (/회차:\s*[^/]/.test(String(s['비고'] || '')) || !s['날짜']) t.tp = true;
   });
   Object.keys(topicSheet).forEach(function(n){
-    var ds = topicSheet[n].filter(Boolean).sort(), cnt = topicSheet[n].length;
+    var t = topicSheet[n], ds = t.dates.filter(Boolean).sort();
     html += '<div class="item" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
-      '<span class="badge b-sermon">주제별 · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span>' : '') + '<span>설교 ' + cnt + '회</span></div>' +
+      '<span class="badge b-sermon">' + (t.tp ? '주제별' : '시리즈') + ' · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span>' : '') + '<span>설교 ' + t.cnt + '회</span></div>' +
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
   });
@@ -9323,10 +9326,77 @@ function buildDawnFromSheet(name){
   if (state.seriesList.indexOf(S) < 0) state.seriesList.unshift(S);
   return { S: S, confCnt: serms.length, arcCnt: arcs.length };
 }
+/* 묵상도 없고 새벽도 아닌 설교-only 시리즈(주로 주제별)를 설교마스터 시트 기록만으로 복원.
+   '회차:' 표시 또는 날짜 없음이면 주제별(kind='topic')로, 아니면 일반 시리즈로 재구성한다. */
+function buildTopicFromSheet(name){
+  var all = (state.data.sermons || []).filter(function(s){ return s['시리즈'] === name; });
+  if (!all.length) return null;
+  function bg(b, re){ return ((String(b || '').match(re) || [])[1] || '').trim(); }
+  var R_SESS = /회차:\s*([^/]+)/, R_JEOK = /주제 근거:\s*([\s\S]*?)(?:\s*\/\s*(?:주간묵상|상황|찬송):|$)/,
+      R_HYMN = /찬송:\s*([^/]+)/, R_RANGE = /주간묵상:\s*(.+)$/;
+  var serms = all.filter(function(s){ return isLiveSermon(s); });
+  var arcs  = all.filter(function(s){ return isOptRow(s); });
+  var isTp = all.some(function(s){ return R_SESS.test(String(s['비고'] || '')); })
+          || all.every(function(s){ return !s['날짜']; });
+  all.sort(function(a, b){
+    var da = a['날짜'] || '', db = b['날짜'] || ''; if (da !== db) return da < db ? -1 : 1;
+    return (parseInt(a['시리즈순번'] || '0', 10) - parseInt(b['시리즈순번'] || '0', 10));
+  });
+  var byKey = {}, keys = [];
+  all.forEach(function(s){ var k = s['날짜'] || ('#순번' + (s['시리즈순번'] || '')); if (!byKey[k]) { byKey[k] = []; keys.push(k); } byKey[k].push(s); });
+  var existing = state.seriesList.filter(function(s){ return (s.meta || {})['시리즈명'] === name; })[0]
+    || ((state.series && (state.series.meta || {})['시리즈명'] === name) ? state.series : null);
+  var S = existing || newSeriesEntry();
+  var sessions = [];
+  var weeks = keys.map(function(k, ki){
+    var items = byKey[k];
+    var dayArcs = items.filter(function(s){ return isOptRow(s); });
+    var conf = items.filter(function(s){ return isLiveSermon(s); })[0];
+    var opts = dayArcs.map(function(s){
+      var b = String(s['비고'] || '');
+      return { '제목': s['제목'] || '', '본문': s['본문'] || '', '핵심메시지': s['핵심메시지'] || '',
+        '대지': s['대지'] || '', '주제근거': bg(b, R_JEOK), '찬송': cleanHymn(bg(b, R_HYMN)),
+        _id: s['ID'], _status: s['상태'] };
+    });
+    var b0 = String((conf || items[0])['비고'] || '');
+    var seq = +(items[0]['시리즈순번']) || (ki + 1);
+    var sessName = bg(b0, R_SESS) || (seq + '회');
+    sessions.push({ '순번': ki + 1, '명칭': sessName });
+    var w = { '주일': items[0]['날짜'] || '', '주간범위': bg(b0, R_RANGE), '비고': '',
+      opts: opts, sel: -1, skip: (!opts.length && !conf), '시리즈순번': seq,
+      edit: conf ? { '제목': conf['제목'] || '', '본문': conf['본문'] || '', '핵심메시지': conf['핵심메시지'] || '',
+        '대지': conf['대지'] || '', '주제근거': bg(conf['비고'], R_JEOK), '찬송': cleanHymn(bg(conf['비고'], R_HYMN)) } : optEdit(opts[0]) };
+    if (isTp) w['회차명'] = sessName;
+    if (conf) {
+      opts.forEach(function(o, i){ if (o['제목'] === conf['제목'] && o['본문'] === conf['본문']) w.sel = i; });
+      if (w.sel === -1) {
+        opts.push({ '제목': conf['제목'] || '', '본문': conf['본문'] || '', '핵심메시지': conf['핵심메시지'] || '',
+          '대지': conf['대지'] || '', '주제근거': bg(conf['비고'], R_JEOK), '찬송': cleanHymn(bg(conf['비고'], R_HYMN)), _id: null });
+        w.sel = opts.length - 1;
+      }
+      w.done = true; w.sig = weekSig(w);
+    } else if (opts.length) { w.sel = 0; }
+    return w;
+  });
+  if (isTp) { S.kind = 'topic'; }
+  var dates = keys.map(function(k){ return (byKey[k][0] || {})['날짜'] || ''; }).filter(Boolean).sort();
+  S.meta = { '시리즈명': name, '종류': (isTp ? 'topic' : ''), '성경범위': '',
+    '예배구분': (serms[0] || arcs[0] || {})['예배구분'] || '대학부',
+    '주제': (isTp ? name : ''), '회차': (isTp ? sessions : []),
+    '시작일': (isTp ? '' : (dates[0] || '')), '종료일': (isTp ? '' : (dates[dates.length - 1] || '')),
+    '주일': [], '묵상일': [] };
+  S.devo = null; S.devoDone = false;
+  S.sermon = { m: 0, weeks: weeks };
+  S.sermonDone = serms.length > 0;
+  S.view = 'sermon';
+  S._sheetSig = sheetSigForSeries(name);
+  if (state.seriesList.indexOf(S) < 0) state.seriesList.unshift(S);
+  return { S: S, confCnt: serms.length, arcCnt: arcs.length };
+}
 function buildSeriesFromSheet(name){
   var rows = (state.data.devo || []).filter(function(d){ return d['시리즈명'] === name; })
     .sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
-  if (!rows.length) return buildDawnFromSheet(name); /* 묵상 없는 시리즈 = 새벽이면 복원, 아니면 null */
+  if (!rows.length) return buildDawnFromSheet(name) || buildTopicFromSheet(name); /* 묵상 없는 시리즈 = 새벽이면 dawn 복원, 아니면 주제별/설교-only로 복원 */
   var start = rows[0]['날짜'], end = rows[rows.length - 1]['날짜'];
   var r = spDates(start, end) || { devoDays: [], sundays: [] };
   var book = String(rows[0]['본문범위'] || '').replace(/\s*\d.*$/, '').trim() || name;
