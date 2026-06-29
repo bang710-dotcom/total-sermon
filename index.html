@@ -3680,7 +3680,7 @@ function pStructFilled(p){ return pBlocks(p).some(function(b){ return (b.body ||
 function pHasContent(p){ return p && ((p.text || '').trim() || pStructFilled(p)); }
 /* 구조(서론·대지·결론)에 작성된 내용이 하나라도 있는가 */
 function structHasContent(c){ return !!((c.intro || '').trim() || (c.concBody || '').trim() || (c.points || []).some(pHasContent)); }
-function newCompose(){ return { style: '기본원고', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', points: [newPoint()] }; }
+function newCompose(){ return { style: '기본원고', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', concBodySeeded: false, points: [newPoint()] }; }
 /* 결론의 대지 요약: 기본은 대지 명제에서 자동 생성. 사용자가 결론칸에서 직접 고치면(concPtsEdited) 그 텍스트를 사용. */
 function concPointsDerived(c){ return (c.points || []).filter(function(p){ return (p.text || '').trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n'); }
 function concPointsOut(c){ var v = String(c.concPoints || '').trim(); return (c.concPtsEdited && v) ? v : concPointsDerived(c); }
@@ -3743,7 +3743,7 @@ function renderPoints(){
   $('#pointList').innerHTML = c.points.map(function(p, i){
     p = normPoint(p); c.points[i] = p;
     var blk = p.blocks.map(function(b, bi){
-      var handle = '<span class="dragH" data-i="' + i + '" data-bi="' + bi + '" title="드래그로 이동 · 우클릭(데스크탑)/길게 눌러(모바일) 삭제">⠿</span>';
+      var handle = '<span class="dragH" data-i="' + i + '" data-bi="' + bi + '" title="드래그로 이동 · 우클릭으로 삭제">⠿</span>';
       if (b.type === 'ill') {
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
           '<span class="blkTag illTag">ex)</span>' +
@@ -3892,7 +3892,7 @@ function cwBlockMove(srcI, srcBi, dstI, dstIdx){
     var i = +h.dataset.i, bi = +h.dataset.bi;
     st = { i: i, bi: bi, h: h, sx: e.clientX, sy: e.clientY, pid: e.pointerId,
            started: false, allowSect: i, dwellSect: null, dwellTimer: null, dst: null,
-           lp: setTimeout(function(){ if (st && !st.started){ var d = st; cleanup(); cwBlockDelete(d.i, d.bi); } }, 550) };
+           lp: null };   /* 길게 누름 삭제 제거 — 삭제는 우클릭(contextmenu)으로만 */
     try { h.setPointerCapture(e.pointerId); } catch(_){}
   });
   listEl.addEventListener('pointermove', function(e){
@@ -4237,11 +4237,16 @@ function renderEditor(){
         inner +
         '</div>';
     });
+    /* 설교 핵심주제(핵심메시지)를 결론 마무리 한 줄로 — 편집 가능한 [결론 내용] 칸에 1회 시드(이후 자유 수정·내보내기 반영). */
+    if (!c.concBodySeeded && !String(c.concBody || '').trim()){
+      var _cmEl = document.getElementById('c_msg'), _cm = _cmEl ? _cmEl.value.trim() : '';
+      if (_cm){ c.concBody = _cm; c.concBodySeeded = true; }
+    }
     html += '<div class="edPoint"><div class="edPointTitle">결론</div>' +
       ta('concIntro', 0, '', 2, '', c.concIntro) +
       ta('concPoints', 0, '', 3, '결론에서 정리할 대지 요약 — 위 대지에서 자동으로 채워집니다. 자유롭게 고쳐 쓰세요.', (c.concPtsEdited ? (c.concPoints || '') : concPointsDerived(c))) +
-      ta('concBody', 0, '', 4, '결론 내용을 작성하세요', c.concBody) +
-      '<div class="edAuto msg" id="edConcMsg"></div></div>';
+      ta('concBody', 0, '', 4, '결론 내용을 작성하세요 (설교 핵심주제가 자동으로 들어오며, 자유롭게 고쳐 쓰세요)', c.concBody) +
+      '</div>';
     if (String(c.free || '').trim()) {
       html += '<details class="sumbox"><summary>전체 원고 보기 (참고용 — 여기서 고쳐도 반영되지 않습니다)</summary>' +
         '<div class="fulltext" style="margin-top:8px">' + esc(stripStructText(c.free)) + '</div></details>';
@@ -4276,8 +4281,6 @@ function updateAutoBits(){
   var pane0 = $('#editorPane');
   var cl = pane0 && pane0.querySelector('textarea[data-k="concPoints"]');
   if (cl && !c.concPtsEdited && document.activeElement !== cl) cl.value = concPointsDerived(c);   /* 사용자가 고치기 전에는 대지에서 자동 반영 */
-  var cm = $('#edConcMsg');
-  if (cm) cm.textContent = $('#c_msg').value.trim();
 }
 $('#editorPane').addEventListener('input', function(e){
   var t = e.target;
@@ -13586,7 +13589,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v375';
+var APP_VER = 'v376';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
