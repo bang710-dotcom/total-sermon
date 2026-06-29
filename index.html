@@ -14081,6 +14081,91 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
    messages 배열·모델선택을 지원하는 별도 스트리밍 함수를 둔다. */
 (function(){
   var PAGES = { compose:'설교 작성', occ:'상황 설교 구상', series:'시리즈 계획' };
+  /* 작성창 직접 수정 프로토콜 — [설교 작성]에서만 시스템 프롬프트에 덧붙인다.
+     사용자가 원고 반영을 원할 때만, 답변 맨 끝에 코드블록 하나로 수정 지시를 낸다. 앱이 파싱해 [반영] 버튼을 만든다. */
+  var EDIT_PROTO = '\n\n[작성창 직접 수정] 사용자가 원고의 특정 칸을 고치거나·채우거나·다듬거나·반영해 달라고 요청할 때에만, 평소의 대화형 설명을 먼저 쓴 뒤 답변 맨 끝에 아래 코드블록을 정확히 한 번 덧붙이세요(요청이 없으면 절대 출력하지 마세요).\n```원고수정\n[{"칸":"제목","값":"..."}]\n```\n각 항목 형식:\n· 메타(교체만): {"칸":"제목|본문|핵심메시지|시리즈|예배구분|키워드","값":"..."}\n· 서론·결론: {"칸":"서론|결론도입|결론내용","값":"...","방식":"교체|추가"}\n· 대지: {"대지":번호,"칸":"명제|주해근거|대지적용|대지강화|대지정리|대지실천","값":"...","방식":"교체|추가"}\n· 예화: {"대지":번호,"칸":"예화","제목":"예화 제목","값":"예화 본문","방식":"교체|추가"}\n규칙: "대지" 번호는 1부터. "방식" 생략 시 교체. 실제로 바꿀 칸만 배열에 담고, 값은 강단에서 그대로 읽을 구어체 완성 문장으로 쓰세요. 코드블록은 JSON 배열 하나만 담고 그 안에 설명을 넣지 마세요.';
+  var EDIT_META = { '제목':'c_title','본문':'c_ref','핵심메시지':'c_msg','시리즈':'c_series','예배구분':'c_service','키워드':'c_kw' };
+  var EDIT_PT_ROLES = ['주해근거','대지적용','대지강화','대지정리','대지실천'];
+  /* 응답에서 원고수정 코드블록을 떼어내 {clean, edits} 반환 */
+  function parseEditBlock(full){
+    var m = String(full || '').match(/```[ \t]*원고수정[ \t]*\r?\n([\s\S]*?)```/);
+    if (!m) return { clean: full, edits: null };
+    var clean = (full.slice(0, m.index) + full.slice(m.index + m[0].length)).replace(/\n{3,}/g, '\n\n').trim();
+    var edits = null;
+    try { var j = JSON.parse(m[1].trim()); if (Array.isArray(j) && j.length) edits = j; } catch(e){}
+    return { clean: clean, edits: edits };
+  }
+  function editLabel(ed){
+    var mode = (ed && ed['방식'] === '추가') ? ' (추가)' : '';
+    if (ed && ed['대지'] != null) return '대지 ' + ed['대지'] + ' · ' + (ed['칸'] || '') + mode;
+    return (ed && ed['칸'] || '') + mode;
+  }
+  /* edits를 state.compose에 적용 — 반영된 항목 라벨 배열 반환 */
+  function applyComposeEdits(edits){
+    if (!window.state || !state.compose || !Array.isArray(edits)) return [];
+    var c = state.compose, done = [];
+    if (!Array.isArray(c.points)) c.points = [];
+    edits.forEach(function(ed){
+      try {
+        var val = (ed['값'] != null) ? String(ed['값']) : '';
+        var append = (ed['방식'] === '추가');
+        if (ed['대지'] != null){
+          var n = parseInt(ed['대지'], 10); if (!n || n < 1 || n > 30) return;
+          while (c.points.length < n) c.points.push(newPoint());
+          var p = c.points[n - 1], slot = ed['칸'] || '';
+          if (slot === '명제'){ p.text = append && p.text ? (p.text.trim() + ' ' + val) : val; done.push('대지 ' + n + ' 명제'); return; }
+          if (slot === '예화'){
+            var ill = pBlocks(p).filter(function(b){ return b.type === 'ill'; })[0];
+            if (!ill){ ill = newIllBlock('', ''); p.blocks.push(ill); }
+            if (ed['제목'] != null) ill.ill = String(ed['제목']);
+            ill.illBody = (append && ill.illBody) ? (ill.illBody.trim() + '\n' + val) : val;
+            done.push('대지 ' + n + ' 예화'); return;
+          }
+          if (EDIT_PT_ROLES.indexOf(slot) >= 0){
+            var field = (ROLE_FIELD[slot] === 'apply') ? 'apply' : 'body';
+            var blk = pBlocks(p).filter(function(b){ return b.type !== 'ill' && blockField(b) === field && blockRole(b) === slot; })[0];
+            if (!blk){ blk = (field === 'apply') ? newApplyBlock('', slot) : newBodyBlock('', slot); p.blocks.push(blk); }
+            blk[field] = (append && blk[field]) ? (blk[field].trim() + '\n' + val) : val;
+            done.push('대지 ' + n + ' ' + slot); return;
+          }
+          return;
+        }
+        var k = ed['칸'] || '';
+        if (EDIT_META[k]){ var el = document.getElementById(EDIT_META[k]); if (el){ el.value = append && el.value ? (el.value.trim() + ' ' + val) : val; done.push(k); } return; }
+        if (k === '서론'){ c.intro = append && c.intro ? (c.intro.trim() + '\n' + val) : val; done.push('서론'); return; }
+        if (k === '결론도입'){ c.concIntro = val; done.push('결론 도입'); return; }
+        if (k === '결론내용'){ c.concBody = append && c.concBody ? (c.concBody.trim() + '\n' + val) : val; c.concBodySeeded = true; done.push('결론 내용'); return; }
+      } catch(e){}
+    });
+    if (done.length){ try { renderPoints(); renderEditor(); updateAutoBits(); if (typeof saveComposeDraft === 'function') saveComposeDraft(); } catch(e){} }
+    return done;
+  }
+  /* 응답 아래에 수정 제안 카드 + [작성칸에 반영] 버튼 */
+  function buildEditCard(aEl, edits){
+    var card = document.createElement('div');
+    card.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid var(--gold,#b8924a);border-radius:10px;background:rgba(184,146,74,0.10)';
+    var h = document.createElement('div');
+    h.style.cssText = 'font-weight:700;font-size:13px;margin-bottom:6px;color:var(--gold,#9a7b35)';
+    h.textContent = '✎ 작성창 반영 제안 (' + edits.length + '곳)';
+    card.appendChild(h);
+    var ul = document.createElement('ul');
+    ul.style.cssText = 'margin:0 0 8px 0;padding-left:18px;font-size:12.5px;line-height:1.6';
+    edits.forEach(function(ed){ var li = document.createElement('li'); li.textContent = editLabel(ed); ul.appendChild(li); });
+    card.appendChild(ul);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.style.cssText = 'padding:6px 14px;border:none;border-radius:8px;background:var(--gold,#b8924a);color:#fff;font-weight:700;cursor:pointer';
+    btn.textContent = '작성칸에 반영';
+    btn.addEventListener('click', function(){
+      if (curPage() !== 'compose'){ if (typeof toast === 'function') toast('[설교 작성] 화면에서만 반영할 수 있습니다.'); return; }
+      var done = applyComposeEdits(edits);
+      btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'default';
+      btn.textContent = done.length ? ('반영됨 ✓ (' + done.length + '곳)') : '반영할 내용 없음';
+      if (typeof toast === 'function' && done.length) toast('작성창에 ' + done.length + '곳 반영했습니다.');
+    });
+    card.appendChild(btn);
+    aEl.appendChild(card);
+  }
   var $ = function(s){ return document.querySelector(s); };
   var fab = $('#aiFab'), panel = $('#aiPanel'), body = $('#aiBody');
   var input = $('#aiInput'), sendBtn = $('#aiSend'), modelSel = $('#aiModel');
@@ -14109,7 +14194,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       + '대지는 함축적·도전적인 "뼈만 남은" 명제로 잡고, 예화는 자기 일화+시사문화+성경 평행인물 세 층위로 쌓으며, 적용은 오늘 실행 가능한 구체적 행동으로 착지합니다. '
       + '구어체("~지요?","~잖아요"를 "~입니다"와 섞음)를 쓰되, 본문 해석의 근거(절·원어·맥락)를 분명히 제시합니다. 항상 따뜻한 높임말로 답합니다. '
       + '본문 해석이나 사실 정보를 말할 때는 근거(성경 구절·출처)를 함께 밝힙니다. 모호하면 단정하지 말고 가능한 견해를 구분해 제시합니다.';
-    if (pg === 'compose') return base + ' 지금 화면은 [설교 작성]입니다. 제목·본문·핵심메시지·대지를 다듬고, 예화·적용을 보강하고, 원고 흐름을 함께 만드는 데 집중합니다.';
+    if (pg === 'compose') return base + ' 지금 화면은 [설교 작성]입니다. 제목·본문·핵심메시지·대지를 다듬고, 예화·적용을 보강하고, 원고 흐름을 함께 만드는 데 집중합니다.' + EDIT_PROTO;
     if (pg === 'occ') return base + ' 지금 화면은 [상황 설교 구상]입니다. 주어진 대상·시기·목적에 정확히 맞는 본문 선택과 설교 개요(핵심메시지·대지 3개·근거·적용)를 함께 구상합니다.';
     if (pg === 'series') return base + ' 지금 화면은 [시리즈 계획]입니다. 한 책/범위를 여러 주일에 걸쳐 설교할 때의 전체 흐름, 주차별 본문 배분, 시리즈 제목·주제 아치를 함께 설계합니다.';
     return base;
