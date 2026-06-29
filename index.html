@@ -6936,9 +6936,9 @@ async function cardDocxFileHandle(meta){
   /* 우선: claude-exchange/_claude_결과함(현재 카드원고 저장 위치 — 루트+하위 일자폴더 재귀) */
   async function findInDeep(root){
     var exact = null, fuzzy = null, fuzzyM = -1;
-    async function walk(d){
+    async function walk(d, depth){
       for await (var e of d.values()){
-        if (e.kind === 'directory') { await walk(e); continue; }
+        if (e.kind === 'directory') { if (depth === 0 && resultsDateKey(e.name)) await walk(e, depth + 1); continue; }
         if (e.kind !== 'file') continue;
         var n = nf(e.name);
         if (n === want) { if (!exact) exact = e; continue; }
@@ -6947,7 +6947,7 @@ async function cardDocxFileHandle(meta){
         }
       }
     }
-    try { await walk(root); } catch (e) {}
+    try { await walk(root, 0); } catch (e) {}
     return exact || fuzzy;
   }
   try {
@@ -10937,26 +10937,20 @@ async function renderOutputs(){
     var dir;
     try { dir = await xHandle.getDirectoryHandle('_claude_결과함'); }
     catch (e) { box.innerHTML = '<div class="empty">아직 결과함이 비어 있습니다.</div>'; return; }
-    function folderDateKey(name){
-      var m = String(name).match(/(20\d{2})[.\-_ ]?(\d{2})[.\-_ ]?(\d{2})/);
-      if (!m) return null;
-      var mo = +m[2], dd = +m[3];
-      if (mo < 1 || mo > 12 || dd < 1 || dd > 31) return null;
-      return m[1] + '-' + m[2] + '-' + m[3];
-    }
+    var folderDateKey = resultsDateKey;
     var items = [];
-    /* _claude_결과함을 재귀로 훑어 하위(일자별) 폴더 안의 파일도 모두 수집한다.
-       파일이 든 상위 폴더명이 날짜(YYYY-MM-DD · YYYYMMDD · 2026-06-29 (월) 등)면 그 날짜를
-       그룹 키로 쓴다 → Dropbox 동기화로 수정시각이 바뀌어도 폴더 정리 기준으로 묶인다. */
-    async function walkResults(d, gkey){
+    /* 결과함의 루트 + "날짜 이름" 하위폴더만 훑어 결과 파일을 수집한다.
+       날짜 폴더면 그 날짜를 그룹 키로(수정시각이 동기화로 바뀌어도 정리 기준 유지),
+       백스테이지·받은파일 같은 콘텐츠 폴더는 건너뛴다(목록 오염 방지). */
+    async function walkResults(d, gkey, depth){
       for await (var entry of d.values()) {
-        if (entry.kind === 'directory') { await walkResults(entry, folderDateKey(entry.name) || gkey); continue; }
-        if (entry.kind !== 'file' || entry.name.charAt(0) === '.') continue;
+        if (entry.kind === 'directory') { if (depth === 0) { var fk = folderDateKey(entry.name); if (fk) await walkResults(entry, fk, depth + 1); } continue; }
+        if (entry.kind !== 'file' || entry.name.charAt(0) === '.' || entry.name.indexOf('~$') === 0) continue;
         var f = await entry.getFile();
         items.push({ h: entry, name: entry.name, m: f.lastModified, size: f.size, gk: gkey });
       }
     }
-    await walkResults(dir, null);
+    await walkResults(dir, null, 0);
     items.sort(function(a, b){ return b.m - a.m; });
     _outFiles = items;
     /* 작업대기중 요청도 함께 표시 */
@@ -13483,7 +13477,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v369';
+var APP_VER = 'v370';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
