@@ -3659,7 +3659,10 @@ function pStructFilled(p){ return pBlocks(p).some(function(b){ return (b.body ||
 function pHasContent(p){ return p && ((p.text || '').trim() || pStructFilled(p)); }
 /* 구조(서론·대지·결론)에 작성된 내용이 하나라도 있는가 */
 function structHasContent(c){ return !!((c.intro || '').trim() || (c.concBody || '').trim() || (c.points || []).some(pHasContent)); }
-function newCompose(){ return { style: '기본원고', intro: '', free: '', concIntro: '말씀을 정리합니다.', concBody: '', points: [newPoint()] }; }
+function newCompose(){ return { style: '기본원고', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', points: [newPoint()] }; }
+/* 결론의 대지 요약: 기본은 대지 명제에서 자동 생성. 사용자가 결론칸에서 직접 고치면(concPtsEdited) 그 텍스트를 사용. */
+function concPointsDerived(c){ return (c.points || []).filter(function(p){ return (p.text || '').trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n'); }
+function concPointsOut(c){ var v = String(c.concPoints || '').trim(); return (c.concPtsEdited && v) ? v : concPointsDerived(c); }
 state.compose = newCompose();
 
 function updateComposeBadge(){
@@ -4212,7 +4215,7 @@ function renderEditor(){
     });
     html += '<div class="edPoint"><div class="edPointTitle">결론</div>' +
       ta('concIntro', 0, '', 2, '', c.concIntro) +
-      '<div class="edAuto" id="edConcList"></div>' +
+      ta('concPoints', 0, '', 3, '결론에서 정리할 대지 요약 — 위 대지에서 자동으로 채워집니다. 자유롭게 고쳐 쓰세요.', (c.concPtsEdited ? (c.concPoints || '') : concPointsDerived(c))) +
       ta('concBody', 0, '', 4, '결론 내용을 작성하세요', c.concBody) +
       '<div class="edAuto msg" id="edConcMsg"></div></div>';
     if (String(c.free || '').trim()) {
