@@ -1408,7 +1408,7 @@ body.uiDlgOpen{overflow:hidden}
         <span class="chip" data-v="">전체</span>
       </div>
       <div class="toolrow" style="margin-bottom:10px"><button class="btn sub mini" id="enhanceIdeasBtn" type="button" style="flex:0 0 auto">✦ 강화 안 된 예화 일괄 강화</button><span class="cnt" id="enhanceIdeasHint" style="margin-left:8px"></span></div>
-      <div class="cnt" style="margin-bottom:12px;line-height:1.65;background:var(--card,#0000000a);border-radius:8px;padding:9px 11px">💡 <b>예화</b>로 저장한 항목은 저장 즉시 <b>예화 도서관</b>의 「내 인박스」에도 나타나 검색·설교 삽입까지 됩니다. 인박스는 새로 들어온 예화를 <b>검토하는 자리</b>예요. 검토 후 도서관에서 「인박스 예화 라이브러리로 편입」을 누르면, 이 목록에서는 숨겨지고 도서관에만 정리됩니다.</div>
+      <div class="cnt" style="margin-bottom:12px;line-height:1.65;background:var(--card,#0000000a);border-radius:8px;padding:9px 11px">💡 <b>예화는 강화되는 순간 곧바로 예화 도서관으로 정리</b>됩니다. 이미지·OCR처럼 저장과 함께 자동 강화되는 예화는 인박스를 거치지 않고 바로 도서관으로 넘어갑니다. 손으로 빠르게 적어 둔 예화는 아직 강화 전이라 여기 인박스에 남아 있고, 위 「<b>강화 안 된 예화 일괄 강화</b>」를 누르면 강화되어 그때 도서관으로 넘어갑니다. 즉 인박스는 <b>강화 전 예화와 아이디어·통찰·주제를 검토하는 자리</b>이고, 강화가 끝난 예화는 도서관에 모입니다. (도서관에 보이는 것과 별개로, 예화모음 엑셀·번들에는 들어가지 않습니다.)</div>
       <div id="inboxList"></div>
     </section>
 
@@ -6642,6 +6642,7 @@ async function buildIdeaData(raw, opt){
       var e = await enhanceIllustration(raw, opt['출처']);
       data['내용'] = e.강화스토리;
       data['강조메시지'] = e.강조메시지;
+      data['상태'] = '편입됨'; /* 강화 성공 → 인박스 거치지 않고 바로 예화 도서관으로 */
       if (e.연결성경본문) data['관련본문'] = opt['관련본문'] ? (opt['관련본문'] + '; ' + e.연결성경본문) : e.연결성경본문;
       data['원문'] = raw;
       if (e.제목) data['제목'] = e.제목;
@@ -10913,8 +10914,8 @@ async function scanRequests(quiet){
             '유형': '예화', '내용': it['내용'] || '', '출처': it['출처'] || '이미지 스캔',
             '관련본문': it['관련본문'] || '', '키워드': it['키워드'] || '', '상태': '새것'
           };
-          /* 코워크에서 강화한 경우(강화요청) 강조메시지·원문도 함께 기록 */
-          if (it['강조메시지']) idea['강조메시지'] = it['강조메시지'];
+          /* 코워크에서 강화한 경우(강화요청) 강조메시지·원문도 함께 기록 → 강화됐으면 바로 예화 도서관으로 */
+          if (it['강조메시지']) { idea['강조메시지'] = it['강조메시지']; idea['상태'] = '편입됨'; }
           if (it['원문']) idea['원문'] = it['원문'];
           await apiPost({ action: 'add', sheet: 'ideas', data: idea });
         }
@@ -13304,7 +13305,7 @@ async function enhanceExistingIdeas(){
       var raw = String(d['원문'] || d['내용'] || '').trim();
       var e = await enhanceIllustration(raw, d['출처']);
       var ref = e.연결성경본문 ? (String(d['관련본문'] || '').trim() ? d['관련본문'] + '; ' + e.연결성경본문 : e.연결성경본문) : d['관련본문'];
-      var upd = { ID: d['ID'], '내용': e.강화스토리, '강조메시지': e.강조메시지, '관련본문': ref, '원문': raw };
+      var upd = { ID: d['ID'], '내용': e.강화스토리, '강조메시지': e.강조메시지, '관련본문': ref, '원문': raw, '상태': '편입됨' }; /* 강화 = 바로 예화 도서관으로 */
       if (e.제목) upd['제목'] = e.제목;
       if (!String(d['키워드'] || '').trim() && e.키워드) upd['키워드'] = e.키워드;
       await apiPost({ action: 'update', sheet: 'ideas', data: upd });
@@ -13313,10 +13314,10 @@ async function enhanceExistingIdeas(){
       ok++;
     } catch (err){ fail++; }
   }
-  saveData(); renderInbox();
-  var hint2 = $('#enhanceIdeasHint'); if (hint2) hint2.textContent = '완료 · 성공 ' + ok + (fail ? ' · 실패 ' + fail : '');
+  saveData(); renderInbox(); if (typeof renderIllLib === 'function') renderIllLib();
+  var hint2 = $('#enhanceIdeasHint'); if (hint2) hint2.textContent = '완료 · 성공 ' + ok + '건 (예화 도서관으로 이동)' + (fail ? ' · 실패 ' + fail : '');
   if (btn) btn.disabled = false;
-  toast('예화 일괄 강화 완료 — 성공 ' + ok + (fail ? ', 실패 ' + fail : '') + '건');
+  toast('예화 강화 완료 — ' + ok + '건이 예화 도서관으로 이동' + (fail ? ', 실패 ' + fail : '') + '됨');
   sync();
 }
 (function(){ var b = $('#enhanceIdeasBtn'); if (b) b.addEventListener('click', enhanceExistingIdeas); })();
@@ -13589,7 +13590,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v377';
+var APP_VER = 'v378';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
