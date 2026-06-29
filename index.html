@@ -5685,6 +5685,9 @@ function obsNote(s){
   f('본문', s['본문']);
   var code = obsRefCode(s); if (code) fm.push('본문코드: ["' + code.replace(/"/g, '') + '"]');
   f('시리즈', s['시리즈']); f('시리즈순번', s['시리즈순번']); f('상태', s['상태']); f('핵심메시지', s['핵심메시지']);
+  var _link = String(s['원고링크'] || '').trim();
+  if (_link) f('원고링크', _link);
+  else { var _fmap = {}; try { _fmap = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) {} var _fp = _fmap.docx || _fmap.hwp || ''; if (_fp) f('원고파일', _fp); }
   var tags = topicsOf(s);
   if (tags.length) fm.push('키워드: [' + tags.map(function(t){ return obsYaml(t); }).join(', ') + ']');
   fm.push('---');
