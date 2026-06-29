@@ -13777,6 +13777,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       '<div id="uiDlgInWrap"></div>' +
       '<div class="uiDlgFt">' +
         '<button type="button" class="uiDlgCancel" id="uiDlgCancel"></button>' +
+        '<button type="button" class="uiDlgCancel uiDlgExtra" id="uiDlgExtra" style="display:none"></button>' +
         '<button type="button" class="uiDlgOk" id="uiDlgOk"></button>' +
       '</div>' +
     '</div>';
@@ -13784,6 +13785,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   var msgEl = ov.querySelector('#uiDlgMsg'),
       inWrap = ov.querySelector('#uiDlgInWrap'),
       okBtn = ov.querySelector('#uiDlgOk'),
+      extraBtn = ov.querySelector('#uiDlgExtra'),
       cancelBtn = ov.querySelector('#uiDlgCancel');
   var cur = null;        /* { resolve, isPrompt, multiline, input } */
   var lastFocus = null;
@@ -13800,10 +13802,12 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     lastFocus = null;
     resolve(result);
   }
-  function onOk(){ if (!cur) return; finish(cur.isPrompt ? cur.input.value : true); }
-  function onCancel(){ if (!cur) return; finish(cur.isPrompt ? null : false); }
+  function onOk(){ if (!cur) return; finish(cur.choose ? 'ok' : (cur.isPrompt ? cur.input.value : true)); }
+  function onCancel(){ if (!cur) return; finish(cur.choose ? 'cancel' : (cur.isPrompt ? null : false)); }
+  function onExtra(){ if (!cur) return; finish('extra'); }
 
   okBtn.addEventListener('click', onOk);
+  extraBtn.addEventListener('click', onExtra);
   cancelBtn.addEventListener('click', onCancel);
   ov.addEventListener('mousedown', function(e){ if (e.target === ov) onCancel(); });
   ov.addEventListener('keydown', function(e){
@@ -13842,7 +13846,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       okBtn.textContent = opts.okText || '확인';
       cancelBtn.textContent = opts.cancelText || '취소';
       okBtn.classList.toggle('danger', !!opts.danger);
-      cur = { resolve: resolve, isPrompt: !!opts.isPrompt, multiline: !!opts.multiline, input: input };
+      if (opts.extraText){ extraBtn.textContent = opts.extraText; extraBtn.style.display = ''; }
+      else { extraBtn.style.display = 'none'; }
+      cur = { resolve: resolve, isPrompt: !!opts.isPrompt, multiline: !!opts.multiline, input: input, choose: !!opts.choose };
       ov.classList.add('on');
       document.body.classList.add('uiDlgOpen');
       setTimeout(function(){
@@ -13864,6 +13870,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   window.uiPrompt = function(message, defVal, opts){
     opts = opts || {};
     return enqueue({ message: message, isPrompt: true, defVal: defVal, okText: opts.okText, cancelText: opts.cancelText, placeholder: opts.placeholder, multiline: opts.multiline });
+  };
+  /* 3지선다: okText / extraText / cancelText → 'ok' | 'extra' | 'cancel' 반환 */
+  window.uiChoose = function(message, opts){
+    opts = opts || {};
+    return enqueue({ message: message, isPrompt: false, choose: true, okText: opts.okText, extraText: opts.extraText, cancelText: opts.cancelText, danger: opts.danger });
   };
 })();
 
