@@ -7610,7 +7610,7 @@ var P_TRANSDOC = [
 ].join('\n');
 async function aiTransDoc(meta, cuts){
   var table = cuts.filter(function(c){ return c.n >= 2; }).map(function(c){ return { n: c.n, type: c.type, anchor: c.anchor || '' }; });
-  var out = await callClaude(P_TRANSDOC, JSON.stringify({ 원고: meta['원고텍스트'], 전환표: table }), 32000, aiTick('전환표시본'), 'claude-sonnet-4-6');
+  var out = await callClaude(P_TRANSDOC, JSON.stringify({ 원고: meta['원고텍스트'], 전환표: table }), 32000, aiTick('전환표시본'), 'claude-sonnet-5');
   var j = aiJson(out);
   return (j && typeof j.body === 'string') ? j.body : (typeof j === 'string' ? j : '');
 }
@@ -8047,7 +8047,7 @@ async function aiSeriesDevo(m){
     toast('AI가 묵상 ' + nDays + '일 본문을 배분합니다 (1/2단계) — 잠시만요');
     var rows = null, cyc = null, fix = '';
     for (var attempt = 0; attempt < 2; attempt++) {
-      var out = await callClaude(P_DEVO_PLAN, baseUser + fix, 16000, aiTick('묵상 본문 배분'), 'claude-sonnet-4-6');
+      var out = await callClaude(P_DEVO_PLAN, baseUser + fix, 16000, aiTick('묵상 본문 배분'), 'claude-sonnet-5');
       rows = aiJson(out);
       if (!Array.isArray(rows) || rows.length !== nDays)
         throw new Error('일수 불일치(' + ((rows && rows.length) || 0) + '/' + nDays + ') — 한 번 더 시도해 주세요.');
@@ -13715,7 +13715,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v382';
+var APP_VER = 'v383';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -14242,7 +14242,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     <span class="sp"></span>
     <select id="aiModel" title="모델 선택">
       <option value="claude-opus-4-8">Opus 4.8 · 최고 성능</option>
-      <option value="claude-sonnet-4-6">Sonnet 4.6 · 균형</option>
+      <option value="claude-sonnet-5">Sonnet 5 · 균형</option>
       <option value="claude-haiku-4-5-20251001">Haiku 4.5 · 빠름</option>
     </select>
     <button class="nu" id="aiResetW" type="button" title="대화창 너비 초기화" aria-label="대화창 너비 초기화">
@@ -15084,7 +15084,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   });
   ctxOn.addEventListener('change', refreshCtxTag);
   /* 닫기는 [닫기] 버튼 또는 다른 메뉴로 이동할 때만 — 작성창 클릭/Esc로는 닫히지 않음 */
-  try { modelSel.value = localStorage.getItem('tsa.aiModel') || 'claude-opus-4-8'; } catch(e){}
+  try { modelSel.value = (localStorage.getItem('tsa.aiModel') || 'claude-opus-4-8').replace('claude-sonnet-4-6', 'claude-sonnet-5'); } catch(e){}
   modelSel.addEventListener('change', function(){ try { localStorage.setItem('tsa.aiModel', modelSel.value); } catch(e){} });
 
   /* ── 대화창 너비 조절(우측 경계 드래그) ── */
