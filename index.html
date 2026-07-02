@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
-<script>try{var _t=localStorage.getItem('tsa.theme');if(['light','sepia','compote','scuba'].indexOf(_t)>=0)document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
+<script>try{var _t=localStorage.getItem('tsa.theme');if(['light','sepia','compote','scuba'].indexOf(_t)>=0)document.documentElement.setAttribute('data-theme',_t);}catch(e){}
+try{var _z=parseFloat(localStorage.getItem('tsa.uiZoom')||'1')||1;window.__uiZoom=(_z>1&&_z<=1.3)?_z:1;if(window.__uiZoom!==1)document.documentElement.style.zoom=String(window.__uiZoom);}catch(e){window.__uiZoom=1;}</script>
 <meta name="apple-mobile-web-app-title" content="Total Sermons">
 <title>Total Sermons</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -1443,6 +1444,13 @@ body.uiDlgOpen{overflow:hidden}
           <span class="chip" data-theme="scuba">스쿠바</span>
         </div>
         <div class="cnt" style="margin-top:6px">앱 전체 색상을 바꿉니다. 선택은 이 기기에 저장됩니다.</div>
+        <label style="margin-top:14px">화면 크기</label>
+        <div class="chips" id="zoomChips">
+          <span class="chip" data-zoom="1">기본</span>
+          <span class="chip" data-zoom="1.08">크게</span>
+          <span class="chip" data-zoom="1.15">아주 크게</span>
+        </div>
+        <div class="cnt" style="margin-top:6px">핀치줌 없이 앱 전체 글자·버튼을 키웁니다. 이 기기에만 적용되며, 화면 배치가 어긋나 보이면 '기본'으로 되돌리세요.</div>
       </div>
       <div class="card">
         <label>API URL (Apps Script 배포 주소 /exec)</label>
@@ -1500,6 +1508,13 @@ body.uiDlgOpen{overflow:hidden}
       <div class="card">
         <button class="btn sub" id="syncBtn">지금 동기화</button>
         <button class="btn sub" id="fullSyncBtn" style="margin-top:8px">전체 새로고침 (처음부터 다시 받기)</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px">
+          <button class="btn sub" id="backupBtn">💾 전체 백업 내려받기</button>
+          <button class="btn sub" id="restoreBtn">백업에서 복원</button>
+        </div>
+        <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
+        <div class="cnt" style="margin-top:6px">백업 JSON에는 설교·아이디어·묵상·초안과 <b>설정(토큰·키 포함)</b>이 담깁니다 — 파일 보관에 주의하세요. 복원은 이 기기 데이터만 바꾸고 시트는 건드리지 않습니다.</div>
+        <div class="cnt" id="persistStat" style="margin-top:4px"></div>
         <div class="cnt" id="dataStat" style="margin-top:10px"></div>
         <div class="cnt" id="queueStat"></div>
       </div>
@@ -4965,10 +4980,11 @@ function saveComposeDraft(){
   try {
     if (!composeHasAnyContent()) { idbSet('composeDraft', null).catch(function(){}); return; }
     idbSet('composeDraft', composeDraftSnapshot()).catch(function(){});
+    pushComposeDraftRemoteSoon();   /* 시트에도 경량 백업 — 다른 기기 이어쓰기용 */
   } catch (e) {}
 }
 var saveComposeDraftSoon = debounce(saveComposeDraft, 700);
-function clearComposeDraft(){ try { idbSet('composeDraft', null).catch(function(){}); } catch (e) {} }
+function clearComposeDraft(){ try { idbSet('composeDraft', null).catch(function(){}); dropComposeDraftRemote(); } catch (e) {} }
 function restoreComposeDraft(){
   return idbGet('composeDraft').then(function(d){
     if (!d || !d.compose) return false;
@@ -4992,10 +5008,95 @@ function restoreComposeDraft(){
     pg.addEventListener('input', saveComposeDraftSoon);
     pg.addEventListener('change', saveComposeDraftSoon);
   }
-  /* 디바운스 사이에 앱이 가려지거나 닫혀도 최신 버퍼를 즉시 저장 */
-  document.addEventListener('visibilitychange', function(){ if (document.hidden) saveComposeDraft(); });
-  window.addEventListener('pagehide', saveComposeDraft);
+  /* 디바운스 사이에 앱이 가려지거나 닫혀도 최신 버퍼를 즉시 저장(+시트 백업 즉시 시도) */
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) { saveComposeDraft(); pushComposeDraftRemote(); } });
+  window.addEventListener('pagehide', function(){ saveComposeDraft(); pushComposeDraftRemote(); });
 })();
+
+/* ===================== 작성 버퍼 기기 간 이어쓰기(시리즈초안 시트의 예약행) =====================
+   위의 로컬 임시저장과 별개로, 미저장 원고를 '시리즈초안' 시트의 예약행('__작성초안__') 1개에
+   upsert해 다른 기기에서 이어 쓸 수 있게 한다. [저장] 완료·초안 비움 시 행을 지운다.
+   자동 덮어쓰기는 절대 하지 않고, 더 새 초안이 보이면 배너로 복원을 '제안'만 한다. */
+var CDRAFT_NAME = '__작성초안__';
+function findComposeDraftRow(){
+  return (state.data.seriesdraft || []).filter(function(r){ return r && r['시리즈명'] === CDRAFT_NAME; })
+    .sort(function(a, b){ return String(b['수정일'] || b['등록일'] || '').localeCompare(String(a['수정일'] || a['등록일'] || '')); })[0] || null;
+}
+function _cdraftSig(snap){
+  try { return JSON.stringify({ m: snap.meta, c: snap.compose, e: snap.editing || null }); } catch (e) { return ''; }
+}
+var _cdraftLastSig = '';
+function pushComposeDraftRemote(){
+  try {
+    var s = state.settings || {};
+    if (!s.url || !s.token || !navigator.onLine) return;
+    if (!composeHasAnyContent()) return;
+    var snap = composeDraftSnapshot();
+    var sig = _cdraftSig(snap);
+    if (!sig || sig === _cdraftLastSig) return;          /* 내용 변화 없음 → 시트 호출 안 함 */
+    var blob = JSON.stringify(snap);
+    if (blob.length > 40000) return;                     /* 셀 한도 보호 — 큰 원고는 로컬 임시저장만 */
+    var data = { '시리즈명': CDRAFT_NAME, '예배구분': 'composeDraft', '시작일': '', '종료일': '', '메타JSON': blob };
+    var row = findComposeDraftRow();
+    if (row && row['ID']) {
+      data.ID = row['ID'];
+      apiPost({ action: 'update', sheet: 'seriesdraft', data: data })
+        .then(function(){ _cdraftLastSig = sig; row['메타JSON'] = blob; row['수정일'] = nowLocalStr_(); }).catch(function(){});
+    } else {
+      apiPost({ action: 'add', sheet: 'seriesdraft', data: data }).then(function(id){
+        _cdraftLastSig = sig;
+        if (!id || typeof id !== 'string') return;
+        state.data.seriesdraft = state.data.seriesdraft || [];
+        state.data.seriesdraft.push({ ID: id, '시리즈명': CDRAFT_NAME, '예배구분': 'composeDraft', '메타JSON': blob, '수정일': nowLocalStr_() });
+      }).catch(function(){});
+    }
+  } catch (e) {}
+}
+var pushComposeDraftRemoteSoon = debounce(pushComposeDraftRemote, 10000);
+function dropComposeDraftRemote(){
+  try {
+    _cdraftLastSig = '';
+    var row = findComposeDraftRow();
+    if (!row || !row['ID']) return;
+    apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: row['ID'] } }).catch(function(){});
+    state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return x !== row; });
+  } catch (e) {}
+}
+/* 동기화 후 호출 — 원격 작성초안이 이 기기 것보다 새로우면 배너로 복원 제안 */
+function maybeOfferRemoteComposeDraft(){
+  try {
+    var row = findComposeDraftRow(); if (!row || !row['메타JSON']) return;
+    var snap; try { snap = JSON.parse(row['메타JSON']); } catch (e) { return; }
+    if (!snap || !snap.compose || !snap.at) return;
+    if (String(localStorage.getItem('tsa.cdraftSeen') || '') === String(snap.at)) return;  /* 이미 안내함 */
+    if (_cdraftSig(snap) === _cdraftLastSig) return;                                        /* 내가 올린 것 */
+    idbGet('composeDraft').then(function(local){
+      if (local && local.at && local.at >= snap.at) return;   /* 이 기기 초안이 더 최신 */
+      var wrap = document.getElementById('uxBanners'); if (!wrap) return;
+      if (document.getElementById('cdraftBanner')) return;
+      var when = new Date(snap.at);
+      function p2(n){ return ('0' + n).slice(-2); }
+      var b = document.createElement('div');
+      b.id = 'cdraftBanner'; b.className = 'uxBanner uxInfo';
+      b.innerHTML = '<div class="uxbTxt"><b>다른 기기에서 작성 중이던 원고가 있습니다.</b><br>'
+        + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + p2(when.getHours()) + ':' + p2(when.getMinutes())
+        + ' 저장분 — 불러오면 현재 작성 화면을 대체합니다.</div>';
+      function dismiss(){ try { localStorage.setItem('tsa.cdraftSeen', String(snap.at)); } catch (e) {} if (b.parentNode) b.parentNode.removeChild(b); }
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'uxbBtn'; btn.textContent = '불러오기';
+      btn.addEventListener('click', function(){
+        idbSet('composeDraft', snap).then(function(){ return restoreComposeDraft(); })
+          .then(function(){ dismiss(); if (window.showPage) showPage('compose'); toast('다른 기기의 작성 원고를 불러왔습니다.'); })
+          .catch(function(){ dismiss(); });
+      });
+      var btn2 = document.createElement('button');
+      btn2.type = 'button'; btn2.className = 'uxbBtn'; btn2.textContent = '무시';
+      btn2.addEventListener('click', dismiss);
+      b.appendChild(btn); b.appendChild(btn2);
+      wrap.appendChild(b);
+    }).catch(function(){});
+  } catch (e) {}
+}
 
 async function doSaveCompose(){
   var data = collectCompose();
@@ -8894,6 +8995,7 @@ function restoreSeriesDrafts(){
   } catch (e) {}
   (state.data.seriesdraft || []).slice().forEach(function(r){
     var name = r && r['시리즈명']; if (!name) return;
+    if (name === CDRAFT_NAME) return;                    /* 작성초안 예약행 — 시리즈가 아님 */
     if (seriesHasSheetRecords(name)) { dropSeriesDraft(name); return; }  /* 이미 생성됨 → 초안 제거 */
     var exists = (state.seriesList || []).some(function(S){ return (S.meta || {})['시리즈명'] === name; });
     if (exists) return;                                  /* 이미 로컬에 있음 */
@@ -8902,6 +9004,7 @@ function restoreSeriesDrafts(){
     state.seriesList.unshift(S); changed = true;
   });
   if (changed) idbSet('seriesList', state.seriesList).catch(function(){});
+  maybeOfferRemoteComposeDraft();   /* 원격 작성초안이 더 새로우면 복원 배너 제안 */
 }
 var WD = ['일', '월', '화', '수', '목', '금', '토'];
 function wdOf(iso){ return WD[new Date(iso + 'T12:00:00').getDay()]; }
@@ -13606,7 +13709,7 @@ var _appH = 0;
 var _kbLock = false;
 function setAppHeight(){
   if (_kbLock) return;              /* 키보드 떠 있는 동안 높이 고정 */
-  var h = window.innerHeight;
+  var h = Math.round(window.innerHeight / (window.__uiZoom || 1));  /* 화면 크기(zoom) 설정 보정 */
   if (h !== _appH) { _appH = h; document.documentElement.style.setProperty('--app-h', h + 'px'); }
 }
 document.addEventListener('focusin', function(e){
@@ -13650,6 +13753,16 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }).catch(function(){});
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
+  /* iOS/사파리 '미사용 저장소 자동 삭제'에서 로컬 데이터(작성 초안 등)를 보호 — 영구 저장 요청(거부돼도 무해) */
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persisted().then(function(p){ return p || navigator.storage.persist(); }).then(function(ok){
+        var el = $('#persistStat');
+        if (el) el.textContent = ok ? '저장소 보호: 영구 저장 허용됨 — 브라우저가 임의로 지우지 않습니다.'
+          : '저장소 보호: 미허용 — 오래 안 열면 브라우저가 로컬 데이터를 지울 수 있습니다. 앱을 자주 열고 전체 백업을 받아두세요.';
+      }).catch(function(){});
+    }
+  } catch (e) {}
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').then(function(reg){
       if (!reg) return;
@@ -13689,6 +13802,73 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     /* 실행 시 동기화: 기준점 있으면 변경분만, 없으면 전체. 이후엔 기기 포커스/저장 시 델타로 따라잡음. */
     if (state.settings.url) bootLoad();
   });
+})();
+
+/* ===================== 데이터 안전(전체 백업/복원) · 화면 크기 ===================== */
+(function(){
+  function pad2(n){ return ('0' + n).slice(-2); }
+  var bk = document.getElementById('backupBtn');
+  if (bk) bk.addEventListener('click', function(){
+    Promise.all([idbGet('composeDraft'), idbGet('occDraft'), idbGet('mindmaps'), idbGet('seriesList')]).then(function(ex){
+      var d = new Date();
+      var payload = { app: 'total-sermons', v: 1, appVer: APP_VER, exportedAt: d.toISOString(),
+        data: state.data, syncAt: state.syncAt || '', settings: state.settings,
+        composeDraft: ex[0] || null, occDraft: ex[1] || null, mindmaps: ex[2] || null,
+        seriesList: ex[3] || state.seriesList || [] };
+      var name = '토탈설교_전체백업_' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.json';
+      var blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ try { URL.revokeObjectURL(a.href); a.remove(); } catch (e) {} }, 4000);
+      toast('전체 백업을 내려받았습니다 — 안전한 곳에 보관하세요.');
+    }).catch(function(e){ toast('백업 실패: ' + ((e && e.message) || e)); });
+  });
+  var rb = document.getElementById('restoreBtn'), rf = document.getElementById('restoreFile');
+  if (rb && rf) {
+    rb.addEventListener('click', function(){ rf.click(); });
+    rf.addEventListener('change', function(){
+      var f = rf.files && rf.files[0]; rf.value = '';
+      if (!f) return;
+      f.text().then(function(txt){
+        var p; try { p = JSON.parse(txt); } catch (e) { p = null; }
+        if (!p || p.app !== 'total-sermons' || !p.data || !Array.isArray(p.data.sermons)) { toast('토탈 설교 앱 백업 파일이 아닙니다.'); return; }
+        var when = String(p.exportedAt || '').slice(0, 16).replace('T', ' ');
+        return uiConfirm('백업(' + when + ' · 설교 ' + p.data.sermons.length + '건)으로 이 기기 데이터를 되돌릴까요?\n현재 기기 데이터는 대체됩니다(시트는 변경되지 않습니다).').then(function(okc){
+          if (!okc) return;
+          state.data = p.data;
+          ['sermons', 'ideas', 'outputs', 'devo', 'devonotes', 'seriesdraft'].forEach(function(k){ state.data[k] = state.data[k] || []; });
+          state.syncAt = p.syncAt || '';
+          if (p.settings) { state.settings = p.settings; save(LS.settings, state.settings); }
+          if (p.seriesList) state.seriesList = p.seriesList;
+          var jobs = [idbSet('data', state.data), idbSet('syncAt', state.syncAt), idbSet('seriesList', state.seriesList || [])];
+          if (p.composeDraft) jobs.push(idbSet('composeDraft', p.composeDraft));
+          if (p.occDraft) jobs.push(idbSet('occDraft', p.occDraft));
+          if (p.mindmaps) jobs.push(idbSet('mindmaps', p.mindmaps));
+          return Promise.all(jobs).then(function(){
+            toast('복원했습니다 — 앱을 다시 시작합니다. 최신 변경분은 다음 동기화 때 합쳐집니다.');
+            setTimeout(function(){ location.reload(); }, 900);
+          });
+        });
+      }).catch(function(e){ toast('복원 실패: ' + ((e && e.message) || e)); });
+    });
+  }
+  /* ── 화면 크기(핀치줌 없이 전역 확대 · 이 기기에만 저장) ── */
+  function applyZoom(z){
+    z = (z > 1 && z <= 1.3) ? z : 1;
+    window.__uiZoom = z;
+    try { document.documentElement.style.zoom = (z === 1 ? '' : String(z)); } catch (e) {}
+    try { localStorage.setItem('tsa.uiZoom', String(z)); } catch (e) {}
+    try { setAppHeight(); } catch (e) {}
+    var chips = document.querySelectorAll('#zoomChips .chip');
+    Array.prototype.forEach.call(chips, function(c){ c.classList.toggle('on', Math.abs((parseFloat(c.dataset.zoom) || 1) - z) < 0.001); });
+  }
+  var zc = document.getElementById('zoomChips');
+  if (zc) zc.addEventListener('click', function(e){
+    var c = e.target.closest('.chip');
+    if (c && c.dataset.zoom) applyZoom(parseFloat(c.dataset.zoom) || 1);
+  });
+  applyZoom(window.__uiZoom || 1);   /* 부팅 시 칩 활성 표시 동기화 */
 })();
 
 /* ===================== UX: 첫 실행 안내 · 새 버전 알림 · 대기열 배지 ===================== */
@@ -14477,6 +14657,24 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     body.appendChild(d);
   }
 
+  /* 멀티턴 프리픽스 캐싱: 마지막 메시지에 cache_control을 실어 직전 턴까지의 전체 이력이
+     프롬프트 캐시에 적중(입력 재과금 대폭 절감)하도록 한다. 원본 convo 배열은 변형하지 않는다. */
+  function withCachedTail(msgs){
+    try {
+      if (!msgs || !msgs.length) return msgs;
+      var out = msgs.slice(0, -1);
+      var last = msgs[msgs.length - 1];
+      var c = last.content;
+      if (typeof c === 'string') c = [{ type: 'text', text: c }];
+      else if (Array.isArray(c)) c = c.map(function(b){ return Object.assign({}, b); });
+      else return msgs;
+      if (!c.length) return msgs;
+      c[c.length - 1] = Object.assign({}, c[c.length - 1], { cache_control: { type: 'ephemeral' } });
+      out.push({ role: last.role, content: c });
+      return out;
+    } catch (e) { return msgs; }
+  }
+
   /* ── 멀티턴 스트리밍 호출 ── */
   async function callChat(messages, model, system, onTick){
     var key = (window.aiKey ? aiKey() : String((window.state && state.settings && state.settings.claudeKey) || '').trim());
@@ -14493,9 +14691,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({ model: model, max_tokens: 4000, stream: true,
-        cache_control: { type: 'ephemeral' },
         system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-        messages: messages })
+        messages: withCachedTail(messages) })
     });
     if (!res.ok){
       var et = ''; try { et = (await res.json()).error.message; } catch(e){ et = 'HTTP ' + res.status; }
@@ -14653,6 +14850,26 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     schedulePush(rec);                  /* 기기 간 공유용 시트 동기화(디바운스) */
   }
 
+  /* 시트 셀 5만 자 한도 가드: 대화 JSON이 한도를 넘으면 오래된 턴부터 덜어내고 안내 턴을 남긴다.
+     (원 기기의 로컬 세션에는 전체가 그대로 남는다 — 같은 시각(ts)이라 원 기기 것을 덮지 않음) */
+  function convoJsonForSheet(convo){
+    var MAXC = 44000;
+    var j = JSON.stringify(convo);
+    if (j.length <= MAXC) return j;
+    var c = convo.slice();
+    while (c.length > 2 && JSON.stringify(c).length > MAXC) c.shift();
+    if (JSON.stringify(c).length > MAXC) {
+      c = c.map(function(m){
+        var t = textOf(m.content) || '';
+        if (t.length > 18000) t = t.slice(0, 18000) + '\n…(길이 제한으로 뒷부분 생략)';
+        return { role: m.role, content: t };
+      });
+    }
+    c.unshift({ role: 'assistant', content: '※ 대화가 길어 앞부분 일부는 원 기기에만 보관됩니다.' });
+    while (c.length > 2 && JSON.stringify(c).length > MAXC) c.splice(1, 1);
+    return JSON.stringify(c);
+  }
+
   /* ===================== 대화 기록 기기 간 동기화(대화기록 시트) ===================== */
   function chatSyncOn(){ return !!(state.settings && state.settings.url && state.settings.token); }
   var _pushTimer = null, _pushQ = {};
@@ -14667,7 +14884,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var items = Object.keys(_pushQ).map(function(k){ return _pushQ[k]; }); _pushQ = {};
     items.forEach(function(rec){
       var data = { '로컬ID': rec.id, '제목': rec.title || '', '페이지': rec.page || '',
-        '시각': String(rec.ts || Date.now()), '대화': JSON.stringify(rec.convo || []) };
+        '시각': String(rec.ts || Date.now()), '대화': convoJsonForSheet(rec.convo || []) };
       if (rec.sid){
         data.ID = rec.sid;
         apiPost({ action: 'update', sheet: 'chats', data: data }).catch(function(){
