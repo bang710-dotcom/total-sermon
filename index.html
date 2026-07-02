@@ -1379,8 +1379,10 @@ body.uiDlgOpen{overflow:hidden}
       <div class="dropzone" id="dropzone">
         워드(.docx) 파일을 앱 화면 아무 데나 끌어다 놓으세요<br>
         <span style="font-size:12.5px">파일명에서 날짜·제목·본문을 자동 인식합니다 · 여러 개 동시 가능 · 예화 이미지도 함께 놓으면 알아서 분류</span><br><br>
-        <button class="linkbtn" id="pickFiles" style="font-size:14px">또는 파일 선택…</button>
-        <input type="file" id="fileInput" accept=".docx" multiple style="display:none">
+        <button class="linkbtn" id="pickFiles" style="font-size:14px">또는 파일 선택…</button><br>
+        <button class="linkbtn" id="pickPhotos" style="font-size:14px">📷 사진 앨범에서 예화 이미지 선택…</button>
+        <input type="file" id="fileInput" accept=".docx,image/*" multiple style="display:none">
+        <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
       </div>
       <div id="impList" style="margin-top:14px"></div>
       <div class="toolrow" id="impActions" style="display:none">
@@ -11814,8 +11816,22 @@ function renderImport(){
   }).join('');
 }
 /* 드래그앤드롭은 전역 오버레이가 일괄 처리 (이미지→예화, docx→가져오기) */
+/* [파일 선택]도 드롭과 동일하게 자동 분류 — 이미지 → 예화(인박스/OCR), docx → 가져오기 목록.
+   accept에 image/*가 있어 아이폰에서도 '사진 보관함'이 선택지에 뜬다. */
+function classifyPickedFiles(fileList){
+  var files = Array.prototype.slice.call(fileList || []);
+  if (!files.length) return;
+  var imgs = files.filter(function(f){ return /^image\//.test(f.type); });
+  var docs = files.filter(function(f){ return /\.docx$/i.test(f.name) && !/^~\$/.test(f.name); });
+  if (imgs.length) handleIdeaImages(imgs);
+  if (docs.length) handleImportFiles(docs);
+  if (!imgs.length && !docs.length) toast('이미지 또는 워드(.docx) 파일만 받을 수 있습니다.');
+}
 $('#pickFiles').addEventListener('click', function(){ $('#fileInput').click(); });
-$('#fileInput').addEventListener('change', function(){ handleImportFiles(this.files); this.value = ''; });
+$('#fileInput').addEventListener('change', function(){ classifyPickedFiles(this.files); this.value = ''; });
+/* 모바일용: 사진 앨범에서 바로 예화 이미지 선택 */
+if ($('#pickPhotos')) $('#pickPhotos').addEventListener('click', function(){ $('#photoInput').click(); });
+if ($('#photoInput')) $('#photoInput').addEventListener('change', function(){ handleIdeaImages(this.files); this.value = ''; });
 $('#impClear').addEventListener('click', function(){ state.importRows = []; renderImport(); });
 $('#impRegister').addEventListener('click', function(){
   var rows = state.importRows.filter(function(r){ return r.use && !r.error; }).map(function(r){
@@ -13699,7 +13715,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v381';
+var APP_VER = 'v382';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
