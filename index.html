@@ -5354,6 +5354,7 @@ function buildDocxParas(D, paras, st){
   var FONT = { ascii: st.font, eastAsia: st.font, hAnsi: st.font };
   var children = paras.map(function(p){
     var opts = {
+      alignment: D.AlignmentType.JUSTIFIED,   /* 본문 양쪽 정렬 — 미리보기(#prevPage)와 동일 */
       spacing: { line: st.line },
       children: [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
     };
@@ -13628,7 +13629,7 @@ function openPreview(contentHtml, exportFn){
   if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">DOCX 내보내기</button>';
   bar += '</div>';
   var page = '<div id="prevScroll" style="flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;align-items:center;padding:16px 16px calc(16px + env(safe-area-inset-bottom))">' +
-    '<div id="prevPage" style="flex:0 0 auto;background:#fff;width:100%;max-width:720px;padding:48px 56px;box-shadow:0 4px 24px rgba(0,0,0,0.5);font-family:\'함초롬바탕\',\'나눔명조\',serif;color:#111;font-size:14pt;line-height:2;word-break:keep-all;min-height:960px">'+contentHtml+'</div>' +
+    '<div id="prevPage" style="flex:0 0 auto;background:#fff;width:100%;max-width:720px;padding:48px 56px;box-shadow:0 4px 24px rgba(0,0,0,0.5);font-family:\'함초롬바탕\',\'나눔명조\',serif;color:#111;font-size:14pt;line-height:2;word-break:keep-all;text-align:justify;min-height:960px">'+contentHtml+'</div>' +
     '</div>';
   ov.innerHTML = bar + page;
   document.body.appendChild(ov);
@@ -13715,7 +13716,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v383';
+var APP_VER = 'v384';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
