@@ -13636,7 +13636,8 @@ function openPreview(contentHtml, exportFn){
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#2b2b2b;display:flex;flex-direction:column';
   var bar = '<div id="prevBar" style="flex:0 0 auto;display:flex;gap:8px;justify-content:center;align-items:center;background:#2d2d2d;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;box-shadow:0 3px 12px rgba(0,0,0,0.5);z-index:2">' +
     '<button onclick="closePrev()" style="background:#444;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">× 닫기</button>' +
-    '<button onclick="window.print()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">🖨 인쇄</button>';
+    '<button onclick="window.print()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">🖨 인쇄</button>' +
+    '<button id="pvFullBtn" onclick="togglePrevFull()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">⛶ 전체화면</button>';
   if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">DOCX 내보내기</button>';
   bar += '</div>';
   var page = '<div id="prevScroll" style="flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;align-items:center;padding:16px 16px calc(16px + env(safe-area-inset-bottom))">' +
@@ -13647,13 +13648,50 @@ function openPreview(contentHtml, exportFn){
   window._pvEx = exportFn || null;
   document.body.style.overflow = 'hidden';
   document.body.classList.add('previewing');   /* 인쇄 시 미리보기만 출력되도록 표식 */
+  /* 전체화면 상태에서 '탭'(짧게 제자리 터치)만 도구바 토글 — 스크롤·드래그·길게 누름은 무시 */
+  var sc = document.getElementById('prevScroll'), tx = 0, ty = 0, tt = 0, tmv = false;
+  sc.addEventListener('pointerdown', function(e){ tx = e.clientX; ty = e.clientY; tt = Date.now(); tmv = false; });
+  sc.addEventListener('pointermove', function(e){ if (Math.abs(e.clientX - tx) > 9 || Math.abs(e.clientY - ty) > 9) tmv = true; });
+  sc.addEventListener('pointerup', function(e){
+    if (!window._pvFull || tmv || Date.now() - tt > 500) return;
+    if (Math.abs(e.clientX - tx) > 9 || Math.abs(e.clientY - ty) > 9) return;
+    var b = document.getElementById('prevBar');
+    if (b) b.style.display = (b.style.display === 'none') ? 'flex' : 'none';
+  });
+  window._pvFull = false;
+  if (localStorage.getItem('tsaPrevFull') === '1') setPrevFull(true);   /* 지난번 전체화면으로 봤으면 유지 */
 }
+/* ── 미리보기 전체화면: 종이가 화면을 가득 채우고, 도구바는 위에 겹쳐 탭으로 토글 ── */
+function setPrevFull(on){
+  var bar = document.getElementById('prevBar'), sc = document.getElementById('prevScroll'),
+      pg = document.getElementById('prevPage'), btn = document.getElementById('pvFullBtn');
+  if (!bar || !sc || !pg) return;
+  window._pvFull = !!on;
+  try { localStorage.setItem('tsaPrevFull', on ? '1' : '0'); } catch (e) {}
+  if (on) {
+    bar.style.position = 'absolute'; bar.style.top = '0'; bar.style.left = '0'; bar.style.right = '0';
+    bar.style.display = 'none';               /* 진입 시 숨김 — 화면 탭으로 표시/숨김 */
+    sc.style.padding = '0';
+    pg.style.maxWidth = 'none'; pg.style.boxShadow = 'none'; pg.style.minHeight = '100%';
+    pg.style.padding = 'calc(24px + env(safe-area-inset-top)) 22px calc(24px + env(safe-area-inset-bottom))';
+    if (btn) btn.textContent = '⛶ 창보기';
+  } else {
+    bar.style.position = ''; bar.style.top = ''; bar.style.left = ''; bar.style.right = '';
+    bar.style.display = 'flex';
+    sc.style.padding = '16px 16px calc(16px + env(safe-area-inset-bottom))';
+    pg.style.maxWidth = '720px'; pg.style.boxShadow = '0 4px 24px rgba(0,0,0,0.5)'; pg.style.minHeight = '960px';
+    pg.style.padding = '48px 56px';
+    if (btn) btn.textContent = '⛶ 전체화면';
+  }
+}
+window.togglePrevFull = function(){ setPrevFull(!window._pvFull); };
 function closePrev(){
   var ov = document.getElementById('prevOv');
   if (ov) ov.remove();
   document.body.style.overflow = '';
   document.body.classList.remove('previewing');
   window._pvEx = null;
+  window._pvFull = false;
 }
 window.previewSermon = function(id){
   loadSermonThen(id, null, '원고를 불러오는 중…', function(s){ if (s) previewSermonNow(id); });
@@ -13727,7 +13765,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v385';
+var APP_VER = 'v386';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
