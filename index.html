@@ -495,7 +495,7 @@ input[type=date]{cursor:pointer}
 .ptRow .ptBlk .blkHint{flex:1;color:var(--dim);font-size:12px;font-style:italic}
 .ptRow .ptBlk .blkBodyPrev{flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 블록 드래그 핸들 — 잡아끌어 이동, 우클릭/롱프레스로 삭제 */
-.ptRow .ptBlk .dragH{flex:0 0 22px;text-align:center;cursor:grab;color:var(--dim);font-size:15px;line-height:1;user-select:none;-webkit-user-select:none;touch-action:none;padding:6px 0}
+.ptRow .ptBlk .dragH{flex:0 0 22px;text-align:center;cursor:grab;color:var(--dim);font-size:15px;line-height:1;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;padding:6px 0}
 .ptRow .ptBlk .dragH:hover{color:var(--accent)}
 .ptRow .ptBlk.dragging{opacity:.4}
 .ptRow .ptBlocks.cwSectActive{outline:2px dashed var(--accent);outline-offset:3px;border-radius:8px}
@@ -3772,7 +3772,7 @@ function renderPoints(){
   $('#pointList').innerHTML = c.points.map(function(p, i){
     p = normPoint(p); c.points[i] = p;
     var blk = p.blocks.map(function(b, bi){
-      var handle = '<span class="dragH" data-i="' + i + '" data-bi="' + bi + '" title="드래그로 이동 · 우클릭으로 삭제">⠿</span>';
+      var handle = '<span class="dragH" data-i="' + i + '" data-bi="' + bi + '" title="드래그로 이동 · 우클릭/길게 눌러 삭제">⠿</span>';
       if (b.type === 'ill') {
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
           '<span class="blkTag illTag">ex)</span>' +
@@ -3856,13 +3856,13 @@ $('#addPoint').addEventListener('click', function(){
 });
 
 /* ===== 블록(예화·내용) 핸들 드래그 이동 + 우클릭/롱프레스 삭제 ===== */
-async function cwBlockDelete(i, bi){
+async function cwBlockDelete(i, bi, askAlways){
   var _now = Date.now(); if (_now - (cwBlockDelete._t || 0) < 350) return; cwBlockDelete._t = _now;  /* 우클릭이 pointerdown+contextmenu 둘 다 발화해도 1회만 삭제 */
   var p = state.compose.points[i]; if (!p) return;
   var bl = p.blocks, b = bl[bi]; if (!b) return;
   var lbl = b.type === 'ill' ? '이 예화를' : '이 ' + blockRole(b) + ' 블록을';
   var hasC = b.type === 'ill' ? ((b.ill || '').trim() || (b.illBody || '').trim()) : b.type === 'apply' ? (b.apply || '').trim() : (b.body || '').trim();
-  if (hasC && !await uiConfirm(lbl + ' 삭제할까요? 작성 내용도 사라집니다.', { danger: true, okText: '삭제' })) return;
+  if ((hasC || askAlways) && !await uiConfirm(lbl + ' 삭제할까요?' + (hasC ? ' 작성 내용도 사라집니다.' : ''), { danger: true, okText: '삭제' })) return;
   bl.splice(bi, 1);
   if (!bl.length) bl.push(newBodyBlock(''));
   renderPoints(); renderEditor();
@@ -3921,7 +3921,18 @@ function cwBlockMove(srcI, srcBi, dstI, dstIdx){
     var i = +h.dataset.i, bi = +h.dataset.bi;
     st = { i: i, bi: bi, h: h, sx: e.clientX, sy: e.clientY, pid: e.pointerId,
            started: false, allowSect: i, dwellSect: null, dwellTimer: null, dst: null,
-           lp: null };   /* 길게 누름 삭제 제거 — 삭제는 우클릭(contextmenu)으로만 */
+           lp: null };
+    /* 터치·펜: 길게 누름(550ms) = 삭제 — 모바일엔 우클릭이 없으므로. 항상 확인 모달을 거쳐
+       오삭제를 막는다(과거 롱프레스 즉시삭제의 부작용 방지). 7px 이상 움직여 드래그가
+       시작되면 pointermove에서 이 타이머가 해제되고, 손을 떼면 cleanup이 해제한다. */
+    if (e.pointerType && e.pointerType !== 'mouse'){
+      st.lp = setTimeout(function(){
+        if (!st || st.started) return;
+        cleanup();
+        try { if (navigator.vibrate) navigator.vibrate(15); } catch(_){}
+        cwBlockDelete(i, bi, true);
+      }, 550);
+    }
     try { h.setPointerCapture(e.pointerId); } catch(_){}
   });
   listEl.addEventListener('pointermove', function(e){
@@ -13938,7 +13949,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v388';
+var APP_VER = 'v389';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
