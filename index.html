@@ -1890,13 +1890,16 @@ function mergeDelta(d){
     var inc = (k === 'sermons' && keepId) ? d[k].filter(function(r){ return String(r['ID']) !== keepId; }) : d[k];
     if (k === 'sermons') {
       /* 목록(델타)은 대용량 원고텍스트를 생략해 보내므로, 들어온 행의 본문이 비었고 로컬에 받아둔 본문이 있으면
-         그 칸만 보존한다(행 통째 교체로 캐시 본문이 ''로 날아가 불필요한 재요청·순간 공백이 나는 것 방지). */
+         그 칸만 보존한다(행 통째 교체로 캐시 본문이 ''로 날아가 불필요한 재요청·순간 공백이 나는 것 방지).
+         ⚠ 보존은 하되 '신선한 척'은 하지 않는다 — 캐시 시점 스탬프(_txtAt)를 그대로 가져와,
+         들어온 행의 수정일이 더 최신이면 ensureText가 열람 시점에 본문을 다시 받아온다(낡은 본문 영구 표시 방지). */
       var _local = {}; (state.data.sermons || []).forEach(function(r){ if (r && r['ID'] != null) _local[r['ID']] = r; });
       inc.forEach(function(r){
         if (!r || r['ID'] == null) return;
         var old = _local[r['ID']];
         if (old && !String(r['원고텍스트'] || '').trim() && String(old['원고텍스트'] || '').trim()) {
           r['원고텍스트'] = old['원고텍스트']; if (old._txt) r._txt = old._txt;
+          if (old._txtAt) r._txtAt = old._txtAt;   /* 스탬프 없는 옛 캐시는 그대로 '낡음'으로 남겨 1회 자가치유 */
         }
       });
     }
@@ -2106,6 +2109,9 @@ function submit(body, okMsg, onResult, opts){
           var _prev = (state.data[body.sheet] || []).filter(function(r){ return String(r['ID']) === String(rec['ID']); })[0];
           var _merged = Object.assign({}, _prev || {}, rec);
           _merged['수정일'] = nowLocalStr_();   /* 기준본 수정일을 지금으로 — 내 저장 에코가 '더 최신'으로 보이지 않게 */
+          /* 설교 저장이면 로컬 본문 = 방금 시트에 쓴 본문 그 자체 → 신선도 스탬프를 찍어
+             같은 기기에서 곧바로 열 때 불필요한 본문 재요청이 없게 한다. */
+          if (body.sheet === 'sermons' && rec['원고텍스트'] != null) { _merged._txt = true; _merged._txtAt = _merged['수정일']; }
           upsertById(state.data[body.sheet], [_merged]); saveData();
           normalizeSermonStatuses(false); renderSyncState(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
         }
@@ -2208,15 +2214,34 @@ function loadSermonThen(id, el, msg, done){
   return ensureText(id).then(function(s){ try { done(s); } finally { unmark(); hideLoad(); } })
     .catch(function(){ unmark(); hideLoad(); toast('불러오기에 실패했습니다. 다시 시도해 주세요.'); });
 }
+/* ── 본문 캐시 신선도 ──
+   행의 '수정일'(시트 저장 시점 — 델타 동기화로 항상 최신화됨)과 본문을 로컬에 받아둔 시점(_txtAt)을
+   비교해, 시트 쪽이 더 최신이면 캐시 본문을 낡은 것(stale)으로 판정한다.
+   → 다른 기기에서 원고를 고쳐도, 이 기기에서 설교를 열 때 항상 최신 본문을 다시 받아온다.
+   (_txtAt이 없는 옛 캐시는 낡은 것으로 보고 1회 재수신해 자가치유 — 이후엔 스탬프가 붙는다.) */
+function _txtStale(s){
+  try {
+    var m = String(s['수정일'] || '');
+    if (!m) return false;                 /* 수정일 없는 행은 비교 불가 → 기존 동작 유지 */
+    var at = String(s._txtAt || '');
+    return !at || at < m;                 /* 스탬프 없음(옛 캐시) 또는 시트 저장 시점보다 과거 → 낡음 */
+  } catch(e){ return false; }
+}
 function ensureText(id){
   var s = findSermon(id);
   if (!s) return Promise.resolve(null);
-  if (String(s['원고텍스트'] || '').trim() || s._txt) return Promise.resolve(s);  /* 이미 있거나 1회 시도함 */
+  var _has = String(s['원고텍스트'] || '').trim() || s._txt;   /* 이미 있거나 1회 시도함 */
+  var _stale = _txtStale(s);
+  if (_has && !_stale) return Promise.resolve(s);              /* 신선한 캐시 → 즉시 사용(재요청 없음) */
   return api({ action: 'text', id: id }).then(function(d){
     if (d && d['원고텍스트'] != null) s['원고텍스트'] = d['원고텍스트'];
     if (d && d['요약본'] && !String(s['요약본'] || '').trim()) s['요약본'] = d['요약본'];
-    s._txt = true; saveData(); return s;
-  }).catch(function(){ return s; });
+    s._txt = true; s._txtAt = String(s['수정일'] || '') || nowLocalStr_(); saveData(); return s;
+  }).catch(function(){
+    /* 통신 실패 → 캐시 본문 유지. 단, 낡은 캐시임을 알면서 갱신에 실패한 경우엔 알려준다. */
+    if (_stale && _has) { try { toast('통신 오류 — 마지막으로 받아둔 원고를 표시합니다. 다른 기기의 최신 수정이 반영되지 않았을 수 있습니다.'); } catch(e){} }
+    return s;
+  });
 }
 function findIdea(id){ return state.data.ideas.filter(function(x){ return x['ID'] === id; })[0]; }
 
