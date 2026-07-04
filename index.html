@@ -6300,6 +6300,7 @@ function bridgeEnsureUi(){
   ov.innerHTML = '<div class="bwrap">'
     + '<h3 id="tsaBridgeTitle">브라우저 에이전트 요청</h3>'
     + '<div class="bhint">이 요청을 브라우저의 AI(사이드 패널)에게 맡기세요 — ① 아래 요청 전문을 읽게 하거나 [요청 복사]로 전달 ② 생성 결과(지침이 요구한 JSON 그대로)를 결과칸에 넣고 [결과 적용]. 에이전트는 자바스크립트 <b>window.TSA_BRIDGE.deliver(결과문자열)</b> 호출로도 전달할 수 있습니다.</div>'
+    + '<div id="tsaBridgeImgs" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:8px;max-height:230px;overflow:auto"></div>'
     + '<textarea id="tsaBridgeReq" readonly spellcheck="false" aria-label="에이전트 요청 전문"></textarea>'
     + '<textarea id="tsaBridgeRes" spellcheck="false" placeholder="여기에 생성 결과를 붙여넣으세요 (지침이 요구한 JSON 그대로)" aria-label="생성 결과 입력"></textarea>'
     + '<div class="brow"><button type="button" id="tsaBridgeCopy">요청 복사</button><button type="button" class="bgold" id="tsaBridgeApply">결과 적용</button><button type="button" id="tsaBridgeCancel">취소</button></div>'
@@ -6334,21 +6335,40 @@ function bridgeCancel(msg){
   p.reject(new Error(msg || '에이전트 요청이 취소되었습니다'));
 }
 function bridgeCall(system, user, onTick){
-  if (typeof user !== 'string') return Promise.reject(new Error('이미지 인식(OCR)은 브라우저 에이전트 모드에서 지원되지 않습니다 — 설정에 API 키가 필요합니다.'));
   if (_bridgePend) return Promise.reject(new Error('이미 대기 중인 에이전트 요청이 있습니다 — 먼저 처리하거나 취소해 주세요.'));
   bridgeEnsureUi();
   var label = (onTick && onTick.genLabel) || '결과물';
-  var payload = [
+  /* user: 문자열 또는 콘텐츠 블록 배열([{type:'text'|'image',...}]).
+     이미지 블록은 패널 상단에 <img>로 띄워 에이전트가 직접 보고 처리한다 — 비전(OCR)도 구독으로. */
+  var texts = [], imgs = [];
+  if (typeof user === 'string') texts.push(user);
+  else if (Array.isArray(user)) user.forEach(function(c){
+    if (!c) return;
+    if (c.type === 'text') texts.push(String(c.text || ''));
+    else if (c.type === 'image' && c.source){
+      if (c.source.type === 'base64' && c.source.data) imgs.push('data:' + (c.source.media_type || 'image/jpeg') + ';base64,' + c.source.data);
+      else if (c.source.url) imgs.push(String(c.source.url));
+    }
+  });
+  else texts.push(JSON.stringify(user));
+  var head = [
     '=== TOTAL SERMONS 생성 요청 · ' + label + ' ===',
     '지시: 아래 [SYSTEM] 지침을 그대로 따라 [USER] 입력을 처리하고, 지침이 요구한 출력(대개 JSON)만 만들어 주세요. 설명·코드펜스 없이.',
-    '전달: 이 페이지의 결과칸(#tsaBridgeRes)에 결과를 입력하고 [결과 적용](#tsaBridgeApply)을 클릭하거나, 자바스크립트로 window.TSA_BRIDGE.deliver(결과문자열)를 호출하세요.',
-    '',
-    '[SYSTEM]',
-    system,
-    '',
-    '[USER]',
-    user
-  ].join('\n');
+    '전달: 이 페이지의 결과칸(#tsaBridgeRes)에 결과를 입력하고 [결과 적용](#tsaBridgeApply)을 클릭하거나, 자바스크립트로 window.TSA_BRIDGE.deliver(결과문자열)를 호출하세요.'
+  ];
+  if (imgs.length) head.splice(2, 0, '이미지: 이 요청에는 이미지 ' + imgs.length + '장이 포함되어 있고 이 패널 상단에 표시되어 있습니다. 이미지를 직접 보고 지침대로 처리하세요.');
+  var payload = head.concat(['', '[SYSTEM]', system, '', '[USER]', texts.join('\n')]).join('\n');
+  var box = $('#tsaBridgeImgs');
+  if (box){
+    box.innerHTML = '';
+    imgs.forEach(function(u){
+      var im = document.createElement('img');
+      im.src = u; im.alt = '요청에 포함된 이미지';
+      im.style.cssText = 'max-height:180px;max-width:100%;border-radius:8px;border:1px solid rgba(0,0,0,.15)';
+      box.appendChild(im);
+    });
+    box.style.display = imgs.length ? 'flex' : 'none';
+  }
   $('#tsaBridgeTitle').textContent = '브라우저 에이전트 요청 — ' + label;
   $('#tsaBridgeReq').value = payload;
   $('#tsaBridgeRes').value = '';
