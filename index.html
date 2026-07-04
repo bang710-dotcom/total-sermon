@@ -7698,12 +7698,23 @@ function safeFallbackPrompts(c){
     'A single soft warm glow at the center of a vast deep black space, calm minimal cinematic atmosphere, no human figures, no lettering. ' + LED_TAIL
   ];
 }
+/* ★ 표지(#1) 전용 프롬프트: 주제 상징 요소를 가장자리·주변부에 배치하고
+   중앙은 설교 제목·본문 텍스트가 들어갈 어둡고 고요한 여백으로 비운 구도. */
+var COVER_SPACE = 'Composition rule: keep a large, calm, uncluttered, darker empty area at the exact center of the frame as clear negative space reserved for a title; place all symbolic elements, light sources and detail around the periphery and corners of the frame; nothing bright or detailed in the central zone; no lettering anywhere.';
+function buildCoverPrompt(c, engine){
+  var en = String((c && c.en) || '').trim();
+  var sc = styleCueEn(c && c.style);
+  if (engine === 'gemini') {
+    return [ en, 'Render this as a ' + sc + '.', COVER_SPACE, 'Cinematic painterly background with dramatic chiaroscuro lighting and rich atmosphere; keep faces out of view and include no lettering.', IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+  }
+  return [ en, sc + ', cinematic painterly, dramatic chiaroscuro, faceless figures, no lettering.', COVER_SPACE, IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+}
 var P_IMGDATA = [
   '너는 영락교회 대학부 설교의 "설교 이미지 자료(컷별 LED 배경 프롬프트)"를 만든다. 입력(설교 원고+메타)을 받아 컷 목록을 JSON으로만 출력한다. 설명·코드펜스 금지.',
   '★★입력에 "컷목록(고정)"이 있으면 그것이 절대 기준이다 — n·type·anchor·개수·순서를 하나도 바꾸지 말고 그대로 두고, 각 컷의 프롬프트 필드(style·ko·en·ref·verse)만 채워 같은 개수로 돌려준다. 컷을 더하거나 빼거나 종류를 바꾸지 마라(카드원고·전환표시본·생성이미지가 이 목록을 공유하므로 어긋나면 실패).',
   '출력: {"cuts":[{"n":1,"type":"표지|일반|본문","role":"한국어 역할","style":"사실적|추상적","ko":"한국어 설명 1~2문장","en":"영문 장면 묘사(일반·표지만)","ref":"장절 약어(본문만, 예 요 7:17)","verse":"인용 성구 원문 그대로(본문만)","anchor":"전환 직후 단락/인용 첫 30자"}]}',
   '전환표 규칙: #1=표지. #2부터 ★빠짐없이 연속 번호(점프·건너뜀 금지). 본문 시작 #2는 일반. ★본문 컷은 "회중과 함께 화면 보며 읽는" 봉독 본문마다 빠짐없이 각각 둔다(서로 다른 본문이면 각각 별도 번호). 연속·인접한 절(한 번에 이어 읽는 한 구간)만 한 컷으로 묶고, 떨어진 본문은 절대 합치지 말 것. 읽지 않고 스치듯 언급만 하는 인라인 인용만 제외. "일반(분위기)" 컷은 새 예화·새 국면에서만 두고 아껴 묶는다(한 문장 뒤 즉시 일반 전환·대지 선언 단독 이미지 금지). ★★입력에 "기존전환표"나 "컷목록(고정)"이 있으면 그것과 100% 동일해야 한다 — n·종류·개수·지점(anchor)을 하나도 바꾸지 말고 그대로 따른다.',
-  'type 의미: 표지(#1만, 영문 프롬프트), 일반(분위기 배경 — 영문 프롬프트), 본문(성경 본문을 얹을 배경 — 새 이미지를 만들지 않고 직전 일반 이미지를 어둡게·흐리게 가공해서 쓴다. en은 빈 문자열. ref=장절 약어, verse=원고에 인용된 그 성구 원문 그대로(나중에 사람이 글자를 얹을 때 참고용)).',
+  'type 의미: 표지(#1만, 영문 프롬프트 — 설교 전체 주제를 상징하는 장면으로 쓰되, 상징 요소·빛은 화면 가장자리·주변부에 배치하고 중앙은 제목 텍스트가 들어갈 어둡고 고요한 여백으로 비운 구도로 묘사), 일반(분위기 배경 — 영문 프롬프트), 본문(성경 본문을 얹을 배경 — 새 이미지를 만들지 않고 직전 일반 이미지를 어둡게·흐리게 가공해서 쓴다. en은 빈 문자열. ref=장절 약어, verse=원고에 인용된 그 성구 원문 그대로 — 앱이 이 값으로 성구를 자동 합성한다).',
   '★표현 방식(style) — 일반·표지 컷은 두 갈래로 명확히 구분한다: (가) 정보성 = 본문의 시대·장소·상황·역사적 배경을 청중이 이해하도록 돕는 장면 → style "사실적": 사실적이고 디테일하게(realistic, detailed, historically grounded, documentary-like painterly). (나) 메시지·상징·정서 = 설교의 메시지·상징적 의미·감정을 담는 장면 → style "추상적": 추상적·상징적으로(abstract, symbolic, minimal, evocative — 구체적 사물보다 빛·색·질감·형상 중심). 추상 이미지는 여러 단락을 한 화면으로 길게 덮어도 어색하지 않다. (본문 컷의 style은 직전 일반 컷을 따른다.)',
   'en(일반·표지만): 위 style을 그대로 반영해 그 단락의 장면을 묘사한다 — 사실적이면 구체적 디테일·고증, 추상적이면 상징·빛·색·질감 중심(특정 사물 최소화). 공통: 시네마틱 회화풍(cinematic painterly), 극적 명암(dramatic chiaroscuro), 사람 얼굴 없음·글자 없음(no visible faces, no text). 1~2문장. ※ "deep black background / vignette / 16:9" 같은 LED 마무리 문구는 절대 쓰지 마라(시스템이 자동 추가). 오직 장면 묘사.',
   '★en 안전 규칙(오생성 방지): 인물은 한 명 또는 명확히 분리된 실루엣으로만 묘사하고(겹치거나 융합된 형상·여러 몸이 붙은 구도 금지), 강·물·바다 장면에 사람을 눕히거나 떠 있게 묘사하지 마라(시신 연상). 모호하게 뭉친 군중·포개진 몸 대신 빛·길·손짓 등 명료한 단일 요소로 표현한다.',
@@ -7722,17 +7733,9 @@ function renumberCuts(cuts){
   });
   return cuts;
 }
-/* ── 시리즈 고정 표지: 아래 시리즈/본문은 외부 표지 자산을 #1로 쓴다.
-   → 표지(#1)는 앱이 생성하지 않고 #2부터 생성한다(01.png 자리는 자산 표지를 직접 넣음). ── */
-var FIXED_COVER_SERIES = ['요한복음'];
-function hasFixedCover(meta){
-  if (!meta) return false;
-  var series = String(meta['시리즈'] || '');
-  var ref = String(meta['본문'] || '').trim();
-  if (FIXED_COVER_SERIES.some(function(name){ return name && series.indexOf(name) >= 0; })) return true;
-  if (/^요한복음/.test(ref) || /^요\s*\d/.test(ref)) return true;   /* 본문이 요한복음(약어 "요") */
-  return false;
-}
+/* ── 표지(#1) 자동 생성 (v392): 설교 주제를 상징하되 중앙을 비운 배경을 생성하고,
+   그 중앙 여백에 설교 제목·본문을 캔버스로 합성한다(genCoverWithRetry → composeCoverBlob).
+   (구) "시리즈 고정 표지"(요한복음 자산 01.png 수동 삽입) 방식은 자동 생성으로 전환·폐기. ── */
 async function aiImgData(meta){
   var T = await ensureTransTable(meta['ID'], meta);
   /* ★ 컷 목록(개수·번호·종류·지점)은 단일 전환표(T)가 결정한다 — 모델은 새로 정하지 않고 프롬프트 필드만 채운다.
@@ -7773,7 +7776,7 @@ function buildImgDataDocx(D, meta, cuts){
   ch.push(P((meta['날짜'] || '') + ' · 영락교회 대학부', { size: 24, color: '555555' }, 120));
   ch.push(P('■ 이미지 구성 안내', { bold: true, size: 24 }));
   ch.push(P('· 총 ' + cuts.length + '장 = 표지 1장 + 전환 ' + (cuts.length - 1) + '장', { size: 22 }));
-  if (hasFixedCover(meta)) ch.push(P('· ※ 시리즈 고정 표지 — 표지(#1)는 앱이 생성하지 않습니다. 시리즈 표지 자산을 01.png로 직접 넣으세요(생성 이미지는 #2부터).', { size: 22, color: '215E99' }));
+  ch.push(P('· 표지(#1): 주제 상징 배경(중앙 여백 구도)을 자동 생성하고, 중앙에 설교 제목·본문을 합성합니다.', { size: 22, color: '215E99' }));
   ch.push(P('· 일반 이미지 ' + (gen.length - 1) + '장: ' + gen.filter(function(c){ return c.n !== 1; }).map(function(c){ return '#' + c.n; }).join(' '), { size: 22 }));
   ch.push(P('· 본문 이미지 ' + scr.length + '장: ' + scr.map(function(c){ return '#' + c.n; }).join(' ') + ' — 새로 생성하지 않고 직전 일반 이미지의 파생본(채도↓·밝기↓·블러)', { size: 22 }));
   ch.push(P('· LED 처리 공통: 좌우 완전 페이드 + 네 모서리 비네트 + 중앙 집중, 깊은 검정 배경, 16:9.', { size: 22 }, 160));
@@ -12711,6 +12714,71 @@ async function deriveScriptureBg(srcCanvas, cut){
     try { await drawScriptureText(ctx, w, h, String(cut.ref || '').trim(), verse); }
     catch (e) { /* 텍스트 합성 실패 시 배경만이라도 저장(기존 동작) */ }
   }
+  return canvasToBlob(cv);
+}
+/* ── 표지(#1) 텍스트 합성: 중앙 여백에 설교 제목(굵게, 1~2줄 균형 분할) + 본문 장절 ── */
+var _covFontFam = null;
+async function ensureCoverFont(){
+  if (_covFontFam) return _covFontFam;
+  try {
+    var f = new FontFace('TSACover', 'url(fonts/NotoKR-700.ttf)');
+    await f.load(); document.fonts.add(f);
+    _covFontFam = 'TSACover';
+  } catch (e) { _covFontFam = '"Noto Sans KR","Apple SD Gothic Neo",sans-serif'; }
+  return _covFontFam;
+}
+async function drawCoverText(ctx, w, h, title, ref){
+  title = String(title || '').trim(); ref = String(ref || '').trim();
+  if (!title && !ref) return;
+  var famB = await ensureCoverFont(), famR = await ensureScriptureFont();
+  var maxW = w * 0.72;
+  /* 제목이 한 줄에 넘치면 어절 경계에서 좌우 폭이 가장 비슷한 두 줄로 나눈다(균형 분할) */
+  function splitBalanced(fs){
+    ctx.font = '700 ' + fs + 'px ' + famB;
+    if (!title) return [];
+    if (ctx.measureText(title).width <= maxW) return [title];
+    var words = title.split(/\s+/); if (words.length < 2) return null;
+    var best = null, bd = Infinity;
+    for (var i = 1; i < words.length; i++){
+      var a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+      var wa = ctx.measureText(a).width, wb = ctx.measureText(b).width;
+      if (wa > maxW || wb > maxW) continue;
+      var d = Math.abs(wa - wb);
+      if (d < bd){ bd = d; best = [a, b]; }
+    }
+    return best;   /* null = 이 크기로는 두 줄에도 안 들어감 → 더 작은 크기로 */
+  }
+  var fsMax = Math.round(h * 0.092), fsMin = Math.round(h * 0.048), fs = fsMin, lines = null;
+  for (var f = fsMax; f >= fsMin; f -= 2){
+    var ls = splitBalanced(f);
+    if (ls){ fs = f; lines = ls; break; }
+  }
+  if (!lines) lines = title ? [title] : [];   /* 극단적으로 긴 무공백 제목 — fillText maxWidth로 압축 */
+  var refFs = Math.round(fs * 0.44), pitch = Math.round(fs * 1.32);
+  var blockH = lines.length * pitch + (ref ? Math.round(refFs * 2.1) : 0);
+  var y = Math.round(h * 0.5 - blockH / 2) + fs;   /* 텍스트 블록을 수직 중앙에 */
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = fs * 0.16; ctx.shadowOffsetY = fs * 0.04;
+  ctx.font = '700 ' + fs + 'px ' + famB;
+  for (var k = 0; k < lines.length; k++){ ctx.fillText(lines[k], w / 2, y, maxW); y += pitch; }
+  if (ref){
+    y += Math.round(refFs * 0.55);
+    ctx.font = refFs + 'px ' + famR;
+    ctx.globalAlpha = 0.92;
+    ctx.fillText(ref, w / 2, y, maxW);
+    ctx.globalAlpha = 1;
+  }
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.textAlign = 'left';
+}
+/* 표지 완성본 = 생성 배경(원본 보존) 복제 + 제목·본문 합성 → blob */
+async function composeCoverBlob(srcCanvas, meta){
+  var w = srcCanvas.width, h = srcCanvas.height;
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  var ctx = cv.getContext('2d');
+  ctx.drawImage(srcCanvas, 0, 0, w, h);
+  try { await drawCoverText(ctx, w, h, meta['제목'], meta['본문']); }
+  catch (e) { /* 합성 실패 시 배경만이라도 */ }
   return canvasToBlob(cv);
 }
 /* 이미지자료 docx 텍스트 → 컷 배열 [{n, scripture, prompt}] */
