@@ -1467,7 +1467,7 @@ body.uiDlgOpen{overflow:hidden}
           <input type="checkbox" id="setBridge" style="width:auto;margin:0">
           <span class="cnt" style="margin:0">에이전트 브라우저(Aside 등)에서 API 키 없이 사용</span>
         </div>
-        <div class="cnt" style="margin-top:6px">켜면 모든 AI 생성이 <b>요청 패널</b>을 통해 클로드 구독(브라우저 AI)으로 처리됩니다 — API 키가 있어도 생성은 구독이 우선(과금 0원)이고, 키는 <b>설교 대화·예화 이미지 인식</b>에만 쓰입니다. 에이전트 브라우저가 자동 인식되면 토글 없이도 저절로 켜지며, 켜져 있는 동안 화면 우하단에 <b>🤖 에이전트 생성</b> 칩이 항상 표시됩니다(칩을 눌러 끌 수 있음). 주소 뒤에 <b>?agent=1</b>을 붙여 열거나 에이전트가 <b>window.TSA_BRIDGE.enable()</b>을 호출해도 켜집니다. 이 설정은 브라우저마다 따로 저장됩니다.</div>
+        <div class="cnt" style="margin-top:6px">켜면 <b>설교 대화·예화 이미지 인식(비전)을 포함한 모든 AI 기능</b>이 <b>요청 패널</b>을 통해 클로드 구독(브라우저 AI)으로 처리됩니다 — API 키가 있어도 과금되지 않으며, 키는 모드가 꺼져 있을 때만 쓰입니다(이미지는 패널에 표시되어 에이전트가 직접 봅니다). 에이전트 브라우저가 자동 인식되면 토글 없이도 저절로 켜지며, 켜져 있는 동안 화면 우하단에 <b>🤖 에이전트 생성</b> 칩이 항상 표시됩니다(칩을 눌러 끌 수 있음). 주소 뒤에 <b>?agent=1</b>을 붙여 열거나 에이전트가 <b>window.TSA_BRIDGE.enable()</b>을 호출해도 켜집니다. 이 설정은 브라우저마다 따로 저장됩니다.</div>
         <label style="margin-top:14px">리더스앱 업로드 URL (통합시트 Apps Script /exec — 선택)</label>
         <input type="url" id="setLaUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>리더스앱 업로드 토큰</label>
@@ -3019,7 +3019,7 @@ function studyGatherContext(){
   return { 절: verses, 원어후보: words.slice(0, 40) };
 }
 async function studyAiSynth(){
-  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 AI 정리를 쓸 수 있습니다.'); return; }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 AI 정리를 쓸 수 있습니다.'); return; }
   var R = STUDY.range; if (!R) return;
   var key = studyRangeKey();
   try {
@@ -3229,7 +3229,7 @@ function studyRenderPane(){
   if (STUDY.tab === 'ai'){
     var j = STUDY.ai && STUDY.ai[studyRangeKey()];
     if (j){ pane.innerHTML = renderStudyAi(j) + '<button class="btn sub mini" id="stAiGen" type="button" style="margin-top:12px">↻ 다시 정리</button>'; return; }
-    pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 필요)</div>'
+    pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
       + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
     return;
   }
@@ -3397,7 +3397,7 @@ function studyFillFromChip(e){
   else if (kind === 'apply') fillPointApply(pidx, val);
 }
 async function aiReframe(){
-  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 대지 보강을 쓸 수 있습니다.'); return; }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 대지 보강을 쓸 수 있습니다.'); return; }
   var pts = composePoints();
   if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
   try {
@@ -3435,7 +3435,7 @@ var P_APPLY = [
 '[{"문":"입력 원대지 그대로","적용":"구체적 사례·현상을 끝까지 그려 공감을 일으키는 3~5문장","실천":{"청년":"한두 문장","장년":"한두 문장","노년":"한두 문장"}}]',
 '적용은 추상 요약이 아니라 구체적 일상 사례·현상으로 "이건 내 얘기다"를 느끼게(과제·결단 금지), 실천은 청중을 향해 권면·촉구하는 설교 문장("~해 보세요/~합시다/~하십시오" 형태, 1인칭 다짐 금지). 구어체 높임말, 한국어.'].join('\n');
 async function aiApplyGen(){
-  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 적용 강화를 쓸 수 있습니다.'); return; }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 적용 강화를 쓸 수 있습니다.'); return; }
   var pts = composePoints();
   if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
   try {
@@ -3489,7 +3489,7 @@ var P_SUMM = [
 '출력은 반드시 JSON 하나만(설명·코드펜스 금지): {"결과":"갈무리 1~2문장 + 연결 1문장 (모두 합쳐 2~4문장)"}',
 '구어체 높임말, 한국어. 설교 강단에서 그대로 말하는 흐름으로 자연스럽게.'].join('\n');
 async function aiBlockGen(pi, bi){
-  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 AI 생성을 쓸 수 있습니다.'); return; }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 AI 생성을 쓸 수 있습니다.'); return; }
   var p = state.compose.points[pi]; if (!p) return;
   var b = pBlocks(p)[bi]; if (!b || b.type === 'ill') return;
   var role = blockRole(b), field = blockField(b);
@@ -3551,7 +3551,7 @@ var P_ILLUS = [
 '한국어.'].join('\n');
 var ILL_PEND = null;
 async function aiIllustration(i, bi){
-  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 예화 AI를 쓸 수 있습니다.'); return; }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 예화 AI를 쓸 수 있습니다.'); return; }
   var p = state.compose.points[i]; if (!p) return;
   var blocks = pBlocks(p), role = 'body', prevText = '';
   for (var k = bi - 1; k >= 0; k--){ var bb = blocks[k]; if (bb.type === 'apply'){ role = 'apply'; prevText = bb.apply || ''; break; } if (bb.type === 'body'){ role = 'body'; prevText = bb.body || ''; break; } }
@@ -6136,10 +6136,7 @@ function aiKey(){ return bridgeOn() ? '__AGENT__' : realKey(); }
 async function callClaude(system, user, maxTokens, onTick, modelOverride){
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
-  if (key === '__AGENT__') {   /* 브라우저 에이전트(구독제) 모드 — 생성은 브리지 우선 */
-    if (typeof user === 'string' || !realKey()) return bridgeCall(system, user, onTick);
-    key = realKey();   /* 비전(이미지 배열) 등 브리지 불가 입력 → 키가 있으면 API로 폴백 */
-  }
+  if (key === '__AGENT__') return bridgeCall(system, user, onTick);   /* 에이전트 모드 — 비전(이미지) 포함 전부 브리지(구독) */
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
@@ -6383,6 +6380,7 @@ window.TSA_BRIDGE = {
   detected: agentBrowserHint,
   enable: function(){ bridgeSet(true); toast('브라우저 에이전트 모드 켜짐 — AI 버튼이 요청 패널을 엽니다'); return true; },
   disable: function(){ bridgeSet(false); toast('브라우저 에이전트 모드 꺼짐'); return true; },
+  call: function(system, user, onTick){ return bridgeCall(system, user, onTick); },   /* 다른 모듈(설교 대화 등)에서 브리지 직접 사용 */
   request: function(){ return _bridgePend ? _bridgePend.payload : null; },
   deliver: function(text){ return bridgeDeliver(text); },
   cancel: function(){ bridgeCancel(); }
@@ -6608,7 +6606,7 @@ async function aiYouTubeSummarize(id){
     var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
     var c = vidProxyCfg();
     if (!c.url || !c.token) { toast('설정 탭에서 유튜브 영상분석 프록시 URL과 토큰을 먼저 입력해 주세요.'); showPage('settings'); return; }
-    if (!aiKey()) { toast('설정 탭에 Claude API 키를 입력해야 요약본을 만들 수 있습니다.'); return; }
+    if (!aiKey()) { toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 요약본을 만들 수 있습니다.'); return; }
     var url = await uiPrompt('설교 유튜브 링크를 입력하세요\n(대학부 예배 전체 영상도 가능 — 설교 부분을 자동으로 찾습니다)', '', { placeholder: 'https://youtu.be/...' });
     if (url === null) return;
     url = url.trim();
@@ -13631,7 +13629,7 @@ $$('#inboxFilter .chip').forEach(function(c){
 
 /* 기존 인박스 예화 중 미강화(강조메시지 없음) 항목을 일괄 강화 (API 키 필요) */
 async function enhanceExistingIdeas(){
-  if (!aiKey()){ toast('설정 탭에 Claude API 키를 입력해야 일괄 강화를 쓸 수 있습니다.'); return; }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 일괄 강화를 쓸 수 있습니다.'); return; }
   var targets = (state.data.ideas || []).filter(function(d){
     return d['유형'] === '예화' && !String(d['강조메시지'] || '').trim() && String(d['내용'] || '').trim();
   });
@@ -13969,7 +13967,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v389';
+var APP_VER = 'v390';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -14948,11 +14946,24 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   /* ── 멀티턴 스트리밍 호출 ── */
   async function callChat(messages, model, system, onTick){
     var key = (window.aiKey ? aiKey() : String((window.state && state.settings && state.settings.claudeKey) || '').trim());
-    if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
-    if (key === '__AGENT__'){   /* 에이전트 모드 — 멀티턴 대화는 브리지 불가, 실제 키가 있으면 키로 폴백 */
-      key = String((window.state && state.settings && state.settings.claudeKey) || '').trim();
-      if (!key) throw new Error('설교 대화는 브라우저 에이전트 모드에서 지원되지 않습니다 — 브라우저의 사이드 패널 AI와 대화하거나, 설정에 API 키를 입력해 주세요.');
+    /* 에이전트 모드 — 멀티턴 대화를 한 요청문으로 직렬화해 브리지(구독)로 처리. 첨부 이미지는 패널에 표시. */
+    if (key === '__AGENT__' || (window.TSA_BRIDGE && window.TSA_BRIDGE.on && window.TSA_BRIDGE.on())){
+      var lines = [], imgsC = [];
+      (messages || []).forEach(function(m){
+        var t = [], n = 0;
+        if (typeof m.content === 'string') t.push(m.content);
+        else if (Array.isArray(m.content)) m.content.forEach(function(c){
+          if (c && c.type === 'text') t.push(String(c.text || ''));
+          else if (c && c.type === 'image'){ n++; imgsC.push(c); }
+        });
+        lines.push((m.role === 'assistant' ? '[어시스턴트]' : '[사용자]') + (n ? ' (이미지 ' + n + '장 — 패널 상단 표시)' : '') + '\n' + t.join('\n'));
+      });
+      lines.push('[어시스턴트]\n(위 대화에 이어질 어시스턴트의 다음 답변 "본문만" 결과로 작성 — 역할 라벨·따옴표 없이)');
+      var lb = function(){}; lb.genLabel = '설교 대화';
+      var bu = imgsC.length ? imgsC.concat([{ type: 'text', text: lines.join('\n\n') }]) : lines.join('\n\n');
+      return await window.TSA_BRIDGE.call(system, bu, lb);
     }
+    if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
     var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
     try {
     var res = await fetch('https://api.anthropic.com/v1/messages', {
