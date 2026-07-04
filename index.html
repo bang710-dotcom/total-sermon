@@ -1462,6 +1462,12 @@ body.uiDlgOpen{overflow:hidden}
         <label>Claude API 키 (선택 — AI 직결 생성)</label>
         <input type="password" autocomplete="off" id="setClaude" placeholder="sk-ant-api03-...">
         <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 4.8, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
+        <label style="margin-top:14px">브라우저 에이전트 모드 (선택 — 클로드 구독으로 생성)</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <input type="checkbox" id="setBridge" style="width:auto;margin:0">
+          <span class="cnt" style="margin:0">에이전트 브라우저(Aside 등)에서 API 키 없이 사용</span>
+        </div>
+        <div class="cnt" style="margin-top:6px">켜면 API 키가 없어도 모든 AI 생성 버튼이 작동합니다. 버튼을 누르면 <b>요청 패널</b>이 열리고, 클로드 구독이 연결된 브라우저 AI(사이드 패널)가 결과를 채우면 앱이 API 응답처럼 그대로 이어받습니다(API 과금 0원). API 키가 있으면 키가 우선하며, 설교 대화·예화 이미지 인식은 키가 필요합니다.</div>
         <label style="margin-top:14px">리더스앱 업로드 URL (통합시트 Apps Script /exec — 선택)</label>
         <input type="url" id="setLaUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>리더스앱 업로드 토큰</label>
@@ -6110,10 +6116,14 @@ $('#devoDate').addEventListener('change', function(){ if (!this.value) return; i
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
    키가 없으면 기존 요청함 흐름으로 자동 폴백. */
 var AI_MODEL = 'claude-opus-4-8';
-function aiKey(){ return String(state.settings.claudeKey || '').trim(); }
+/* aiKey(): 실제 API 키가 있으면 그 키. 없어도 브라우저 에이전트 모드가 켜져 있으면
+   센티널 '__AGENT__' 반환 → 모든 aiKey() 게이트·AI_DIRECT 라우팅이 그대로 열리고,
+   callClaude()가 fetch 대신 브리지(요청 패널)로 분기한다. */
+function aiKey(){ var k = String(state.settings.claudeKey || '').trim(); return k || (bridgeOn() ? '__AGENT__' : ''); }
 async function callClaude(system, user, maxTokens, onTick, modelOverride){
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
+  if (key === '__AGENT__') return bridgeCall(system, user, onTick);   /* 브라우저 에이전트(구독제) 모드 */
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
