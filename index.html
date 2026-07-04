@@ -12732,6 +12732,10 @@ async function drawCoverText(ctx, w, h, title, ref){
   if (!title && !ref) return;
   var famB = await ensureCoverFont(), famR = await ensureScriptureFont();
   var maxW = w * 0.72;
+  /* 제목 끝의 부제("… -정보, 자유, 정체성-")는 분리해 제목 아래 별도 줄로(레퍼런스 표지 레이아웃) */
+  var sub = '';
+  var m = title.match(/^(.+?)\s+([-–—].{2,})$/);
+  if (m){ title = m[1].trim(); sub = m[2].trim(); }
   /* 제목이 한 줄에 넘치면 어절 경계에서 좌우 폭이 가장 비슷한 두 줄로 나눈다(균형 분할) */
   function splitBalanced(fs){
     ctx.font = '700 ' + fs + 'px ' + famB;
@@ -12748,37 +12752,65 @@ async function drawCoverText(ctx, w, h, title, ref){
     }
     return best;   /* null = 이 크기로는 두 줄에도 안 들어감 → 더 작은 크기로 */
   }
-  var fsMax = Math.round(h * 0.092), fsMin = Math.round(h * 0.048), fs = fsMin, lines = null;
+  var fsMax = Math.round(h * 0.085), fsMin = Math.round(h * 0.046), fs = fsMin, lines = null;
   for (var f = fsMax; f >= fsMin; f -= 2){
     var ls = splitBalanced(f);
     if (ls){ fs = f; lines = ls; break; }
   }
   if (!lines) lines = title ? [title] : [];   /* 극단적으로 긴 무공백 제목 — fillText maxWidth로 압축 */
-  var refFs = Math.round(fs * 0.44), pitch = Math.round(fs * 1.32);
-  var blockH = lines.length * pitch + (ref ? Math.round(refFs * 2.1) : 0);
-  var y = Math.round(h * 0.5 - blockH / 2) + fs;   /* 텍스트 블록을 수직 중앙에 */
+  var subFs = Math.round(fs * 0.8), refFs = Math.round(fs * 0.62), pitch = Math.round(fs * 1.42);
+  var blockH = lines.length * pitch + (sub ? Math.round(subFs * 1.5) : 0) + (ref ? Math.round(refFs * 1.9) : 0);
+  var y = Math.round(h * 0.47 - blockH / 2) + fs;   /* 텍스트 블록을 화면 중앙(살짝 위)에 */
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = fs * 0.16; ctx.shadowOffsetY = fs * 0.04;
   ctx.font = '700 ' + fs + 'px ' + famB;
   for (var k = 0; k < lines.length; k++){ ctx.fillText(lines[k], w / 2, y, maxW); y += pitch; }
+  if (sub){
+    ctx.font = '700 ' + subFs + 'px ' + famB;
+    ctx.fillText(sub, w / 2, y, maxW);
+    y += Math.round(subFs * 1.5);
+  }
   if (ref){
-    y += Math.round(refFs * 0.55);
+    y += Math.round(refFs * 0.4);
     ctx.font = refFs + 'px ' + famR;
-    ctx.globalAlpha = 0.92;
+    ctx.globalAlpha = 0.95;
     ctx.fillText(ref, w / 2, y, maxW);
     ctx.globalAlpha = 1;
   }
   ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   ctx.textAlign = 'left';
 }
-/* 표지 완성본 = 생성 배경(원본 보존) 복제 + 제목·본문 합성 → blob */
+/* 본문 책 → 영문 이름(표지 상단 장식 라벨, 레퍼런스의 "John") — 정경 순서 1~66 */
+var EN_BOOKS = ['Genesis','Exodus','Leviticus','Numbers','Deuteronomy','Joshua','Judges','Ruth','1 Samuel','2 Samuel','1 Kings','2 Kings','1 Chronicles','2 Chronicles','Ezra','Nehemiah','Esther','Job','Psalms','Proverbs','Ecclesiastes','Song of Songs','Isaiah','Jeremiah','Lamentations','Ezekiel','Daniel','Hosea','Joel','Amos','Obadiah','Jonah','Micah','Nahum','Habakkuk','Zephaniah','Haggai','Zechariah','Malachi','Matthew','Mark','Luke','John','Acts','Romans','1 Corinthians','2 Corinthians','Galatians','Ephesians','Philippians','Colossians','1 Thessalonians','2 Thessalonians','1 Timothy','2 Timothy','Titus','Philemon','Hebrews','James','1 Peter','2 Peter','1 John','2 John','3 John','Jude','Revelation'];
+async function coverBookLabel(meta){
+  try {
+    var pr = parseRange(String(meta['본문'] || '').trim());
+    if (!pr) return '';
+    var idx = await bibleIndex();
+    var bk = idx.filter(function(b){ return b.ko === pr.book || b.abbr === pr.book; })[0];
+    return bk ? (EN_BOOKS[bk.n - 1] || '') : '';
+  } catch (e) { return ''; }
+}
+/* 표지 완성본 = 생성 배경(원본 보존) 복제 + 상단 영문 책 라벨 + 제목·부제·본문 합성 → blob */
 async function composeCoverBlob(srcCanvas, meta){
   var w = srcCanvas.width, h = srcCanvas.height;
   var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   var ctx = cv.getContext('2d');
   ctx.drawImage(srcCanvas, 0, 0, w, h);
-  try { await drawCoverText(ctx, w, h, meta['제목'], meta['본문']); }
-  catch (e) { /* 합성 실패 시 배경만이라도 */ }
+  try {
+    var label = await coverBookLabel(meta);
+    if (label){
+      var lfs = Math.round(h * 0.075);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = lfs * 0.2; ctx.shadowOffsetY = lfs * 0.04;
+      ctx.font = 'italic 700 ' + lfs + 'px "Snell Roundhand","Savoye LET","Apple Chancery","Brush Script MT",cursive';
+      ctx.globalAlpha = 0.95;
+      ctx.fillText(label, w / 2, Math.round(h * 0.16), w * 0.8);
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.textAlign = 'left';
+    }
+    await drawCoverText(ctx, w, h, meta['제목'], meta['본문']);
+  } catch (e) { /* 합성 실패 시 배경만이라도 */ }
   return canvasToBlob(cv);
 }
 /* 이미지자료 docx 텍스트 → 컷 배열 [{n, scripture, prompt}] */
@@ -12901,17 +12933,29 @@ async function genBgWithRetry(c, engine){
   }
   return null;
 }
-/* 컷 배열로 실제 이미지 세트 생성: 일반/표지=선택 엔진(Flux 또는 Gemini) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생 성구 배경 */
+/* 표지(#1) 배경 생성: 핵심 컷 모델(background-hero 라우팅 — Flux는 max)로 중앙 여백 구도,
+   실패 시 안전 폴백(중앙 여백 규칙 유지). 텍스트 합성은 composeCoverBlob에서. */
+async function genCoverWithRetry(c, engine){
+  var rt = engineRoute('background-hero', engine);
+  var prompts = [ buildCoverPrompt(c, engine) ].concat(safeFallbackPrompts(c).map(function(p){ return COVER_SPACE + ' ' + p; }));
+  for (var k = 0; k < prompts.length; k++){
+    if (window._cascAbort) throw new Error('__ABORT__');
+    try {
+      var r = await genSermonImage({ jobType: 'background', prompt: prompts[k], aspectRatio: '16:9', provider: rt.provider, model: rt.model });
+      if (r && r.b64) return { canvas: processGeneral(await loadImgEl(r.src)), fallback: k > 0 };
+    } catch (e) { /* 다음(더 안전한) 폴백 프롬프트로 */ }
+  }
+  return null;
+}
+/* 컷 배열로 실제 이미지 세트 생성: 표지=중앙 여백 배경 생성+제목·본문 합성, 일반=선택 엔진(Flux 또는 Gemini) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생+성구 합성 */
 async function generateImageSetFromCuts(id, meta, cuts){
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   renumberCuts(cuts);   /* ★ 번호 #1=표지, #2부터 연속·고유(옛 사이드카 컷도 교정) */
-  var fixedCover = hasFixedCover(meta);   /* 시리즈 고정 표지면 #1은 생성하지 않음(자산 표지 사용) */
   var eng = imgEngine();
   var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [], warn = [];
   for (var i = 0; i < cuts.length; i++){
     if (window._cascAbort) { if (made) break; throw new Error('__ABORT__'); }   /* 사용자 중단 — 만든 것까지는 저장 */
-    var c = cuts[i], isScr = (c.type === '본문');
-    if (fixedCover && (c.n === 1 || c.type === '표지')) continue;   /* ★ 시리즈 고정 표지 — 표지(#1) 생성 건너뜀(자산 01.png를 직접 넣음) */
+    var c = cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
     var tag = ('0' + c.n).slice(-2);   /* 이미지 번호만 — 파인더 정렬·혼동 방지 */
     setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
     try {
@@ -12920,8 +12964,12 @@ async function generateImageSetFromCuts(id, meta, cuts){
       if (isScr && lastCanvas){
         blob = await deriveScriptureBg(lastCanvas, c);   /* 직전 일반 이미지를 어둡게·흐리게 + 성구(장절·본문) 자동 합성 */
       } else {
-        var got = await genBgWithRetry(c, eng);
-        if (got && got.canvas){ lastCanvas = got.canvas; blob = await canvasToBlob(got.canvas); if (got.fallback) warn.push('#' + c.n + '(안전 폴백 프롬프트로 생성)'); }
+        var got = isCover ? await genCoverWithRetry(c, eng) : await genBgWithRetry(c, eng);
+        if (got && got.canvas){
+          lastCanvas = got.canvas;   /* 표지도 "텍스트 없는 원본"을 파생 소스로 보관(합성본이 섞이지 않게) */
+          blob = isCover ? await composeCoverBlob(got.canvas, meta) : await canvasToBlob(got.canvas);
+          if (got.fallback) warn.push('#' + c.n + '(안전 폴백 프롬프트로 생성)');
+        }
         else if (lastCanvas){ blob = await deriveScriptureBg(lastCanvas); warn.push('#' + c.n + '(직전 이미지 파생으로 대체)'); }   /* 번호 누락 방지 */
         else { fail.push('#' + c.n + '(생성 불가)'); continue; }   /* 첫 컷부터 전부 실패한 극단적 경우만 건너뜀 */
       }
@@ -14089,7 +14137,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v391';
+var APP_VER = 'v392';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
