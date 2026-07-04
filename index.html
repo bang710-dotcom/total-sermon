@@ -6211,6 +6211,108 @@ function aiTick(label){
   fn.genLabel = label;
   return fn;
 }
+
+/* ===================== 브라우저 에이전트 브리지 (구독제 생성) =====================
+   Claude API 키 없이, 클로드 구독이 연결된 에이전트 브라우저(Aside 등)가 생성을 대신한다.
+   켜는 곳: 설정 → [브라우저 에이전트 모드]. 실제 API 키가 있으면 항상 키(직결)가 우선.
+   흐름: AI 버튼 → callClaude() → 요청 패널(#tsaBridge)에 SYSTEM+USER 전문 표시
+        → 브라우저 AI가 결과를 결과칸에 넣고 [결과 적용] (또는 JS로 window.TSA_BRIDGE.deliver(텍스트))
+        → Promise가 그 텍스트로 resolve → 이후 파싱·저장 로직은 API 응답과 100% 동일.
+   비파괴 원칙: 자체 DOM·스타일만 주입, 기존 흐름은 aiKey 센티널·callClaude 분기 두 줄만 관여. */
+function bridgeOn(){ try { return localStorage.getItem('tsa.bridge') === '1'; } catch (e) { return false; } }
+var _bridgePend = null;   /* 대기 중 요청 하나: { resolve, reject, payload } */
+function bridgeEnsureUi(){
+  if ($('#tsaBridge')) return;
+  var st = document.createElement('style');
+  st.textContent = '#tsaBridge{position:fixed;inset:0;z-index:99999;background:rgba(20,16,10,.55);display:flex;align-items:center;justify-content:center;padding:16px}'
+    + '#tsaBridge .bwrap{background:var(--bg,#faf6ef);color:var(--text,#2b2419);border-radius:14px;max-width:760px;width:100%;max-height:92vh;overflow:auto;display:flex;flex-direction:column;padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.35)}'
+    + '#tsaBridge h3{margin:0 0 6px;font-size:16px}'
+    + '#tsaBridge .bhint{font-size:12.5px;opacity:.78;line-height:1.55;margin-bottom:10px}'
+    + '#tsaBridge textarea{width:100%;box-sizing:border-box;font:12px/1.5 ui-monospace,Menlo,monospace;border:1px solid rgba(0,0,0,.18);border-radius:8px;padding:8px;background:rgba(255,255,255,.72);color:inherit;resize:vertical}'
+    + '#tsaBridgeReq{height:190px}#tsaBridgeRes{height:120px;margin-top:10px}'
+    + '#tsaBridge .brow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}'
+    + '#tsaBridge button{padding:9px 14px;border-radius:9px;border:1px solid rgba(0,0,0,.22);background:#fff;cursor:pointer;font-size:13.5px}'
+    + '#tsaBridge button.bgold{background:#a5731f;border-color:#a5731f;color:#fff;font-weight:700}';
+  document.head.appendChild(st);
+  var ov = document.createElement('div');
+  ov.id = 'tsaBridge';
+  ov.innerHTML = '<div class="bwrap">'
+    + '<h3 id="tsaBridgeTitle">브라우저 에이전트 요청</h3>'
+    + '<div class="bhint">이 요청을 브라우저의 AI(사이드 패널)에게 맡기세요 — ① 아래 요청 전문을 읽게 하거나 [요청 복사]로 전달 ② 생성 결과(지침이 요구한 JSON 그대로)를 결과칸에 넣고 [결과 적용]. 에이전트는 자바스크립트 <b>window.TSA_BRIDGE.deliver(결과문자열)</b> 호출로도 전달할 수 있습니다.</div>'
+    + '<textarea id="tsaBridgeReq" readonly spellcheck="false" aria-label="에이전트 요청 전문"></textarea>'
+    + '<textarea id="tsaBridgeRes" spellcheck="false" placeholder="여기에 생성 결과를 붙여넣으세요 (지침이 요구한 JSON 그대로)" aria-label="생성 결과 입력"></textarea>'
+    + '<div class="brow"><button type="button" id="tsaBridgeCopy">요청 복사</button><button type="button" class="bgold" id="tsaBridgeApply">결과 적용</button><button type="button" id="tsaBridgeCancel">취소</button></div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  ov.style.display = 'none';
+  $('#tsaBridgeCopy').addEventListener('click', function(){
+    var t = $('#tsaBridgeReq');
+    var done = function(ok){ toast(ok ? '요청 전문을 복사했습니다' : '복사 실패 — 요청칸에서 직접 복사해 주세요'); };
+    t.focus(); t.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).then(function(){ done(true); }, function(){ done(!!(document.execCommand && document.execCommand('copy'))); });
+    else done(!!(document.execCommand && document.execCommand('copy')));
+  });
+  $('#tsaBridgeApply').addEventListener('click', function(){ bridgeDeliver($('#tsaBridgeRes').value); });
+  $('#tsaBridgeCancel').addEventListener('click', function(){ bridgeCancel('에이전트 요청을 취소했습니다'); });
+}
+function bridgeClose(){ var ov = $('#tsaBridge'); if (ov) ov.style.display = 'none'; }
+function bridgeDeliver(text){
+  var t = String(text == null ? '' : text).trim();
+  if (!_bridgePend){ toast('대기 중인 에이전트 요청이 없습니다'); return false; }
+  if (!t){ toast('결과가 비어 있습니다 — 생성 결과를 먼저 넣어 주세요'); return false; }
+  var p = _bridgePend; _bridgePend = null;
+  bridgeClose();
+  setSyncState('에이전트 결과 적용 중…', true);
+  p.resolve(t);
+  return true;
+}
+function bridgeCancel(msg){
+  if (!_bridgePend){ bridgeClose(); return; }
+  var p = _bridgePend; _bridgePend = null;
+  bridgeClose();
+  p.reject(new Error(msg || '에이전트 요청이 취소되었습니다'));
+}
+function bridgeCall(system, user, onTick){
+  if (typeof user !== 'string') return Promise.reject(new Error('이미지 인식(OCR)은 브라우저 에이전트 모드에서 지원되지 않습니다 — 설정에 API 키가 필요합니다.'));
+  if (_bridgePend) return Promise.reject(new Error('이미 대기 중인 에이전트 요청이 있습니다 — 먼저 처리하거나 취소해 주세요.'));
+  bridgeEnsureUi();
+  var label = (onTick && onTick.genLabel) || '결과물';
+  var payload = [
+    '=== TOTAL SERMONS 생성 요청 · ' + label + ' ===',
+    '지시: 아래 [SYSTEM] 지침을 그대로 따라 [USER] 입력을 처리하고, 지침이 요구한 출력(대개 JSON)만 만들어 주세요. 설명·코드펜스 없이.',
+    '전달: 이 페이지의 결과칸(#tsaBridgeRes)에 결과를 입력하고 [결과 적용](#tsaBridgeApply)을 클릭하거나, 자바스크립트로 window.TSA_BRIDGE.deliver(결과문자열)를 호출하세요.',
+    '',
+    '[SYSTEM]',
+    system,
+    '',
+    '[USER]',
+    user
+  ].join('\n');
+  $('#tsaBridgeTitle').textContent = '브라우저 에이전트 요청 — ' + label;
+  $('#tsaBridgeReq').value = payload;
+  $('#tsaBridgeRes').value = '';
+  $('#tsaBridge').style.display = 'flex';
+  setSyncState(label + ' — 에이전트 응답 대기 중', true);
+  return new Promise(function(resolve, reject){ _bridgePend = { resolve: resolve, reject: reject, payload: payload }; });
+}
+/* 에이전트용 공개 훅 — 콘솔/스크립트에서 직접 사용 가능 */
+window.TSA_BRIDGE = {
+  on: bridgeOn,
+  request: function(){ return _bridgePend ? _bridgePend.payload : null; },
+  deliver: function(text){ return bridgeDeliver(text); },
+  cancel: function(){ bridgeCancel(); }
+};
+/* 설정 토글 배선 */
+(function(){
+  var el = document.getElementById('setBridge');
+  if (!el) return;
+  try { el.checked = bridgeOn(); } catch (e) {}
+  el.addEventListener('change', function(){
+    try { localStorage.setItem('tsa.bridge', el.checked ? '1' : '0'); } catch (e) {}
+    toast(el.checked ? '브라우저 에이전트 모드 켜짐 — AI 버튼이 요청 패널을 엽니다' : '브라우저 에이전트 모드 꺼짐');
+  });
+})();
+
 /* ── 결과물 생성 중 전체화면 오버레이 제어 ── */
 var GEN_MSG = {
   '요약본': '설교 요약본을 만들고 있어요',
@@ -13775,7 +13877,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v386';
+var APP_VER = 'v387';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -14755,6 +14857,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   async function callChat(messages, model, system, onTick){
     var key = (window.aiKey ? aiKey() : String((window.state && state.settings && state.settings.claudeKey) || '').trim());
     if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
+    if (key === '__AGENT__') throw new Error('설교 대화는 브라우저 에이전트 모드에서 지원되지 않습니다 — 브라우저의 사이드 패널 AI와 대화하거나, 설정에 API 키를 입력해 주세요.');
     var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
     try {
     var res = await fetch('https://api.anthropic.com/v1/messages', {
