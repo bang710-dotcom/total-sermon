@@ -7784,7 +7784,7 @@ function buildImgDataDocx(D, meta, cuts){
     ch.push(P('【한국어 설명】 ' + (c.ko || ''), { size: 22 }, 10));
     if (c.type === '본문') {
       ch.push(P('【성구】 ' + (c.ref || '') + (c.verse ? '  "' + c.verse + '"' : ''), { size: 20 }, 6));
-      ch.push(P('(직전 일반 이미지를 어둡게·흐리게 가공 — 성구는 직접 얹어 완성)', { size: 18, color: '777777' }, 140));
+      ch.push(P('(직전 일반 이미지를 어둡게·흐리게 가공 + 성구 자동 합성 — 생성 이미지에 글자까지 포함됨)', { size: 18, color: '777777' }, 140));
     } else {
       var en = String(c.en || '').trim();
       if (en && !/[.]$/.test(en)) en += '.';
@@ -12650,13 +12650,67 @@ function processGeneral(srcImg){
   }
   return cv;
 }
-/* 본문 이미지 = 보정된 직전 일반 이미지의 파생본: 채도x0.4·밝기x0.55·블러 3px(1920px 기준 비례) */
-function deriveScriptureBg(srcCanvas){
+/* ── 성구 텍스트 자동 합성 (실측 확정 SCRIPTURE_TEMPLATE 규격의 캔버스 구현) ──
+   위쪽 1/3 영역 · 가운데 5/6 폭 · 왼쪽 정렬 · 흰색 · 첫 줄 장절, 아래 큰따옴표 성구
+   2~3줄(어절 단위 줄바꿈, 단어 중간 끊김 없음) · 줄간격 = 글자높이(피치 2×) · 자동 폰트 크기.
+   AI가 아니라 결정론적 캔버스 렌더 — 한글이 항상 정확하고 누가 만들어도 동일하다. */
+var _scrFontFam = null;
+async function ensureScriptureFont(){
+  if (_scrFontFam) return _scrFontFam;
+  try {
+    var f = new FontFace('TSAScripture', 'url(fonts/NotoKR-500.ttf)');
+    await f.load(); document.fonts.add(f);
+    _scrFontFam = 'TSAScripture';
+  } catch (e) { _scrFontFam = '"Noto Sans KR","Apple SD Gothic Neo",sans-serif'; }
+  return _scrFontFam;
+}
+async function drawScriptureText(ctx, w, h, ref, verse){
+  var fam = await ensureScriptureFont();
+  var maxW = w * 5 / 6, x = w / 12;
+  var quoted = '“' + verse + '”';
+  function wrapAt(fs){
+    ctx.font = fs + 'px ' + fam;
+    var words = quoted.split(/\s+/), lines = [], cur = '';
+    for (var i = 0; i < words.length; i++){
+      var t = cur ? cur + ' ' + words[i] : words[i];
+      if (cur && ctx.measureText(t).width > maxW){ lines.push(cur); cur = words[i]; }
+      else cur = t;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+  var fsMax = Math.round(h * 0.052), fsMin = Math.round(h * 0.030);
+  var fs = fsMax, lines = wrapAt(fsMax);
+  for (var f = fsMax; f >= fsMin; f -= 2){
+    var ls = wrapAt(f);
+    fs = f; lines = ls;
+    if (ls.length <= 3 && (f + ls.length * f * 2) <= h * 0.36) break;   /* 장절 1줄 + 성구 ≤3줄이 위 1/3 영역에 들어가면 확정 */
+  }
+  ctx.filter = 'none';
+  ctx.font = fs + 'px ' + fam;
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = fs * 0.18; ctx.shadowOffsetY = fs * 0.05;
+  var pitch = fs * 2, y = Math.round(h * 0.10) + fs;
+  if (ref){ ctx.fillText(ref, x, y, maxW); y += pitch; }
+  for (var k = 0; k < lines.length; k++){ ctx.fillText(lines[k], x, y, maxW); y += pitch; }
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+}
+/* 본문 이미지 = 보정된 직전 일반 이미지의 파생본: 채도x0.4·밝기x0.55·블러 3px(1920px 기준 비례).
+   cut(ref·verse)이 주어지면 성구 텍스트까지 자동 합성해 완성본으로 만든다(수동 글자 작업 불필요).
+   cut이 없으면(일반 컷 폴백 등) 기존처럼 배경만. */
+async function deriveScriptureBg(srcCanvas, cut){
   var w = srcCanvas.width, h = srcCanvas.height;
   var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   var ctx = cv.getContext('2d');
   ctx.filter = 'saturate(40%) brightness(55%) blur(' + (3 * w / 1920) + 'px)';
   ctx.drawImage(srcCanvas, 0, 0, w, h);
+  var verse = cut ? String(cut.verse || '').trim() : '';
+  verse = verse.replace(/^[\s"“”'『「]+/, '').replace(/[\s"“”'』」]+$/, '');   /* 데이터에 이미 붙은 따옴표 제거(이중 따옴표 방지) */
+  if (verse){
+    try { await drawScriptureText(ctx, w, h, String(cut.ref || '').trim(), verse); }
+    catch (e) { /* 텍스트 합성 실패 시 배경만이라도 저장(기존 동작) */ }
+  }
   return canvasToBlob(cv);
 }
 /* 이미지자료 docx 텍스트 → 컷 배열 [{n, scripture, prompt}] */
@@ -12796,7 +12850,7 @@ async function generateImageSetFromCuts(id, meta, cuts){
       var blob;
       /* 본문 컷은 직전 일반 이미지의 파생본. 파생할 직전 이미지가 없으면 일반 컷처럼 새로 생성. */
       if (isScr && lastCanvas){
-        blob = await deriveScriptureBg(lastCanvas);   /* 직전 일반 이미지를 어둡게·흐리게 — 성구는 직접 얹음 */
+        blob = await deriveScriptureBg(lastCanvas, c);   /* 직전 일반 이미지를 어둡게·흐리게 + 성구(장절·본문) 자동 합성 */
       } else {
         var got = await genBgWithRetry(c, eng);
         if (got && got.canvas){ lastCanvas = got.canvas; blob = await canvasToBlob(got.canvas); if (got.fallback) warn.push('#' + c.n + '(안전 폴백 프롬프트로 생성)'); }
@@ -13967,7 +14021,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v390';
+var APP_VER = 'v391';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
