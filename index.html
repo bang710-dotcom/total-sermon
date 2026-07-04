@@ -6290,7 +6290,11 @@ function bridgeEnsureUi(){
     + '#tsaBridgeReq{height:190px}#tsaBridgeRes{height:120px;margin-top:10px}'
     + '#tsaBridge .brow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}'
     + '#tsaBridge button{padding:9px 14px;border-radius:9px;border:1px solid rgba(0,0,0,.22);background:#fff;cursor:pointer;font-size:13.5px}'
-    + '#tsaBridge button.bgold{background:#a5731f;border-color:#a5731f;color:#fff;font-weight:700}';
+    + '#tsaBridge button.bgold{background:#a5731f;border-color:#a5731f;color:#fff;font-weight:700}'
+    + '#tsaBridgeMini{position:fixed;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 112px);z-index:99998;display:none;align-items:center;gap:9px;max-width:330px;padding:10px 12px;border-radius:12px;background:#2b2419;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12.5px}'
+    + '#tsaBridgeMini .sp{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:tsaspin .8s linear infinite;flex:0 0 auto}'
+    + '@keyframes tsaspin{to{transform:rotate(360deg)}}'
+    + '#tsaBridgeMini button{padding:5px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;font-size:12px;cursor:pointer;flex:0 0 auto}';
   document.head.appendChild(st);
   var ov = document.createElement('div');
   ov.id = 'tsaBridge';
@@ -6300,10 +6304,19 @@ function bridgeEnsureUi(){
     + '<div id="tsaBridgeImgs" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:8px;max-height:230px;overflow:auto"></div>'
     + '<textarea id="tsaBridgeReq" readonly spellcheck="false" aria-label="에이전트 요청 전문"></textarea>'
     + '<textarea id="tsaBridgeRes" spellcheck="false" placeholder="여기에 생성 결과를 붙여넣으세요 (지침이 요구한 JSON 그대로)" aria-label="생성 결과 입력"></textarea>'
-    + '<div class="brow"><button type="button" id="tsaBridgeCopy">요청 복사</button><button type="button" class="bgold" id="tsaBridgeApply">결과 적용</button><button type="button" id="tsaBridgeCancel">취소</button></div>'
+    + '<div class="brow"><button type="button" id="tsaBridgeCopy">요청 복사</button><button type="button" class="bgold" id="tsaBridgeApply">결과 적용</button><button type="button" id="tsaBridgeMin">접기</button><button type="button" id="tsaBridgeCancel">취소</button></div>'
     + '</div>';
   document.body.appendChild(ov);
   ov.style.display = 'none';
+  /* 미니 대기 카드 — 에이전트 모드에서 앱 화면을 가리지 않는 기본 형태(펼치면 전체 패널).
+     패널 DOM(#tsaBridgeReq 등)은 숨김 상태로도 유지되므로 에이전트는 그대로 읽고 채울 수 있다. */
+  var mini = document.createElement('div');
+  mini.id = 'tsaBridgeMini';
+  mini.innerHTML = '<span class="sp"></span><span id="tsaBridgeMiniLbl" style="flex:1;min-width:0;line-height:1.4"><b>에이전트 응답 대기</b></span><button type="button" id="tsaBridgeExpand">펼치기</button><button type="button" id="tsaBridgeMiniCancel">취소</button>';
+  document.body.appendChild(mini);
+  $('#tsaBridgeExpand').addEventListener('click', function(){ bridgeMiniPref(false); bridgeShow(true); });
+  $('#tsaBridgeMiniCancel').addEventListener('click', function(){ bridgeCancel('에이전트 요청을 취소했습니다'); });
+  $('#tsaBridgeMin').addEventListener('click', function(){ bridgeMiniPref(true); bridgeShow(false); });
   $('#tsaBridgeCopy').addEventListener('click', function(){
     var t = $('#tsaBridgeReq');
     var done = function(ok){ toast(ok ? '요청 전문을 복사했습니다' : '복사 실패 — 요청칸에서 직접 복사해 주세요'); };
@@ -6314,7 +6327,19 @@ function bridgeEnsureUi(){
   $('#tsaBridgeApply').addEventListener('click', function(){ bridgeDeliver($('#tsaBridgeRes').value); });
   $('#tsaBridgeCancel').addEventListener('click', function(){ bridgeCancel('에이전트 요청을 취소했습니다'); });
 }
-function bridgeClose(){ var ov = $('#tsaBridge'); if (ov) ov.style.display = 'none'; }
+function bridgeClose(){
+  var ov = $('#tsaBridge'); if (ov) ov.style.display = 'none';
+  var m = $('#tsaBridgeMini'); if (m) m.style.display = 'none';
+}
+/* 대기 표시 형태 기억: '1'(기본)=미니 카드, '0'=전체 패널 — 수동 왕복 사용자는 펼친 상태가 유지된다 */
+function bridgeMiniPref(on){ try { localStorage.setItem('tsa.bridgeMini', on ? '1' : '0'); } catch (e) {} }
+function bridgeMiniOn(){ try { return localStorage.getItem('tsa.bridgeMini') !== '0'; } catch (e) { return true; } }
+function bridgeShow(full){
+  var ov = $('#tsaBridge'), m = $('#tsaBridgeMini');
+  if (!_bridgePend){ bridgeClose(); return; }
+  if (ov) ov.style.display = full ? 'flex' : 'none';
+  if (m) m.style.display = full ? 'none' : 'flex';
+}
 function bridgeDeliver(text){
   var t = String(text == null ? '' : text).trim();
   if (!_bridgePend){ toast('대기 중인 에이전트 요청이 없습니다'); return false; }
@@ -6369,9 +6394,13 @@ function bridgeCall(system, user, onTick){
   $('#tsaBridgeTitle').textContent = '브라우저 에이전트 요청 — ' + label;
   $('#tsaBridgeReq').value = payload;
   $('#tsaBridgeRes').value = '';
-  $('#tsaBridge').style.display = 'flex';
+  var lbl = $('#tsaBridgeMiniLbl');
+  if (lbl) lbl.innerHTML = '<b>' + esc(label) + '</b> — 에이전트 응답 대기';
   setSyncState(label + ' — 에이전트 응답 대기 중', true);
-  return new Promise(function(resolve, reject){ _bridgePend = { resolve: resolve, reject: reject, payload: payload }; });
+  return new Promise(function(resolve, reject){
+    _bridgePend = { resolve: resolve, reject: reject, payload: payload };
+    bridgeShow(!bridgeMiniOn());   /* 기본=미니 카드(앱 화면 유지), 수동 사용자는 펼친 상태 기억 */
+  });
 }
 /* 에이전트용 공개 훅 — 콘솔/스크립트에서 직접 사용 가능.
    에이전트 브라우저는 첫 사용 때 enable()을 호출해 스스로 모드를 켤 수 있다(가장 확실한 "인지"). */
@@ -14137,7 +14166,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v392';
+var APP_VER = 'v393';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
