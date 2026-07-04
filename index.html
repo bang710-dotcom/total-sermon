@@ -6116,14 +6116,19 @@ $('#devoDate').addEventListener('change', function(){ if (!this.value) return; i
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
    키가 없으면 기존 요청함 흐름으로 자동 폴백. */
 var AI_MODEL = 'claude-opus-4-8';
-/* aiKey(): 실제 API 키가 있으면 그 키. 없어도 브라우저 에이전트 모드가 켜져 있으면
-   센티널 '__AGENT__' 반환 → 모든 aiKey() 게이트·AI_DIRECT 라우팅이 그대로 열리고,
-   callClaude()가 fetch 대신 브리지(요청 패널)로 분기한다. */
-function aiKey(){ var k = String(state.settings.claudeKey || '').trim(); return k || (bridgeOn() ? '__AGENT__' : ''); }
+function realKey(){ return String(state.settings.claudeKey || '').trim(); }
+/* aiKey(): 브라우저 에이전트 모드가 켜져 있으면 키 유무와 무관하게 센티널 '__AGENT__' 반환
+   → 생성은 항상 브리지(구독)가 우선(과금 방지), 모든 aiKey() 게이트·AI_DIRECT 라우팅은 열린 채 유지.
+   실제 키는 realKey()로 따로 읽어, 브리지가 못 하는 경로(설교 대화·이미지 인식)에만 폴백으로 쓴다.
+   모드가 꺼져 있으면 기존대로 키. */
+function aiKey(){ return bridgeOn() ? '__AGENT__' : realKey(); }
 async function callClaude(system, user, maxTokens, onTick, modelOverride){
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
-  if (key === '__AGENT__') return bridgeCall(system, user, onTick);   /* 브라우저 에이전트(구독제) 모드 */
+  if (key === '__AGENT__') {   /* 브라우저 에이전트(구독제) 모드 — 생성은 브리지 우선 */
+    if (typeof user === 'string' || !realKey()) return bridgeCall(system, user, onTick);
+    key = realKey();   /* 비전(이미지 배열) 등 브리지 불가 입력 → 키가 있으면 API로 폴백 */
+  }
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
