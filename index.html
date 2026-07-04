@@ -2139,6 +2139,7 @@ function submit(body, okMsg, onResult, opts){
         try {
           if (state.data.sermons) {
             var _rec = (typeof nid === 'string') ? Object.assign({}, _addBody.data, { ID: nid }) : _addBody.data;
+            if (_rec['원고텍스트'] != null) { _rec._txt = true; _rec._txtAt = nowLocalStr_(); }   /* 재등록 본문도 신선 스탬프 */
             state.data.sermons = state.data.sermons.filter(function(r){ return String(r['ID']) !== String(body.data.ID); });
             upsertById(state.data.sermons, [_rec]); saveData();
             normalizeSermonStatuses(false); renderSyncState(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
@@ -2500,12 +2501,21 @@ function openDetail(kind, id){
       if (state.detailId === id && pane.classList.contains('open')) openDetail(kind, id);
     });
   }
-  /* 원고 전문은 슬림 목록에서 빠져 있으므로 상세 열 때 지연 로드 후 재렌더 */
+  /* 원고 전문은 슬림 목록에서 빠져 있으므로 상세 열 때 지연 로드 후 재렌더.
+     캐시 본문이 있어도 낡았으면(_txtStale — 다른 기기에서 수정 저장됨) 최신 본문을 받아 갈아끼운다.
+     통신 실패가 반복될 때 재시도 폭주(재렌더→재요청 루프)를 막도록 설교별 10초 스로틀. */
   if (kind === 'sermon') {
     var _s = findSermon(id);
-    if (_s && !String(_s['원고텍스트'] || '').trim() && !_s._txt) ensureText(id).then(function(){
-      if (state.detailId === id && pane.classList.contains('open')) openDetail(kind, id);
-    });
+    if (_s && ((!String(_s['원고텍스트'] || '').trim() && !_s._txt) || _txtStale(_s))) {
+      state._txtTryAt = state._txtTryAt || {};
+      var _tk = String(id);
+      if (!state._txtTryAt[_tk] || Date.now() - state._txtTryAt[_tk] > 10000) {
+        state._txtTryAt[_tk] = Date.now();
+        ensureText(id).then(function(){
+          if (state.detailId === id && pane.classList.contains('open')) openDetail(kind, id);
+        });
+      }
+    }
   }
 }
 window.openDetail = openDetail;
@@ -6705,7 +6715,7 @@ async function aiYouTubeSummarize(id){
     var span = (j.start_mmss && j.end_mmss) ? (' (' + j.start_mmss + '~' + j.end_mmss + ')') : '';
     /* 전사문은 원고텍스트가 비어 있을 때만 저장(준비된 원고 보존). */
     var setData = { ID: id };
-    if (!String(s['원고텍스트'] || '').trim()) { setData['원고텍스트'] = trans; s['원고텍스트'] = trans; }
+    if (!String(s['원고텍스트'] || '').trim()) { setData['원고텍스트'] = trans; s['원고텍스트'] = trans; s._txt = true; s._txtAt = nowLocalStr_(); }
     await apiPost({ action: 'update', sheet: 'sermons', data: setData });
     toast('전사 완료' + span + ' — 이어서 Opus가 요약본을 생성합니다…');
     var out = await callClaude(P_SUM,
@@ -14208,7 +14218,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v394';
+var APP_VER = 'v395';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
