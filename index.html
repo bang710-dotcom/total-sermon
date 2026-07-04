@@ -6257,7 +6257,17 @@ function bridgeOn(){
 function bridgeSet(on){
   try { localStorage.setItem('tsa.bridge', on ? '1' : '0'); } catch (e) {}
   var el = document.getElementById('setBridge'); if (el) el.checked = bridgeOn();
+  if (on) bridgeNotifyPerm();   /* 켜는 순간 알림 권한 확보 — 에이전트의 알림 트리거 루틴용 */
   bridgeChip();
+}
+/* 알림 권한 요청(미결정 상태일 때만) — 요청 등록 시 발사하는 알림이 Aside 루틴을 깨운다 */
+function bridgeNotifyPerm(){
+  try {
+    if (window.Notification && Notification.permission === 'default'){
+      var p = Notification.requestPermission();
+      if (p && p.catch) p.catch(function(){});
+    }
+  } catch (e) {}
 }
 /* 모든 화면 공통 상태 칩 — 에이전트 생성 모드가 켜져 있음을 항상 표시(우하단). 눌러서 끌 수 있다. */
 function bridgeChip(){
@@ -6400,6 +6410,13 @@ function bridgeCall(system, user, onTick){
   return new Promise(function(resolve, reject){
     _bridgePend = { resolve: resolve, reject: reject, payload: payload };
     bridgeShow(!bridgeMiniOn());   /* 기본=미니 카드(앱 화면 유지), 수동 사용자는 펼친 상태 기억 */
+    /* ★ 브라우저 알림 발사 — 에이전트 브라우저(Aside)의 "알림 도착 시 자동 처리 루틴"을 깨운다.
+       tag 고정('tsa-bridge')이라 연쇄 요청 때 알림이 쌓이지 않고 갱신된다. 권한 없으면 조용히 통과. */
+    try {
+      if (window.Notification && Notification.permission === 'granted') {
+        new Notification('Total Sermons — 에이전트 요청', { body: label + ' 생성 요청이 대기 중입니다', tag: 'tsa-bridge' });
+      }
+    } catch (e) {}
   });
 }
 /* 에이전트용 공개 훅 — 콘솔/스크립트에서 직접 사용 가능.
@@ -14166,7 +14183,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v393';
+var APP_VER = 'v394';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
