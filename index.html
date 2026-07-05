@@ -1858,11 +1858,16 @@ function _maybeFlagConflict(incomingRow, baseRow){
     if (!incomingRow) return;
     var base = baseRow || (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(incomingRow['ID']); })[0];
     if (!base) return;
-    if (_rowContentSig(incomingRow) === _rowContentSig(base)) return;   /* 의미있는 변경 없음(자기 저장 에코 등) */
+    var _im = String(incomingRow['수정일'] || ''), _bm = String(base['수정일'] || '');
+    var _sigEq = _rowContentSig(incomingRow) === _rowContentSig(base);
+    /* 복원된 초안으로 편집 중일 때: 목록 필드가 모두 같아도(=원고 본문만 변경) 초안 기준 시점(_draftBaseMod)보다
+       새 저장이 들어오면 충돌로 표시 — 본문만 고친 다른 기기 변경도 놓치지 않는다.
+       (_draftBaseMod는 초안 복원 시에만 설정되고 저장 성공·새 편집 시작 시 해제되므로, 내 저장 에코로는 켜지지 않는다.) */
+    var _draftNewer = state._draftBaseMod && _im && _im > String(state._draftBaseMod);
+    if (_sigEq && !_draftNewer) return;   /* 의미있는 변경 없음(자기 저장 에코 등) */
     /* 오탐 방지: 들어온 행이 기준본보다 '더 최신'(수정일 큰 값)일 때만 충돌로 본다.
        같은 분이거나 더 오래된 델타(내 저장 에코·뒤늦게 도착한 옛 버전)는 충돌이 아니다. */
-    var _im = String(incomingRow['수정일'] || ''), _bm = String(base['수정일'] || '');
-    if (_im && _bm && _im <= _bm) return;
+    if (!_sigEq && _im && _bm && _im <= _bm) return;
     var isNew = !state.remoteConflict || _rowContentSig(state.remoteConflict) !== _rowContentSig(incomingRow);
     state.remoteConflict = incomingRow;
     try { updateComposeBadge(); } catch(e){}
@@ -4914,6 +4919,7 @@ function editSermonFill(id){
   var s = findSermon(id);
   if (!s) return;
   state.remoteConflict = null;   /* 새 설교를 편집 시작 → 이전 충돌 표시 해제(기준본이 새로 잡힘) */
+  state._draftBaseMod = null;    /* 초안 기준 시점도 해제 — 방금 불러온 행이 새 기준본 */
   /* 수정하기: 원본을 직접 불러와 수정 — [저장]하면 같은 행 업데이트(원본 갱신).
      원본을 보존하고 사본을 만들려면 작성화면의 [새 설교로 저장]을 쓴다. */
   state.editing = id;
@@ -5027,7 +5033,11 @@ function cwRender(){
 function composeDraftSnapshot(){
   var meta = {};
   try { Object.keys(C_META).forEach(function(k){ var el = $('#' + C_META[k]); meta[k] = el ? el.value : ''; }); } catch (e) {}
-  return { v: 1, at: Date.now(), editing: state.editing || null, versionOf: state.versionOf || null,
+  /* baseMod: 이 버퍼가 기반한 원본 행의 수정일(미저장 편집 중엔 편집 가드로 동결됨).
+     초안을 나중에 복원할 때 "그 사이 다른 기기가 이 설교를 저장했는지"를 시점으로 판정하는 기준. */
+  var baseMod = '';
+  try { if (state.editing) { var _r = findSermon(state.editing); if (_r) baseMod = String(_r['수정일'] || ''); } } catch (e) {}
+  return { v: 1, at: Date.now(), baseMod: baseMod, editing: state.editing || null, versionOf: state.versionOf || null,
            savedSig: state.savedSig || '', meta: meta, compose: state.compose };
 }
 function saveComposeDraft(){
@@ -5038,7 +5048,7 @@ function saveComposeDraft(){
   } catch (e) {}
 }
 var saveComposeDraftSoon = debounce(saveComposeDraft, 700);
-function clearComposeDraft(){ try { idbSet('composeDraft', null).catch(function(){}); dropComposeDraftRemote(); } catch (e) {} }
+function clearComposeDraft(){ try { state._draftBaseMod = null; idbSet('composeDraft', null).catch(function(){}); dropComposeDraftRemote(); } catch (e) {} }
 function restoreComposeDraft(){
   return idbGet('composeDraft').then(function(d){
     if (!d || !d.compose) return false;
@@ -5051,6 +5061,27 @@ function restoreComposeDraft(){
     state.compose = c;
     try { Object.keys(C_META).forEach(function(k){ var el = $('#' + C_META[k]); if (el && d.meta && d.meta[k] != null) el.value = d.meta[k]; }); } catch (e) {}
     state.savedSig = d.savedSig || '';
+    /* ── 잠자던 초안 vs 시트 최신본 시점 비교 ──
+       이 초안이 기반한 행(baseMod) 이후에 다른 기기가 같은 설교를 저장했으면, 조용한 덮어쓰기가 되지 않도록
+       기존 충돌 UI(작성칸 상단 경고 + 저장 시 확인 대화상자)를 켠다. 수정일 비교라 본문만 바뀐 경우도 잡힌다. */
+    state._draftBaseMod = null;
+    try {
+      if (d.editing) {
+        var _row = findSermon(d.editing);
+        var _bm = String(d.baseMod || '');
+        state._draftBaseMod = _bm || null;
+        var _rm = _row ? String(_row['수정일'] || '') : '';
+        var _newer = !!_rm && (
+          (_bm && _rm > _bm) ||
+          /* 옛 초안(스탬프 없음) 폴백: 행 수정일이 초안 시각보다 2분 이상 뒤면 다른 기기 저장으로 의심 */
+          (!_bm && d.at && (new Date(_rm.replace(' ', 'T')).getTime() > (+d.at + 120000)))
+        );
+        if (_newer) {
+          state.remoteConflict = _row;
+          try { toast('복원한 원고보다 새로운 저장본이 시트에 있습니다 — 작성 화면 상단에서 비교·선택하세요.'); } catch (e) {}
+        }
+      }
+    } catch (e) {}
     setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
     if (composeDirty()) toast('작성 중이던 원고를 복원했습니다.');
     return true;
@@ -14218,7 +14249,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v395';
+var APP_VER = 'v396';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
