@@ -7062,6 +7062,7 @@ function autoSaveDraft(okMsg){
     d.ID = state.editing;
     submit({ action: 'update', sheet: 'sermons', data: d }, okMsg || '초안 저장');
   } else {
+    adoptQueuedAddLid_(d);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
     submit({ action: 'add', sheet: 'sermons', data: d }, okMsg || '초안 등록').then(function(idv){
       if (idv && typeof idv === 'string') { state.editing = idv; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     });
@@ -8595,6 +8596,9 @@ function archiveRec(m, w, wi, o, status){
     '비고': (_isTp && w['회차명'] ? '회차: ' + w['회차명'] + ' / ' : '') + (cleanHymn(o['찬송']) ? '찬송: ' + cleanHymn(o['찬송']) + ' / ' : '') + (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
   };
   if (o['묵상요약']) rec['요약본'] = o['묵상요약'];
+  /* 안정 멱등키 — bulkAdd 응답 유실 후 재시도(_id 미기록)나 두 기기의 동시 보관이
+     같은 선택지를 두 행으로 만들지 않도록, 내용 기반으로 항상 같은 로컬ID를 부여 */
+  rec['로컬ID'] = stableLid_(['SEROPT', rec['시리즈'], rec['날짜'] || ('wi' + wi), rec['시리즈순번'], rec['제목'], rec['본문']]);
   return rec;
 }
 
@@ -8756,7 +8760,9 @@ function occArchiveRec(O, o, status){
   return { '날짜': O.date || '', '예배구분': '대학부', '시리즈': '상황설교',
     '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': status || '초안',
     '핵심메시지': o['핵심메시지'] || '', '대지': djSer(o['대지']),
-    '비고': (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (O.sit ? ' / 상황: ' + O.sit.replace(/\s+/g, ' ').slice(0, 150) : '') };
+    '비고': (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (O.sit ? ' / 상황: ' + O.sit.replace(/\s+/g, ' ').slice(0, 150) : ''),
+    /* 안정 멱등키 — 초안 등록 응답 유실 후 [미래설교 저장] 재시도가 두 행을 만들지 않게(같은 생성분은 같은 키) */
+    '로컬ID': stableLid_(['OCC', O.date || '', O.at || '', o['제목'] || '', o['본문'] || '']) };
 }
 /* 생성 직후: 3세트를 [초안] 상태로만 임시 동기화(기기 간엔 보이되 미래설교 보관함·검색엔 숨김).
    → 미래설교 보관함에는 사용자가 카드별 [미래설교 저장]을 누른 것만 올라간다(시리즈와 동일 방식). */
@@ -10768,7 +10774,12 @@ async function confirmSermonWeeks(idxs, skipUnchanged){
         if (!isLiveSermon(s) || s['시리즈'] !== rec['시리즈']) return false;
         return w['주일'] ? (s['날짜'] === w['주일']) : (String(s['시리즈순번'] || '') === rec['시리즈순번']);
       })[0] || {})['ID'];
-    if (exId) { rec.ID = exId; ups.push(rec); } else { adds.push(rec); addWi.push(wi); }
+    if (exId) { rec.ID = exId; ups.push(rec); }
+    else {
+      /* 안정 멱등키(시리즈+주일/순번) — 두 기기가 델타 수신 전에 같은 주를 확정해도 시트에는 한 행으로 수렴 */
+      rec['로컬ID'] = stableLid_(['CONF', rec['시리즈'], rec['날짜'] || ('n' + rec['시리즈순번'])]);
+      adds.push(rec); addWi.push(wi);
+    }
     w.done = true; w.sig = sig;
   });
   /* ★ 시트에 쓰면서 동시에 로컬(state.data.sermons)도 같은 내용으로 갱신한다.
@@ -11760,6 +11771,7 @@ function saveComposeFinal(data){
   var st = $('#c_state'); if (st) st.value = data['상태'];
   var editing = state.editing;
   if (editing) data.ID = editing;
+  else adoptQueuedAddLid_(data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
   var body = editing ? { action: 'update', sheet: 'sermons', data: data } : { action: 'add', sheet: 'sermons', data: data };
   submit(body, (editing ? '최종본 시트 반영' : '설교 등록') + ' (' + data['상태'] + ')').then(function(id){
     if (id && typeof id === 'string' && !editing) { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
@@ -12199,10 +12211,20 @@ $('#fileInput').addEventListener('change', function(){ classifyPickedFiles(this.
 if ($('#pickPhotos')) $('#pickPhotos').addEventListener('click', function(){ $('#photoInput').click(); });
 if ($('#photoInput')) $('#photoInput').addEventListener('change', function(){ handleIdeaImages(this.files); this.value = ''; });
 $('#impClear').addEventListener('click', function(){ state.importRows = []; renderImport(); });
-$('#impRegister').addEventListener('click', function(){
-  var rows = state.importRows.filter(function(r){ return r.use && !r.error; }).map(function(r){
+$('#impRegister').addEventListener('click', async function(){
+  var picked = state.importRows.filter(function(r){ return r.use && !r.error; });
+  /* 이미 시트에 있는 같은 날짜·제목(또는 같은 원본 파일)의 설교 — 경고만 하지 않고 등록 전에 한 번 확인 */
+  var dups = picked.filter(function(r){
+    return (state.data.sermons || []).some(function(s){
+      return (s['비고'] || '').indexOf(r.fname) >= 0 || (s['날짜'] === r['날짜'] && s['제목'] === r['제목']);
+    });
+  });
+  if (dups.length && !await uiConfirm('⚠ ' + dups.length + '건은 같은 날짜·제목(또는 같은 원본)의 설교가 이미 시트에 있습니다.\n그래도 등록할까요? (같은 설교가 두 행이 될 수 있습니다)')) return;
+  var rows = picked.map(function(r){
     return { '날짜': r['날짜'], '예배구분': r['예배구분'], '제목': r['제목'], '본문': r['본문'],
-      '상태': r['상태'], '원고텍스트': r['원고텍스트'].slice(0, 45000), '비고': '원본: ' + r.fname };
+      '상태': r['상태'], '원고텍스트': r['원고텍스트'].slice(0, 45000), '비고': '원본: ' + r.fname,
+      /* 안정 멱등키 — 등록 실패 후 재클릭·같은 파일 재등록이 중복 행을 만들지 않게 */
+      '로컬ID': stableLid_(['IMP', r['날짜'] || '', r['제목'] || '', r.fname || '']) };
   });
   if (!rows.length) { toast('등록할 항목이 없습니다.'); return; }
   $('#impRegister').disabled = true;
@@ -12240,6 +12262,7 @@ $('#saveSermon').addEventListener('click', function(){
     '본문': $('#smRef').value.trim(), '시리즈': $('#smSeries').value.trim(),
     '상태': $('#smState').value, '핵심메시지': $('#smMsg').value.trim(), '예화': $('#smIllust').value.trim()
   }};
+  adoptQueuedAddLid_(body.data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
   ['smTitle','smRef','smSeries','smMsg','smIllust'].forEach(function(id){ $('#' + id).value = ''; });
   submit(body, '설교 저장 완료');
 });
@@ -14451,7 +14474,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v398';
+var APP_VER = 'v399';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
