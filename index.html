@@ -189,15 +189,19 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .anDrillHd{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .anDrillHd h3{margin:0}
 .anDrillHd small{color:var(--dim);font-weight:400;font-size:13px}
-/* 미리보기 인쇄: 미리보기 종이(#prevPage)만 출력, 앱 UI·툴바 숨김 */
+/* 미리보기 종이 페이지(DOCX 규격 고정 픽셀 레이아웃 — 스케일만 변함, 줄바꿈 불변) */
+.pv-page{box-sizing:border-box;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,0.5);overflow:hidden;position:relative}
+/* 미리보기 인쇄: 종이 페이지(.pv-page)만 페이지 단위로 출력, 앱 UI·툴바 숨김 */
 @media print {
   body.previewing > *:not(#prevOv){ display:none !important; }
   body.previewing #prevOv{ position:static !important; inset:auto !important; background:#fff !important; overflow:visible !important; padding:0 !important; display:block !important }
   body.previewing #prevBar{ display:none !important }
   body.previewing #prevScroll{ display:block !important; overflow:visible !important; padding:0 !important; height:auto !important }
-  body.previewing #prevPage{ box-shadow:none !important; max-width:none !important; width:auto !important; min-height:0 !important; padding:0 !important; color:#000 !important }
+  body.previewing #pvScale{ width:auto !important; height:auto !important; margin:0 !important }
+  body.previewing #pvPages{ transform:none !important }
+  body.previewing .pv-page{ box-shadow:none !important; margin:0 !important; color:#000 !important; break-after:page; page-break-after:always }
+  body.previewing .pv-page:last-child{ break-after:auto; page-break-after:auto }
   body.previewing { background:#fff !important }
-  @page { margin:15mm }
 }
 .b-sermon{background:#283250;color:#9eb4ff}.b-idea{background:#3d3322;color:#e8c87a}
 .b-state{background:var(--card2);color:var(--dim);border:1px solid var(--line)}
@@ -696,7 +700,8 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   body>*:not(#prevOv){display:none!important}
   #prevOv{position:static!important;background:none!important;padding:0!important;overflow:visible!important;display:block!important}
   #prevBar{display:none!important}
-  #prevPage{box-shadow:none!important;max-width:none!important;width:100%!important;padding:16mm!important;margin:0!important;min-height:0!important}
+  #pvScale{width:auto!important;height:auto!important;margin:0!important}
+  #pvPages{transform:none!important}
 }
 
 /* ============ 색상 테마 (다크 기본 / 라이트 / 세피아) ============ */
