@@ -1821,6 +1821,31 @@ function stampLocalId_(body){
   if (body.action === 'add' && body.data && !body.data['로컬ID']) body.data['로컬ID'] = uid_();
   else if (body.action === 'bulkAdd' && body.rows) body.rows.forEach(function(r){ if (r && !r['로컬ID']) r['로컬ID'] = uid_(); });
 }
+/* 안정 멱등키: 같은 논리 레코드(시리즈 선택지·확정·가져오기 등)의 재시도가 언제나 같은 로컬ID를 갖도록
+   내용 기반으로 만든다. 응답 유실 후 재시도(body를 새로 만드는 apiPost 직접 호출부)에서도
+   서버 findByLocalId_ 멱등 체크에 걸려 같은 설교가 두 행으로 등록되지 않는다. */
+function stableLid_(parts){
+  var s = (parts || []).join('|'), h = 5381;
+  for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return 'K' + h.toString(36) + '_' + s.length.toString(36);
+}
+/* 신규 설교 add 직전 호출: 대기열에 '같은 제목'의 미전송 add가 남아 있으면(오프라인/통신오류로 보관)
+   그 항목을 제거하고 멱등키(로컬ID)를 물려받는다. → 오프라인에서 같은 새 설교를 두 번 [저장]해도
+   대기열에 add가 두 개 쌓여 시트에 두 행이 생기는 일을 막는다(최신 내용 한 건으로 대체). */
+function adoptQueuedAddLid_(data){
+  try {
+    var t = String(data && data['제목'] || '').trim(); if (!t) return;
+    for (var i = 0; i < state.queue.length; i++) {
+      var q = state.queue[i];
+      if (q && q.action === 'add' && q.sheet === 'sermons' && q.data && !q.data.ID &&
+          String(q.data['제목'] || '').trim() === t && q.data['로컬ID']) {
+        data['로컬ID'] = q.data['로컬ID'];                       /* 같은 멱등키 재사용 */
+        state.queue.splice(i, 1); save(LS.queue, state.queue);   /* 옛 내용은 이번 저장으로 대체 */
+        return;
+      }
+    }
+  } catch(e){}
+}
 function apiPost(body){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
@@ -5225,6 +5250,7 @@ async function doSaveCompose(){
     /* 검토본 링크('충돌원본')는 작성폼에 없는 서버 보존 필드 → update 시 기존 로컬 행 값을 유지(링크 소실 방지). */
     var _exist = origId ? (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(origId); })[0] : null;
     var _keep = (_exist && _exist['충돌원본']) ? { '충돌원본': _exist['충돌원본'] } : {};
+    if (!origId) adoptQueuedAddLid_(data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
     var body = origId ? { action: 'update', sheet: 'sermons', data: Object.assign({}, data, { ID: origId }, _keep) }
                       : { action: 'add', sheet: 'sermons', data: data };
     /* 저장한 내용의 서명을 스냅샷 — durable 보관된 경우에만 '깨끗함'으로 표시(진짜 실패 시 dirty 유지). */
@@ -5254,6 +5280,7 @@ function saveReconcileCopy(data, origId){
   if (!/검토본/.test(String(d['제목'] || ''))) d['제목'] = (d['제목'] || '(제목 없음)') + ' (검토본)';
   var existing = (state.data.sermons || []).filter(function(s){ return String(s['충돌원본'] || '') === String(origId); })
     .sort(function(a, b){ var x = String(a['수정일'] || ''), y = String(b['수정일'] || ''); return x < y ? 1 : x > y ? -1 : 0; })[0];
+  if (!existing) d['로컬ID'] = stableLid_(['RECON', String(origId)]);   /* 원본당 검토본 1개 — 재시도·양기기 동시 생성도 서버에서 한 행으로 수렴 */
   var body = existing ? { action: 'update', sheet: 'sermons', data: Object.assign({}, d, { ID: existing['ID'] }) }
                       : { action: 'add', sheet: 'sermons', data: d };
   var _sig = composeSig();
