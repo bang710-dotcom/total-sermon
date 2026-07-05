@@ -197,10 +197,12 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
   body.previewing #prevOv{ position:static !important; inset:auto !important; background:#fff !important; overflow:visible !important; padding:0 !important; display:block !important }
   body.previewing #prevBar{ display:none !important }
   body.previewing #prevScroll{ display:block !important; overflow:visible !important; padding:0 !important; height:auto !important }
-  body.previewing #pvScale{ width:auto !important; height:auto !important; margin:0 !important }
-  body.previewing #pvPages{ transform:none !important }
-  body.previewing .pv-page{ box-shadow:none !important; margin:0 !important; color:#000 !important; break-after:page; page-break-after:always }
-  body.previewing .pv-page:last-child{ break-after:auto; page-break-after:auto }
+  body.previewing #pvScale{ display:block !important; width:auto !important; height:auto !important; margin:0 !important }
+  body.previewing .pv-slide{ width:auto !important; height:auto !important; margin:0 !important; position:static !important; break-after:page; page-break-after:always }
+  body.previewing .pv-slide:last-child{ break-after:auto; page-break-after:auto }
+  body.previewing .pv-pgwrap{ position:static !important; width:auto !important; height:auto !important }
+  body.previewing .pv-page{ box-shadow:none !important; margin:0 !important; color:#000 !important; transform:none !important }
+  body.previewing #pvPageNo{ display:none !important }
   body.previewing { background:#fff !important }
 }
 .b-sermon{background:#283250;color:#9eb4ff}.b-idea{background:#3d3322;color:#e8c87a}
@@ -700,8 +702,11 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   body>*:not(#prevOv){display:none!important}
   #prevOv{position:static!important;background:none!important;padding:0!important;overflow:visible!important;display:block!important}
   #prevBar{display:none!important}
-  #pvScale{width:auto!important;height:auto!important;margin:0!important}
-  #pvPages{transform:none!important}
+  #pvScale{display:block!important;width:auto!important;height:auto!important;margin:0!important}
+  .pv-slide{width:auto!important;height:auto!important;margin:0!important;position:static!important}
+  .pv-pgwrap{position:static!important;width:auto!important;height:auto!important}
+  .pv-page{transform:none!important;box-shadow:none!important}
+  #pvPageNo{display:none!important}
 }
 
 /* ============ 색상 테마 (다크 기본 / 라이트 / 세피아) ============ */
@@ -14154,9 +14159,8 @@ function openPreview(contentHtml, exportFn, pageMm){
   bar += '</div>';
   ov.innerHTML = bar +
     '<div id="prevScroll" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px 0 calc(16px + env(safe-area-inset-bottom))">' +
-    '<div id="pvScale" style="margin:0 auto;position:relative">' +
-    '<div id="pvPages" style="width:' + g.W + 'px;transform-origin:0 0"></div>' +
-    '</div></div>';
+    '<div id="pvScale" style="margin:0 auto;position:relative"></div></div>' +
+    '<div id="pvPageNo" style="position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:12px;padding:4px 12px;border-radius:14px;z-index:3;display:none;pointer-events:none"></div>';
   document.body.appendChild(ov);
 
   /* 콘텐츠를 종이 페이지로 분할: 다단 오버플로 폭을 재서 페이지 수 산출 */
@@ -14169,14 +14173,14 @@ function openPreview(contentHtml, exportFn, pageMm){
   meas.remove();
   var pagesHtml = '';
   for (var i = 0; i < n; i++) {
-    pagesHtml += '<div class="pv-page" style="width:' + g.W + 'px;height:' + g.H + 'px;' +
-      'padding:' + g.pt + 'px ' + g.pr + 'px ' + g.pb + 'px ' + g.pl + 'px;' +
-      (i ? 'margin-top:' + PV_PAGEGAP + 'px;' : '') + '">' +
+    pagesHtml += '<div class="pv-slide" style="position:relative"><div class="pv-pgwrap" style="position:absolute;left:0;top:0">' +
+      '<div class="pv-page" style="width:' + g.W + 'px;height:' + g.H + 'px;' +
+      'padding:' + g.pt + 'px ' + g.pr + 'px ' + g.pb + 'px ' + g.pl + 'px;transform-origin:0 0">' +
       '<div style="width:' + g.CW + 'px;height:' + g.CH + 'px;overflow:hidden">' +
       '<div style="' + flowCss + (i ? 'margin-left:-' + (i * (g.CW + PV_COLGAP)) + 'px' : '') + '">' + contentHtml + '</div>' +
-      '</div></div>';
+      '</div></div></div></div>';
   }
-  document.getElementById('pvPages').innerHTML = pagesHtml;
+  document.getElementById('pvScale').innerHTML = pagesHtml;
   window._pv = { g: g, n: n, k: 1 };
 
   /* 인쇄 용지 = 문서 페이지 규격, 여백 0(여백은 페이지 안에 이미 포함) */
@@ -14229,8 +14233,21 @@ function openPreview(contentHtml, exportFn, pageMm){
   sc.addEventListener('pointerup', pvPtrUp);
   sc.addEventListener('pointercancel', pvPtrUp);
   sc.addEventListener('touchmove', function(e){ if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  /* 전체화면에서 넘길 때 현재 페이지 번호(n / 전체) 잠깐 표시 */
+  sc.addEventListener('scroll', function(){ if (window._pvFull) pvShowPageNo(); });
   window._pvZoom = 1;
   setPrevFull(localStorage.getItem('tsaPrevFull') === '1');   /* 지난번 보기 모드 유지 + 첫 스케일 계산 */
+}
+/* 전체화면 가로 페이저: 한 페이지 폭(스냅 간격) */
+function pvStride(sc, pv){ return Math.max(1, sc.scrollWidth / pv.n); }
+function pvShowPageNo(){
+  var sc = document.getElementById('prevScroll'), el = document.getElementById('pvPageNo'), pv = window._pv;
+  if (!sc || !el || !pv || pv.n < 2) return;
+  var p = Math.min(pv.n, Math.max(1, Math.round(sc.scrollLeft / pvStride(sc, pv)) + 1));
+  el.textContent = p + ' / ' + pv.n;
+  el.style.display = 'block';
+  clearTimeout(window._pvNoT);
+  window._pvNoT = setTimeout(function(){ el.style.display = 'none'; }, 1200);
 }
 /* 화면 폭에 맞춰 스케일만 재계산 — 레이아웃(줄바꿈)은 그대로 (회전·리사이즈 대응) */
 function pvLayout(){
