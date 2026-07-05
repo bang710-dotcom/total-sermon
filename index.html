@@ -14249,34 +14249,71 @@ function pvShowPageNo(){
   clearTimeout(window._pvNoT);
   window._pvNoT = setTimeout(function(){ el.style.display = 'none'; }, 1200);
 }
-/* 화면 폭에 맞춰 스케일만 재계산 — 레이아웃(줄바꿈)은 그대로 (회전·리사이즈 대응) */
+/* 화면 폭에 맞춰 스케일만 재계산 — 레이아웃(줄바꿈)은 그대로 (회전·리사이즈 대응)
+   창보기 = 세로 페이지 나열(인쇄 미리보기) · 전체화면 = 가로 스와이프 페이저(한 화면 한 페이지) */
 function pvLayout(){
-  var sc = document.getElementById('prevScroll'), wrap = document.getElementById('pvScale'),
-      pages = document.getElementById('pvPages'), pv = window._pv;
-  if (!sc || !wrap || !pages || !pv) return;
-  var avail = sc.clientWidth - (window._pvFull ? 0 : 32);   /* 창보기: 좌우 여백 16px */
-  if (avail < 40) avail = 40;
-  var fit = avail / pv.g.W;
-  if (!window._pvFull && fit > 1) fit = 1;                  /* 창보기: 원본 크기 이상 확대 안 함 */
+  var sc = document.getElementById('prevScroll'), wrap = document.getElementById('pvScale'), pv = window._pv;
+  if (!sc || !wrap || !pv) return;
+  var full = window._pvFull;
+  var availW = sc.clientWidth - (full ? 0 : 32);   /* 창보기: 좌우 여백 16px */
+  if (availW < 40) availW = 40;
+  var fit = availW / pv.g.W;
+  if (!full && fit > 1) fit = 1;                   /* 창보기: 원본 크기 이상 확대 안 함 */
   var k = fit * (window._pvZoom || 1);
   pv.k = k;
-  pages.style.transform = 'scale(' + k + ')';
-  wrap.style.width = (pv.g.W * k) + 'px';
-  wrap.style.height = ((pv.n * pv.g.H + (pv.n - 1) * PV_PAGEGAP) * k) + 'px';
+  var kW = pv.g.W * k, kH = pv.g.H * k, viewH = sc.clientHeight;
+  var slideW = full ? Math.max(kW, sc.clientWidth) : kW;
+  var slideH = full ? Math.max(kH, viewH) : kH;
+  if (full) {
+    sc.style.scrollSnapType = 'x mandatory';       /* 한 페이지씩 가로로 쓸어 넘김 */
+    wrap.style.display = 'flex';
+    wrap.style.margin = '0';
+    wrap.style.width = (slideW * pv.n) + 'px';
+  } else {
+    sc.style.scrollSnapType = '';
+    wrap.style.display = 'block';
+    wrap.style.margin = '0 auto';
+    wrap.style.width = kW + 'px';
+  }
+  var slides = wrap.children;
+  for (var i = 0; i < slides.length; i++) {
+    var sl = slides[i], pw = sl.firstChild, pg = pw.firstChild;
+    if (full) {
+      sl.style.cssText = 'position:relative;flex:0 0 auto;scroll-snap-align:start;scroll-snap-stop:always;width:' + slideW + 'px;height:' + slideH + 'px;margin:0';
+      pw.style.cssText = 'position:absolute;width:' + kW + 'px;height:' + kH + 'px;left:' + Math.max(0, (slideW - kW) / 2) + 'px;top:' + Math.max(0, (viewH - kH) / 2) + 'px';
+    } else {
+      sl.style.cssText = 'position:relative;width:' + kW + 'px;height:' + kH + 'px;margin:' + (i ? PV_PAGEGAP : 0) + 'px 0 0';
+      pw.style.cssText = 'position:absolute;width:' + kW + 'px;height:' + kH + 'px;left:0;top:0';
+    }
+    pg.style.transform = 'scale(' + k + ')';
+  }
 }
-['resize', 'orientationchange'].forEach(function(ev){ window.addEventListener(ev, function(){ pvLayout(); }); });
-/* ── 미리보기 전체화면: 페이지가 화면 가로폭에 꽉 차고(fit-width), 도구바는 위에 겹쳐 탭으로 토글 ── */
+['resize', 'orientationchange'].forEach(function(ev){ window.addEventListener(ev, function(){
+  var sc = document.getElementById('prevScroll'), pv = window._pv;
+  if (!sc || !pv) return;
+  var idx = window._pvFull ? Math.round(sc.scrollLeft / pvStride(sc, pv)) : -1;
+  pvLayout();
+  if (idx >= 0) sc.scrollLeft = idx * pvStride(sc, pv);   /* 회전 후에도 보던 페이지 유지 */
+}); });
+/* ── 미리보기 전체화면: 한 화면에 한 페이지(fit-width), 가로 스와이프로 페이지 넘김.
+      도구바는 위에 겹쳐 탭으로 토글, 보던 페이지는 모드 전환 후에도 유지 ── */
 function setPrevFull(on){
   var bar = document.getElementById('prevBar'), sc = document.getElementById('prevScroll'),
-      btn = document.getElementById('pvFullBtn');
+      btn = document.getElementById('pvFullBtn'), pv = window._pv;
   if (!bar || !sc) return;
+  var idx = 0;   /* 모드 전환 전, 지금 보고 있는 페이지 */
+  if (pv && pv.n > 1 && pv.k) {
+    if (window._pvFull) idx = Math.round(sc.scrollLeft / pvStride(sc, pv));
+    else idx = Math.round(sc.scrollTop / Math.max(1, pv.g.H * pv.k + PV_PAGEGAP));
+    idx = Math.min(pv.n - 1, Math.max(0, idx));
+  }
   window._pvFull = !!on;
   try { localStorage.setItem('tsaPrevFull', on ? '1' : '0'); } catch (e) {}
   window._pvZoom = 1;                       /* 모드 전환 시 핀치 줌 초기화(폭 맞춤) */
   if (on) {
     bar.style.position = 'absolute'; bar.style.top = '0'; bar.style.left = '0'; bar.style.right = '0';
     bar.style.display = 'none';               /* 진입 시 숨김 — 화면 탭으로 표시/숨김 */
-    sc.style.padding = 'env(safe-area-inset-top) 0 env(safe-area-inset-bottom)';
+    sc.style.padding = '0';
     if (btn) btn.textContent = '⛶ 창보기';
   } else {
     bar.style.position = ''; bar.style.top = ''; bar.style.left = ''; bar.style.right = '';
@@ -14285,7 +14322,15 @@ function setPrevFull(on){
     if (btn) btn.textContent = '⛶ 전체화면';
   }
   pvLayout();
-  sc.scrollTop = 0; sc.scrollLeft = 0;
+  pv = window._pv;
+  if (on) {
+    sc.scrollTop = 0;
+    sc.scrollLeft = pv ? idx * pvStride(sc, pv) : 0;
+    pvShowPageNo();
+  } else {
+    sc.scrollLeft = 0;
+    sc.scrollTop = (pv && idx) ? idx * (pv.g.H * pv.k + PV_PAGEGAP) : 0;
+  }
 }
 window.togglePrevFull = function(){ setPrevFull(!window._pvFull); };
 function closePrev(){
@@ -14295,6 +14340,7 @@ function closePrev(){
   if (ps) ps.remove();
   document.body.style.overflow = '';
   document.body.classList.remove('previewing');
+  clearTimeout(window._pvNoT);
   window._pvEx = null;
   window._pvFull = false;
   window._pvZoom = 1;
@@ -14378,7 +14424,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v397';
+var APP_VER = 'v398';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
