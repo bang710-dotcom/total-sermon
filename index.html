@@ -8863,6 +8863,14 @@ window.occPick = function(i){
 };
 
 $('#occ_gen').addEventListener('click', aiOccGen);
+/* [＋ 새 설교 시작하기] — 캐시(작성 중 임시저장·현재 버퍼)를 무시하고 빈 설교로 시작.
+   캐시에 내용이 있으면 삭제 여부를 먼저 확인한 뒤, clearCompose로 버퍼·초안 캐시를 비우고 작성 화면으로 이동. */
+$('#occ_new').addEventListener('click', function(){
+  if (composeHasAnyContent() && !confirm('캐시에 저장된 내용이 있습니다. 삭제하고 새로 시작할까요?')) return;
+  clearCompose();
+  showPage('compose');
+  toast('빈 설교로 새로 시작합니다.');
+});
 $('#occPane').addEventListener('click', async function(e){
   if (e.target.closest('#occRegen') && await uiConfirm('선택지 3세트를 새로 생성할까요? 현재 선택지는 사라집니다.')) aiOccGen();
 });
@@ -14496,7 +14504,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v399';
+var APP_VER = 'v400';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
