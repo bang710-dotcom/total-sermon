@@ -944,7 +944,7 @@ body.fmPhase1 #editorPane .edHeader{opacity:0;pointer-events:none}
 body.focusMode #editorPane{max-width:760px;margin:0 auto;padding:8vh 26px 4vh;min-height:auto;box-sizing:border-box}
 /* 텍스트 칸: 선 없이 투명, 포커스해도 테두리 없음, 스크롤바 없음 */
 body.focusMode #editorPane .edTa,
-body.focusMode #editorPane .edFree{font-size:calc(15.5px * var(--edScale,1));font-family:var(--edFont,inherit);color:var(--text);line-height:1.85;background:transparent!important;border-color:transparent!important;box-shadow:none!important;resize:none;scrollbar-width:none;overflow:hidden}
+body.focusMode #editorPane .edFree{font-size:calc(15.5px * var(--edScale,1));font-family:var(--edFont,inherit);color:var(--text);line-height:1.85;text-align:justify;background:transparent!important;border-color:transparent!important;box-shadow:none!important;resize:none;scrollbar-width:none;overflow:hidden}
 /* 집중모드 작성칸은 JS(fmAutosize)가 내용 높이에 맞춰 height를 인라인으로 지정 → 잘림 없이 전체 표시, 페이지가 스크롤. 짧은 글이면 화면을 채워 본문 아래도 입력영역이 됨. */
 body.focusMode #editorPane .edTa::-webkit-scrollbar,
 body.focusMode #editorPane .edFree::-webkit-scrollbar{width:0;height:0;display:none}
@@ -959,6 +959,7 @@ body.focusMode.fmBarShow #focusBar{opacity:.97;pointer-events:auto;transform:tra
 #focusBar button:hover{border-color:var(--accent)}
 #focusBar .fbSep{width:1px;align-self:stretch;background:var(--line);margin:2px 2px}
 #focusBar .fbExit{color:var(--accent2)}
+#focusBar .fbSave{color:var(--accent);border-color:var(--accent)}
 #focusBar .fbChips{display:flex;flex-wrap:wrap;gap:4px}
 #focusBar:not(.free) .fbChips,#focusBar:not(.free) .fbChipSep{display:none}
 #focusBar .fbChip{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:11.5px;font-weight:700;color:var(--text);cursor:pointer;min-width:0}
@@ -3824,21 +3825,20 @@ function updateComposeBadge(){
 }
 /* 편집 상태에 따라 저장 버튼 라벨·강조를 바꿔 [저장]↔[새 설교로 저장] 혼동을 막는다 */
 function refreshSaveButtons(){
-  var save = $('#c_save'), asNew = $('#c_saveAs');
-  if (!save || !asNew) return;
+  var save = $('#c_save'), asNew = $('#c_saveAs'), fmSave = $('#fmSaveBtn');
   if (state.editing){
     var s = findSermon(state.editing);
-    save.innerHTML = '수정 저장';
-    save.title = (s && s['제목'] ? '「' + s['제목'] + '」 ' : '') + state.editing + ' 덮어쓰기(이 설교를 갱신)';
-    asNew.innerHTML = '사본으로<br>새로 저장';
-    asNew.title = '원본은 그대로 두고 똑같은 내용의 새 설교를 하나 더 만듭니다';
-    asNew.classList.add('saveAsWarn');
+    if (save){ save.innerHTML = '수정 저장';
+      save.title = (s && s['제목'] ? '「' + s['제목'] + '」 ' : '') + state.editing + ' 덮어쓰기(이 설교를 갱신)'; }
+    if (asNew){ asNew.innerHTML = '사본으로<br>새로 저장';
+      asNew.title = '원본은 그대로 두고 똑같은 내용의 새 설교를 하나 더 만듭니다';
+      asNew.classList.add('saveAsWarn'); }
+    if (fmSave){ fmSave.textContent = '수정저장'; fmSave.title = '이 설교를 갱신(덮어쓰기)'; }
   } else {
-    save.innerHTML = '저장';
-    save.title = '';
-    asNew.innerHTML = '새 설교로<br>저장';
-    asNew.title = '';
-    asNew.classList.remove('saveAsWarn');
+    if (save){ save.innerHTML = '저장'; save.title = ''; }
+    if (asNew){ asNew.innerHTML = '새 설교로<br>저장'; asNew.title = '';
+      asNew.classList.remove('saveAsWarn'); }
+    if (fmSave){ fmSave.textContent = '저장'; fmSave.title = '설교 저장'; }
   }
 }
 window.editDirect = function(){
@@ -4678,6 +4678,7 @@ function enterFocusMode(){
       document.body.classList.add('focusMode');
       document.body.classList.remove('fmPhase1');
       var bar = document.getElementById('focusBar'); if (bar) bar.classList.add('free');
+      if (typeof refreshSaveButtons === 'function') refreshSaveButtons();   /* 저장/수정저장 라벨 동기화 */
       fmRestorePrefs();
       fmSetSpellcheck(false);                                  /* 맞춤법 밑줄 숨김 */
       fmFlip(ed, first);                                       /* 우측 → 가운데 */
@@ -4727,6 +4728,7 @@ document.addEventListener('click', function(e){
   var b = e.target.closest('button'); if (!b) return;
   var act = b.dataset.act;
   if (act === 'exit') exitFocusMode();
+  else if (act === 'save') { if (typeof doSaveCompose === 'function') doSaveCompose(); }
   else if (act === 'inc') fmSetScale(0.08);
   else if (act === 'dec') fmSetScale(-0.08);
   else if (act === 'size0') fmSetScale('reset');
@@ -14510,7 +14512,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v401';
+var APP_VER = 'v402';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -15015,6 +15017,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 <!-- ============ 글쓰기 집중 모드 플로팅 툴바 ============ -->
 <div id="focusBar" role="toolbar" aria-label="집중 모드 도구">
   <button class="fbExit" data-act="exit" type="button" title="집중 모드 끝내기 (Esc)">✕ 나가기</button>
+  <button id="fmSaveBtn" class="fbSave" data-act="save" type="button" title="설교 저장">저장</button>
   <span class="fbSep"></span>
   <button data-act="dec" type="button" title="글자 작게">A−</button>
   <button data-act="size0" type="button" title="기본 글자 크기">A</button>
