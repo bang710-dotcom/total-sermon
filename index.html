@@ -3486,13 +3486,27 @@ function studyFillFromChip(e){
   else if (kind === 'body') fillPointBody(pidx, val);
   else if (kind === 'apply') fillPointApply(pidx, val);
 }
+/* 예배구분(작성 폼 #c_service) → 대상 청중. '대학부' 포함 시 20대 청년, 그 외/미지정 시 장년. */
+function composeAudience(){
+  var svc = ($('#c_service') && $('#c_service').value || '').trim();
+  return /대학부/.test(svc) ? '20대 청년' : '장년';
+}
+/* AI 생성 프롬프트(시스템)에 덧붙이는 대상 청중 지침 — 예배구분을 참고해 눈높이를 맞춘다. */
+function audienceDirective(){
+  var aud = composeAudience();
+  return '\n\n★대상 청중: ' + aud + '. 이 설교를 듣는 회중은 ' + aud
+    + '입니다. 예화·사례·어휘·눈높이·삶의 정황을 ' + aud + '에게 와닿도록 맞추되, 본문의 메시지와 무게는 그대로 유지한다.'
+    + (aud === '20대 청년'
+        ? ' (20대 청년: 대학·진로·취업·연애·정체성·불안 등 청년의 실존을 배경으로.)'
+        : ' (장년: 일·가정·자녀·책임·소진 등 장년의 삶을 배경으로.)');
+}
 async function aiReframe(){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 대지 보강을 쓸 수 있습니다.'); return; }
   var pts = composePoints();
   if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
   try {
     var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts.map(function(p){ return { 문: p.문, 근거: p.근거 }; }) };
-    var out = await callClaude(P_REFRAME, JSON.stringify(input), 6000, aiTick('대지 보강'));
+    var out = await callClaude(P_REFRAME + audienceDirective(), JSON.stringify(input), 6000, aiTick('대지 보강'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
     $('#ptReframe').innerHTML = '<div class="rfBox"><div class="rfHd">대지 보강 제안 <small>· 칩을 누르면 대지 맨 아래 [대지정리] 칸에 채워집니다</small></div>'
@@ -3620,7 +3634,7 @@ async function aiBlockGen(pi, bi){
       if (ch === 'cancel') return;
       append = (ch === 'extra');
     }
-    var out = await callClaude(prompt, JSON.stringify(input), 2500, aiTick(label + ' 생성'));
+    var out = await callClaude(prompt + audienceDirective(), JSON.stringify(input), 2500, aiTick(label + ' 생성'));
     var j = aiJson(out);
     var text = String((j && j.결과) || '').trim();
     if (!text) throw new Error('생성 결과가 비었습니다 — 다시 시도해 주세요.');
@@ -3647,7 +3661,7 @@ async function aiIllustration(i, bi){
   for (var k = bi - 1; k >= 0; k--){ var bb = blocks[k]; if (bb.type === 'apply'){ role = 'apply'; prevText = bb.apply || ''; break; } if (bb.type === 'body'){ role = 'body'; prevText = bb.body || ''; break; } }
   try {
     var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: p.text || '', 직전내용: String(prevText).trim().slice(0, 800), 예화역할: role === 'apply' ? '적용강화' : '본문이해' };
-    var out = await callClaude(P_ILLUS, JSON.stringify(input), 4000, aiTick('예화 추천'));
+    var out = await callClaude(P_ILLUS + audienceDirective(), JSON.stringify(input), 4000, aiTick('예화 추천'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
     illPick(i, bi, role, arr);
@@ -14539,7 +14553,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v403';
+var APP_VER = 'v404';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
