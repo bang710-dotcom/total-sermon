@@ -4539,11 +4539,17 @@ function fmAutosize(){
   if (!document.body.classList.contains('focusMode')) return;
   var ed = document.getElementById('editorPane'); if (!ed) return;
   var ta = ed.querySelector('.edFree'); if (!ta) return;
+  /* 높이 재계산 중 height='auto'로 칸이 잠깐 줄면 스크롤 컨테이너(#page-compose) 내용이 짧아져
+     브라우저가 scrollTop을 (작아진) 최대값으로 클램프 → 타이핑 시작 순간 화면이 최상단으로 튄다.
+     재계산 전후로 스크롤 위치를 보존해 커서 자리를 유지한다. */
+  var sc = document.getElementById('page-compose');
+  var top = sc ? sc.scrollTop : 0;
   ta.style.height = 'auto';
   var content = ta.scrollHeight;
   ta.style.height = content + 'px';
   var deficit = window.innerHeight - ed.offsetHeight;   /* editorPane이 화면보다 짧으면(짧은 글) 그만큼 채움 */
   if (deficit > 0) ta.style.height = (content + deficit) + 'px';
+  if (sc && sc.scrollTop !== top) sc.scrollTop = top;   /* 튄 스크롤 복원 */
 }
 function fmSetScale(d){
   var cur = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
@@ -14504,7 +14510,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v400';
+var APP_VER = 'v401';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
