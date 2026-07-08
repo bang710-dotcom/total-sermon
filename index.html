@@ -7100,17 +7100,18 @@ async function aiManuscript(id, meta){
     /* 완성 원고를 바로 DOCX로 내보내지 않고 오른쪽 작성창에 채운다 —
        검토·수정 후 [내보내기]로 DOCX 생성. 자유원고는 이어진 텍스트, 기본·카드원고는 구조 파싱. */
     var c = state.compose;
-    /* 구조 코드 자동 주입: 적용·실천 문단→(실천), 예화 뒤 본문→(대지 내용). 기본↔자유 토글에도 구조가 유지되게 한다. */
-    var seenEx = false;
+    /* 구조 코드 자동 주입: 적용·실천 문단만 (실천) 마커를 붙인다.
+       ★예화(ex) 뒤에 이어지는 서술 문단에는 마커를 붙이지 않는다 — 파서가 그 서술을 직전 예화 블록의
+       내용(illBody)으로 이어 담게 하려는 것. (예전에는 (대지 내용) 마커를 붙였는데, 파서에서 이 마커가
+       예화 블록을 빈 채로 닫고 새 주해근거 블록을 만들어 그리로 서술이 빠져 → 예화 내용이 주해근거창으로
+       옮겨가며 구조가 깨졌다. v405 수정.) */
     c.free = arr.map(function(p){
       var t = p.t || 'p', x = String(p.x || '');
       var cv = toLeadRefQuote(x.trim()); x = (cv !== x.trim()) ? cv : x;   /* 본문 인용 새 형식 강제 */
       x = x.replace(/^\s*\((?:주해|근거|적용|강화|실천|정리|대지\s*내용|내용|서론|결론)\)\s*/, '');   /* 모델이 코드를 이미 넣었으면 제거(중복 방지) */
-      if (t === 'head') { seenEx = false; return x; }
-      if (t === 'ex') { seenEx = true; return x; }
-      if (t === 'quote') { return x; }
-      if (t === 'apply') { return '(실천) ' + x; }
-      return (seenEx ? '(대지 내용) ' : '') + x;   /* 예화 뒤에 이어지는 본문은 마커로 구분 */
+      if (t === 'ex') return /^\s*ex\)/i.test(x) ? x : 'ex) ' + x;   /* 예화 제목 줄은 반드시 "ex) " — 파서가 예화 블록으로 인식 */
+      if (t === 'apply') return '(실천) ' + x;
+      return x;   /* head(번호 대지)·quote·p·예화 뒤 서술 — 마커 없이 그대로(예화 뒤 서술은 파서에서 예화 본문으로 이어짐) */
     }).join('\n');
     if (c.style === '자유원고') {
       renderEditor();
@@ -14553,7 +14554,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v404';
+var APP_VER = 'v405';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
