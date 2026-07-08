@@ -667,6 +667,23 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
 @media (min-width: 900px) and (hover: hover){ #moreSheet{display:none !important} }
 .m-deskonly-note{display:none}
 
+/* 블록 타입 변경 바텀시트 — 구조화 칩 길게 누르기(500ms)/우클릭 */
+.ptRow .ptBlk .blkTag{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#btSheet{position:fixed;inset:0;z-index:9997;display:none}
+#btSheet.open{display:block}
+#btSheet .btBack{position:absolute;inset:0;background:rgba(8,10,16,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+#btSheet .btPanel{position:absolute;left:0;right:0;bottom:0;margin:0 auto;max-width:560px;background:var(--card);border-top:1px solid var(--line);border-radius:18px 18px 0 0;padding:8px 14px calc(18px + env(safe-area-inset-bottom));max-height:82vh;overflow:auto;animation:btUp .18s ease}
+@keyframes btUp{from{transform:translateY(22px);opacity:.5}to{transform:none;opacity:1}}
+#btSheet .btGrab{width:42px;height:4px;border-radius:2px;background:var(--line);margin:6px auto 10px}
+#btSheet .btTitle{font-size:13px;color:var(--dim);margin:0 4px 4px}
+#btSheet .btSub{font-size:11.5px;color:var(--dim);margin:0 4px 12px;opacity:.8}
+#btSheet .btList{display:flex;flex-direction:column;gap:8px}
+#btSheet .btItem{display:flex;flex-direction:column;align-items:flex-start;gap:3px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--text);font-family:inherit;text-align:left;cursor:pointer;width:100%}
+#btSheet .btItem:hover{border-color:var(--accent)}
+#btSheet .btItem.on{border-color:var(--accent);background:#1a2030;cursor:default;opacity:.9}
+#btSheet .btItemName{font-size:14px;font-weight:700;color:var(--accent)}
+#btSheet .btItemDesc{font-size:12px;color:var(--dim);line-height:1.35}
+
 /* ===================== 태블릿 가로모드: 좌우 2분할 =====================
    아이패드(터치) 가로 + 폭 1000px↑(미니 가로 1133, 프로 가로 1366 등)에서
    주요 작업 페이지를 좌(목록/폼) + 우(상세/에디터) 2분할로. 각 패널이 독립
@@ -3878,7 +3895,7 @@ function renderPoints(){
       var handle = '<span class="dragH" data-i="' + i + '" data-bi="' + bi + '" title="드래그로 이동 · 우클릭/길게 눌러 삭제">⠿</span>';
       if (b.type === 'ill') {
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
-          '<span class="blkTag illTag">ex)</span>' +
+          '<span class="blkTag illTag" title="길게 눌러 타입 변경">ex)</span>' +
           '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
           '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="이 위치에 맞는 예화 추천·생성">AI</button></div>';
       }
@@ -3889,7 +3906,7 @@ function renderPoints(){
       var isAp = b.type === 'apply';
       var roleCls = 'role-' + (role === '주해근거' ? 'exeg' : role === '대지적용' ? 'appgen' : role === '대지강화' ? 'strong' : role === '대지실천' ? 'appact' : 'summ');
       return '<div class="ptBlk ' + (isAp ? 'applyBlk' : 'bodyBlk') + ' ' + roleCls + '" data-i="' + i + '" data-bi="' + bi + '">' + handle +
-        '<span class="blkTag ' + (isAp ? 'applyTag' : 'bodyTag') + '">' + esc(role) + '</span>' + prev + '</div>';
+        '<span class="blkTag ' + (isAp ? 'applyTag' : 'bodyTag') + '" title="길게 눌러 타입 변경">' + esc(role) + '</span>' + prev + '</div>';
     }).join('');
     return '<div class="ptRow">' +
       '<div class="ptHead"><span class="ptNo">' + (i + 1) + '.</span>' +
@@ -3981,6 +3998,103 @@ function cwBlockMove(srcI, srcBi, dstI, dstIdx){
   if (!sp.blocks.length) sp.blocks.push(newBodyBlock(''));
   renderPoints(); renderEditor();
 }
+/* ===== 블록 타입(역할) 변경 — 구조화 칩 길게 누르기/우클릭 ===== */
+/* 변경 가능한 모든 블록 타입. type/필드는 ROLE_FIELD로 결정(예화만 ill). */
+var BLOCK_TYPE_CHOICES = [
+  { role: '주해근거', desc: '본문이 이 메시지를 어떻게 지지하는가 (주해적 근거)' },
+  { role: '대지적용', desc: '청중이 "내 얘기다" 느끼게 하는 공감 단락' },
+  { role: '대지강화', desc: '선언적 명제·함의로 가슴에 심는 단락' },
+  { role: '대지실천', desc: '삶에 촉구하는 구체적 실천·결단' },
+  { role: '대지정리', desc: '정리하고 다음 단락으로 넘어가는 연결부' },
+  { role: '예화', desc: '이야기·사례 블록 (제목+내용)' }
+];
+function blockPlainText(b){
+  if (!b) return '';
+  if (b.type === 'ill') return [b.ill, b.illBody].filter(function(s){ return String(s || '').trim(); }).join('\n');
+  return b[blockField(b)] || '';
+}
+/* 블록의 타입/역할을 바꾸되 작성 내용은 그대로 옮긴다(텍스트 손실 없음). */
+function cwBlockChangeRole(i, bi, role){
+  var p = state.compose.points[i]; if (!p) return;
+  var bl = p.blocks, b = bl[bi]; if (!b) return;
+  if (blockRole(b) === role) return;
+  var text = blockPlainText(b), nb;
+  if (role === '예화') nb = newIllBlock('', text);           /* 본문 텍스트는 예화 내용으로(제목은 비움) */
+  else if (ROLE_FIELD[role] === 'apply') nb = newApplyBlock(text, role);
+  else nb = newBodyBlock(text, role);
+  if (b._h) nb._h = b._h;                                    /* 사용자가 조절한 textarea 높이 보존 */
+  bl[bi] = nb;
+  renderPoints(); renderEditor();
+  toast('블록을 [' + role + ']로 바꿨습니다.');
+}
+var openBlockTypeSheet;
+(function(){
+  var ov = document.createElement('div');
+  ov.id = 'btSheet';
+  ov.innerHTML = '<div class="btBack"></div>' +
+    '<div class="btPanel" role="dialog" aria-modal="true" aria-label="블록 타입 변경">' +
+    '<div class="btGrab"></div><div class="btTitle">블록 타입 변경</div>' +
+    '<div class="btSub">작성한 내용은 그대로 옮겨집니다.</div>' +
+    '<div class="btList"></div></div>';
+  document.body.appendChild(ov);
+  var listWrap = ov.querySelector('.btList');
+  var curI = null, curBi = null;
+  function close(){ ov.classList.remove('open'); }
+  ov.querySelector('.btBack').addEventListener('click', close);
+  listWrap.addEventListener('click', function(e){
+    var btn = e.target.closest ? e.target.closest('.btItem') : null;
+    if (!btn || btn.disabled) return;
+    var role = btn.dataset.role; close();
+    if (role && curI != null) cwBlockChangeRole(curI, curBi, role);
+  });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && ov.classList.contains('open')) close(); });
+  openBlockTypeSheet = function(i, bi){
+    var p = state.compose.points[i]; if (!p) return;
+    var b = pBlocks(p)[bi]; if (!b) return;
+    curI = i; curBi = bi;
+    var cur = blockRole(b);
+    listWrap.innerHTML = BLOCK_TYPE_CHOICES.map(function(c){
+      var on = c.role === cur;
+      return '<button type="button" class="btItem' + (on ? ' on' : '') + '" data-role="' + esc(c.role) + '"' + (on ? ' disabled' : '') + '>' +
+        '<span class="btItemName">' + esc(c.role) + (on ? ' · 현재' : '') + '</span>' +
+        '<span class="btItemDesc">' + esc(c.desc) + '</span></button>';
+    }).join('');
+    ov.classList.add('open');
+  };
+})();
+/* 구조화 칩 길게 누르기(500ms)/우클릭 감지 → 타입 변경 시트 */
+(function(){
+  var listEl = document.getElementById('pointList');
+  if (!listEl) return;
+  var lp = null, sx = 0, sy = 0;
+  function tagBlk(e){
+    var tag = e.target.closest ? e.target.closest('.blkTag') : null;
+    if (!tag) return null;
+    var blk = tag.closest('.ptBlk');
+    return (blk && blk.dataset.i != null) ? blk : null;
+  }
+  function clear(){ if (lp){ clearTimeout(lp); lp = null; } }
+  listEl.addEventListener('pointerdown', function(e){
+    var blk = tagBlk(e); if (!blk) return;
+    var i = +blk.dataset.i, bi = +blk.dataset.bi;
+    sx = e.clientX; sy = e.clientY; clear();
+    lp = setTimeout(function(){
+      lp = null;
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch(_){}
+      openBlockTypeSheet(i, bi);
+    }, 500);
+  });
+  listEl.addEventListener('pointermove', function(e){
+    if (lp && (Math.abs(e.clientX - sx) > 8 || Math.abs(e.clientY - sy) > 8)) clear();
+  });
+  listEl.addEventListener('pointerup', clear);
+  listEl.addEventListener('pointercancel', clear);
+  listEl.addEventListener('contextmenu', function(e){   /* 데스크탑: 칩 우클릭으로도 */
+    var blk = tagBlk(e); if (!blk) return;
+    e.preventDefault(); clear();
+    openBlockTypeSheet(+blk.dataset.i, +blk.dataset.bi);
+  });
+})();
 (function(){
   var listEl = document.getElementById('pointList');
   if (!listEl) return;
@@ -14556,7 +14670,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v405';
+var APP_VER = 'v406';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
