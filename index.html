@@ -5433,6 +5433,7 @@ function pushComposeDraftRemote(){
       apiPost({ action: 'update', sheet: 'seriesdraft', data: data })
         .then(function(){ _cdraftLastSig = sig; row['메타JSON'] = blob; row['수정일'] = nowLocalStr_(); }).catch(function(){});
     } else {
+      data['로컬ID'] = stableLid_(['CDRAFT']);   /* 고정 멱등키 — 응답 유실 후 재add가 유령 행을 늘리지 않고 한 행으로 수렴 */
       apiPost({ action: 'add', sheet: 'seriesdraft', data: data }).then(function(id){
         _cdraftLastSig = sig;
         if (!id || typeof id !== 'string') return;
@@ -5446,10 +5447,10 @@ var pushComposeDraftRemoteSoon = debounce(pushComposeDraftRemote, 10000);
 function dropComposeDraftRemote(){
   try {
     _cdraftLastSig = '';
-    var row = findComposeDraftRow();
-    if (!row || !row['ID']) return;
-    apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: row['ID'] } }).catch(function(){});
-    state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return x !== row; });
+    /* 과거 응답 유실로 늘어난 유령 행까지 전부 정리 — 1행만 지우면 남은 행이 '다른 기기 작성 원고'로 오제안됨 */
+    var rows = (state.data.seriesdraft || []).filter(function(r){ return r && r['시리즈명'] === CDRAFT_NAME && r['ID']; });
+    rows.forEach(function(row){ apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: row['ID'] } }).catch(function(){}); });
+    state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return !(x && x['시리즈명'] === CDRAFT_NAME); });
   } catch (e) {}
 }
 /* 동기화 후 호출 — 원격 작성초안이 이 기기 것보다 새로우면 배너로 복원 제안 */
@@ -6233,9 +6234,15 @@ function obsChapLink(s){
 }
 function obsYaml(v){
   v = String(v == null ? '' : v);
-  if (/[:#\[\]{}&*!|>'"%@`\n]/.test(v) || /^\s|\s$/.test(v)) return '"' + v.replace(/"/g, '\\"') + '"';
+  /* 백슬래시도 인용 유발 문자에 포함 + '- '로 시작하는 값(YAML 리스트로 오인)도 인용.
+     인용 시 백슬래시를 먼저 이스케이프해야 \" 조합이 깨지지 않는다. */
+  if (/[:#\[\]{}&*!|>'"%@`\n\\]/.test(v) || /^\s|\s$/.test(v) || /^-/.test(v)) return '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
   return v;
 }
+/* 옵시디언 위키링크([[...]]) 안전화: | # [ ] ^ 는 링크 문법을 깨뜨림 → 공백 치환 */
+function obsLinkName(s){ return String(s || '').replace(/[|#\[\]^]/g, ' ').replace(/\s+/g, ' ').trim(); }
+/* 옵시디언 태그 안전화: 한글·영숫자·_·- 외 문자는 _ 치환(태그 끊김 방지) */
+function obsTagName(s){ return String(s || '').trim().replace(/\s+/g, '_').replace(/[^0-9A-Za-z가-힣_\-\/]/g, '_'); }
 /* 표준 요약본 마크다운 → 옵시디언 콜아웃. 매칭 안 되면 원문 통과(안전). */
 function obsBody(s){
   var sum = String(s['요약본'] || '').trim();
@@ -6271,8 +6278,8 @@ function obsNote(s){
   if (String(s['핵심메시지'] || '').trim()) head.push('> [!info] 한 줄 메시지\n> ' + String(s['핵심메시지']).trim());
   var links = [];
   var cl = obsChapLink(s); if (cl) links.push('본문: [[본문/' + cl + ']]');
-  if (String(s['시리즈'] || '').trim()) links.push('시리즈: [[시리즈/' + String(s['시리즈']).trim() + ']]');
-  if (tags.length) links.push('주제: ' + tags.map(function(t){ return '#' + t.replace(/\s+/g, '_'); }).join(' '));
+  if (String(s['시리즈'] || '').trim()) links.push('시리즈: [[시리즈/' + obsLinkName(s['시리즈']) + ']]');
+  if (tags.length) links.push('주제: ' + tags.map(function(t){ return '#' + obsTagName(t); }).join(' '));
   if (_link) links.push('원고: [전문 보기](' + _link + ')');
   if (links.length) head.push(links.join(' · '));
   var body = obsBody(s);
@@ -12556,10 +12563,13 @@ $('#impRegister').addEventListener('click', async function(){
   /* 이미 시트에 있는 같은 날짜·제목(또는 같은 원본 파일)의 설교 — 경고만 하지 않고 등록 전에 한 번 확인 */
   var dups = picked.filter(function(r){
     return (state.data.sermons || []).some(function(s){
-      return (s['비고'] || '').indexOf(r.fname) >= 0 || (s['날짜'] === r['날짜'] && s['제목'] === r['제목']);
+      return _nfcIncl(s['비고'] || '', r.fname) || (s['날짜'] === r['날짜'] && _nfcEq(String(s['제목'] || ''), String(r['제목'] || '')));
     });
   });
   if (dups.length && !await uiConfirm('⚠ ' + dups.length + '건은 같은 날짜·제목(또는 같은 원본)의 설교가 이미 시트에 있습니다.\n그래도 등록할까요? (같은 설교가 두 행이 될 수 있습니다)')) return;
+  /* 45,000자 초과 원고는 시트에 앞부분만 저장됨 — 무통보 절단 방지(작성 화면 저장과 동일한 안내) */
+  var overs = picked.filter(function(r){ return String(r['원고텍스트'] || '').length > 45000; });
+  if (overs.length && !await uiConfirm('⚠ ' + overs.length + '건은 원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다(원본 파일은 그대로).\n계속 등록할까요?')) return;
   var rows = picked.map(function(r){
     return { '날짜': r['날짜'], '예배구분': r['예배구분'], '제목': r['제목'], '본문': r['본문'],
       '상태': r['상태'], '원고텍스트': r['원고텍스트'].slice(0, 45000), '비고': '원본: ' + r.fname,
