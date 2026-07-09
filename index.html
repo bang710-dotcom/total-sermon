@@ -1869,6 +1869,24 @@ function adoptQueuedAddLid_(data){
     }
   } catch(e){}
 }
+/* 작성 세션의 신규 add 멱등키 관리: 제목 기준 입양(adopt)에 더해, 직전 오프라인 저장이 이미
+   flush(자동 전송)됐거나 제목이 바뀌어 입양이 빗나가도, 같은 작성 세션의 멱등키(state.pendingAddLid)를
+   재사용해 서버가 같은 행으로 upsert하게 한다(같은 설교 2행 방지). */
+function composeAdoptAddLid_(data){
+  adoptQueuedAddLid_(data);
+  try {
+    if (!data['로컬ID'] && state.pendingAddLid) {
+      data['로컬ID'] = state.pendingAddLid;
+      var changed = false;
+      for (var i = state.queue.length - 1; i >= 0; i--) {   /* 큐에 남은 같은 멱등키 add는 이번 내용으로 대체 */
+        var q = state.queue[i];
+        if (q && q.action === 'add' && q.sheet === 'sermons' && q.data &&
+            String(q.data['로컬ID'] || '') === String(state.pendingAddLid)) { state.queue.splice(i, 1); changed = true; }
+      }
+      if (changed) save(LS.queue, state.queue);
+    }
+  } catch(e){}
+}
 function apiPost(body){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
@@ -2122,22 +2140,74 @@ function bootLoad(){
 }
 
 var _flushing = false;
+/* 대기열 add가 백그라운드 flush로 시트에 오르면 새 ID를 로컬 목록에, 설교 add는 작성 세션에도 연결.
+   (오프라인 신규 저장 → 자동 전송 뒤 같은 화면에서 다시 [저장]해도 같은 행으로 이어지게 — 중복 행 방지) */
+function _linkFlushedAdd_(item, id){
+  if (!item || item.action !== 'add' || !item.sheet || !item.data) return;
+  if (!id || typeof id !== 'string') return;
+  try {
+    if (state.data[item.sheet]) {
+      var rec = Object.assign({}, item.data, { ID: id, '수정일': nowLocalStr_() });
+      if (item.sheet === 'sermons' && rec['원고텍스트'] != null) { rec._txt = true; rec._txtAt = rec['수정일']; }
+      upsertById(state.data[item.sheet], [rec]); saveData();
+    }
+  } catch (e) {}
+  var lid = (item.sheet === 'sermons') ? String(item.data['로컬ID'] || '') : '';
+  if (lid && state.pendingAddLid && String(state.pendingAddLid) === lid && !state.editing) {
+    state.editing = id; state.pendingAddLid = null;
+    try { updateComposeBadge(); refreshReqBtns(); } catch (e) {}
+  }
+}
+/* 대기열 항목의 '영구 오류' 분류 — 한 항목의 영구 오류가 뒤 항목 전송까지 막는
+   포이즌 필이 되지 않도록 항목별 처분을 정한다. */
+function _queuePermErr_(item, e){
+  var msg = String(e && e.message || e);
+  var notFound = /찾지 못했습니다|not found|데이터가 없습니다|비어 있습니다/i.test(msg);
+  /* 삭제·복구류: 대상이 이미 없음 = 목적 달성(전송 성공 후 응답만 유실된 재시도 등) → 성공 간주 */
+  if (notFound && (item.action === 'delete' || item.action === 'softDelete' || item.action === 'restore')) return { drop: true };
+  /* 설교 update: 다른 기기에서 삭제된 행 → 새 설교로 재등록(submit의 v254 복구와 동일한 의도) */
+  if (notFound && item.action === 'update' && item.sheet === 'sermons' && item.data) {
+    var addBody = { action: 'add', sheet: 'sermons', data: Object.assign({}, item.data) };
+    delete addBody.data.ID; delete addBody.data['로컬ID'];
+    return { drop: true, replace: addBody };
+  }
+  if (notFound && item.action === 'update') return { drop: true };   /* 비설교 행 update: 대상이 삭제됨 → 폐기 */
+  return { drop: false };   /* 그 외(토큰·시트 설정 오류 등): 항목 보존 — 설정을 고치면 다음 동기화 때 전송 */
+}
 function flushQueue(){
   if (!state.queue.length || _flushing) return Promise.resolve();
   _flushing = true;
   var q = state.queue.slice();
   var chain = Promise.resolve();
+  var stopped = false, kept = 0;
   q.forEach(function(item){
     chain = chain.then(function(){
-      return apiPost(item).then(function(){
+      if (stopped) return;
+      if (state.queue.indexOf(item) < 0) return;   /* 전송 사이에 입양(adopt)으로 대체·제거된 항목은 건너뜀 */
+      return apiPost(item).then(function(id){
         /* 위치(shift) 대신 처리한 항목 자체를 제거 — 전송 중 submit이 새 항목을 push해도 잘못 제거되지 않음 */
         var i = state.queue.indexOf(item);
         if (i >= 0) state.queue.splice(i, 1);
         save(LS.queue, state.queue);
+        _linkFlushedAdd_(item, id);
+      }, function(e){
+        if (_isTransientNetErr(e)) { stopped = true; kept++; return; }   /* 통신 오류 — 이번 라운드 중단, 다음 동기화 때 이어서 */
+        var r = _queuePermErr_(item, e);
+        if (r.drop) {
+          var i2 = state.queue.indexOf(item);
+          if (i2 >= 0) state.queue.splice(i2, 1);
+          if (r.replace) state.queue.splice(i2 >= 0 ? i2 : state.queue.length, 0, r.replace);   /* 재등록분은 다음 flush에서 전송 */
+          save(LS.queue, state.queue);
+        } else { kept++; }   /* 내용 보존이 필요한 항목(add 등) — 유지하되 뒤 항목은 계속 전송 */
       });
     });
   });
-  return chain.catch(function(){ renderStats(); toast('대기열 일부 전송 실패 — 다음 동기화 때 다시 시도합니다.'); }).then(function(){ _flushing = false; });
+  return chain.then(function(){
+    renderStats();
+    if (kept) toast(stopped ? '대기열 일부 전송 실패 — 다음 동기화 때 다시 시도합니다.'
+                            : '대기열 ' + kept + '건 전송 실패 — 설정(URL·토큰)과 시트 상태를 확인해 주세요.');
+    _flushing = false;
+  }, function(){ renderStats(); _flushing = false; });
 }
 
 /* 네트워크/일시 오류 판별 — fetch 실패는 브라우저마다 TypeError(Chrome "Failed to fetch",
@@ -2215,6 +2285,18 @@ function submit(body, okMsg, onResult, opts){
       ok(false);  /* 시트에도 대기열에도 없음 → 미저장 상태 유지 */
     }
   }).then(function(r){ hideWaitOverlay(); return r; });
+}
+/* AI 직결 생성물 저장 전용: 일시 통신 오류면 대기열에 durable 보관(수 분 걸린 유료 생성물 유실 방지).
+   성공/보관 모두 정상 진행, 영구 오류만 throw(호출부의 실패 처리로). */
+function apiPostOrQueue(body){
+  return apiPost(body).then(function(id){ return id; }, function(e){
+    if (_isTransientNetErr(e)) {
+      state.queue.push(body); save(LS.queue, state.queue); renderStats();
+      toast('통신 오류 — 결과를 대기열에 보관했습니다. 다음 동기화 때 자동 전송됩니다.');
+      return null;
+    }
+    throw e;
+  });
 }
 
 /* ===================== 검색 ===================== */
@@ -8760,6 +8842,11 @@ async function deleteArchivedOpts(ids){
   for (var i = 0; i < ids.length; i++){
     var id = ids[i];
     if (!id) continue;
+    /* ★ 보관/초안(선택지) 행만 삭제한다 — [확정 →]으로 승격된 [구상/연구] 행의 ID가
+       선택지 _id에 남아 있다가 [↻ 이 회차 재생성]에서 함께 넘어와도, 확정 설교를 지우지 않게 필터.
+       로컬에서 행을 못 찾는 ID도 상태를 확인할 수 없으므로 지우지 않는다(안전 우선). */
+    var row = (state.data.sermons || []).filter(function(x){ return String(x['ID']) === String(id); })[0];
+    if (!row || !isOptRow(row)) continue;
     await apiPost({ action: 'delete', sheet: 'sermons', data: { ID: id } });
     state.data.sermons = (state.data.sermons || []).filter(function(x){ return String(x['ID']) !== String(id); });
   }
