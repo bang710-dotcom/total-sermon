@@ -1,12 +1,15 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v406';           /* 앱 셸 — 버전마다 교체(index.html 등) */
+var CACHE = 'tsa-v407';           /* 앱 셸 — 버전마다 교체(index.html 등) */
 var CONTENT = 'tsa-content-v1';   /* 대용량 콘텐츠 — 버전 업에도 유지(매번 재다운로드 방지) */
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 var CONTENT_RE = /(illustrations\.json$|\/bible\/|\/commentary\/|\/fonts\/|\/devo_assets\/)/;
 
 self.addEventListener('install', function (e) {
   e.waitUntil(Promise.all([
-    caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }),
+    /* cache:'reload'로 HTTP 캐시를 우회해 항상 서버 최신본을 셸에 담는다(구본 고착 방지) */
+    caches.open(CACHE).then(function (c) {
+      return Promise.all(ASSETS.map(function (u) { return c.add(new Request(u, { cache: 'reload' })); }));
+    }),
     /* 예화 DB는 콘텐츠 캐시에 선적재 — 이미 있으면 재다운로드하지 않음 */
     caches.open(CONTENT).then(function (c) {
       return c.match('./illustrations.json').then(function (hit) { return hit ? null : c.add('./illustrations.json'); });
