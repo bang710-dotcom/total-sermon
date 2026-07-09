@@ -1923,7 +1923,8 @@ function _editingGuardId(){
    내가 편집을 시작한 기준본과 내용이 다르면 = 다른 기기가 그 설교를 바꿨다는 뜻.
    덮어쓰지 않고 보호하되(state.editingGuard), 저장 전에 경고하고 '다른 기기 내용 보기'를 제공한다.
    비교는 목록 응답에 들어오는 필드로만(원고텍스트는 목록에서 생략되므로 제외 — 한계). */
-var _CONFLICT_FIELDS = ['날짜','예배구분','시리즈','시리즈순번','제목','본문','상태','핵심메시지','대지','예화','키워드','비고','요약본','원고유형'];
+/* ⚠ '원고유형'은 구백엔드 시트 에코에 없어(스키마 추가 전) 비교에 넣으면 '다른 기기 수정' 오탐을 만든다 — 제외 */
+var _CONFLICT_FIELDS = ['날짜','예배구분','시리즈','시리즈순번','제목','본문','상태','핵심메시지','대지','예화','키워드','비고','요약본'];
 function _rowContentSig(r){
   if (!r) return '';
   return _CONFLICT_FIELDS.map(function(f){ return String(r[f] == null ? '' : r[f]); }).join('');
@@ -4414,8 +4415,9 @@ $$('#c_style .chip').forEach(function(ch){
     var crossesFree = (from === '자유원고') !== (to === '자유원고');
     if (crossesFree && composeHasAnyContent() && composeDirty()) {
       if (collectCompose()['제목']) {
-        var r = doSaveCompose();          /* 현재(전환 전) 형식으로 직렬화·저장 */
-        if (r === false) return;          /* 저장 단계에서 사용자가 취소 → 전환 중단 */
+        var r = await doSaveCompose();    /* 현재(전환 전) 형식으로 직렬화·저장 (async — 반드시 await로 결과 확인) */
+        if (r === null || r === false) return;   /* 제목 없음·충돌 확인 취소 → 전환 중단 */
+        if (composeDirty()) return;              /* 저장 실패(시트·대기열 모두 실패) → 미저장 상태로 전환하지 않음 */
       } else if (!await uiConfirm('아직 시트에 저장하지 않았습니다. 제목이 없어 자동 저장할 수 없어요.\n형식을 바꾸면 변환 과정에서 내용이 일부 사라질 수 있습니다. 그래도 계속할까요?')) {
         return;
       }
@@ -5679,7 +5681,21 @@ function cwDoInsert(field, append){
 var dirHandle = null;  /* DOCX 저장 (아이클라우드 01 Sermons — 설교 기본원고만. 카드원고·디자인 산출물은 결과함) */
 var xHandle = null;    /* 클로드 연동: 요청함·결과함 (Dropbox) */
 var _exportState = 'idle'; /* 설교계획 내보내기 상태: idle|busy|done */
-var _exportBlob = null; var _exportFname = '';
+var _exportBlob = null; var _exportFname = ''; var _exportSig = '';
+/* 캐시된 내보내기 DOCX가 '지금 이 시리즈의 지금 내용'인지 판별하는 서명 —
+   시리즈 전환·주차 수정 후 옛 파일이 조용히 다시 다운로드되는 것 방지 */
+function _exportSigOf(S){
+  try {
+    return JSON.stringify({ n: (S && S.meta || {})['시리즈명'] || '',
+      w: ((S && S.sermon && S.sermon.weeks) || []).map(function(w){
+        var ed = w.edit || {};
+        return [w['주일'] || '', w['주간범위'] || '', ed['제목'] || '', ed['본문'] || '', w.skip ? 1 : 0];
+      }) });
+  } catch (e) { return 'ERR' + Date.now(); }   /* 판별 불가 시 항상 '다름' → 새로 생성(안전) */
+}
+function _exportSyncState_(){
+  if (_exportState === 'done' && _exportSig !== _exportSigOf(state.series)) { _exportState = 'idle'; _exportBlob = null; _exportFname = ''; }
+}
 var ltcHandle = null;  /* LTC교재·리더스앱 저장 (06 양육훈련 프로그램/LTC — 책별 폴더) */
 function dirStateText(){
   if (!window.showDirectoryPicker) return '이 브라우저는 폴더 연결을 지원하지 않습니다. DOCX는 다운로드로 저장됩니다. (Chrome 권장)';
@@ -5941,6 +5957,7 @@ async function saveDocxBlob(blob, fname, dateStr){
 function updateExportBtn(){
   var btn = document.getElementById('spSermonExport');
   if (!btn) return;
+  _exportSyncState_();   /* 시리즈 전환·수정 후엔 캐시 무효 → 라벨도 '내보내기'로 복귀 */
   if (_exportState === 'busy') {
     btn.textContent = '▲ 내보내기 요청중';
     btn.setAttribute('style', 'flex:0 0 auto;width:auto;background:#2563EB;color:#fff;border-color:#2563EB;cursor:default');
@@ -6095,6 +6112,7 @@ function buildSeriesPlanDocx(D, S){
 
 /* ── 설교계획 내보내기 실행 ── */
 async function exportSeriesPlan(){
+  _exportSyncState_();   /* 시리즈 전환·주차 수정 후엔 캐시본을 버리고 새로 생성 */
   /* done 상태: 다운로드 */
   if (_exportState === 'done' && _exportBlob) {
     var a2 = document.createElement('a');
@@ -6113,7 +6131,7 @@ async function exportSeriesPlan(){
     var blob = await D.Packer.toBlob(doc);
     var sname = String((S.meta || {})['시리즈명'] || '시리즈').replace(/[\\/:*?"<>|]/g, '_');
     var fname = sname + '_주일설교계획.docx';
-    _exportBlob = blob; _exportFname = fname;
+    _exportBlob = blob; _exportFname = fname; _exportSig = _exportSigOf(S);
     /* xHandle 결과함에 저장 */
     if (xHandle) {
       try {
@@ -7022,8 +7040,8 @@ async function aiSummarize(id, s, force){
       32000, aiTick('요약본'));
     var j = aiJson(out);
     if (!j['요약본']) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
-    await apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': j['요약본'], '키워드': j['키워드'] || '' } });
-    await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': '', '비고': 'Opus API 직결 생성' } });
+    await apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': j['요약본'], '키워드': j['키워드'] || '' } });
+    await apiPostOrQueue({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': '', '비고': 'Opus API 직결 생성' } });
     var loc = findSermon(id);
     if (loc) { loc['요약본'] = j['요약본']; if (j['키워드']) loc['키워드'] = j['키워드']; }
     aiMarkDone(id, '설교요약', 'Opus API 직결 생성');
@@ -7076,8 +7094,8 @@ async function aiYouTubeSummarize(id){
       32000, aiTick('요약본'));
     var sj = aiJson(out);
     if (!sj['요약본']) throw new Error('요약 응답 형식 오류 — 다시 시도해 주세요.');
-    await apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': sj['요약본'], '키워드': sj['키워드'] || '' } });
-    await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': url, '비고': '유튜브 자동 전사+요약' + span } });
+    await apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': sj['요약본'], '키워드': sj['키워드'] || '' } });
+    await apiPostOrQueue({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': url, '비고': '유튜브 자동 전사+요약' + span } });
     s['요약본'] = sj['요약본']; if (sj['키워드']) s['키워드'] = sj['키워드'];
     aiMarkDone(id, '설교요약', '유튜브 자동 전사+요약');
     renderSyncState();
@@ -7449,7 +7467,7 @@ async function aiIdeaImages(imgs){
       if (!j['내용']) throw new Error('형식 오류');
       if (aiKey()) toast('예화 강화 중… (' + (i + 1) + '/' + imgs.length + ')');
       var data = await buildIdeaData(j['내용'], { '유형': '예화', '출처': j['출처'] || '이미지 스캔', '키워드': j['키워드'] || '' });
-      await apiPost({ action: 'add', sheet: 'ideas', data: data });
+      await apiPostOrQueue({ action: 'add', sheet: 'ideas', data: data });   /* 일시 오류 시 대기열 보관 — OCR·강화 결과 유실 방지 */
       okN++;
     } catch (e) { toast('이미지 ' + (i + 1) + ' 실패: ' + e.message); }
   }
@@ -8743,7 +8761,9 @@ async function archiveDevoRows(S){
     if (!String(r['본문범위'] || '').trim()) return;
     var rec = { '날짜': r['날짜'], '본문범위': r['본문범위'] || '', '제목': r['제목'] || '',
       '관찰질문': r['관찰질문'] || '', '묵상질문': r['묵상질문'] || '', '적용질문': r['적용질문'] || '',
-      '시리즈명': m['시리즈명'] || '' };
+      '시리즈명': m['시리즈명'] || '',
+      /* 안정 멱등키 — 응답 유실 후 재시도·양기기 동시 등록도 서버에서 같은 행으로 수렴(중복 행 방지) */
+      '로컬ID': stableLid_(['DEVO', m['시리즈명'] || '', r['날짜'] || '']) };
     var ex = (state.data.devo || []).filter(function(d){ return d['날짜'] === r['날짜'] && (d['시리즈명'] || '') === (m['시리즈명'] || ''); })[0];
     if (ex) { rec.ID = ex['ID']; ups.push(rec); } else adds.push(rec);
   });
@@ -8955,7 +8975,7 @@ function loadSermonFromArchive(S) {
     S.meta = S.meta || {};
     if (!S.meta['종류']) S.meta['종류'] = 'topic';
   }
-  S.sermon = { m: 0, weeks: weeks };
+  S.sermon = { m: Date.now(), weeks: weeks };   /* 시트 복원 시점 스탬프 — 옛 요청함 초안(m=파일시각)이 최신 복원본을 덮지 않게 */
   S.sermonDone = false;
   S.view = 'sermon';
   saveSeries();
@@ -9554,9 +9574,10 @@ $$('#composeMeta [data-req]').forEach(function(b){
     var pre = Promise.resolve(true);
     if (composeDirty()) {
       if (!await uiConfirm('저장하지 않은 변경이 있습니다.\n저장한 내용을 기준으로 생성합니다.\n\n[확인] 저장하고 생성 · [취소] 중단')) return;
-      var r = doSaveCompose();
+      var r = await doSaveCompose();   /* async — 반드시 await로 결과 확인(안 하면 실패해도 생성이 진행됨) */
       if (r === null || r === false) return; /* 제목 없음 / 사용자 취소 → 중단 */
-      pre = Promise.resolve(r).then(function(){ return true; });
+      if (composeDirty()) { toast('저장에 실패해 생성을 중단했습니다 — 저장 상태를 확인해 주세요.'); return; }
+      pre = Promise.resolve(true);
     }
     b.dataset.busy = '1'; b.disabled = true;
     pre.then(function(ok){
@@ -10136,7 +10157,7 @@ function buildDawnFromSheet(name){
   S.sched = sched.map(function(x){ return { '날짜': x['날짜'], '요일': x['요일'], '통독범위': x['통독범위'] }; });
   S.schedDate = dwSundayOf(dates[0] || '');
   S.devo = null; S.devoDone = false;
-  S.sermon = { m: 0, weeks: weeks };
+  S.sermon = { m: Date.now(), weeks: weeks };   /* 시트 복원 시점 스탬프(옛 요청함 결과의 역덮어쓰기 방지) */
   S.sermonDone = serms.length > 0;
   S.view = 'sermon';
   S._sheetSig = sheetSigForSeries(name);
@@ -10203,7 +10224,7 @@ function buildTopicFromSheet(name){
     '시작일': (isTp ? '' : (dates[0] || '')), '종료일': (isTp ? '' : (dates[dates.length - 1] || '')),
     '주일': [], '묵상일': [] };
   S.devo = null; S.devoDone = false;
-  S.sermon = { m: 0, weeks: weeks };
+  S.sermon = { m: Date.now(), weeks: weeks };   /* 시트 복원 시점 스탬프(옛 요청함 결과의 역덮어쓰기 방지) */
   S.sermonDone = serms.length > 0;
   S.view = 'sermon';
   S._sheetSig = sheetSigForSeries(name);
@@ -10232,7 +10253,7 @@ function buildSeriesFromSheet(name){
   S.meta = { '시리즈명': name, '성경범위': book, '시작일': start, '종료일': end,
     '예배구분': serms.length ? serms[0]['예배구분'] : '대학부', '요청사항': '',
     '묵상일': r.devoDays, '주일': r.sundays };
-  S.devo = { m: 0, rows: rows.map(function(d){ return { '날짜': d['날짜'], '본문범위': d['본문범위'], '제목': d['제목'],
+  S.devo = { m: Date.now(), rows: rows.map(function(d){ return { '날짜': d['날짜'], '본문범위': d['본문범위'], '제목': d['제목'],
     '관찰질문': d['관찰질문'], '묵상질문': d['묵상질문'], '적용질문': d['적용질문'] }; }) };
   S.devoDone = true; S.devoSig = spMetaSig(S.meta);
   /* sermon 주차: 모든 주일(r.sundays) 기준으로 보관+확정 통합 재구성 */
@@ -10240,7 +10261,7 @@ function buildSeriesFromSheet(name){
     : serms.map(function(s){ return s['날짜']; }); /* devo 없는 시리즈 fallback */
   var _healSeq = [];   /* 시트에 잘못 저장된 시리즈순번(건너뛴 주 미반영)을 달력 주차로 자동 보정 */
   if (sundays.length) {
-    S.sermon = { m: 0, weeks: sundays.map(function(sun, wi){
+    S.sermon = { m: Date.now(), weeks: sundays.map(function(sun, wi){
       /* 이 주일의 보관 선택지 → opts */
       var weekArcs = arcs.filter(function(s){ return s['날짜'] === sun; })
         .sort(function(a, b){ return (+(a['시리즈순번']||99)) - (+(b['시리즈순번']||99)); });
@@ -11007,7 +11028,9 @@ async function confirmDevo(){
   rows.forEach(function(r){
     var rec = { '날짜': r['날짜'], '본문범위': r['본문범위'] || '', '제목': r['제목'] || '',
       '관찰질문': r['관찰질문'] || '', '묵상질문': r['묵상질문'] || '', '적용질문': r['적용질문'] || '',
-      '시리즈명': m['시리즈명'] || '' };
+      '시리즈명': m['시리즈명'] || '',
+      /* 안정 멱등키 — 응답 유실 후 재확정·양기기 동시 확정도 서버에서 같은 행으로 수렴(같은 날짜 2행 방지) */
+      '로컬ID': stableLid_(['DEVO', m['시리즈명'] || '', r['날짜'] || '']) };
     var ex = (state.data.devo || []).filter(function(d){ return d['날짜'] === r['날짜'] && (d['시리즈명'] || '') === (m['시리즈명'] || ''); })[0];
     if (ex) { rec.ID = ex['ID']; ups.push(rec); } else adds.push(rec);
   });
@@ -13428,6 +13451,7 @@ async function genCoverWithRetry(c, engine){
 }
 /* 컷 배열로 실제 이미지 세트 생성: 표지=중앙 여백 배경 생성+제목·본문 합성, 일반=선택 엔진(Flux 또는 Gemini) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생+성구 합성 */
 async function generateImageSetFromCuts(id, meta, cuts){
+  if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   renumberCuts(cuts);   /* ★ 번호 #1=표지, #2부터 연속·고유(옛 사이드카 컷도 교정) */
   var eng = imgEngine();
@@ -13473,6 +13497,7 @@ async function generateImageSetFromCuts(id, meta, cuts){
 }
 async function generateSermonImageSet(id, meta, opts){
   opts = opts || {};
+  if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
   try {
     if (!canFolderSave()) { if (!opts.auto) toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
     if (!String(meta['원고텍스트'] || '').trim()) { if (!opts.auto) toast('원고를 먼저 작성해 주세요.'); return; }
@@ -13483,7 +13508,7 @@ async function generateSermonImageSet(id, meta, opts){
       if (cuts && cuts.length) await saveImgDataArtifacts(id, meta, cuts);
     }
     if (!cuts || !cuts.length) throw new Error('컷 생성 실패');
-    if (!opts.auto && !await uiConfirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) return;
+    if (!opts.auto && !await uiConfirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) { hideGenOverlay(); return; }   /* 취소 시 전체화면 오버레이 닫기(앱 잠김 방지) */
     await generateImageSetFromCuts(id, meta, cuts);
   } catch (e) { hideGenOverlay(); toast('이미지 세트 생성 실패: ' + (e.message || e)); }
 }
