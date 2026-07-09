@@ -5193,8 +5193,9 @@ function clearCompose(){
   state.editing = null;
   state.versionOf = null;
   state.remoteConflict = null;
+  state.pendingAddLid = null;   /* 새 작성 세션 — 이전 세션의 add 멱등키와 절연(엉뚱한 행 upsert 방지) */
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = ''; });
-  $('#c_date').value = new Date().toISOString().slice(0, 10);
+  $('#c_date').value = todayLocal_();
   $('#c_state').value = '구상/연구';
   $('#c_dupCheck').innerHTML = '';
   var rp = $('#c_refPast'); if (rp) rp.innerHTML = '';
@@ -5485,7 +5486,15 @@ function maybeOfferRemoteComposeDraft(){
   } catch (e) {}
 }
 
+/* 저장 재진입 잠금 — 버튼 잠금(_lockSaveBtns)이 커버하지 못하는 Cmd/Ctrl+S 연타 등
+   키보드 경로에서, 첫 add 응답이 오기 전 두 번째 저장이 새 행을 만드는 것 방지(버튼·키보드 공용). */
+var _composeSaving = false;
 async function doSaveCompose(){
+  if (_composeSaving) return null;
+  _composeSaving = true;
+  try { return await _doSaveComposeInner(); } finally { _composeSaving = false; }
+}
+async function _doSaveComposeInner(){
   var data = collectCompose();
   if (!data['제목']) { toast('제목을 입력해 주세요.'); return null; }
   if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
@@ -5517,9 +5526,10 @@ async function doSaveCompose(){
     /* 검토본 링크('충돌원본')는 작성폼에 없는 서버 보존 필드 → update 시 기존 로컬 행 값을 유지(링크 소실 방지). */
     var _exist = origId ? (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(origId); })[0] : null;
     var _keep = (_exist && _exist['충돌원본']) ? { '충돌원본': _exist['충돌원본'] } : {};
-    if (!origId) adoptQueuedAddLid_(data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
+    if (!origId) composeAdoptAddLid_(data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 + 직전 오프라인 저장 멱등키 재사용 */
     var body = origId ? { action: 'update', sheet: 'sermons', data: Object.assign({}, data, { ID: origId }, _keep) }
                       : { action: 'add', sheet: 'sermons', data: data };
+    if (!origId) { stampLocalId_(body); state.pendingAddLid = body.data['로컬ID']; }   /* 이 작성 세션의 add 멱등키 기억 */
     /* 저장한 내용의 서명을 스냅샷 — durable 보관된 경우에만 '깨끗함'으로 표시(진짜 실패 시 dirty 유지). */
     var _sig = composeSig();
     return submit(body, origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
@@ -5527,6 +5537,7 @@ async function doSaveCompose(){
       if (id && typeof id === 'string' && (!origId || id !== origId)) {
         state.editing = id;
         state.versionOf = null;
+        state.pendingAddLid = null;
         updateComposeBadge(); refreshReqBtns();
       }
       return id;
@@ -5567,6 +5578,11 @@ $('#c_save').addEventListener('click', function(){ doSaveCompose(); });
 /* 다른 이름으로 저장(Save As) — 편집 중이든 아니든 항상 새 행으로 등록(원본 보존).
    저장 후에는 새로 만든 사본을 편집하는 상태로 전환(이후 [저장]은 사본을 갱신). */
 async function doSaveAsNew(){
+  if (_composeSaving) return null;   /* 저장 진행 중 재진입 차단(Cmd+Shift+S 연타 포함) */
+  _composeSaving = true;
+  try { return await _doSaveAsNewInner(); } finally { _composeSaving = false; }
+}
+async function _doSaveAsNewInner(){
   var data = collectCompose();
   if (!data['제목']) { toast('제목을 입력해 주세요.'); return null; }
   if (data['원고텍스트'].length > 45000) { toast('원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다.'); data['원고텍스트'] = data['원고텍스트'].slice(0, 45000); }
@@ -5579,8 +5595,10 @@ async function doSaveAsNew(){
   delete data.ID;   /* ID 비움 → 백엔드가 새 ID 부여(add) */
   var _sig = composeSig();
   var _un = _lockSaveBtns();
-  return submit({ action: 'add', sheet: 'sermons', data: data }, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
-    if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
+  var _body = { action: 'add', sheet: 'sermons', data: data };
+  stampLocalId_(_body); state.pendingAddLid = _body.data['로컬ID'];   /* 오프라인 보관 후 이어지는 [저장]이 같은 행으로 upsert되게 */
+  return submit(_body, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+    if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; state.pendingAddLid = null; updateComposeBadge(); refreshReqBtns(); }
     return id;
   }).then(function(r){ _un(); return r; }, function(e){ _un(); throw e; });
 }
@@ -5881,7 +5899,7 @@ function parasFromCompose(meta, c){
   return { paras: paras, st: st };
 }
 function docxFileName(meta){
-  var ymd = (meta['날짜'] || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  var ymd = (meta['날짜'] || todayLocal_()).replace(/-/g, '');
   var type = String(meta['원고유형'] || '').trim();
   var name = ymd + ' ' + (type ? type + '_' : '') + (meta['예배구분'] ? meta['예배구분'] + '_' : '') +
     (meta['제목'] || '무제') + (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
@@ -5890,7 +5908,7 @@ function docxFileName(meta){
 /* LTC 교재 파일명 — 일반 원고와 달리 '원고유형'(자유원고/기본원고 등)을 넣지 않고,
    날짜 뒤를 밑줄로 구분한다. 예: LTC교재_20260628_대학부_순종이 시선을 드러냅니다. 요 7_14-24.docx */
 function ltcFileName(meta){
-  var ymd = (meta['날짜'] || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  var ymd = (meta['날짜'] || todayLocal_()).replace(/-/g, '');
   var name = 'LTC교재_' + ymd + '_' + (meta['예배구분'] ? meta['예배구분'] + '_' : '') +
     (meta['제목'] || '무제') + (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
   return name.replace(/[\\/:*?"<>|]/g, '_') + '.docx';
@@ -6263,11 +6281,11 @@ async function exportObsidianVault(){
       used[key] = 1;
       sf.folder(y).file(base + (n > 1 ? ' (' + n + ')' : '') + '.md', obsNote(s));
     });
-    root.file('_보관함 안내.md', '# 설교 보관함\n\n토탈 설교 앱에서 한 방향으로 내보낸 옵시디언 보관함입니다.\n\n- 설교: `설교/<연도>/`\n- 본문·시리즈·주제는 위키링크/태그로 자동 연결됩니다.\n- 앱이 덮어쓰는 사본이므로, 보관함에서 직접 수정한 내용은 다음 내보내기에서 사라질 수 있습니다.\n\n총 ' + all.length + '편 · 내보낸 날짜 ' + new Date().toISOString().slice(0, 10) + '\n');
+    root.file('_보관함 안내.md', '# 설교 보관함\n\n토탈 설교 앱에서 한 방향으로 내보낸 옵시디언 보관함입니다.\n\n- 설교: `설교/<연도>/`\n- 본문·시리즈·주제는 위키링크/태그로 자동 연결됩니다.\n- 앱이 덮어쓰는 사본이므로, 보관함에서 직접 수정한 내용은 다음 내보내기에서 사라질 수 있습니다.\n\n총 ' + all.length + '편 · 내보낸 날짜 ' + todayLocal_() + '\n');
     var blob = await zip.generateAsync({ type: 'blob' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = '설교보관함_옵시디언_' + new Date().toISOString().slice(0, 10) + '.zip';
+    a.download = '설교보관함_옵시디언_' + todayLocal_() + '.zip';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
     toast(all.length + '편을 옵시디언 보관함(zip)으로 내보냈습니다.');
@@ -6277,7 +6295,7 @@ window.exportObsidianVault = exportObsidianVault;
 (function(){ var b = $('#btnObsidianExport'); if (b) b.addEventListener('click', function(){ exportObsidianVault(); }); })();
 
 /* ===================== 이달의 묵상 ===================== */
-var devoState = { date: new Date().toISOString().slice(0, 10), entry: null, note: {}, bibleCache: {} };
+var devoState = { date: todayLocal_(), entry: null, note: {}, bibleCache: {} };
 var DEVO_FIELDS = ['본문개요', '본문주제', '관찰답', '묵상답', '적용답', '묵상메시지', '적용', '기도'];
 
 function bibleIndex(){
@@ -6490,7 +6508,7 @@ function shiftDevoDate(days){
 }
 $('#devoPrev').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(-1); });
 $('#devoNext').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(1); });
-$('#devoToday').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; devoState.date = new Date().toISOString().slice(0, 10); renderDevo(); });
+$('#devoToday').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; devoState.date = todayLocal_(); renderDevo(); });
 $('#devoDate').addEventListener('change', function(){ if (!this.value) return; if (!confirmLeaveDevo()) { this.value = devoState.date; return; } devoState.date = this.value; renderDevo(); });
 
 /* ===================== Claude API 직결 (Opus 4.8) =====================
@@ -7332,9 +7350,11 @@ function autoSaveDraft(okMsg){
     d.ID = state.editing;
     submit({ action: 'update', sheet: 'sermons', data: d }, okMsg || '초안 저장');
   } else {
-    adoptQueuedAddLid_(d);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
-    submit({ action: 'add', sheet: 'sermons', data: d }, okMsg || '초안 등록').then(function(idv){
-      if (idv && typeof idv === 'string') { state.editing = idv; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
+    composeAdoptAddLid_(d);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 + 세션 멱등키 재사용 */
+    var _b = { action: 'add', sheet: 'sermons', data: d };
+    stampLocalId_(_b); state.pendingAddLid = _b.data['로컬ID'];
+    submit(_b, okMsg || '초안 등록').then(function(idv){
+      if (idv && typeof idv === 'string') { state.editing = idv; state.versionOf = null; state.pendingAddLid = null; updateComposeBadge(); refreshReqBtns(); }
     });
   }
 }
@@ -7475,7 +7495,7 @@ var P_LTC = [
 
 var _ltcJson = {};
 function ltcSaturday(iso){
-  var d = new Date(((iso || '').trim() || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+  var d = new Date(((iso || '').trim() || todayLocal_()) + 'T12:00:00');
   while (d.getDay() !== 6) d.setDate(d.getDate() - 1);
   return d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. 토요일';
 }
@@ -9021,7 +9041,7 @@ async function aiOccGen(){
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
     O.opts = arr.slice(0, 3).map(optEdit);
-    O.at = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    O.at = nowLocalStr_();
     occSaveSoon(); renderOccPane(); renderSyncState();
     toast('개요 3세트 도착 — 다듬은 뒤, 보관할 선택지마다 [＋ 미래설교 저장]을 누르세요(자동 보관 아님).');
     try { await archiveOccOptions(O); }   /* [초안]으로만 임시 동기화(보관함엔 수동 저장한 것만) */
@@ -9183,7 +9203,7 @@ function writeRequestFile(type, meta){
   function p2(n){ return ('0' + n).slice(-2); }
   var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes());
   var fname = '요청_' + (meta['ID'] || '신규') + '_' + type + '_' + stamp + '.json';
-  var payload = { '요청유형': type, '상태': '대기', '요청일시': d.toISOString().slice(0, 16).replace('T', ' '), '설교': meta };
+  var payload = { '요청유형': type, '상태': '대기', '요청일시': nowLocalStr_(), '설교': meta };
   var _dir = null;
   return xPerm().then(function(){
     return xHandle.getDirectoryHandle('_claude_요청함', { create: true });
@@ -9565,7 +9585,7 @@ function newSeriesEntry(){ return { sid: 'sp' + Date.now(), meta: null, devo: nu
 function saveSeries(){
   var S = state.series;
   if (S) {
-    S.updatedAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    S.updatedAt = nowLocalStr_();
     if (state.seriesList.indexOf(S) < 0) state.seriesList.unshift(S);
   }
   idbSet('seriesList', state.seriesList).catch(function(){});
@@ -9589,6 +9609,9 @@ function findDraftRow(name){
 }
 /* 기기 로컬 시각 'yyyy-MM-dd HH:mm'. toISOString()은 UTC라 서버(KST) 수정일과 9시간 어긋나므로 로컬 구성요소로 만든다. */
 function nowLocalStr_(){ var d = new Date(); function z(n){ return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+/* 기기 로컬 '오늘' 'yyyy-MM-dd'. new Date().toISOString().slice(0,10)은 UTC 날짜라
+   한국시간 새벽 0~9시에 '어제'가 나온다(새벽기도 준비 시간대에 매일 재현) — 반드시 이 함수를 쓸 것. */
+function todayLocal_(){ return nowLocalStr_().slice(0, 10); }
 function seriesDraftBlob(S){
   return JSON.stringify({ sid: S.sid, kind: S.kind || null, meta: S.meta || {},
                           sched: S.sched || null, schedDate: S.schedDate || null });
@@ -10419,7 +10442,7 @@ function spWriteReq(type, payload, label){
   function p2(n){ return ('0' + n).slice(-2); }
   var stamp = '' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes());
   payload['요청유형'] = type; payload['상태'] = '대기';
-  payload['요청일시'] = d.toISOString().slice(0, 16).replace('T', ' ');
+  payload['요청일시'] = nowLocalStr_();
   var fname = '요청_신규_' + type + '_' + stamp + '.json';
   return xPerm().then(function(){
     return xHandle.getDirectoryHandle('_claude_요청함', { create: true });
@@ -11953,7 +11976,7 @@ function handleIdeaImages(files){
     return req.getFileHandle('요청_신규_예화이미지OCR_' + stamp + '.json', { create: true });
   }).then(function(fh){ return fh.createWritable(); })
     .then(function(w){
-      var payload = { '요청유형': '예화이미지OCR', '상태': '대기', '요청일시': d.toISOString().slice(0, 16).replace('T', ' '), '이미지': names, '강화요청': true };
+      var payload = { '요청유형': '예화이미지OCR', '상태': '대기', '요청일시': nowLocalStr_(), '이미지': names, '강화요청': true };
       return w.write(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })).then(function(){ return w.close(); });
     }).then(function(){
       toast('이미지 ' + imgs.length + '장 요청함에 저장 — Cowork에서 "요청함 처리해줘"라고 말씀하세요');
@@ -12045,7 +12068,7 @@ function exportDocxParas(meta, built, namePrefix){
 /* 내보낸 최종본을 시트에 반영 + 날짜 기준 상태 승격(오늘·과거=설교함, 미래=완료).
    제목이 있어야 시트 반영(없으면 파일만 저장). 수정 중이면 같은 행 update, 새 설교면 add 후 연결. */
 function composeFinalStatus(dateStr){
-  var today = new Date().toISOString().slice(0, 10);
+  var today = todayLocal_();
   return (dateStr && dateStr <= today) ? '설교함' : '완료';
 }
 function saveComposeFinal(data){
@@ -12054,10 +12077,11 @@ function saveComposeFinal(data){
   var st = $('#c_state'); if (st) st.value = data['상태'];
   var editing = state.editing;
   if (editing) data.ID = editing;
-  else adoptQueuedAddLid_(data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
+  else composeAdoptAddLid_(data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 + 세션 멱등키 재사용 */
   var body = editing ? { action: 'update', sheet: 'sermons', data: data } : { action: 'add', sheet: 'sermons', data: data };
+  if (!editing) { stampLocalId_(body); state.pendingAddLid = body.data['로컬ID']; }
   submit(body, (editing ? '최종본 시트 반영' : '설교 등록') + ' (' + data['상태'] + ')').then(function(id){
-    if (id && typeof id === 'string' && !editing) { state.editing = id; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
+    if (id && typeof id === 'string' && !editing) { state.editing = id; state.versionOf = null; state.pendingAddLid = null; updateComposeBadge(); refreshReqBtns(); }
   });
 }
 $('#c_preview').addEventListener('click', function(){
@@ -12355,7 +12379,7 @@ function exportSermonDocxNow(id){
   if (!s) return;
   exportDocxParas(s, parasFromText(s, s['원고텍스트'], s['원고유형'] || '기본원고'));
   /* 날짜가 지난(또는 오늘) 미설교 상태면 설교함으로 승격 */
-  var today = new Date().toISOString().slice(0, 10);
+  var today = todayLocal_();
   if (s['날짜'] && s['날짜'] <= today && ['구상/연구', '작성중', '완료'].indexOf(s['상태']) >= 0) {
     s['상태'] = '설교함'; saveData();
     apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '상태': '설교함' } })
@@ -12365,7 +12389,7 @@ function exportSermonDocxNow(id){
 };
 /* 날짜 지난 [완료] 설교를 [설교함]으로 자동 승격 (전체 로드 때만 시트도 갱신) */
 function promotePreachedByDate(writeSheet){
-  var today = new Date().toISOString().slice(0, 10), ids = [];
+  var today = todayLocal_(), ids = [];
   (state.data.sermons || []).forEach(function(s){
     if (s['상태'] === '완료' && s['날짜'] && s['날짜'] < today) { s['상태'] = '설교함'; if (s['ID']) ids.push(s['ID']); }
   });
@@ -12902,7 +12926,7 @@ function devoDayPages(S, row, bk){
     + '<div class="panel" style="margin-top:2.5mm;border-radius:0 6mm 6mm 6mm;padding:6mm 8mm;height:81mm"><div>' + lines8 + '</div></div></div>';
   return [devoPg(pg1, paper, 'bodypg'), devoPg(pg2, paper), devoPg(pg3, paper), devoPg(pg4, paper)];
 }
-function devoMonday(iso){ var d = new Date(iso + 'T00:00:00'); var day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d.toISOString().slice(0,10); }
+function devoMonday(iso){ var d = new Date(iso + 'T12:00:00'); var day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); function z(n){ return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
 /* 책 개요(8항목) — 동봉 홀만 서론 → Claude API 요약 → 시리즈 레코드 캐시 */
 var P_DEVO_OVERVIEW = '너는 영락교회 대학부 말씀묵상집의 "책 개요" 한 페이지를 만든다. 입력(JSON: 책 이름·묵상일수·홀만 성경주석 서론 원문)을 읽고 아래 항목을 한국어로 정리해 JSON만 출력한다. 설명·코드펜스 금지. 서론 근거 안에서만(과장·창작 금지), 묵상집 독자에게 도움이 되게 간결히. 출력: {"이름":"이름의 뜻 한 줄","저자연대":"저자·기록연대 1문장","배경":"기록 배경 1~2문장","주제":"책의 주제 1~2문장","목적신학":"목적과 신학 — ① ② ③ 식 2~4가지","구조":"개요를 Ⅰ.~ 식으로 줄바꿈(\\n) 구분","핵심구절":"대표 구절 2~3개를 (장:절) 내용 식 줄바꿈(\\n)","그리스도":"이 책이 그리스도를 어떻게 가리키는지 1~2문장","맺음말":"이 책 묵상을 여는 따뜻한 한 줄. 반드시 \'<묵상일수>일 동안 우리는 …을(를) [책이름]에서 배웁니다\' 형식으로, …에 그 책의 핵심 주제를 한 구절로 압축(예: 오직 믿음·오직 은혜·오직 그리스도의 자유)."}';
 async function devoLoadHolmanLocal(ko){
@@ -14799,9 +14823,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setVidProxyUrl')) $('#setVidProxyUrl').value = state.settings.vidProxyUrl || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
   $('#page-search').classList.add('on');
-  $('#smDate').value = new Date().toISOString().slice(0, 10);
-  $('#c_date').value = new Date().toISOString().slice(0, 10);
-  $('#occ_date').value = new Date().toISOString().slice(0, 10);
+  $('#smDate').value = todayLocal_();
+  $('#c_date').value = todayLocal_();
+  $('#occ_date').value = todayLocal_();
   idbGet('occDraft').then(function(o){
     if (!o) return;
     state.occ = o;
