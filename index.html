@@ -7977,6 +7977,12 @@ async function findResultFile(match){
   return best;
 }
 function _nfcEq(a, b){ try { return a === b || a.normalize('NFC') === b.normalize('NFC'); } catch (e) { return a === b; } }
+/* NFC 정규화 포함 판정 — macOS 폴더핸들 파일명(NFD)과 시트 기록(NFC)의 이진 불일치로
+   내려받기 매칭이 빗나가는 것 방지. hay(문자열)에 needle이 포함되는지를 정규화 후 판정. */
+function _nfcIncl(hay, needle){
+  try { return String(hay).normalize('NFC').indexOf(String(needle).normalize('NFC')) >= 0; }
+  catch (e) { return String(hay).indexOf(String(needle)) >= 0; }
+}
 async function saveBlobToResults(blob, fname){
   await xPerm();
   var dir = await resultsTodayDir();
@@ -8776,7 +8782,7 @@ async function aiSeriesSermon(noteOverride){
   var S = state.series;
   try {
     (state.seriesReqs = state.seriesReqs || {})['시리즈설교'] = '진행중'; spStatus();
-    var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
+    var rows = ((S.devo && S.devo.rows) || []).map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
     /* 분할 생성: 주일을 4주씩 끊어 여러 번 호출(긴 단일 출력에서 후반 선택지 품질이 떨어지는 것을 방지) */
     var suns = S.meta['주일'] || [];
     var SB = 4, nb = Math.ceil(suns.length / SB), weeks = [];
@@ -9278,7 +9284,7 @@ async function dlReqResult(sermonId, type){
     if (!rf) return false;
     var n = 0;
     await eachResultFile(async function(e2){
-      if (rf.indexOf(e2.name) < 0) return;
+      if (!_nfcIncl(rf, e2.name)) return;   /* NFC/NFD 정규화 매칭 */
       var fl = await e2.getFile();
       var a = document.createElement('a');
       a.href = URL.createObjectURL(fl);
@@ -10520,7 +10526,7 @@ $('#sp_reqSermon').addEventListener('click', async function(e){
     toast('결과가 이미 있습니다. [요청 결과]로 확인하시고, 다시 만들려면 오른쪽 아래 [재작업 요청]을 이용해 주세요.'); return;
   }
   if (aiKey()) { aiSeriesSermon(); return; } /* API 직결 */
-  var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
+  var rows = ((S.devo && S.devo.rows) || []).map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
   spWriteReq('시리즈설교', { '계획': S.meta, '묵상확정': rows }, '설교 주제 선택지 (' + S.meta['시리즈명'] + ')');
 });
 
@@ -10574,7 +10580,7 @@ async function spPdfDownload(){
     if (!best || !best.rf) { toast('결과 파일 기록을 찾지 못했습니다 — 아웃풋에서 확인해 주세요.'); showPage('outputs'); return; }
     var n = 0;
     await eachResultFile(async function(e2){
-      if (best.rf.indexOf(e2.name) < 0) return;
+      if (!_nfcIncl(best.rf, e2.name)) return;   /* NFC/NFD 정규화 매칭 — 묵상집 PDF 내려받기 실패 방지 */
       var fl = await e2.getFile();
       var a = document.createElement('a');
       a.href = URL.createObjectURL(fl);
@@ -11523,7 +11529,8 @@ async function aiRegenWeek(wi, btn){
       if (!Array.isArray(days) || !days.length) throw new Error('응답 형식 오류');
       opts = sanitizeHymns(days[0]['선택지'] || []);
     } else {
-      var rows = S.devo.rows.map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
+      /* 묵상 없는 일반 시리즈(시트 복원 시 S.devo=null)에서도 재생성이 동작하게 — null 접근 가드 */
+      var rows = ((S.devo && S.devo.rows) || []).map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
       var out2 = await callClaude(P_SERMON, JSON.stringify({
         '시리즈명': m['시리즈명'],
         '요청사항': String(m['요청사항'] || '') + '\n(아래 "주일" 한 주치 선택지만 새로 만든다. 기존 선택지와 다른 새로운 갈래로.)',
@@ -11905,7 +11912,7 @@ async function renderOutputs(){
         var times = '<span>요청 ' + esc(p.rq ? p.rq.slice(5) : fdt(p.m)) + '</span>' + (fin ? '<span>완료 ' + fdt(p.m) + '</span>' : '');
         /* 완료 + 결과함에 결과 파일이 있으면 바로 내려받기 */
         var dl = [];
-        if (fin && p.rf) items.forEach(function(it, ii){ if (p.rf.indexOf(it.name) >= 0) dl.push(ii); });
+        if (fin && p.rf) items.forEach(function(it, ii){ if (_nfcIncl(p.rf, it.name)) dl.push(ii); });   /* NFC/NFD 정규화 매칭 */
         var btnStyle = 'style="margin-left:auto;flex:0 0 auto;width:auto;min-width:96px;padding:8px 14px"';
         var chk = dl.length ? '<button class="btn sub" ' + btnStyle + ' onclick="dlOutputs([' + dl.join(',') + '])">내려받기' + (dl.length > 1 ? ' (' + dl.length + ')' : '') + '</button>' :
           p.sid ? '<button class="btn sub" ' + btnStyle + ' onclick="showPage(\'search\');openDetail(\'sermon\',\'' + esc(p.sid) + '\')">확인하기</button>' :
@@ -12451,11 +12458,14 @@ function parseFileDate(name, fallbackYear){
   }
   return { date: '', rest: name };
 }
-var TAIL_REF_RE = new RegExp('[\\s_\\-]*(' + BOOKS + ')\\s*\\d+(\\s*[장]?[\\s_:.]\\s*\\d+([-~]\\d+)?)*([\\s_]+\\d+)?\\s*$');
+/* 약칭 앞 구분자는 1개 이상 요구 — 0개 허용이면 단어 중간 한 글자 약칭에 걸린다(예: "감사 141" → "감") */
+var TAIL_REF_RE = new RegExp('[\\s_\\-]+(' + BOOKS + ')\\s*\\d+(\\s*[장]?[\\s_:.]\\s*\\d+([-~]\\d+)?)*([\\s_]+\\d+)?\\s*$');
 function cleanTitle(name){
+  try { name = name.normalize('NFC'); } catch (e) {}   /* macOS NFD 파일명 → NFC로 통일(시트 검색·중복 판정 어긋남 방지) */
   name = name.replace(/\.(docx?|DOCX?)$/, '');
   name = name.replace(TAIL_REF_RE, ''); /* 꼬리 성경구절은 제목에서 제외 (본문 칸이 따로 있음) */
-  name = name.replace(/(설교문?|원고|최종|수정\d*|final|v\d+)/g, '');
+  /* 토큰은 구분자 경계에서만 제거 — '설교문?'식 부분 일치는 제목 속 글자를 갉아먹는다(예: "설교자의 마음" → "자의 마음") */
+  name = name.replace(/(^|[\s_\-.])(설교문|설교|원고|최종|수정\d*|final|v\d+)(?=$|[\s_\-.])/g, '$1');
   return name.replace(/[\s_\-.]+/g, ' ').trim() || '(제목 미상)';
 }
 function docxXmlToText(xml){
@@ -12511,7 +12521,7 @@ function renderImport(){
   box.innerHTML = state.importRows.map(function(r, i){
     if (r.error) return '<div class="imp"><div class="fname">' + esc(r.fname) + '</div><div class="warn">읽기 실패: ' + esc(r.error) + '</div></div>';
     var dup = state.data.sermons.some(function(s){
-      return (s['비고'] || '').indexOf(r.fname) >= 0 || (s['날짜'] === r['날짜'] && s['제목'] === r['제목']);
+      return _nfcIncl(s['비고'] || '', r.fname) || (s['날짜'] === r['날짜'] && _nfcEq(String(s['제목'] || ''), String(r['제목'] || '')));
     });
     return '<div class="imp">' +
       '<label style="margin:0;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)"><input type="checkbox" style="width:auto" ' + (r.use ? 'checked' : '') + ' onchange="state.importRows[' + i + '].use=this.checked"> <span class="fname">' + esc(r.fname) + ' · ' + r['원고텍스트'].length.toLocaleString() + '자</span></label>' +
@@ -12577,9 +12587,12 @@ $('#saveIdea').addEventListener('click', async function(){
       '유형': state.ideaType, '출처': $('#ideaSource').value.trim(),
       '관련본문': $('#ideaRef').value.trim(), '키워드': $('#ideaKw').value.trim()
     });
-    $('#ideaContent').value = ''; $('#ideaSource').value = ''; $('#ideaRef').value = ''; $('#ideaKw').value = '';
-    $('#dupCheck').innerHTML = '';
-    await submit({ action: 'add', sheet: 'ideas', data: data }, willEnhance ? '예화 강화·저장 완료' : '아이디어 저장 완료');
+    /* 입력칸은 전송 성공/대기열 보관이 확정된 뒤에만 비운다 — 영구 실패 시 사용자가 적은 내용 보존 */
+    await submit({ action: 'add', sheet: 'ideas', data: data }, willEnhance ? '예화 강화·저장 완료' : '아이디어 저장 완료', function(ok){
+      if (!ok) return;
+      $('#ideaContent').value = ''; $('#ideaSource').value = ''; $('#ideaRef').value = ''; $('#ideaKw').value = '';
+      $('#dupCheck').innerHTML = '';
+    });
   } catch (e) { toast('저장 실패: ' + e.message); }
   finally { btn.disabled = false; }
 });
@@ -12593,8 +12606,11 @@ $('#saveSermon').addEventListener('click', function(){
     '상태': $('#smState').value, '핵심메시지': $('#smMsg').value.trim(), '예화': $('#smIllust').value.trim()
   }};
   adoptQueuedAddLid_(body.data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 */
-  ['smTitle','smRef','smSeries','smMsg','smIllust'].forEach(function(id){ $('#' + id).value = ''; });
-  submit(body, '설교 저장 완료');
+  /* 입력칸은 전송 성공/대기열 보관이 확정된 뒤에만 비운다 — 영구 실패 시 내용 보존 */
+  submit(body, '설교 저장 완료', function(ok){
+    if (!ok) return;
+    ['smTitle','smRef','smSeries','smMsg','smIllust'].forEach(function(id){ $('#' + id).value = ''; });
+  });
 });
 
 $('#saveSettings').addEventListener('click', function(){
@@ -13090,7 +13106,8 @@ function printDevoBooklet(S, opts){
   buildDevoBookletHtml(S, opts).then(function(html){
     if (w.closed) return;
     w.document.open(); w.document.write(html); w.document.close();
-    var go = function(){ try { w.focus(); w.print(); } catch(e){} };
+    var printed = false;   /* onload 경로와 폴백 타이머가 둘 다 실행돼 인쇄창이 두 번 뜨는 것 방지(1회 가드) */
+    var go = function(){ if (printed || w.closed) return; printed = true; try { w.focus(); w.print(); } catch(e){} };
     w.onload = function(){
       var fonts = (w.document.fonts && w.document.fonts.ready) ? w.document.fonts.ready : Promise.resolve();
       Promise.resolve(fonts).then(function(){ setTimeout(go, 600); });
@@ -15984,6 +16001,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     if (j.length <= MAXC) return j;
     var c = convo.slice();
     while (c.length > 2 && JSON.stringify(c).length > MAXC) c.shift();
+    /* Messages API 규칙: 첫 턴은 user — 절단 후 맨 앞이 assistant면 그 턴도 제거(안 하면 타 기기 이어쓰기가 400 오류) */
+    while (c.length > 1 && c[0].role !== 'user') c.shift();
     if (JSON.stringify(c).length > MAXC) {
       c = c.map(function(m){
         var t = textOf(m.content) || '';
@@ -15991,8 +16010,12 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         return { role: m.role, content: t };
       });
     }
-    c.unshift({ role: 'assistant', content: '※ 대화가 길어 앞부분 일부는 원 기기에만 보관됩니다.' });
-    while (c.length > 2 && JSON.stringify(c).length > MAXC) c.splice(1, 1);
+    /* 안내는 별도 턴이 아니라 첫 user 턴 앞에 합쳐 넣는다 — 첫 턴 user·역할 교대가 유지돼 타 기기에서 이어쓰기 가능 */
+    if (c.length && c[0].role === 'user') {
+      var t0 = textOf(c[0].content) || '';
+      c[0] = { role: 'user', content: '※ 대화가 길어 앞부분 일부는 원 기기에만 보관됩니다.\n\n' + t0 };
+    }
+    while (c.length > 3 && JSON.stringify(c).length > MAXC) c.splice(1, 2);   /* user+assistant 짝 단위로 줄여 역할 교대 유지 */
     return JSON.stringify(c);
   }
 
