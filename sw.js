@@ -1,8 +1,8 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v407';           /* 앱 셸 — 버전마다 교체(index.html 등) */
+var CACHE = 'tsa-v408';           /* 앱 셸 — 버전마다 교체(index.html 등) */
 var CONTENT = 'tsa-content-v1';   /* 대용량 콘텐츠 — 버전 업에도 유지(매번 재다운로드 방지) */
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
-var CONTENT_RE = /(illustrations\.json$|\/bible\/|\/commentary\/|\/fonts\/|\/devo_assets\/)/;
+var CONTENT_RE = /(illustrations(-archive)?\.json$|\/bible\/|\/commentary\/|\/fonts\/|\/devo_assets\/)/;
 
 self.addEventListener('install', function (e) {
   e.waitUntil(Promise.all([
@@ -10,9 +10,11 @@ self.addEventListener('install', function (e) {
     caches.open(CACHE).then(function (c) {
       return Promise.all(ASSETS.map(function (u) { return c.add(new Request(u, { cache: 'reload' })); }));
     }),
-    /* 예화 DB는 콘텐츠 캐시에 선적재 — 이미 있으면 재다운로드하지 않음 */
+    /* 예화 DB·아카이브는 콘텐츠 캐시에 선적재 — 이미 있으면 재다운로드하지 않음 */
     caches.open(CONTENT).then(function (c) {
-      return c.match('./illustrations.json').then(function (hit) { return hit ? null : c.add('./illustrations.json'); });
+      return Promise.all(['./illustrations.json', './illustrations-archive.json'].map(function (u) {
+        return c.match(u).then(function (hit) { return hit ? null : c.add(u); }).catch(function () {});
+      }));
     }).catch(function () {})
   ]).then(function () { return self.skipWaiting(); }));
 });
@@ -49,7 +51,7 @@ self.addEventListener('fetch', function (e) {
     e.respondWith(
       caches.open(CONTENT).then(function (c) {
         return c.match(e.request).then(function (hit) {
-          var isIll = /illustrations\.json$/.test(url.pathname);
+          var isIll = /illustrations(-archive)?\.json$/.test(url.pathname);
           if (hit) {
             if (isIll) fetch(e.request).then(function (res) { if (res.ok) c.put(e.request, res.clone()); }).catch(function () {});
             return hit;
