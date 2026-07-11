@@ -1448,7 +1448,7 @@ body.uiDlgOpen{overflow:hidden}
       <div id="inboxList"></div>
     </section>
 
-    <!-- ============ 예화 도서관 (강화 DB 867 + 인박스 통합) ============ -->
+    <!-- ============ 예화 도서관 (강화 DB + 인박스 + 내가 쓴 예화 아카이브 통합) ============ -->
     <section class="page" id="page-illlib">
       <div class="card">
         <input type="text" id="illQ" placeholder="예화 검색 — 제목·강조메시지·내용·키워드·본문" autocomplete="off">
@@ -1456,13 +1456,14 @@ body.uiDlgOpen{overflow:hidden}
           <span class="chip on" data-v="all">전체</span>
           <span class="chip" data-v="lib">강화 라이브러리</span>
           <span class="chip" data-v="inbox">내 인박스</span>
+          <span class="chip" data-v="arc">내가 쓴 예화</span>
         </div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <select id="illCat"><option value="">전체 카테고리</option></select>
           <span class="cnt" id="illCount"></span>
         </div>
         <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto">📥 인박스 예화 라이브러리로 편입</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
-        <div class="cnt" style="margin-top:8px;line-height:1.6">「<b>내 인박스</b>」=빠른 입력으로 넣어 아직 인박스에 남아 있는 예화 · 「<b>인박스 편입</b>」=검토 끝나 도서관에만 정리한 예화 · 「<b>강화 라이브러리</b>」=기본 제공 예화. 모두 검색·설교 삽입이 됩니다.</div>
+        <div class="cnt" style="margin-top:8px;line-height:1.6">「<b>내 인박스</b>」=빠른 입력으로 넣어 아직 인박스에 남아 있는 예화 · 「<b>인박스 편입</b>」=검토 끝나 도서관에만 정리한 예화 · 「<b>강화 라이브러리</b>」=기본 제공 예화 · 「<b>내가 쓴 예화</b>」=과거 설교 원고 속 ex) 예화 블록 전체(2003~현재, 재사용 표시 포함 — 이 기기에서 저장한 새 원고도 자동 반영). 모두 검색·설교 삽입이 됩니다. [전체]에서 검색하면 내가 쓴 예화도 결과 아래에 함께 나옵니다.</div>
       </div>
       <div id="illResults"></div>
     </section>
@@ -2906,6 +2907,109 @@ function illUnified(){
   });
   return out;
 }
+/* ── 예화서랍(2026-07-12) 분류 시드: 인박스 ID → [표준주제(|구분), 결, 중복·연작 메모].
+   시트 반영 전 임시 시드 — 시트/색인에 주제·결 열이 생기면 그 데이터가 우선하도록 교체 예정. */
+var ILL_TAG_SEED = {"I0001":["고난·회복|헌신·사명","공통",""],"I0002":["믿음·신뢰|소망·영원","대학부",""],"I0003":["고난·회복|주권·섭리","공통",""],"I0004":["사랑·관계|겸손·섬김","공통",""],"I0005":["고난·회복|소망·영원","새벽·장년",""],"I0006":["은혜·감사","공통",""],"I0007":["말씀|순종·행함","공통",""],"I0008":["믿음·신뢰|소망·영원","공통",""],"I0009":["말씀|공동체·예배","새벽·장년",""],"I0010":["헌신·사명","공통",""],"I0011":["주권·섭리|은혜·감사","새벽·장년",""],"I0012":["사랑·관계|믿음·신뢰","공통",""],"I0013":["순종·행함|사랑·관계","공통",""],"I0014":["고난·회복|소망·영원","공통",""],"I0015":["소망·영원|고난·회복","새벽·장년",""],"I0016":["정체성|믿음·신뢰","대학부",""],"I0017":["믿음·신뢰|소망·영원","공통",""],"I0018":["주권·섭리","공통",""],"I0019":["순종·행함|공동체·예배","공통",""],"I0020":["정체성|순종·행함","공통",""],"I0021":["말씀","새벽·장년",""],"I0022":["정체성","새벽·장년",""],"I0023":["믿음·신뢰|은혜·감사","공통",""],"I0024":["고난·회복|믿음·신뢰","공통",""],"I0025":["고난·회복|주권·섭리","공통","헨델 메시아 연작(I0025·I0026)"],"I0026":["말씀|헌신·사명","공통","헨델 메시아 연작(I0025·I0026)"],"I0027":["기도·성령|믿음·신뢰","새벽·장년",""],"I0028":["기도·성령|헌신·사명","공통",""],"I0029":["은혜·감사|순종·행함","대학부",""],"I0030":["순종·행함|믿음·신뢰","대학부",""],"I0031":["공동체·예배|은혜·감사","공통",""],"I0032":["순종·행함","대학부",""],"I0033":["주권·섭리","새벽·장년",""],"I0034":["기도·성령|공동체·예배","새벽·장년",""],"I0037":["겸손·섬김|헌신·사명","공통",""],"I0038":["겸손·섬김|사랑·관계","새벽·장년",""],"I0039":["헌신·사명|기도·성령","공통",""],"I0040":["정체성|소망·영원","공통",""],"I0041":["말씀","새벽·장년",""],"I0042":["말씀","공통",""],"I0043":["겸손·섬김|사랑·관계","공통",""],"I0044":["정체성|말씀","대학부",""],"I0045":["은혜·감사|겸손·섬김","새벽·장년",""],"I0046":["말씀","새벽·장년",""],"I0047":["헌신·사명|말씀","공통",""],"I0048":["말씀|사랑·관계","새벽·장년","동일 예화 중복 등록(I0048=I0049)"],"I0049":["말씀|사랑·관계","새벽·장년","동일 예화 중복 등록(I0048=I0049)"],"I0050":["말씀|순종·행함","공통",""],"I0051":["믿음·신뢰|정체성","대학부",""],"I0052":["정체성|기도·성령","대학부",""],"I0053":["헌신·사명|순종·행함","새벽·장년",""],"I0054":["정체성","공통",""],"I0055":["고난·회복|사랑·관계","공통",""],"I0056":["말씀|공동체·예배","공통",""],"I0057":["믿음·신뢰|소망·영원","새벽·장년",""],"I0058":["믿음·신뢰|정체성","공통",""],"I0059":["헌신·사명|사랑·관계","공통",""],"I0060":["기도·성령|공동체·예배","새벽·장년",""],"I0061":["헌신·사명","공통","리빙스턴 연작(I0061·I0062)"],"I0062":["헌신·사명|순종·행함","대학부","리빙스턴 연작(I0061·I0062)"],"I0063":["소망·영원|은혜·감사","공통",""],"I0064":["사랑·관계","공통",""],"I0065":["은혜·감사|사랑·관계","공통",""],"I0066":["사랑·관계|공동체·예배","공통",""],"I0067":["공동체·예배","대학부",""],"I0068":["말씀","공통",""],"I0069":["겸손·섬김|은혜·감사","새벽·장년",""],"I0070":["주권·섭리|정체성","새벽·장년",""],"I0071":["주권·섭리|믿음·신뢰","공통","수선 모티프 연작(I0071·I0072)"],"I0072":["고난·회복|사랑·관계","공통","수선 모티프 연작(I0071·I0072)"]};
+function illSeedFor(it){
+  var id = '';
+  if (/^inbox:/.test(it.key || '')) id = String(it.key).replace(/^inbox:/, '');
+  else { var m = /^lib:INBOX_(I\d+)/.exec(it.key || ''); if (m) id = m[1]; }
+  return (id && ILL_TAG_SEED[id]) || null;
+}
+function illSeedBadges(it){
+  var s = illSeedFor(it); if (!s) return '';
+  var h = '';
+  (s[0] ? s[0].split('|') : []).forEach(function(t){ h += '<span class="badge" style="margin-right:4px">' + esc(t) + '</span>'; });
+  if (s[1]) h += '<span class="badge" style="opacity:.7">' + esc(s[1]) + '</span>';
+  if (s[2]) h += '<div style="margin-top:3px;font-size:11px;color:var(--accent2)">🔗 ' + esc(s[2]) + '</div>';
+  return h ? '<div style="margin-top:5px">' + h + '</div>' : '';
+}
+function illSeedHay(it){
+  var s = illSeedFor(it); if (!s) return '';
+  return ' ' + String(s[0] || '').replace(/\|/g, ' ') + ' ' + (s[1] || '');
+}
+/* ===================== 내가 쓴 예화(설교 아카이브) =====================
+   정적 스냅샷 illustrations-archive.json(2003~빌드일, 원고 ex) 블록 전수)
+   + 이 기기가 보유한 원고텍스트 실시간 추출(스냅샷 이후 저장·수정분)을 합쳐
+   "과거에 내가 쓴 예화"를 검색·재사용 확인용으로 제공한다. */
+var ILLARC = { _f: null, _p: null, items: null, builtAt: '', stamp: '' };
+function illParseExBlocks(txt){
+  var out = [], lines = String(txt || '').replace(/\r/g, '').split('\n'), cur = null;
+  function flush(){
+    if (!cur) return;
+    var body = cur.b.join('\n').trim();
+    var full = (cur.t ? cur.t + (body ? '\n' : '') : '') + body;
+    if (full.trim()) out.push({ title: cur.t || illFirstLine(body), text: full.slice(0, 1200) });
+    cur = null;
+  }
+  for (var i = 0; i < lines.length; i++){
+    var l = lines[i];
+    var ex = stripBoldEnds(l).match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
+    if (ex){ flush(); cur = { t: ex[1].trim(), b: [] }; continue; }
+    if (!cur) continue;
+    var sb = stripBoldEnds(l);
+    if (isStructHead(l) || isStructConc(l) || /^\s*\((?:주해|근거|대지\s*내용|내용|적용|강화|정리|실천|서론|결론)\)/.test(sb) || /^\s*(▶|【)/.test(sb)){ flush(); continue; }
+    cur.b.push(l);
+  }
+  flush();
+  return out;
+}
+function illArcItem(sid, date, stitle, sref, title, text, reuse, reuseYear, n, live){
+  return { key: 'arc:' + sid + ':' + n, src: 'arc', category: (String(date || '').slice(0, 4)) || '아카이브',
+    title: title || illFirstLine(text), message: '', story: String(text || ''), refs: sref ? [sref] : [],
+    keywords: (date || '') + ' ' + (stitle || ''), date: String(date || ''), sermonTitle: stitle || '', sid: sid,
+    reuse: reuse || 0, reuseYear: reuseYear || '', live: !!live };
+}
+function illArcLoad(){
+  var mx = '';
+  (state.data.sermons || []).forEach(function(s){ var m = String((s && s['수정일']) || ''); if (m > mx) mx = m; });
+  var stamp = (state.data.sermons || []).length + ':' + mx;
+  if (ILLARC._p && ILLARC.stamp === stamp) return ILLARC._p;
+  ILLARC.stamp = stamp;
+  if (!ILLARC._f) ILLARC._f = fetch('illustrations-archive.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(function(){ return null; });
+  ILLARC._p = ILLARC._f.then(function(j){
+    var items = [], liveIds = {};
+    ILLARC.builtAt = (j && j.builtAt) || '';
+    /* ① 이 기기가 보유한 원고에서 실시간 추출 — 스냅샷 이후 저장·수정된 설교가 즉시 반영 */
+    (state.data.sermons || []).forEach(function(s){
+      if (!s || s['상태'] === '보관') return;
+      var txt = String(s['원고텍스트'] || ''); if (!txt.trim()) return;
+      var inSnap = j && j.s && j.s[s['ID']];
+      if (inSnap && !(ILLARC.builtAt && String(s['수정일'] || '') > ILLARC.builtAt + ' 23:59')) return;
+      liveIds[s['ID']] = 1;
+      illParseExBlocks(txt).forEach(function(b, n){
+        items.push(illArcItem(s['ID'], String(s['날짜'] || ''), s['제목'] || '', s['본문'] || '', b.title, b.text, 0, '', n, true));
+      });
+    });
+    /* ② 정적 스냅샷(전수) — 실시간으로 대체된 설교 분은 제외 */
+    if (j && j.b){
+      var per = {};
+      j.b.forEach(function(r){
+        var sid = r[0]; if (liveIds[sid]) return;
+        var m = (j.s && j.s[sid]) || ['', '', '', ''];
+        per[sid] = (per[sid] || 0) + 1;
+        items.push(illArcItem(sid, m[0], m[2], m[3], '', r[1], r[2] || 0, r[3] || '', per[sid], false));
+      });
+    }
+    items.sort(function(a, b){ return a.date > b.date ? -1 : (a.date < b.date ? 1 : 0); });
+    ILLARC.items = items;
+    return items;
+  });
+  return ILLARC._p;
+}
+function illCardArc(it){
+  var reuse = (it.reuse > 1)
+    ? ' <span class="badge" style="color:var(--accent2);border-color:var(--accent2)">같은 도입부 ' + it.reuse + '회' + (it.reuseYear ? ' · 최근 ' + esc(String(it.reuseYear)) : '') + '</span>'
+    : '';
+  var snip = String(it.story).slice(0, 90);
+  return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
+    + '<summary style="cursor:pointer;list-style:none"><span class="badge b-state">' + esc(it.category) + '</span> <b>' + esc(illFirstLine(it.title)) + '</b>' + reuse
+    + '<div class="snippet" style="margin-top:3px;color:var(--dim)">' + esc(snip) + (it.story.length > 90 ? '…' : '') + '</div></summary>'
+    + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
+    + '<div style="margin-top:6px;font-size:12px;color:var(--dim)">↩ 출처: ' + esc(it.date || '날짜 미상') + ' 「' + esc(it.sermonTitle || it.sid) + '」' + (it.live ? ' (이 기기 원고)' : '')
+    + (it.refs.length ? ' · 📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join(' · ') : '') + '</div>'
+    + '<div style="margin-top:6px"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button></div></details>';
+}
 /* 이 예화가 사용된 설교(역링크): 인박스 예화의 직접 연결(사용설교ID) + 설교 예화 텍스트 휴리스틱 매칭. */
 function illUsedInSermons(it){
   var title = String(it.title || '').trim(), msg = String(it.message || '').trim(), out = [];
@@ -2931,7 +3035,7 @@ function illCardU(it){
     : '';
   return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
     + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConf) + '<span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
-    + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
+    + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + illSeedBadges(it) + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
     + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
     + illSrc(it.source, it.sourceConf, it.sourceNote)
@@ -2940,9 +3044,10 @@ function illCardU(it){
 }
 function renderIllLib(){
   var box = $('#illResults'); if (!box) return;
-  illustLoad().catch(function(){}).then(function(){
+  Promise.all([ illustLoad().catch(function(){}), illArcLoad().catch(function(){ return []; }) ]).then(function(rr){
+    var arc = rr[1] || [];
     var all = illUnified();
-    ILLIB.map = {}; all.forEach(function(it){ ILLIB.map[it.key] = it; });
+    ILLIB.map = {}; all.forEach(function(it){ ILLIB.map[it.key] = it; }); arc.forEach(function(it){ ILLIB.map[it.key] = it; });
     if (!ILLIB.catsInit){
       var cats = []; all.forEach(function(it){ if (cats.indexOf(it.category) < 0) cats.push(it.category); });
       cats.sort();
@@ -2951,19 +3056,41 @@ function renderIllLib(){
     }
     var q = ($('#illQ') && $('#illQ').value || '').trim().toLowerCase();
     var terms = q.split(/\s+/).filter(Boolean);
+    function hitArc(it){
+      if (terms.length){
+        var hay = (it.title + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ')).toLowerCase();
+        if (!terms.every(function(t){ return hay.indexOf(t) >= 0; })) return false;
+      }
+      return true;
+    }
+    var cnt = $('#illCount');
+    /* [내가 쓴 예화] 칩: 아카이브만 검색·열람 (연도 최신순) */
+    if (ILLIB.src === 'arc'){
+      var la = arc.filter(hitArc);
+      if (cnt) cnt.textContent = '내가 쓴 예화 ' + la.length + '건' + (la.length > 80 ? ' (상위 80건 표시)' : '') + (ILLARC.builtAt ? ' · 스냅샷 ' + ILLARC.builtAt : '');
+      box.innerHTML = la.length ? la.slice(0, 80).map(illCardArc).join('') : '<div class="empty">검색 결과가 없습니다.</div>';
+      return;
+    }
     var list = all.filter(function(it){
       if (ILLIB.src === 'lib' && it.src !== 'lib') return false;
       if (ILLIB.src === 'inbox' && it.src !== 'inbox') return false;
       if (ILLIB.cat && it.category !== ILLIB.cat) return false;
       if (terms.length){
-        var hay = (it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ')).toLowerCase();
+        var hay = (it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ') + illSeedHay(it)).toLowerCase();
         if (!terms.every(function(t){ return hay.indexOf(t) >= 0; })) return false;
       }
       return true;
     });
-    var cnt = $('#illCount'); if (cnt) cnt.textContent = '총 ' + list.length + '편' + (list.length > 80 ? ' (상위 80편 표시)' : '');
-    if (!list.length){ box.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
-    box.innerHTML = list.slice(0, 80).map(illCardU).join('');
+    /* [전체]에서 검색어가 있으면 내가 쓴 예화도 아래에 함께 (상위 20건) */
+    var arcSec = '', arcN = 0;
+    if (ILLIB.src === 'all' && terms.length){
+      var lb = arc.filter(hitArc); arcN = lb.length;
+      if (lb.length) arcSec = '<div class="pastSec" style="margin:12px 2px 6px">🗂 내가 쓴 예화 ' + lb.length + '건' + (lb.length > 20 ? ' — 상위 20건 (전부 보려면 [내가 쓴 예화] 칩)' : '') + '</div>'
+        + lb.slice(0, 20).map(illCardArc).join('');
+    }
+    if (cnt) cnt.textContent = '총 ' + list.length + '편' + (list.length > 80 ? ' (상위 80편 표시)' : '') + (arcN ? ' · 내가 쓴 예화 ' + arcN + '건' : '');
+    if (!list.length && !arcSec){ box.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
+    box.innerHTML = list.slice(0, 80).map(illCardU).join('') + arcSec;
   });
 }
 (function(){
