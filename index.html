@@ -1129,6 +1129,13 @@ body.uiDlgOpen{overflow:hidden}
             <span class="chip" data-scope="devon">묵상노트</span>
           </div>
         </div>
+        <div class="card" id="dailyIllCard" style="display:none;margin-top:10px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <b>📮 오늘의 서랍</b><span class="cnt" id="dailyIllMeta"></span>
+            <button class="linkbtn" id="dailyIllFold" type="button" style="margin-left:auto;flex:0 0 auto">접기</button>
+          </div>
+          <div id="dailyIllBody" style="margin-top:8px"></div>
+        </div>
         <div class="cnt" id="qCnt"></div>
         <div id="qResults"><div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.<br>비슷한 뜻의 말도 함께 찾습니다(예: <b>불안</b> → 염려·걱정·두려움).<br>데이터는 기기에 저장되어 오프라인에서도 검색됩니다.</div></div>
       </div>
@@ -3113,6 +3120,93 @@ function renderIllLib(){
   var box = $('#illResults'); if (box) box.addEventListener('click', function(e){
     var b = e.target.closest('.illInsertU'); if (!b) return; e.preventDefault();
     var it = ILLIB.map && ILLIB.map[b.getAttribute('data-illkey')]; if (!it) return;
+    var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
+    var target = pts[pts.length - 1]; target.blocks = target.blocks || [];
+    target.blocks.push(newIllBlock(it.title || '', it.story || ''));
+    renderPoints(); renderEditor();
+    toast('예화 「' + (it.title || '') + '」를 작성 중 설교 ' + pts.length + '번 대지에 삽입했습니다. (작성 화면에서 확인)');
+  });
+})();
+
+/* ===================== 오늘의 서랍 (매일 3편 로테이션 — 반복 노출로 서랍과 친해지기) =====================
+   규칙: 같은 날은 언제 열어도 같은 3편(날짜 시드 결정적 셔플) · 미노출분 우선(한 바퀴 돌면 리셋) ·
+   카테고리 분산 · 오늘 묵상 본문과 겹치는 편이 있으면 1편 우선 포함. 노출 기록은 localStorage. 무AI. */
+var DAILY = { map: {}, renderedFor: '' };
+function dailyHash(s){ var h = 5381; for (var i = 0; i < s.length; i++){ h = ((h << 5) + h + s.charCodeAt(i)) & 0x7fffffff; } return h; }
+function dailyTodayStr(){ var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function dailyStore(){ try { return JSON.parse(localStorage.getItem('tsa.dailyIll') || '{}') || {}; } catch (e){ return {}; } }
+function dailySave(st){ try { localStorage.setItem('tsa.dailyIll', JSON.stringify(st)); } catch (e){} }
+function dailyPick(pool){
+  var today = dailyTodayStr(), st = dailyStore();
+  var byKey = {}; pool.forEach(function(it){ byKey[it.key] = it; });
+  if (st.date === today && st.keys && st.keys.length){
+    var cur = st.keys.map(function(k){ return byKey[k]; }).filter(Boolean);
+    if (cur.length === st.keys.length) return { items: cur, st: st };  /* 오늘 몫은 고정 */
+  }
+  var seen = {}; (st.seen || []).forEach(function(k){ seen[k] = 1; });
+  var unseen = pool.filter(function(it){ return !seen[it.key]; });
+  var seenArr = st.seen || [];
+  if (unseen.length < 3){ seenArr = []; st.cycle = (st.cycle || 0) + 1; unseen = pool.slice(); }
+  unseen.sort(function(a, b){ return dailyHash(today + '|' + a.key) - dailyHash(today + '|' + b.key); });
+  var picks = [];
+  /* 오늘 묵상 본문과 같은 책의 예화 1편 우선 */
+  try {
+    var dv = (typeof devoEntryFor === 'function') ? devoEntryFor(today) : null;
+    var iv = dv ? refToInterval(String(dv['본문범위'] || '')) : null;
+    if (iv){
+      for (var i = 0; i < unseen.length; i++){
+        var hit = (unseen[i].refs || []).some(function(r){ var v = refToInterval(r); return v && v.idx === iv.idx; });
+        if (hit){ picks.push(unseen[i]); unseen.splice(i, 1); break; }
+      }
+    }
+  } catch (e){}
+  /* 나머지: 카테고리가 겹치지 않게 우선 채움(1차), 부족하면 순서대로(2차) */
+  var usedCat = {}; picks.forEach(function(p){ usedCat[p.category] = 1; });
+  for (var pass = 0; pass < 2 && picks.length < 3; pass++){
+    for (var k2 = 0; k2 < unseen.length && picks.length < 3; k2++){
+      var it2 = unseen[k2];
+      if (pass === 0 && usedCat[it2.category]) continue;
+      picks.push(it2); usedCat[it2.category] = 1; unseen.splice(k2, 1); k2--;
+    }
+  }
+  picks.forEach(function(p){ if (seenArr.indexOf(p.key) < 0) seenArr.push(p.key); });
+  st = { date: today, keys: picks.map(function(p){ return p.key; }), seen: seenArr, cycle: st.cycle || 0 };
+  dailySave(st);
+  return { items: picks, st: st };
+}
+function renderDailyIll(){
+  var card = $('#dailyIllCard'); if (!card) return;
+  var today = dailyTodayStr();
+  if (DAILY.renderedFor === today && card.style.display !== 'none') return;  /* 같은 날 재진입 시 재계산 생략 */
+  illustLoad().catch(function(){}).then(function(){
+    var pool = illUnified(); if (!pool.length) return;
+    var r = dailyPick(pool);
+    if (!r.items.length) return;
+    DAILY.map = {}; r.items.forEach(function(it){ DAILY.map[it.key] = it; });
+    var folded = false; try { folded = localStorage.getItem('tsa.dailyIll.fold') === '1'; } catch (e){}
+    var meta = $('#dailyIllMeta'); if (meta) meta.textContent = '서랍 한 바퀴 ' + Math.min(r.st.seen.length, pool.length) + '/' + pool.length + (r.st.cycle ? ' · ' + (r.st.cycle + 1) + '바퀴째' : '');
+    var fb = $('#dailyIllFold'); if (fb) fb.textContent = folded ? '펼치기' : '접기';
+    var body = $('#dailyIllBody');
+    if (body){ body.style.display = folded ? 'none' : ''; body.innerHTML = r.items.map(illCardU).join(''); }
+    card.style.display = '';
+    DAILY.renderedFor = today;
+  });
+}
+(function(){
+  var card = $('#dailyIllCard'); if (!card) return;
+  card.addEventListener('click', function(e){
+    var f = e.target.closest && e.target.closest('#dailyIllFold');
+    if (f){
+      var body = $('#dailyIllBody');
+      var fold = body.style.display !== 'none';
+      body.style.display = fold ? 'none' : '';
+      f.textContent = fold ? '펼치기' : '접기';
+      try { localStorage.setItem('tsa.dailyIll.fold', fold ? '1' : '0'); } catch (e2){}
+      return;
+    }
+    var b = e.target.closest && e.target.closest('.illInsertU'); if (!b) return;
+    e.preventDefault();
+    var it = DAILY.map[b.getAttribute('data-illkey')]; if (!it) return;
     var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
     var target = pts[pts.length - 1]; target.blocks = target.blocks || [];
     target.blocks.push(newIllBlock(it.title || '', it.story || ''));
@@ -13808,6 +13902,7 @@ function showPage(name){
     if (name === 'search') $('#q').focus();
     if (name === 'input') $('#ideaContent').focus();
   }
+  if (name === 'search') { try { renderDailyIll(); } catch (eD){} }
   if (name === 'outputs') renderOutputs();
   if (name === 'devo') renderDevo();
   if (name === 'series') { state.seriesMode = 'list'; renderSeriesPage(); }
@@ -15068,7 +15163,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v409';
+var APP_VER = 'v410';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -15110,6 +15205,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setVidProxyUrl')) $('#setVidProxyUrl').value = state.settings.vidProxyUrl || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
   $('#page-search').classList.add('on');
+  setTimeout(function(){ try { renderDailyIll(); } catch (eD){} }, 600);  /* 첫 화면 오늘의 서랍 (기기 데이터 로드 여유) */
   $('#smDate').value = todayLocal_();
   $('#c_date').value = todayLocal_();
   $('#occ_date').value = todayLocal_();
