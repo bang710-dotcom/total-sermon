@@ -2897,7 +2897,7 @@ function renderRefIllust(){
     var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
     var target = pts[pts.length - 1];
     target.blocks = target.blocks || [];
-    target.blocks.push(newIllBlock(it.title || '', it.story || ''));
+    target.blocks.push(newIllBlock(it.title || '', it.story || '', it.key));
     renderPoints(); renderEditor();
     toast('예화 「' + (it.title || '') + '」를 ' + pts.length + '번 대지에 삽입했습니다.');
   });
@@ -3050,11 +3050,56 @@ function illUsedInSermons(it){
   if (title.length >= 4 || msg.length >= 6){
     (state.data.sermons || []).forEach(function(s){
       if (isOptRow(s) || out.indexOf(s) >= 0) return;
-      var hay = String(s['예화'] || ''); if (!hay) return;
+      var hay = String(s['예화'] || '') + '\n' + String(s['원고텍스트'] || ''); if (!hay.trim()) return;
       if ((title.length >= 4 && hay.indexOf(title) >= 0) || (msg.length >= 6 && hay.indexOf(msg) >= 0)) out.push(s);
     });
   }
   return out;
+}
+/* ── 삽입된 서랍 예화 → 인박스 레코드 사용이력 자동 기록(C1, 2026-07-12) ──
+   서랍 예화를 원고에 삽입하고 저장하면, 그 예화(인박스·편입분)의 '사용설교ID'에
+   설교ID를 자동 누적한다. 라이브러리(json) 전용 예화는 인박스 레코드가 없어
+   illUsedInSermons의 텍스트 매칭(원고텍스트 포함)으로 역링크된다. 백엔드 스키마 불변. */
+function illSrcKeyToIdeaId(key){
+  key = String(key || '');
+  if (/^inbox:/.test(key)) return key.replace(/^inbox:/, '');
+  var m = /^lib:INBOX_(I\d+)/.exec(key); if (m) return m[1];
+  return '';
+}
+function illComposeUsedIdeaIds(){
+  var seen = {}, out = [];
+  (state.compose.points || []).forEach(function(p){
+    pBlocks(p).forEach(function(b){
+      if (b.type !== 'ill') return;
+      var id = illSrcKeyToIdeaId(b.srcKey || '');
+      if (!id){   /* 폴백: 삽입 제목으로 인박스 예화 역해석 */
+        var t = String(b.ill || '').trim();
+        if (t.length >= 4){
+          (state.data.ideas || []).forEach(function(d){
+            if (id || d['유형'] !== '예화') return;
+            var dt = String(d['제목'] || '').trim() || illFirstLine(String(d['내용'] || ''));
+            if (dt && dt === t) id = d['ID'];
+          });
+        }
+      }
+      if (id && !seen[id] && findIdea(id)){ seen[id] = 1; out.push(id); }
+    });
+  });
+  return out;
+}
+function illRecordUsage(sermonId){
+  sermonId = String(sermonId || '').trim(); if (!sermonId) return;
+  var ids = illComposeUsedIdeaIds(); if (!ids.length) return;
+  ids.forEach(function(iid){
+    var d = findIdea(iid); if (!d) return;
+    var cur = String(d['사용설교ID'] || '').split(/[,;]\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+    if (cur.indexOf(sermonId) >= 0) return;   /* 이미 기록됨 — 멱등 */
+    cur.push(sermonId); var val = cur.join(', ');
+    d['사용설교ID'] = val;   /* 로컬 즉시 반영(역링크·중복체크 배지) */
+    if (state.settings && state.settings.url && state.settings.token){
+      apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '사용설교ID': val } }).catch(function(){});
+    }
+  });
 }
 function illCardU(it){
   var used = illUsedInSermons(it);
@@ -3133,7 +3178,7 @@ function renderIllLib(){
     var it = ILLIB.map && ILLIB.map[b.getAttribute('data-illkey')]; if (!it) return;
     var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
     var target = pts[pts.length - 1]; target.blocks = target.blocks || [];
-    target.blocks.push(newIllBlock(it.title || '', it.story || ''));
+    target.blocks.push(newIllBlock(it.title || '', it.story || '', it.key));
     renderPoints(); renderEditor();
     toast('예화 「' + (it.title || '') + '」를 작성 중 설교 ' + pts.length + '번 대지에 삽입했습니다. (작성 화면에서 확인)');
   });
@@ -3227,7 +3272,7 @@ function renderDailyIll(){
     var it = DAILY.map[b.getAttribute('data-illkey')]; if (!it) return;
     var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
     var target = pts[pts.length - 1]; target.blocks = target.blocks || [];
-    target.blocks.push(newIllBlock(it.title || '', it.story || ''));
+    target.blocks.push(newIllBlock(it.title || '', it.story || '', it.key));
     renderPoints(); renderEditor();
     toast('예화 「' + (it.title || '') + '」를 작성 중 설교 ' + pts.length + '번 대지에 삽입했습니다. (작성 화면에서 확인)');
   });
@@ -4133,9 +4178,9 @@ function illAddToManuscript(k, btn){
   var p = state.compose.points[ILL_PEND.i]; if (!p) return;
   var d = ILL_PEND.arr[k], bi, cur = pBlocks(p)[ILL_PEND.bi];
   if (!ILL_PEND.usedExisting && cur && cur.type === 'ill' && !(cur.ill || '').trim() && !(cur.illBody || '').trim()){
-    cur.ill = d.제목 || ''; cur.illBody = d.내용 || ''; bi = ILL_PEND.bi; ILL_PEND.usedExisting = true;
+    cur.ill = d.제목 || ''; cur.illBody = d.내용 || ''; if (d._key) cur.srcKey = String(d._key); bi = ILL_PEND.bi; ILL_PEND.usedExisting = true;
   } else {
-    p.blocks.splice(ILL_PEND.lastBi + 1, 0, newIllBlock(d.제목 || '', d.내용 || '')); bi = ILL_PEND.lastBi + 1;
+    p.blocks.splice(ILL_PEND.lastBi + 1, 0, newIllBlock(d.제목 || '', d.내용 || '', d._key)); bi = ILL_PEND.lastBi + 1;
   }
   ILL_PEND.lastBi = bi; ILL_PEND.added[k] = true;
   renderPoints(); renderEditor();
@@ -4213,7 +4258,7 @@ var C_META = { '날짜':'c_date','예배구분':'c_service','제목':'c_title','
 var BODY_ROLES = ['주해근거', '대지적용', '대지강화', '대지정리'];
 var ROLE_FIELD = { '주해근거': 'body', '대지적용': 'body', '대지강화': 'body', '대지정리': 'body', '대지실천': 'apply' };
 function newBodyBlock(b, role){ return { type: 'body', role: (role && ROLE_FIELD[role] === 'body') ? role : '주해근거', body: b || '' }; }
-function newIllBlock(t, b){ return { type: 'ill', ill: t || '', illBody: b || '' }; }
+function newIllBlock(t, b, srcKey){ var o = { type: 'ill', ill: t || '', illBody: b || '' }; if (srcKey) o.srcKey = String(srcKey); return o; }
 function newApplyBlock(a, role){ return { type: 'apply', role: '대지실천', apply: a || '' }; }
 function newPoint(){ return { text: '', blocks: [newBodyBlock('', '주해근거'), newApplyBlock('', '대지실천')] }; }
 /* 블록 role/필드/라벨 헬퍼 */
@@ -5890,6 +5935,7 @@ async function _doSaveComposeInner(){
         state.pendingAddLid = null;
         updateComposeBadge(); refreshReqBtns();
       }
+      try { illRecordUsage(state.editing || (typeof id === 'string' ? id : origId)); } catch (eR){}
       return id;
     });
   }
@@ -5949,6 +5995,7 @@ async function _doSaveAsNewInner(){
   stampLocalId_(_body); state.pendingAddLid = _body.data['로컬ID'];   /* 오프라인 보관 후 이어지는 [저장]이 같은 행으로 upsert되게 */
   return submit(_body, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; state.pendingAddLid = null; updateComposeBadge(); refreshReqBtns(); }
+    try { illRecordUsage(state.editing || (typeof id === 'string' ? id : '')); } catch (eR){}
     return id;
   }).then(function(r){ _un(); return r; }, function(e){ _un(); throw e; });
 }
@@ -15181,7 +15228,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v411';
+var APP_VER = 'v412';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
