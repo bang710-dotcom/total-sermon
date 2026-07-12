@@ -1464,6 +1464,7 @@ body.uiDlgOpen{overflow:hidden}
           <span class="chip" data-v="lib">강화 라이브러리</span>
           <span class="chip" data-v="inbox">내 인박스</span>
           <span class="chip" data-v="arc">내가 쓴 예화</span>
+          <span class="chip" data-v="sleep">😴 잠자는 예화</span>
         </div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <select id="illCat"><option value="">전체 카테고리</option></select>
@@ -3196,7 +3197,7 @@ function renderIllLib(){
     function hitArc(it){
       if (terms.length){
         var hay = (it.title + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ')).toLowerCase();
-        if (!terms.every(function(t){ return hay.indexOf(t) >= 0; })) return false;
+        if (!terms.every(function(t){ return illSynSet(t).some(function(w){ return hay.indexOf(w) >= 0; }); })) return false;
       }
       return true;
     }
@@ -3212,10 +3213,11 @@ function renderIllLib(){
     var base = all.filter(function(it){
       if (ILLIB.src === 'lib' && it.src !== 'lib') return false;
       if (ILLIB.src === 'inbox' && it.src !== 'inbox') return false;
+      if (ILLIB.src === 'sleep' && illIsUsed(it)) return false;   /* #1 잠자는 예화: 아직 설교에 안 쓴 소장분만 */
       if (ILLIB.cat && it.category !== ILLIB.cat) return false;
       if (terms.length){
         var hay = (it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ') + illSeedHay(it)).toLowerCase();
-        if (!terms.every(function(t){ return hay.indexOf(t) >= 0; })) return false;
+        if (!terms.every(function(t){ return illSynSet(t).some(function(w){ return hay.indexOf(w) >= 0; }); })) return false;
       }
       return true;
     });
@@ -3238,6 +3240,11 @@ function renderIllLib(){
       if (ILLIB.tone && illToneOf(it) !== ILLIB.tone) return false;
       return true;
     });
+    /* #4 랭킹: 검색어가 있으면 관련도(별점 가중 포함) 내림차순으로 정렬 — 넓게 검색해도 잘 맞는 것이 위로 */
+    if (terms.length){
+      var _sc = {}; list.forEach(function(it){ try { _sc[it.key] = illScoreOne(q, null, it); } catch (e){ _sc[it.key] = 0; } });
+      list.sort(function(a, b){ return (_sc[b.key] || 0) - (_sc[a.key] || 0); });
+    }
     /* [전체]에서 검색어가 있으면 내가 쓴 예화도 아래에 함께 (상위 20건) */
     var arcSec = '', arcN = 0;
     if (ILLIB.src === 'all' && terms.length){
@@ -3245,7 +3252,7 @@ function renderIllLib(){
       if (lb.length) arcSec = '<div class="pastSec" style="margin:12px 2px 6px">🗂 내가 쓴 예화 ' + lb.length + '건' + (lb.length > 20 ? ' — 상위 20건 (전부 보려면 [내가 쓴 예화] 칩)' : '') + '</div>'
         + lb.slice(0, 20).map(illCardArc).join('');
     }
-    if (cnt) cnt.textContent = '총 ' + list.length + '편' + (list.length > 80 ? ' (상위 80편 표시)' : '') + (arcN ? ' · 내가 쓴 예화 ' + arcN + '건' : '');
+    if (cnt) cnt.textContent = (ILLIB.src === 'sleep' ? '잠자는 예화 ' + list.length + '편 — 아직 설교에 안 쓴 소장분' : '총 ' + list.length + '편') + (list.length > 80 ? ' (상위 80편 표시)' : '') + (arcN ? ' · 내가 쓴 예화 ' + arcN + '건' : '');
     if (!list.length && !arcSec){ box.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
     box.innerHTML = list.slice(0, 80).map(illCardU).join('') + arcSec;
   });
@@ -3297,7 +3304,13 @@ function dailyPick(pool){
     var lk = {}; leftovers.forEach(function(x){ lk[x.key] = 1; });
     unseen = pool.filter(function(it){ return !lk[it.key]; });
   }
-  unseen.sort(function(a, b){ return dailyHash(today + '|' + a.key) - dailyHash(today + '|' + b.key); });
+  /* #1: 미사용(아직 설교에 안 쓴) 예화를 우선 노출 — 날짜 결정성은 그룹 내부에서 유지 */
+  var _uSet = {}; try { _uSet = illUsedKeySet(); } catch (e){}
+  unseen.sort(function(a, b){
+    var ua = _uSet[a.key] ? 1 : 0, ub = _uSet[b.key] ? 1 : 0;
+    if (ua !== ub) return ua - ub;
+    return dailyHash(today + '|' + a.key) - dailyHash(today + '|' + b.key);
+  });
   if (leftovers.length) unseen = leftovers.concat(unseen);
   var picks = [];
   /* 오늘 묵상 본문과 같은 책의 예화 1편 우선 */
@@ -4139,6 +4152,28 @@ var P_ILLUS = [
 '한국어.'].join('\n');
 /* ── 서랍 우선 예화 추천: 로컬 후보 선별(무AI) → AI가 서랍 후보 중 선택+각색, 부족분만 창작 ── */
 var ILL_STOP = { '그리고':1,'그러나':1,'그런데':1,'그래서':1,'우리':1,'우리가':1,'우리는':1,'우리의':1,'여러분':1,'있습니다':1,'없습니다':1,'합니다':1,'입니다':1,'것입니다':1,'말합니다':1,'때문에':1,'대한':1,'통해':1,'가장':1,'모든':1,'오늘':1,'설교':1,'사람':1,'사람이':1,'하나님':1,'하나님이':1,'하나님의':1,'하나님은':1,'하나님을':1,'예수님':1,'예수님의':1,'그리스도':1 };
+/* #6(2026-07-12) 동의어·인접개념 그룹 — 토큰 겹침 검색·추천의 재현율 확장.
+   같은 그룹 단어는 서로 매칭(예: "연단"↔"고난", "희망"↔"소망"). 표준주제 9종 축 중심. */
+var ILL_SYN_GROUPS = [
+  ['고난','고통','시련','연단','아픔','환난','역경','고생','눈물'],
+  ['회복','치유','회개','돌아옴','새출발','재기'],
+  ['믿음','신뢰','확신','신앙'],
+  ['소망','희망','기대','영원','천국','부활','내세'],
+  ['사랑','자비','긍휼','품음','용서','화해'],
+  ['관계','공동체','이웃','형제','우정','교제'],
+  ['은혜','감사','값없이','선물','베풂'],
+  ['순종','행함','실천','헌신','충성','따름'],
+  ['겸손','섬김','낮아짐','종'],
+  ['정체성','부르심','소명','존재','자아'],
+  ['주권','섭리','인도','다스림','계획'],
+  ['말씀','성경','진리','계시','로고스'],
+  ['기도','성령','간구','부르짖음','임재'],
+  ['예배','찬양','경배','영광','노래'],
+  ['두려움','불안','염려','근심','걱정'],
+  ['용기','담대','결단','도전']
+];
+var ILL_SYN = (function(){ var m = {}; ILL_SYN_GROUPS.forEach(function(g){ g.forEach(function(w){ m[w] = (m[w] || []).concat(g); }); }); return m; })();
+function illSynSet(term){ term = String(term || '').trim(); var g = ILL_SYN[term]; if (!g) return [term]; var seen = {}, out = []; g.concat([term]).forEach(function(w){ if (!seen[w]){ seen[w] = 1; out.push(w); } }); return out; }
 function illTokens(t){
   var out = [], seen = {}, m = String(t || '').match(/[가-힣]{2,}/g) || [];
   m.forEach(function(w){ if (!ILL_STOP[w] && !seen[w]){ seen[w] = 1; out.push(w); } });
@@ -4155,7 +4190,7 @@ function illScoreOne(ctx, iv, it){
   illTokens(it.title).forEach(function(t){ hit(t, 2); });
   illTokens(it.message).forEach(function(t){ hit(t, 1); });
   var seed = illSeedFor(it);
-  if (seed) String(seed[0] || '').split(/[|·]/).forEach(function(t){ hit(t, 2); });
+  if (seed) String(seed[0] || '').split(/[|·]/).forEach(function(t){ hit(t, 2); illSynSet(t).forEach(function(w){ if (w !== t) hit(w, 1); }); });
   if (iv && it._ivs && it._ivs.length){
     var best = 0;
     it._ivs.forEach(function(x){ if (x.idx !== iv.idx) return; var l = (x.lo <= iv.hi && iv.lo <= x.hi) ? 6 : 3; if (l > best) best = l; });
