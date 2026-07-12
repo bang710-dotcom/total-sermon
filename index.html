@@ -2088,6 +2088,7 @@ function sync(opts){
   showWaitOverlay('동기화하고 있어요', '최신 시트 내용을 불러오는 중입니다.');
   return pullData(opts).then(function(d){
     toast('동기화 완료 (설교 ' + (d.sermons || []).length + ' · 아이디어 ' + (d.ideas || []).length + ')');
+    try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
@@ -2142,6 +2143,7 @@ function bootLoad(){
     syncSeriesDetails(); /* 각 시리즈 세부까지 로컬에 반영 */
     var cur = (pg && pg.id === 'page-series');
     if (cur) renderSeriesPage();
+    try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
   }).catch(function(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
@@ -3148,6 +3150,29 @@ function illRateSave(m){ try { localStorage.setItem('tsa.illRate', JSON.stringif
 /* #2(2026-07-12): 별점을 IndexedDB에도 미러 — iOS '미사용 저장소 자동 삭제' 등으로 localStorage가 비워져도
    부팅 시 복원(로컬 내구성). ※ 기기 간 동기화는 아님 — 멀티기기는 별도 시트 채널 신설 필요. */
 (function(){ try { if (localStorage.getItem('tsa.illRate') == null) idbGet('illRate').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illRate', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
+/* #2(2026-07-12): 별점 멀티기기 동기화 — 변경 즉시 시트 prefs 채널에 patch(오프라인은 대기열).
+   시트 미설정 시 로컬만. 백엔드 action=setPrefs/prefs 필요(Code.gs). */
+function illRatePush(key, val){
+  var s = state.settings || {};
+  if (!s.url || !s.token) return;   /* 시트 미설정 시 로컬 캐시만 */
+  var patch = {}; patch[key] = val;   /* val=null 이면 서버에서 삭제(툼스톤) */
+  try { apiPostOrQueue({ action: 'setPrefs', ns: 'illRate', patch: patch }).catch(function(){}); } catch (e){}
+}
+/* 서버 별점 blob을 당겨 로컬과 병합(별점 유실 방지 우선: 로컬 유지 + 서버가 충돌 시 우선). */
+function illRatePull(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
+  return api({ action: 'prefs' }).then(function(prefs){
+    var srv = prefs && prefs.illRate;
+    if (!srv || typeof srv !== 'object') return;
+    var local = illRateStore();
+    var merged = Object.assign({}, local, srv);   /* 서버 우선(최신 편집) + 로컬 전용 키 보존 */
+    if (JSON.stringify(merged) !== JSON.stringify(local)){
+      illRateSave(merged);
+      try { if (document.getElementById('illResults') && document.getElementById('page-illlib') && document.getElementById('page-illlib').classList.contains('on')) renderIllLib(); } catch (e){}
+    }
+  }).catch(function(){});
+}
 function illRateFor(key){ var v = illRateStore()[key]; return (v === 0 || v === 1 || v === 2) ? v : null; }
 var ILL_RATE_LABEL = ['다시 안 씀', '보통', '잘 먹힘'];
 function illRateColor(v){ return v === 2 ? 'var(--accent)' : v === 0 ? 'var(--warn)' : 'var(--dim)'; }
@@ -3169,6 +3194,7 @@ document.addEventListener('click', function(e){
   var m = illRateStore();
   if (m[key] === val) delete m[key]; else m[key] = val;
   illRateSave(m);
+  illRatePush(key, (m[key] == null ? null : m[key]));   /* #2 즉시 동기화(오프라인은 대기열) */
   var row = b.closest('.illRateRow');
   if (row) row.querySelectorAll('.illRateBtn').forEach(function(x){
     var v = +x.getAttribute('data-val'), on = m[key] === v, col = illRateColor(v);
@@ -15591,7 +15617,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v421';
+var APP_VER = 'v422';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
