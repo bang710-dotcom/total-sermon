@@ -13618,6 +13618,20 @@ function devoOverviewPage(S, ko, ov){
     + (ov['맺음말'] ? '<div style="position:absolute;bottom:13mm;left:13mm;right:13mm;text-align:center;font-size:9.5pt;color:#5B5142;line-height:1.6">' + esc(ov['맺음말']) + '</div>' : '');
   return devoPg(body, devoBgSrc(S, 'paper'));
 }
+/* D-3(2026-07-12): 그 주 묵상 본문과 겹치는 서랍 예화 1편(절 겹침 우선, 없으면 같은 책). 무AI. */
+function devoWeekIll(w){
+  if (!(typeof ILLUST !== 'undefined' && ILLUST && ILLUST.intervals)) return null;
+  var ivs = [];
+  ((w && w.rows) || []).forEach(function(r){ var v = refToInterval(String(r['본문범위'] || '')); if (v) ivs.push(v); });
+  if (!ivs.length) return null;
+  var best = null, bestLvl = 0;
+  ILLUST.intervals.forEach(function(x){
+    var lvl = 0;
+    ivs.forEach(function(iv){ if (x.idx !== iv.idx) return; var l = (x.lo <= iv.hi && iv.lo <= x.hi) ? 2 : 1; if (l > lvl) lvl = l; });
+    if (lvl > bestLvl){ bestLvl = lvl; best = x.it; }
+  });
+  return best ? { it: illNormLib(best), lvl: bestLvl } : null;
+}
 async function buildDevoBookletHtml(S, opts){
   opts = opts || {};
   var m = S.meta || {}, rows = (S.devo && S.devo.rows) || [];
@@ -13656,6 +13670,7 @@ async function buildDevoBookletHtml(S, opts){
   var ovMap = {};
   for (var ko3 in need){ try { ovMap[ko3] = await ensureOverview(S, ko3); } catch(e){ ovMap[ko3] = null; } }
   var lastBook = null;
+  try { await illustLoad(); } catch (eIll){}   /* D-3: 한 주의 예화용 */
   /* 주차별 */
   weeks.forEach(function(w, wi){
     var first = w.rows[0], last = w.rows[w.rows.length - 1];
@@ -13683,9 +13698,15 @@ async function buildDevoBookletHtml(S, opts){
     /* 일정표(찢은 종이) */
     var schedRows = w.rows.map(function(r){ return '<tr><td style="padding:6.5mm 0 2mm 12mm;font-size:10.5pt;color:#6F6046;border-bottom:0.25mm dotted #BCAF97">' + devoMD(r['날짜']) + ' (' + devoWD(r['날짜']) + ')</td>'
       + '<td style="padding:6.5mm 12mm 2mm 0;font-size:12.5pt;font-weight:900;border-bottom:0.25mm dotted #BCAF97">' + esc(r['본문범위'] || '') + '</td></tr>'; }).join('');
+    var _wkIll = devoWeekIll(w);
+    var _illBox = _wkIll ? ('<div style="position:absolute;left:24mm;right:24mm;bottom:20mm;background:rgba(252,250,240,.92);border:0.4mm solid #BCAF97;border-radius:6mm;padding:5.5mm 8mm;z-index:1">'
+      + '<div style="font-size:10pt;font-weight:900;color:#9A5B33;margin-bottom:2.5mm">📖 한 주의 예화' + (_wkIll.lvl === 2 ? '' : ' <span style="font-weight:400;color:#7A6E5C">(같은 책)</span>') + '</div>'
+      + '<div style="font-size:12pt;font-weight:700;color:#4A4032">「' + esc(_wkIll.it.title || '') + '」</div>'
+      + (_wkIll.it.message ? '<div style="font-size:10pt;color:#6F6046;margin-top:2mm;line-height:1.55">' + esc(_wkIll.it.message) + '</div>' : '') + '</div>') : '';
     pages.push(devoPg('<div style="display:inline-block;background:rgba(252,250,240,.85);border-radius:99px;padding:2mm 7mm;font-size:11.5pt;font-weight:700;color:#4A4032">[' + (wi + 1) + '주차] ' + esc(theme) + '</div>'
       + '<div style="position:relative;margin:26mm auto 0;width:160mm"><img src="devo_assets/torn.png" style="width:160mm">'
-      + '<table style="position:absolute;top:14mm;left:10mm;width:140mm;border-collapse:collapse">' + schedRows + '</table></div>', weekly, 'wk'));
+      + '<table style="position:absolute;top:14mm;left:10mm;width:140mm;border-collapse:collapse">' + schedRows + '</table></div>'
+      + _illBox, weekly, 'wk'));
     /* 하루 4페이지 */
     w.rows.forEach(function(r){ var pp = devoParseRef(r['본문범위']); var bk = pp ? bookMap[pp.book] : null; devoDayPages(S, r, bk).forEach(function(pg){ pages.push(pg); }); });
   });
@@ -15460,7 +15481,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v418';
+var APP_VER = 'v419';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
