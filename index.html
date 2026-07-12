@@ -3148,7 +3148,8 @@ function illCardU(it){
     + illSrc(it.source, it.sourceConf, it.sourceNote)
     + usedHtml
     + illRateRow(it.key)
-    + '<div style="margin-top:6px"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button></div></details>';
+    + '<div style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button>'
+    + '<button class="linkbtn illCardNewsBtn" data-illkey="' + esc(it.key) + '">🖼 카드뉴스</button></div></details>';
 }
 function renderIllLib(){
   var box = $('#illResults'); if (!box) return;
@@ -7772,6 +7773,53 @@ function stackCanvases(list){
   for (i = 0; i < list.length; i++){ ctx.drawImage(list[i], 0, y); y += list[i].height; }
   return cv;
 }
+/* D-2(2026-07-12): 예화 카드뉴스 — 소장 예화 1편 → SNS 카드뉴스(검은배경 4~5장). 기존 buildCardNewsCanvases 재사용. */
+var P_ILL_CARDNEWS = [
+'당신은 영락교회 대학부 담임 설교자의 예화 하나를 SNS 카드뉴스로 재구성하는 편집자다.',
+'입력(예화 제목·강조메시지·스토리·카테고리)을 받아, 카카오톡으로 회중에게 공유할 4~5장짜리 카드뉴스 글을 만든다.',
+'출력은 반드시 JSON 하나만(설명·코드펜스 금지): {"cards":[ ... ]}. 카드 종류:',
+'· 표지(첫 장, 필수): {"type":"cover","label":"대학부 · 예화","title":"짧고 강한 제목 한 줄(핵심어는 **별표 두 개**로 강조)","ref":"한 줄 후크(강조메시지를 압축)"}',
+'· 본문(2~3장): {"kicker":"작은 머리말(장면/전환 한마디)","lines":["큰 글씨 줄 3~5개 — 각 줄 아주 짧게, 장면·긴장·반전을 이미지로"]}',
+'· 맺음(끝 장, 필수): {"type":"closing","kicker":"오늘, 우리에게","lines":["적용 2~3줄"],"cta":"실천·결단 한 문장"}',
+'원칙: 예화의 사실·인물·반전을 보존하되 카드답게 짧고 선명하게 압축한다. 스토리를 그대로 베끼지 말고 장면→긴장→반전→적용의 흐름으로. 구어체 결어("~잖아요","~거예요")를 자연스럽게. 전체 4~5장.',
+'한국어.'].join('\n');
+async function aiIllCardNews(it){
+  var inp = { '제목': it.title || '', '강조메시지': it.message || '', '스토리': String(it.story || '').slice(0, 1800), '카테고리': it.category || '' };
+  var out = await callClaude(P_ILL_CARDNEWS, JSON.stringify(inp), 4000, aiTick('예화 카드뉴스'));
+  var deck = aiJson(out);
+  if (!deck || !deck.cards || !deck.cards.length) throw new Error('카드뉴스 데이터를 만들지 못했습니다.');
+  var cs = deck.cards;
+  if (cs.length > 5) deck.cards = [cs[0]].concat(cs.slice(1, cs.length - 1).slice(0, 3), [cs[cs.length - 1]]);
+  return deck;
+}
+function illByKey(key){
+  if (typeof ILLIB !== 'undefined' && ILLIB.map && ILLIB.map[key]) return ILLIB.map[key];
+  if (typeof ILLUST !== 'undefined' && ILLUST.refMap && ILLUST.refMap[key]) return ILLUST.refMap[key];
+  if (typeof DAILY !== 'undefined' && DAILY.map && DAILY.map[key]) return DAILY.map[key];
+  try { var all = illUnified(); for (var i = 0; i < all.length; i++) if (all[i].key === key) return all[i]; } catch (e){}
+  return null;
+}
+async function shareIllCardNews(key){
+  var it = illByKey(key); if (!it){ toast('예화를 찾지 못했습니다.'); return; }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 카드뉴스를 만들 수 있습니다.'); return; }
+  try {
+    var deck = await aiIllCardNews(it);
+    setGenStage('카드뉴스 — 이미지로 만드는 중');
+    var cvs = await buildCardNewsCanvases(deck);
+    var base = String(it.title || '예화').replace(/[\\\/:*?"<>|]/g, '').trim() || '예화';
+    var files = [];
+    for (var i = 0; i < cvs.length; i++){ var b = await canvasToPngBlob(cvs[i]); files.push(new File([b], base + '_카드' + (i + 1) + '.png', { type: 'image/png' })); }
+    var oneBlob = await canvasToPngBlob(stackCanvases(cvs));
+    var oneFile = new File([oneBlob], base + '_예화카드뉴스.png', { type: 'image/png' });
+    hideGenOverlay();
+    cnPresentShare({ files: files, oneFile: oneFile, title: it.title || '예화', msg: '「' + (it.title || '예화') + '」', base: base });
+  } catch (e){ if (e && e.name === 'AbortError') return; hideGenOverlay(); toast('예화 카드뉴스 실패: ' + ((e && e.message) || e)); }
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('.illCardNewsBtn'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  shareIllCardNews(b.getAttribute('data-illkey'));
+}, true);
 async function shareSermonCards(id){
   var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
   if (!String(s['요약본'] || '').trim()) { toast('먼저 요약본을 만들어 주세요.'); return; }
@@ -15412,7 +15460,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v417';
+var APP_VER = 'v418';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
