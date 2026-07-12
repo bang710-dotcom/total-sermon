@@ -11079,8 +11079,34 @@ function spTimelineHtml(){
     node('③ 묵상집 PDF', pSt, 'spPdfInfo()') + '<span class="tlarrow">→</span>' +
     node('④ 설교 계획', sSt, "spView('sermon')") + '</div>';
 }
+/* A3(2026-07-12): 시리즈 계획 확정 주차에 로컬 서랍 후보 2편 선배정(무AI).
+   핵심메시지+대지+본문으로 illPickCandidates 로컬 스코어 → 읽기전용 표시.
+   "원고 쓰러 앉으면 후보가 이미 그 주에 앉아 있는" 구조. */
+function illPlanRow(src){
+  try {
+    if (!src || !ILLUST || !ILLUST.items) return '';
+    var ctx = String(src['핵심메시지'] || '') + ' ' + String(src['대지'] || '');
+    if (!ctx.trim()) return '';
+    var cands = illPickCandidates(ctx, String(src['본문'] || ''), 2);
+    if (!cands || !cands.length) return '';
+    var rows = cands.map(function(c){
+      var it = c.it;
+      return '<details style="margin:3px 0 0"><summary style="cursor:pointer;list-style:none;font-size:12.5px">'
+        + '📖 <b>' + esc(it.title || '') + '</b>'
+        + (it.message ? ' <span style="color:var(--accent)">▶ ' + esc(it.message) + '</span>' : '')
+        + '</summary><div style="font-size:12px;color:var(--dim);line-height:1.55;margin:3px 0 0">' + esc(it.story || '') + '</div></details>';
+    }).join('');
+    return '<div style="margin:0 0 10px;padding:8px 11px;border:1px dashed var(--accent2);border-radius:9px;background:rgba(124,154,255,.04)">'
+      + '<div style="font-size:11.5px;color:var(--dim);margin-bottom:3px">📚 이 주제에 어울리는 서랍 예화 (계획 선배정)</div>'
+      + rows + '</div>';
+  } catch (e){ return ''; }
+}
 function renderSeriesPane(){
   var S = state.series, pane = $('#seriesPane');
+  if ((!ILLUST || !ILLUST.items) && !state._spIllPend && typeof illustLoad === 'function'){
+    state._spIllPend = 1;
+    illustLoad().then(function(){ state._spIllPend = 0; renderSeriesPane(); }).catch(function(){ state._spIllPend = 0; });
+  }
   if (!S) { pane.innerHTML = ''; return; }
   if (isDawn(S)) {
     pane.innerHTML = spDawnTimeline() + (S.sermon ? spDawnHtml()
@@ -11219,7 +11245,7 @@ function spSermonHtml(){
         '<button class="btn sub" data-w="' + wi + '" data-act="weekReselect" style="width:auto">설교주제 다시 선택</button>' +
         '<button class="linkbtn" data-w="' + wi + '" data-act="weekCollapse" style="font-size:12px;color:var(--dim)">이 주차 접기 ↑</button></div>';
       return '<details class="edPoint spConfirmed' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' +
-        (wi === openIdx ? ' open' : '') + '>' + summary + head + confirmCard + nonSelHtml + composeBtn + bottomRow + '</details>';
+        (wi === openIdx ? ' open' : '') + '>' + summary + head + confirmCard + illPlanRow(src) + nonSelHtml + composeBtn + bottomRow + '</details>';
     }
 
     /* ── 미확정 상태: 라디오 선택지 + 편집란 + 확정 버튼 ── */
@@ -15228,7 +15254,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v412';
+var APP_VER = 'v413';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
