@@ -3780,19 +3780,93 @@ async function studyAiSynth(){
     if (STUDY.tab === 'ai') studyRenderPane();
   } catch (e){ toast('본문연구 정리 실패: ' + e.message); }
 }
+/* "장:절" 또는 "책 장:절"에서 c*1000+v 정수 추출(첫 매치) */
+function stRefNum(s){ var m = String(s || '').match(/(\d+)\s*:\s*(\d+)/); return m ? (+m[1]) * 1000 + (+m[2]) : -1; }
+/* "3:14-19"·"3:14-4:2"·"3:14" 범위를 {lo,hi}로 */
+function stSegRangeNum(s){
+  var m = String(s || '').match(/(\d+)\s*:\s*(\d+)(?:\s*[-~–—]\s*(?:(\d+)\s*:\s*)?(\d+))?/);
+  if (!m) return null; var c1=+m[1], v1=+m[2], c2=m[3]?+m[3]:c1, v2=m[4]?+m[4]:v1;
+  return { lo:c1*1000+v1, hi:c2*1000+v2 };
+}
+function renderStudyStruct(st, climaxRef){
+  if (!st) return '';
+  if (typeof st === 'string') return '<div class="stAiSec"><h4>본문 구조</h4><div class="stAiBody">' + stMd(st) + '</div></div>';
+  var cx = stRefNum(climaxRef);
+  var rows = (st.단락 || []).map(function(sg){
+    var rg = stSegRangeNum(sg.범위), isClimax = (cx >= 0 && rg && rg.lo <= cx && cx <= rg.hi);
+    return '<div class="stSeg' + (isClimax ? ' stClimax' : '') + '"><span class="stSegRange">' + esc(sg.범위 || '') + '</span>'
+      + '<span class="stSegPt">' + esc(sg.요지 || '') + (isClimax ? '<span class="stStar">★ 클라이맥스</span>' : '') + '</span></div>';
+  }).join('');
+  return '<div class="stAiSec"><h4>본문 구조' + (st.유형 ? ' <span class="stGenre" style="margin-left:6px">' + esc(st.유형) + '</span>' : '') + '</h4>'
+    + '<div class="stStruct">' + rows + '</div>'
+    + (st.설명 ? '<div class="stWhy" style="margin-top:6px">' + stMd(st.설명) + '</div>' : '') + '</div>';
+}
 function renderStudyAi(j){
   var h = '';
+  if (j.장르) h += '<div class="stAiSec"><span class="stGenre">' + esc(String(j.장르).split(/[+·—-]/)[0].trim() || '장르') + '</span> <span class="stAiBody" style="display:inline">' + esc(String(j.장르).replace(/^[^+·—-]*[+·—-]\s*/, '')) + '</span></div>';
   if (j.핵심원어 && j.핵심원어.length){
     h += '<div class="stAiSec"><h4>깊이 팔 핵심 원어</h4>' + j.핵심원어.map(function(w){
       return '<div class="sworddef"><div class="swh"><span class="sorig">' + esc(w.원어 || '') + '</span> <span class="strans">' + esc(w.발음 || '') + '</span> <span class="scode">' + esc(w.스트롱 || '') + '</span></div>'
         + '<div class="swd"><b>' + esc(w.단어 || '') + '</b> — ' + esc(w.뜻 || '') + '</div>'
-        + (w.왜 ? '<div class="stWhy">' + esc(w.왜) + '</div>' : '') + '</div>';
+        + (w.왜 ? '<div class="stWhy">' + esc(w.왜) + '</div>' : '')
+        + (w.스트롱 ? '<button class="btn sub mini swDeepBtn" type="button" data-deep="' + esc(w.스트롱) + '" data-deepw="' + esc(w.단어 || '') + '">🔎 이 단어 깊이 파기</button><div class="swDeepBox" id="swdeep-' + esc(w.스트롱) + '" style="display:none"></div>' : '') + '</div>';
     }).join('') + '</div>';
   }
   if (j.정황) h += '<div class="stAiSec"><h4>1차 독자 정황</h4><div class="stAiBody">' + stMd(j.정황) + '</div></div>';
-  if (j.구조) h += '<div class="stAiSec"><h4>본문 구조</h4><div class="stAiBody">' + stMd(j.구조) + '</div></div>';
+  if (j.구속사위치) h += '<div class="stAiSec"><h4>구속사적 위치</h4><div class="stAiBody">' + stMd(j.구속사위치) + '</div></div>';
+  h += renderStudyStruct(j.구조, j.클라이맥스 && j.클라이맥스.절);
   if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) h += '<div class="stAiSec"><h4>클라이맥스 절</h4><div class="stAiBody"><b>' + esc(j.클라이맥스.절 || '') + '</b><br>' + stMd(j.클라이맥스.이유 || '') + '</div></div>';
+  if (j.상호본문 && j.상호본문.length) h += '<div class="stAiSec"><h4>상호본문 (인용·암시)</h4>' + j.상호본문.map(function(x){ return '<div class="stXrefRow"><b>' + esc(x.본문 || '') + '</b> — ' + esc(x.관계 || '') + '</div>'; }).join('') + '</div>';
+  if (j.해석이견 && j.해석이견.length) h += '<div class="stAiSec"><h4>해석 이견</h4>' + j.해석이견.map(function(v){
+    return '<div class="stView"><div class="stViewQ">' + esc(v.쟁점 || '') + '</div>'
+      + (v.견해 && v.견해.length ? '<div class="stViewOpt">· ' + v.견해.map(function(o){ return esc(o); }).join('<br>· ') + '</div>' : '')
+      + (v.택함 ? '<div class="stViewPick"><b>택함:</b> ' + esc(v.택함) + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
+  if (j.신학주제 && j.신학주제.length) h += '<div class="stAiSec"><h4>신학 주제</h4><div class="stThemes">' + j.신학주제.map(function(t){ return '<span class="stTheme">' + esc(t) + '</span>'; }).join('') + '</div></div>';
+  if (j.설교다리) h += '<div class="stAiSec"><h4>설교로 넘어가는 다리</h4><div class="stBridge">' + stMd(j.설교다리) + '</div></div>';
   return h || '<div class="cnt">결과가 비었습니다 — 다시 시도해 주세요.</div>';
+}
+/* ── 원어 심층 연구 (단어 하나 깊이 파기) ── */
+var P_WORDSTUDY = [
+'당신은 목사님의 원어 단어 연구를 돕는 주해 비서다. 한 단어(원어)를 깊이 판다. 입력(JSON: 단어[한글]·원어·발음·스트롱·사전뜻·본문·본문절·원문발췌·용례[이 원어가 쓰인 다른 구절])을 근거로 정리한다.',
+'출력은 반드시 JSON 객체만(설명·코드펜스 금지):',
+'{"표제":{"원어":"","음역":"","품사":"명사/동사/형용사 등","기본형":"사전 표제형"},"어원":"어원·구성·문자적 그림 2~3문장","의미범위":["이 단어가 갖는 뉘앙스/의미 3~5개(짧게)"],"성경용례":"구약/70인역/신약에서 이 단어가 어떻게 쓰이는지, 입력 용례를 근거로 2~3문장","문법단서":"이 본문에서 이 단어의 문법적 특징(가능하면 원문발췌에서 확인되는 범위)이 의미에 주는 무게 1~2문장","신학적무게":"이 본문에서 이 단어가 지닌 신학적·설교적 무게 2~3문장","설교포인트":"이 단어로 열 수 있는 설교적 통찰 한 문장"}',
+'근거는 입력의 사전뜻·용례·원문에서만. 확실하지 않은 문법·어원은 단정하지 말고 "…로 보인다"처럼 표시한다. 없는 사실을 지어내지 않는다. 한국어로 간결하게.'].join('\n');
+var WSTUDY = {};
+async function studyWordStudy(code, word){
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 원어 심층 연구를 쓸 수 있습니다.'); return; }
+  var box = $('#swdeep-' + code); if (!box) return;
+  if (WSTUDY[code]){ box.innerHTML = renderWordStudy(WSTUDY[code]); return; }
+  box.innerHTML = '<div class="cnt">원어 심층 연구 생성 중…</div>';
+  try {
+    await studyLoad();
+    var L = (STUDY.lex && STUDY.lex[code]) || {};
+    var orig = await studyOrigVerses();
+    var dist = (typeof studyTransDist === 'function') ? studyTransDist(code) : { verses: [] };
+    var uses = (dist.verses || []).slice(0, 8).map(function(v){ return (v.ref || '') + ' ' + String(v.text || '').replace(/\s+/g, ' ').slice(0, 80); });
+    var ctx = studyGatherContext();
+    var input = {
+      단어: word || L.w || '', 원어: L.w || '', 발음: L.t || '', 스트롱: code, 사전뜻: String(L.d || ''),
+      본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''),
+      본문절: ctx.절, 원문발췌: orig, 용례: uses
+    };
+    var out = await callClaude(P_WORDSTUDY, JSON.stringify(input), 4000, aiTick('원어 심층 연구'));
+    WSTUDY[code] = aiJson(out);
+    box.innerHTML = renderWordStudy(WSTUDY[code]);
+  } catch (e){ box.innerHTML = '<div class="stWarn">원어 심층 연구 실패: ' + esc(e.message) + '</div>'; }
+}
+function renderWordStudy(j){
+  if (!j) return '<div class="cnt">결과가 비었습니다.</div>';
+  var t = j.표제 || {};
+  var h = '<div class="swDeepHead"><b>' + esc(t.원어 || '') + '</b> ' + esc(t.음역 || '') + (t.품사 ? ' · ' + esc(t.품사) : '') + (t.기본형 ? ' · ' + esc(t.기본형) : '') + '</div>';
+  function sec(title, body){ return body ? '<div class="swDeepSec"><h5>' + title + '</h5><div class="b">' + stMd(body) + '</div></div>' : ''; }
+  h += sec('어원', j.어원);
+  if (j.의미범위 && j.의미범위.length) h += '<div class="swDeepSec"><h5>의미 범위</h5><div class="swDeepRange">' + j.의미범위.map(function(x){ return '<span>' + esc(x) + '</span>'; }).join('') + '</div></div>';
+  h += sec('성경 용례', j.성경용례);
+  h += sec('문법 단서', j.문법단서);
+  h += sec('신학적 무게', j.신학적무게);
+  h += sec('설교 포인트', j.설교포인트);
+  return h;
 }
 function studyTokenizeVerse(v){
   /* "태초에[H7225] 하나님이[H430]…" → [{w:'태초에',codes:['H7225']},…]. 한 단어에 코드 여럿 가능. */
