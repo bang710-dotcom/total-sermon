@@ -6869,10 +6869,12 @@ function renderDevo(){
     '<div class="card"><b>묵상하기</b><label>오늘 주신 메시지</label>' + dta('묵상메시지', 4, '본문을 통해 들려주시는 메시지', note['묵상메시지']) + '</div>' +
     '<div class="card"><b>적용하기</b>' + dta('적용', 3, '구체적인 실천', note['적용']) + '</div>' +
     '<div class="card"><b>오늘의 기도</b>' + dta('기도', 3, '', note['기도']) + '</div>' +
+    '<div id="devoIllust"></div>' +
     '<div class="toolrow"><button class="btn sub" onclick="openDevoPreview()">미리보기</button>' +
     '<button class="btn" id="devoSave">묵상 저장</button></div>' +
     '</div>';
   $('#devoSave').addEventListener('click', saveDevoNote);
+  fillDevoIllust(e['본문범위']);
   var range = parseRange(e['본문범위']);
   if (range) {
     renderScripture(range).then(function(html){ $('#devoVerses').className = ''; $('#devoVerses').innerHTML = html; })
@@ -6880,6 +6882,31 @@ function renderDevo(){
   } else {
     $('#devoVerses').textContent = '본문 범위를 해석하지 못했습니다: ' + e['본문범위'];
   }
+}
+/* B3(2026-07-12): 묵상 화면에 그날 본문과 겹치는 서랍 예화 1편을 조용히 노출.
+   전체 재렌더 없이 #devoIllust 슬롯을 비동기로 채운다(본문 겹침 우선, 없으면 같은 책). 무AI. */
+function fillDevoIllust(refStr){
+  var box = document.getElementById('devoIllust'); if (!box) return;
+  box.innerHTML = '';
+  var iv = refToInterval(String(refStr || '')); if (!iv) return;
+  illustLoad().then(function(){
+    var best = null, bestLvl = 0;
+    (ILLUST.intervals || []).forEach(function(x){
+      if (x.idx !== iv.idx) return;
+      var lvl = (x.lo <= iv.hi && iv.lo <= x.hi) ? 2 : 1;
+      if (lvl > bestLvl){ bestLvl = lvl; best = x.it; }
+    });
+    if (!best){ box.innerHTML = ''; return; }
+    var it = illNormLib(best);
+    box.innerHTML = '<div class="card" style="opacity:.94">'
+      + '<div class="cnt" style="margin-bottom:4px">📖 이 본문의 예화'
+      + (bestLvl === 2 ? '' : ' <span style="color:var(--dim)">(같은 책)</span>') + '</div>'
+      + '<details><summary style="cursor:pointer;list-style:none;font-size:13.5px"><b>' + esc(it.title || '') + '</b>'
+      + (it.message ? ' <span style="color:var(--accent)">▶ ' + esc(it.message) + '</span>' : '') + '</summary>'
+      + '<div style="font-size:12.5px;color:var(--dim);line-height:1.65;margin-top:5px">' + esc(it.story || '') + '</div>'
+      + (it.refs && it.refs.length ? '<div style="margin-top:5px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
+      + '</details></div>';
+  }).catch(function(){ box.innerHTML = ''; });
 }
 /* 오늘의 묵상(본문·제목·3질문)을 회중에게 공유 — 카카오/메시지. */
 function shareDevo(){
@@ -15254,7 +15281,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v413';
+var APP_VER = 'v414';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
