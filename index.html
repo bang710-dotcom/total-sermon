@@ -2844,7 +2844,8 @@ function renderRefIllust(){
   var iv = refToInterval($('#c_ref').value);
   var msg = ($('#c_msg') && $('#c_msg').value || '').trim();
   if (!iv && !msg){ box.innerHTML = ''; return; }
-  illustLoad().then(function(){
+  Promise.all([ illustLoad(), illArcLoad().catch(function(){ return []; }) ]).then(function(_rr){
+    var _arcAll = _rr[1] || [];
     var m = {};  /* key -> {lvl, it(정규화)} */
     if (iv) ILLUST.intervals.forEach(function(x){
       if (x.idx !== iv.idx) return;
@@ -2871,17 +2872,26 @@ function renderRefIllust(){
         reso.push(c.it);
       });
     }
-    if (!same.length && !book.length && !reso.length){ box.innerHTML = ''; return; }  /* 연결 예화가 있을 때만 패널 노출 */
+    /* #3(2026-07-12): 내가 쓴 예화(아카이브)에서 같은 책 본문 매칭 — 과거에 실제로 통했던 재사용 자산 */
+    var arcHit = [];
+    if (iv) _arcAll.forEach(function(it){
+      if (arcHit.length >= 6) return;
+      if ((it.refs || []).some(function(r){ var v = refToInterval(r); return v && v.idx === iv.idx; })) arcHit.push(it);
+    });
+    if (!same.length && !book.length && !reso.length && !arcHit.length){ box.innerHTML = ''; return; }  /* 연결 예화가 있을 때만 패널 노출 */
     ILLUST.refMap = {}; same.concat(book).concat(reso).forEach(function(it){ ILLUST.refMap[it.key] = it; });
+    ILLUST.refArcMap = {}; arcHit.forEach(function(it){ ILLUST.refArcMap[it.key] = it; });
     function inboxFirst(a, b){ return (a.src === 'inbox' ? 0 : 1) - (b.src === 'inbox' ? 0 : 1); }
     same.sort(inboxFirst); book.sort(inboxFirst);
     var html = '<div class="pastbox collapsed"><h4>📚 연결 예화'
       + (same.length ? ' · 본문 겹침 ' + same.length : '')
       + (book.length ? ' · 같은 책 ' + book.length : '')
-      + (reso.length ? ' · 메시지 공명 ' + reso.length : '') + '</h4>';
+      + (reso.length ? ' · 메시지 공명 ' + reso.length : '')
+      + (arcHit.length ? ' · 내가 쓴 ' + arcHit.length : '') + '</h4>';
     if (same.length) html += '<div class="pastSec">이 본문(장·절)에 연결된 예화</div>' + same.slice(0, 8).map(illCardU).join('');
     if (book.length) html += '<div class="pastSec">같은 책의 다른 본문 예화</div>' + book.slice(0, 6).map(illCardU).join('');
     if (reso.length) html += '<div class="pastSec">핵심메시지와 공명하는 예화</div>' + reso.map(illCardU).join('');
+    if (arcHit.length) html += '<div class="pastSec">📓 예전에 이 본문에서 쓴 예화</div>' + arcHit.slice(0, 6).map(illCardArc).join('');
     html += '</div>';
     box.innerHTML = html;
   }).catch(function(){ box.innerHTML = '<div class="cnt" style="margin:6px 2px">연결 예화 데이터를 불러오지 못했습니다.</div>'; });
@@ -2895,7 +2905,8 @@ function renderRefIllust(){
     if (h){ h.parentNode.classList.toggle('collapsed'); return; }
     var b = e.target.closest && e.target.closest('.illInsertU'); if (!b) return;
     e.preventDefault();
-    var it = ILLUST.refMap && ILLUST.refMap[b.getAttribute('data-illkey')]; if (!it) return;
+    var _k = b.getAttribute('data-illkey');
+    var it = (ILLUST.refMap && ILLUST.refMap[_k]) || (ILLUST.refArcMap && ILLUST.refArcMap[_k]); if (!it) return;
     var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
     var target = pts[pts.length - 1];
     target.blocks = target.blocks || [];
@@ -3133,7 +3144,10 @@ function illRecordUsage(sermonId){
 /* C3(2026-07-12): 예화 반응 별점 — 잘 먹힘(2)/보통(1)/다시 안 씀(0). localStorage 개인 신호.
    A1·A2 추천(illScoreOne)이 별점을 가중 — 잘 먹힌 예화는 우선, 다시 안 쓸 예화는 강등. */
 function illRateStore(){ try { return JSON.parse(localStorage.getItem('tsa.illRate') || '{}') || {}; } catch (e){ return {}; } }
-function illRateSave(m){ try { localStorage.setItem('tsa.illRate', JSON.stringify(m)); } catch (e){} }
+function illRateSave(m){ try { localStorage.setItem('tsa.illRate', JSON.stringify(m)); } catch (e){} try { idbSet('illRate', m); } catch (e){} }
+/* #2(2026-07-12): 별점을 IndexedDB에도 미러 — iOS '미사용 저장소 자동 삭제' 등으로 localStorage가 비워져도
+   부팅 시 복원(로컬 내구성). ※ 기기 간 동기화는 아님 — 멀티기기는 별도 시트 채널 신설 필요. */
+(function(){ try { if (localStorage.getItem('tsa.illRate') == null) idbGet('illRate').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illRate', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
 function illRateFor(key){ var v = illRateStore()[key]; return (v === 0 || v === 1 || v === 2) ? v : null; }
 var ILL_RATE_LABEL = ['다시 안 씀', '보통', '잘 먹힘'];
 function illRateColor(v){ return v === 2 ? 'var(--accent)' : v === 0 ? 'var(--warn)' : 'var(--dim)'; }
@@ -14744,11 +14758,18 @@ function anDrawerUsage(){
       + '<span style="flex:0 0 88px;text-align:right;color:var(--txt)">' + u + '/' + t + ' (' + pct + '%)</span></div>';
   }
   var cats = Object.keys(cat).sort(function(a, b){ return cat[b].t - cat[a].t; });
+  /* #7(2026-07-12): 미사용 편수 + 표준주제 분포 요약 — 잠자는 자산을 한눈에 */
+  var unusedTotal = total - usedTotal;
+  var themeC = {}; pool.forEach(function(it){ illThemesOf(it).forEach(function(t){ themeC[t] = (themeC[t] || 0) + 1; }); });
+  var themeTop = Object.keys(themeC).sort(function(a, b){ return themeC[b] - themeC[a]; });
   return '<div class="anCard"><h3>서랍 소진률 <span style="font-weight:400;color:var(--dim);font-size:13px">— 소장 예화를 실제 설교에 쓴 비율(통산)</span></h3>'
     + '<div class="anBody" style="display:block;padding:4px 2px">'
     + bar('전체', usedTotal, total, true)
     + '<div style="height:1px;background:var(--line);margin:2px 0 7px"></div>'
     + cats.map(function(c){ return bar(c, cat[c].u, cat[c].t, false); }).join('')
+    + '<div style="height:1px;background:var(--line);margin:8px 0 7px"></div>'
+    + '<div style="font-size:12.5px;color:var(--txt)">💤 미사용 <b>' + unusedTotal + '편</b> — 도서관 <b>[😴 잠자는 예화]</b> 칩에서 바로 꺼내 쓰세요.</div>'
+    + (themeTop.length ? '<div style="margin-top:6px;font-size:11.5px;color:var(--dim)">표준주제 분포: ' + themeTop.slice(0, 6).map(function(t){ return esc(t) + ' ' + themeC[t]; }).join(' · ') + '</div>' : '')
     + '<div class="cnt" style="margin-top:7px;color:var(--dim);font-size:11.5px">소진 판정: 인박스·편입 예화의 사용 이력(사용설교ID) 또는 제목이 실제 전한 설교의 예화 요약에 등장. 새벽 시리즈에서 미소진 카테고리를 우선 소진해 보세요.</div>'
     + '</div></div>';
 }
