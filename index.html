@@ -2833,16 +2833,17 @@ function illNormInbox(d){ var story=String(d['내용']||'').trim(); var folded=(
 function renderRefIllust(){
   var box = $('#c_illust'); if (!box) return;
   var iv = refToInterval($('#c_ref').value);
-  if (!iv){ box.innerHTML = ''; return; }
+  var msg = ($('#c_msg') && $('#c_msg').value || '').trim();
+  if (!iv && !msg){ box.innerHTML = ''; return; }
   illustLoad().then(function(){
     var m = {};  /* key -> {lvl, it(정규화)} */
-    ILLUST.intervals.forEach(function(x){
+    if (iv) ILLUST.intervals.forEach(function(x){
       if (x.idx !== iv.idx) return;
       var lvl = (x.lo <= iv.hi && iv.lo <= x.hi) ? 2 : 1;
       var key = 'lib:' + x.it.id;
       if (!m[key] || lvl > m[key].lvl) m[key] = { lvl: lvl, it: illNormLib(x.it) };
     });
-    (state.data.ideas || []).forEach(function(d){
+    if (iv) (state.data.ideas || []).forEach(function(d){
       if (d['유형'] !== '예화' || !String(d['내용'] || '').trim()) return;
       var best = 0;
       String(d['관련본문'] || '').split(/;\s*/).forEach(function(r){
@@ -2853,21 +2854,32 @@ function renderRefIllust(){
     });
     var same = [], book = [];
     Object.keys(m).forEach(function(k){ (m[k].lvl === 2 ? same : book).push(m[k].it); });
-    if (!same.length && !book.length){ box.innerHTML = ''; return; }  /* 연결 예화가 있을 때만 패널 노출 */
-    ILLUST.refMap = {}; same.concat(book).forEach(function(it){ ILLUST.refMap[it.key] = it; });
+    /* 핵심메시지 공명(주제·키워드 로컬 매칭) — 본문 겹침·같은 책에 없는 것만 */
+    var reso = [];
+    if (msg){
+      illPickCandidates(msg, '', 12).forEach(function(c){
+        if (m[c.it.key] || reso.length >= 5 || c.sc < 3) return;
+        reso.push(c.it);
+      });
+    }
+    if (!same.length && !book.length && !reso.length){ box.innerHTML = ''; return; }  /* 연결 예화가 있을 때만 패널 노출 */
+    ILLUST.refMap = {}; same.concat(book).concat(reso).forEach(function(it){ ILLUST.refMap[it.key] = it; });
     function inboxFirst(a, b){ return (a.src === 'inbox' ? 0 : 1) - (b.src === 'inbox' ? 0 : 1); }
     same.sort(inboxFirst); book.sort(inboxFirst);
     var html = '<div class="pastbox collapsed"><h4>📚 연결 예화'
       + (same.length ? ' · 본문 겹침 ' + same.length : '')
-      + (book.length ? ' · 같은 책 ' + book.length : '') + '</h4>';
+      + (book.length ? ' · 같은 책 ' + book.length : '')
+      + (reso.length ? ' · 메시지 공명 ' + reso.length : '') + '</h4>';
     if (same.length) html += '<div class="pastSec">이 본문(장·절)에 연결된 예화</div>' + same.slice(0, 8).map(illCardU).join('');
     if (book.length) html += '<div class="pastSec">같은 책의 다른 본문 예화</div>' + book.slice(0, 6).map(illCardU).join('');
+    if (reso.length) html += '<div class="pastSec">핵심메시지와 공명하는 예화</div>' + reso.map(illCardU).join('');
     html += '</div>';
     box.innerHTML = html;
   }).catch(function(){ box.innerHTML = '<div class="cnt" style="margin:6px 2px">연결 예화 데이터를 불러오지 못했습니다.</div>'; });
 }
 (function(){
   var ref = $('#c_ref'); if (ref) ref.addEventListener('input', debounce(renderRefIllust, 250));
+  var msgEl = $('#c_msg'); if (msgEl) msgEl.addEventListener('input', debounce(renderRefIllust, 300));
   var box = $('#c_illust');
   if (box) box.addEventListener('click', function(e){
     var h = e.target.closest && e.target.closest('.pastbox > h4');
@@ -3880,6 +3892,61 @@ var P_ILLUS = [
 '직전내용(있으면)과 자연스럽게 이어지게 하고, 목사님 예화 층위(자기·가족 일화 / 시사·문화·일상 / 성경의 평행 인물·사건)를 적절히 섞는다. 구체적·생생하게, 구어체 높임말.',
 '출력은 반드시 JSON 배열(3개)만(설명·코드펜스 금지): [{"제목":"짧은 예화 제목","내용":"3~5문장 예화"}]',
 '한국어.'].join('\n');
+/* ── 서랍 우선 예화 추천: 로컬 후보 선별(무AI) → AI가 서랍 후보 중 선택+각색, 부족분만 창작 ── */
+var ILL_STOP = { '그리고':1,'그러나':1,'그런데':1,'그래서':1,'우리':1,'우리가':1,'우리는':1,'우리의':1,'여러분':1,'있습니다':1,'없습니다':1,'합니다':1,'입니다':1,'것입니다':1,'말합니다':1,'때문에':1,'대한':1,'통해':1,'가장':1,'모든':1,'오늘':1,'설교':1,'사람':1,'사람이':1,'하나님':1,'하나님이':1,'하나님의':1,'하나님은':1,'하나님을':1,'예수님':1,'예수님의':1,'그리스도':1 };
+function illTokens(t){
+  var out = [], seen = {}, m = String(t || '').match(/[가-힣]{2,}/g) || [];
+  m.forEach(function(w){ if (!ILL_STOP[w] && !seen[w]){ seen[w] = 1; out.push(w); } });
+  return out;
+}
+function illScoreOne(ctx, iv, it){
+  var sc = 0, seen = {};
+  function hit(tok, w){
+    tok = String(tok || '').trim();
+    if (tok.length < 2 || ILL_STOP[tok] || seen[tok]) return;
+    if (ctx.indexOf(tok) >= 0){ sc += w; seen[tok] = 1; }
+  }
+  String(it.keywords || '').split(/[,;·/\s]+/).forEach(function(t){ hit(t, 3); });
+  illTokens(it.title).forEach(function(t){ hit(t, 2); });
+  illTokens(it.message).forEach(function(t){ hit(t, 1); });
+  var seed = illSeedFor(it);
+  if (seed) String(seed[0] || '').split(/[|·]/).forEach(function(t){ hit(t, 2); });
+  if (iv && it._ivs && it._ivs.length){
+    var best = 0;
+    it._ivs.forEach(function(x){ if (x.idx !== iv.idx) return; var l = (x.lo <= iv.hi && iv.lo <= x.hi) ? 6 : 3; if (l > best) best = l; });
+    sc += best;
+  }
+  return sc;
+}
+/* ctx(대지·핵심메시지·직전내용 등 텍스트)와 본문 ref로 소장 예화(라이브러리+인박스) 상위 후보를 뽑는다. */
+function illPickCandidates(ctx, refStr, max){
+  ctx = String(ctx || '');
+  if (!ctx.trim()) return [];
+  var iv = refStr ? refToInterval(refStr) : null;
+  var ivMap = {};
+  if (ILLUST && ILLUST.intervals) ILLUST.intervals.forEach(function(x){ var k = 'lib:' + x.it.id; (ivMap[k] = ivMap[k] || []).push({ idx: x.idx, lo: x.lo, hi: x.hi }); });
+  var out = [];
+  illUnified().forEach(function(it){
+    it._ivs = ivMap[it.key];
+    if (!it._ivs && iv){
+      it._ivs = [];
+      (it.refs || []).forEach(function(r){ var v = refToInterval(r); if (v) it._ivs.push({ idx: v.idx, lo: v.lo, hi: v.hi }); });
+    }
+    var sc = illScoreOne(ctx, iv, it);
+    if (sc > 0) out.push({ sc: sc, it: it });
+  });
+  out.sort(function(a, b){ return b.sc - a.sc; });
+  return out.slice(0, max || 18);
+}
+var P_ILLUS_PICK = [
+'당신은 영락교회 담임 설교자(목사님)의 예화 비서다. 입력(JSON)에는 대지 맥락(본문·핵심메시지·대지·직전내용·예화역할)과, 목사님이 이미 소장한 예화 서랍의 후보 목록(서랍후보: 번호·제목·강조메시지·내용앞부분·재사용)이 온다.',
+'예화 역할(반드시 구분):',
+'· 본문이해 = 대지의 "내용(본문 설명)"의 이해를 돕는 예화. 본문의 개념·상황·진리를 쉽게 그려 주는 비유·사례.',
+'· 적용강화 = "적용"(청중이 "이건 내 얘기다" 느끼게)을 강화하는 예화. 누구나 공감하는 일상·경험·널리 아는 현상으로 메시지를 청중의 삶에 박는다.',
+'1단계 — 서랍 선택: 서랍후보 중 이 대지·예화역할에 정말 맞는 것을 최대 2편 고른다. 관련성이 억지스러우면 고르지 않는다(0편 가능). 재사용 "있음" 후보는 더 나은 대안이 없을 때만 고르고, 이유에 재사용 사실을 명시한다. 고른 각 편에 "이유"(이 대지에 맞는 근거 1문장)와 "각색"(직전내용과 잇는 법·어조 조정 1문장)을 쓴다.',
+'2단계 — 창작 보충: 서랍 선택과 합쳐 총 3편이 되도록 창작 예화로 채운다(3~5문장, 구체적·생생, 구어체 높임말, 목사님 예화 층위: 자기·가족 일화 / 시사·문화·일상 / 성경의 평행 인물·사건). 직전내용과 자연스럽게 잇는다.',
+'출력은 반드시 JSON 배열만(설명·코드펜스 금지), 추천 순. 서랍 항목: {"출처":"서랍","번호":3,"이유":"...","각색":"..."} · 창작 항목: {"출처":"창작","제목":"짧은 예화 제목","내용":"3~5문장 예화"}',
+'한국어.'].join('\n');
 var ILL_PEND = null;
 async function aiIllustration(i, bi){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 예화 AI를 쓸 수 있습니다.'); return; }
@@ -3887,22 +3954,63 @@ async function aiIllustration(i, bi){
   var blocks = pBlocks(p), role = 'body', prevText = '';
   for (var k = bi - 1; k >= 0; k--){ var bb = blocks[k]; if (bb.type === 'apply'){ role = 'apply'; prevText = bb.apply || ''; break; } if (bb.type === 'body'){ role = 'body'; prevText = bb.body || ''; break; } }
   try {
-    var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: p.text || '', 직전내용: String(prevText).trim().slice(0, 800), 예화역할: role === 'apply' ? '적용강화' : '본문이해' };
-    var out = await callClaude(P_ILLUS + audienceDirective(), JSON.stringify(input), 4000, aiTick('예화 추천'));
-    var arr = aiJson(out);
-    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    var refStr = $('#c_ref').value.trim();
+    var input = { 본문: refStr, 핵심메시지: $('#c_msg').value.trim(), 대지: p.text || '', 직전내용: String(prevText).trim().slice(0, 800), 예화역할: role === 'apply' ? '적용강화' : '본문이해' };
+    /* 1단(무AI): 소장 서랍에서 후보 선별 → 2단(AI): 후보 중 선택+각색, 부족분만 창작 */
+    try { await illustLoad(); } catch (eL){}
+    var ctx = (input.대지 + ' ' + input.핵심메시지 + ' ' + input.직전내용).trim();
+    var cands = [];
+    try { cands = illPickCandidates(ctx, refStr, 18); } catch (eC){ cands = []; }
+    var arr = null;
+    if (cands.length >= 2){
+      var candList = cands.map(function(c, n){
+        var used = 0;
+        try { used = illUsedInSermons(c.it).length; } catch (eU){}
+        return { 번호: n + 1, 제목: c.it.title || '', 강조메시지: c.it.message || '', 내용앞부분: String(c.it.story || '').slice(0, 100), 재사용: used ? '있음(' + used + '회)' : '없음' };
+      });
+      var input2 = { 본문: input.본문, 핵심메시지: input.핵심메시지, 대지: input.대지, 직전내용: input.직전내용, 예화역할: input.예화역할, 서랍후보: candList };
+      var out = await callClaude(P_ILLUS_PICK + audienceDirective(), JSON.stringify(input2), 4000, aiTick('예화 추천(서랍 우선)'));
+      var picked = aiJson(out);
+      if (Array.isArray(picked) && picked.length){
+        arr = [];
+        picked.slice(0, 4).forEach(function(d){
+          if (!d) return;
+          if (d.출처 === '서랍'){
+            var c = cands[(+d.번호 || 0) - 1]; if (!c) return;
+            arr.push({ 제목: c.it.title || '', 내용: c.it.story || '', _src: '서랍', _why: d.이유 || '', _adapt: d.각색 || '', _key: c.it.key });
+          } else if (d.제목 || d.내용){
+            arr.push({ 제목: d.제목 || '', 내용: d.내용 || '', _src: '창작' });
+          }
+        });
+        if (!arr.length) arr = null;
+      }
+    }
+    if (!arr){
+      /* 서랍 후보가 없거나 응답 이상 → 기존 창작 흐름 */
+      var out2 = await callClaude(P_ILLUS + audienceDirective(), JSON.stringify(input), 4000, aiTick('예화 추천'));
+      arr = aiJson(out2);
+      if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+      arr.forEach(function(d){ if (d) d._src = '창작'; });
+    }
     illPick(i, bi, role, arr);
   } catch (e){ toast('예화 추천 실패: ' + e.message); }
 }
 function illPick(i, bi, role, arr){
   var ov = $('#illOv'); if (!ov) return;
-  $('#illOvTitle').textContent = (role === 'apply' ? '적용 강화' : '본문 이해') + ' 예화 추천 — 여러 개 추가하거나 도서관에 저장하세요';
+  var hasDrawer = arr.some(function(d){ return d && d._src === '서랍'; });
+  $('#illOvTitle').textContent = (role === 'apply' ? '적용 강화' : '본문 이해') + ' 예화 추천' + (hasDrawer ? ' — 서랍 우선, 부족분만 창작' : ' — 여러 개 추가하거나 도서관에 저장하세요');
   $('#illOvBody').innerHTML = arr.map(function(d, k){
+    var badge = d._src === '서랍'
+      ? '<span class="badge" style="color:var(--accent);border-color:var(--accent);margin-right:6px">📚 서랍</span>'
+      : '<span class="badge" style="opacity:.7;margin-right:6px">창작</span>';
+    var meta = '';
+    if (d._why) meta += '<div style="margin-top:5px;font-size:12.5px;color:var(--accent2)">✓ ' + esc(d._why) + '</div>';
+    if (d._adapt) meta += '<div style="margin-top:2px;font-size:12.5px;color:var(--dim)">✎ 각색: ' + esc(d._adapt) + '</div>';
     return '<div class="illOpt" data-k="' + k + '">'
-      + '<div class="illOptT">' + esc(d.제목 || '') + '</div>'
-      + '<div class="illOptB">' + esc(d.내용 || '') + '</div>'
+      + '<div class="illOptT">' + badge + esc(d.제목 || '') + '</div>'
+      + '<div class="illOptB">' + esc(d.내용 || '') + '</div>' + meta
       + '<div class="illOptAct"><button class="btn sub mini illAdd" type="button" data-k="' + k + '">＋ 원고에 추가</button>'
-      + '<button class="btn sub mini illSave" type="button" data-k="' + k + '">📚 도서관 저장</button></div>'
+      + (d._src === '서랍' ? '' : '<button class="btn sub mini illSave" type="button" data-k="' + k + '">📚 도서관 저장</button>') + '</div>'
       + '</div>';
   }).join('') + '<div class="illOvFoot"><button class="btn" id="illDone" type="button">완료</button></div>';
   ILL_PEND = { i: i, bi: bi, arr: arr, added: {}, saved: {}, usedExisting: false, lastBi: bi };
