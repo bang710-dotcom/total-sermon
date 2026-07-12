@@ -3146,8 +3146,15 @@ function dailyPick(pool){
   var seen = {}; (st.seen || []).forEach(function(k){ seen[k] = 1; });
   var unseen = pool.filter(function(it){ return !seen[it.key]; });
   var seenArr = st.seen || [];
-  if (unseen.length < 3){ seenArr = []; st.cycle = (st.cycle || 0) + 1; unseen = pool.slice(); }
+  var leftovers = [];
+  if (unseen.length < 3){
+    leftovers = unseen.slice();  /* 한 바퀴 끝자락 미노출분은 리셋 날 우선 노출 */
+    seenArr = []; st.cycle = (st.cycle || 0) + 1;
+    var lk = {}; leftovers.forEach(function(x){ lk[x.key] = 1; });
+    unseen = pool.filter(function(it){ return !lk[it.key]; });
+  }
   unseen.sort(function(a, b){ return dailyHash(today + '|' + a.key) - dailyHash(today + '|' + b.key); });
+  if (leftovers.length) unseen = leftovers.concat(unseen);
   var picks = [];
   /* 오늘 묵상 본문과 같은 책의 예화 1편 우선 */
   try {
