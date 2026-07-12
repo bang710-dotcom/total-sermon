@@ -14465,6 +14465,46 @@ function donutBlock(title, counts, opts){
   return '<div class="anCard"><h3>' + esc(title) + '</h3>'
     + '<div class="anBody">' + donutSvg(segItems, total, kind, selKey) + '</div></div>';
 }
+/* B4(2026-07-12): 서랍 소진률 게이지 — 소장 예화(924+인박스) 중 실제 설교에 쓴 비율(통산·카테고리별).
+   소진 판정: (a) 인박스/편입 예화의 사용설교ID, (b) 제목이 실제 전한 설교의 '예화' 요약에 등장(C1로 정확해짐). 무AI. */
+function anDrawerUsage(){
+  if (!ILLUST || !ILLUST.items){
+    if (!ANALYTICS._illPend){ ANALYTICS._illPend = 1; illustLoad().then(function(){ ANALYTICS._illPend = 0; renderAnalytics(); }).catch(function(){ ANALYTICS._illPend = 0; }); }
+    return '<div class="anCard"><h3>서랍 소진률</h3><div class="empty">예화 데이터 불러오는 중…</div></div>';
+  }
+  var pool = illUnified();
+  var hay = (state.data.sermons || []).filter(isLiveSermon).map(function(s){ return String(s['예화'] || ''); }).join('\n');
+  var cat = {}, usedTotal = 0;
+  pool.forEach(function(it){
+    var c = it.category || '기타';
+    (cat[c] = cat[c] || { t: 0, u: 0 }).t++;
+    var used = false;
+    if (/^inbox:/.test(it.key) || /^lib:INBOX_/.test(it.key)){
+      var iid = illSrcKeyToIdeaId(it.key), d = iid && findIdea(iid);
+      if (d && String(d['사용설교ID'] || '').trim()) used = true;
+    }
+    if (!used){ var t = String(it.title || '').trim(); if (t.length >= 4 && hay.indexOf(t) >= 0) used = true; }
+    if (used){ cat[c].u++; usedTotal++; }
+  });
+  var total = pool.length; if (!total) return '';
+  var pctAll = Math.round(usedTotal / total * 100);
+  function bar(label, u, t, big){
+    var pct = t ? Math.round(u / t * 100) : 0;
+    var h = big ? 15 : 12, col = big ? 'var(--accent2)' : 'var(--accent)';
+    return '<div style="display:flex;align-items:center;gap:8px;margin:' + (big ? '2px 0 8px' : '3px 0') + ';font-size:' + (big ? '13' : '12.5') + 'px">'
+      + '<span style="flex:0 0 104px;color:' + (big ? 'var(--txt);font-weight:700' : 'var(--dim)') + '">' + esc(label) + '</span>'
+      + '<div style="flex:1;height:' + h + 'px;background:var(--line);border-radius:7px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:' + col + '"></div></div>'
+      + '<span style="flex:0 0 88px;text-align:right;color:var(--txt)">' + u + '/' + t + ' (' + pct + '%)</span></div>';
+  }
+  var cats = Object.keys(cat).sort(function(a, b){ return cat[b].t - cat[a].t; });
+  return '<div class="anCard"><h3>서랍 소진률 <span style="font-weight:400;color:var(--dim);font-size:13px">— 소장 예화를 실제 설교에 쓴 비율(통산)</span></h3>'
+    + '<div class="anBody" style="display:block;padding:4px 2px">'
+    + bar('전체', usedTotal, total, true)
+    + '<div style="height:1px;background:var(--line);margin:2px 0 7px"></div>'
+    + cats.map(function(c){ return bar(c, cat[c].u, cat[c].t, false); }).join('')
+    + '<div class="cnt" style="margin-top:7px;color:var(--dim);font-size:11.5px">소진 판정: 인박스·편입 예화의 사용 이력(사용설교ID) 또는 제목이 실제 전한 설교의 예화 요약에 등장. 새벽 시리즈에서 미소진 카테고리를 우선 소진해 보세요.</div>'
+    + '</div></div>';
+}
 function renderAnalytics(){
   var box = $('#anResults'); if (!box) return;
   var A = ANALYTICS;
@@ -14512,6 +14552,8 @@ function renderAnalytics(){
   html += '</div>';
   /* 구약/신약 가로 막대 */
   html += anTestamentBars(byBook);
+  /* 서랍 소진률 게이지(B4) */
+  html += anDrawerUsage();
   /* 커버리지 코치(통산 기준) */
   html += anCoverage(all);
   /* 절기 커버리지(통산 기준) */
@@ -15281,7 +15323,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v414';
+var APP_VER = 'v415';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
