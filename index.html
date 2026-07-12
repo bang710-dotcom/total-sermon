@@ -6722,6 +6722,44 @@ function obsFname(s){
   var title = String(s['제목'] || '무제').replace(/[\\\/:*?"<>|#\[\]^]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
   return (date ? date + ' ' : '') + (title || '무제');
 }
+/* D-1(2026-07-12): 소장 예화 → 옵시디언 노트. 같은 본문 장을 [[본문/..장]]으로 링크해
+   설교 노트와 그래프에서 만나게 하고, 표준주제(C2)를 #태그로 클러스터링한다. */
+function obsIllChapLinks(it){
+  var seen = {}, out = [];
+  (it.bibleRefsParsed || []).forEach(function(p){
+    if (!p || !p.book || p.chapter == null) return;
+    var name = p.book + ' ' + p.chapter + '장';
+    if (seen[name]) return; seen[name] = 1;
+    out.push('[[본문/' + obsLinkName(name) + ']]');
+  });
+  return out;
+}
+function obsIllNote(it){
+  var fm = ['---'];
+  function f(k, v){ if (v != null && String(v).trim() !== '') fm.push(k + ': ' + obsYaml(v)); }
+  f('id', it.id); fm.push('분류: 예화'); f('카테고리', it.category);
+  fm.push('제목: ' + obsYaml(it.title || '무제'));
+  var th = it.stdThemes || [];
+  if (th.length) fm.push('표준주제: [' + th.map(function(t){ return obsYaml(t); }).join(', ') + ']');
+  f('결', it.tone);
+  if (String(it.source || '').trim()) f('출처', it.source + (it.sourceConfidence ? ' (' + it.sourceConfidence + ')' : ''));
+  var refs = it.bibleRefs || [];
+  if (refs.length) fm.push('연결본문: [' + refs.map(function(r){ return obsYaml(r); }).join(', ') + ']');
+  fm.push('---');
+  var head = [];
+  if (String(it.message || '').trim()) head.push('> [!quote] 강조 메시지\n> ' + String(it.message).trim());
+  var links = [];
+  var cl = obsIllChapLinks(it); if (cl.length) links.push('본문: ' + cl.join(' · '));
+  if (th.length) links.push('주제: ' + th.map(function(t){ return '#' + obsTagName(t); }).join(' '));
+  if (links.length) head.push(links.join('\n'));
+  var blocks = [fm.join('\n')];
+  if (head.length) blocks.push(head.join('\n\n'));
+  if (String(it.story || '').trim()) blocks.push(String(it.story).trim());
+  return blocks.join('\n\n') + '\n';
+}
+function obsIllFname(it){
+  return String(it.title || '무제').replace(/[\\\/:*?"<>|#\[\]^]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || '무제';
+}
 async function exportObsidianVault(){
   var all = (state.data.sermons || []).filter(function(s){ return isLiveSermon(s); });
   if (!all.length){ toast('내보낼 설교가 없습니다.'); return; }
@@ -6735,14 +6773,30 @@ async function exportObsidianVault(){
       used[key] = 1;
       sf.folder(y).file(base + (n > 1 ? ' (' + n + ')' : '') + '.md', obsNote(s));
     });
-    root.file('_보관함 안내.md', '# 설교 보관함\n\n토탈 설교 앱에서 한 방향으로 내보낸 옵시디언 보관함입니다.\n\n- 설교: `설교/<연도>/`\n- 본문·시리즈·주제는 위키링크/태그로 자동 연결됩니다.\n- 앱이 덮어쓰는 사본이므로, 보관함에서 직접 수정한 내용은 다음 내보내기에서 사라질 수 있습니다.\n\n총 ' + all.length + '편 · 내보낸 날짜 ' + todayLocal_() + '\n');
+    /* 소장 예화 → 예화/<카테고리>/<제목>.md (D-1) */
+    var illCount = 0;
+    try { await illustLoad(); } catch (eI){}
+    if (ILLUST && ILLUST.items){
+      var ilf = root.folder('예화'), iused = {};
+      ILLUST.items.forEach(function(it){
+        if (!it.enhanced) return;
+        var cat = String(it.category || '기타').replace(/[\\\/:*?"<>|#\[\]^]/g, ' ').replace(/\s+/g, ' ').trim() || '기타';
+        var base = obsIllFname(it), key = cat + '/' + base, n = 1;
+        while (iused[key]){ n++; key = cat + '/' + base + ' (' + n + ')'; }
+        iused[key] = 1;
+        ilf.folder(cat).file(base + (n > 1 ? ' (' + n + ')' : '') + '.md', obsIllNote(it));
+        illCount++;
+      });
+      ilf.file('_예화 안내.md', '# 예화\n\n토탈 설교 앱에서 내보낸 소장 예화입니다. 카테고리별 폴더이며, 각 예화는 강조 메시지·강화 스토리·연결 본문([[본문/OO장]])·표준주제(#태그)를 담습니다. **같은 본문 장을 다룬 설교 노트와 그래프에서 서로 만납니다.**\n\n총 ' + illCount + '편 · 내보낸 날짜 ' + todayLocal_() + '\n');
+    }
+    root.file('_보관함 안내.md', '# 설교 보관함\n\n토탈 설교 앱에서 한 방향으로 내보낸 옵시디언 보관함입니다.\n\n- 설교: `설교/<연도>/`\n- 예화: `예화/<카테고리>/` (연결 본문·표준주제로 설교와 그래프 연결)\n- 본문·시리즈·주제는 위키링크/태그로 자동 연결됩니다.\n- 앱이 덮어쓰는 사본이므로, 보관함에서 직접 수정한 내용은 다음 내보내기에서 사라질 수 있습니다.\n\n설교 ' + all.length + '편 · 예화 ' + illCount + '편 · 내보낸 날짜 ' + todayLocal_() + '\n');
     var blob = await zip.generateAsync({ type: 'blob' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = '설교보관함_옵시디언_' + todayLocal_() + '.zip';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
-    toast(all.length + '편을 옵시디언 보관함(zip)으로 내보냈습니다.');
+    toast('설교 ' + all.length + '편 · 예화 ' + illCount + '편을 옵시디언 보관함(zip)으로 내보냈습니다.');
   } catch (e){ toast('옵시디언 내보내기 실패: ' + (e && e.message || e)); }
 }
 window.exportObsidianVault = exportObsidianVault;
@@ -15358,7 +15412,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v416';
+var APP_VER = 'v417';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
