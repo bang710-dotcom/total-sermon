@@ -3803,7 +3803,8 @@ function renderStudyStruct(st, climaxRef){
 }
 function renderStudyAi(j){
   var h = '';
-  if (j.장르) h += '<div class="stAiSec"><span class="stGenre">' + esc(String(j.장르).split(/[+·—-]/)[0].trim() || '장르') + '</span> <span class="stAiBody" style="display:inline">' + esc(String(j.장르).replace(/^[^+·—-]*[+·—-]\s*/, '')) + '</span></div>';
+  if (j.장르){ var gs = String(j.장르), gm = gs.match(/^([^+·:—-]+)[+·:—-]\s*(.*)$/); var gLabel = gm ? gm[1].trim() : gs.trim(), gDesc = gm ? gm[2].trim() : '';
+    h += '<div class="stAiSec"><span class="stGenre">' + esc(gLabel || '장르') + '</span>' + (gDesc ? ' <span class="stAiBody" style="display:inline">' + esc(gDesc) + '</span>' : '') + '</div>'; }
   if (j.핵심원어 && j.핵심원어.length){
     h += '<div class="stAiSec"><h4>깊이 팔 핵심 원어</h4>' + j.핵심원어.map(function(w){
       return '<div class="sworddef"><div class="swh"><span class="sorig">' + esc(w.원어 || '') + '</span> <span class="strans">' + esc(w.발음 || '') + '</span> <span class="scode">' + esc(w.스트롱 || '') + '</span></div>'
@@ -3867,6 +3868,44 @@ function renderWordStudy(j){
   h += sec('신학적 무게', j.신학적무게);
   h += sec('설교 포인트', j.설교포인트);
   return h;
+}
+/* ── 연구 → 원고 파이프라인 ── */
+function studyResearchText(j, title){
+  var L = ['■ 본문연구: ' + (title || '')];
+  if (j.장르) L.push('장르: ' + j.장르);
+  if (j.핵심원어 && j.핵심원어.length) L.push('핵심원어:\n  ' + j.핵심원어.map(function(w){ return (w.단어 || '') + '(' + (w.원어 || '') + '/' + (w.발음 || '') + ', ' + (w.스트롱 || '') + ') — ' + (w.뜻 || '') + (w.왜 ? ' · ' + w.왜 : ''); }).join('\n  '));
+  if (j.정황) L.push('1차 독자 정황: ' + j.정황);
+  if (j.구속사위치) L.push('구속사적 위치: ' + j.구속사위치);
+  if (j.구조){ if (typeof j.구조 === 'string') L.push('구조: ' + j.구조); else { L.push('구조(' + (j.구조.유형 || '') + '):'); (j.구조.단락 || []).forEach(function(s){ L.push('  ' + (s.범위 || '') + ' — ' + (s.요지 || '')); }); if (j.구조.설명) L.push('  ↳ ' + j.구조.설명); } }
+  if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) L.push('클라이맥스: ' + (j.클라이맥스.절 || '') + ' — ' + (j.클라이맥스.이유 || ''));
+  if (j.상호본문 && j.상호본문.length) L.push('상호본문: ' + j.상호본문.map(function(x){ return (x.본문 || '') + '(' + (x.관계 || '') + ')'; }).join(', '));
+  if (j.해석이견 && j.해석이견.length) L.push('해석이견: ' + j.해석이견.map(function(v){ return (v.쟁점 || '') + ' → ' + (v.택함 || ''); }).join(' / '));
+  if (j.신학주제 && j.신학주제.length) L.push('신학주제: ' + j.신학주제.join(', '));
+  if (j.설교다리) L.push('설교 다리: ' + j.설교다리);
+  return L.join('\n');
+}
+function studyCopyNote(){
+  var j = STUDY.ai && STUDY.ai[studyRangeKey()]; if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  var txt = studyResearchText(j, String($('#studyTitle').textContent || '').replace(/ — .*$/, ''));
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast('연구노트를 복사했습니다 — 원고·옵시디언에 붙여넣으세요.'); }).catch(function(){ toast('복사에 실패했습니다.'); });
+  else toast('이 브라우저는 클립보드 복사를 지원하지 않습니다.');
+}
+function studyToCompose(){
+  var j = STUDY.ai && STUDY.ai[studyRangeKey()]; if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  try {
+    if (!state.compose) state.compose = newCompose();
+    if (!state.compose.points) state.compose.points = [];
+    var ex = [];
+    if (j.핵심원어 && j.핵심원어.length) ex.push(j.핵심원어.map(function(w){ return (w.단어 || '') + '(' + (w.원어 || '') + ', ' + (w.발음 || '') + ') — ' + (w.뜻 || '') + (w.왜 ? '. ' + w.왜 : ''); }).join(' '));
+    if (j.구속사위치) ex.push(j.구속사위치);
+    if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) ex.push('클라이맥스 ' + (j.클라이맥스.절 || '') + ': ' + (j.클라이맥스.이유 || ''));
+    var pt = newPoint();
+    if (pt.blocks && pt.blocks[0]) pt.blocks[0].body = ex.join('\n');
+    state.compose.points.push(pt);
+    try { if (typeof renderPoints === 'function') renderPoints(); } catch (e) {}
+    try { if (typeof saveComposeDraftSoon === 'function') saveComposeDraftSoon(); } catch (e) {}
+    toast('본문연구를 새 대지(주해근거)로 보냈습니다 — 작성 화면에서 확인하세요.');
+  } catch (e){ toast('원고로 보내기 실패: ' + e.message); }
 }
 function studyTokenizeVerse(v){
   /* "태초에[H7225] 하나님이[H430]…" → [{w:'태초에',codes:['H7225']},…]. 한 단어에 코드 여럿 가능. */
@@ -4043,7 +4082,7 @@ function studyRenderPane(){
   }
   if (STUDY.tab === 'ai'){
     var j = STUDY.ai && STUDY.ai[studyRangeKey()];
-    if (j){ pane.innerHTML = renderStudyAi(j) + '<button class="btn sub mini" id="stAiGen" type="button" style="margin-top:12px">↻ 다시 정리</button>'; return; }
+    if (j){ pane.innerHTML = renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
     pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
       + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
     return;
@@ -4066,6 +4105,8 @@ function studyWordDetailInto(pane, codesStr){
     return '<div class="sworddef"><div class="swh">' + head + '</div>'
       + '<div class="swd">' + (L ? esc(L.d) : '뜻풀이 없음') + '</div>'
       + '<button class="btn sub mini sconc" type="button" data-conc="' + esc(code) + '">이 원어가 쓰인 다른 본문 보기</button>'
+      + '<button class="btn sub mini swDeepBtn" type="button" data-deep="' + esc(code) + '" data-deepw="' + esc((L && L.w) || '') + '">🔎 이 단어 깊이 파기</button>'
+      + '<div class="swDeepBox" id="swdeep-' + esc(code) + '" style="display:none"></div>'
       + '<div class="sconcOut" id="sconc-' + esc(code) + '"></div></div>';
   }).join('');
   pane.scrollTop = 0;
@@ -4115,6 +4156,13 @@ function fillConc(code){
     var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }
     var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
+    var pc = e.target.closest && e.target.closest('.stPipeCompose'); if (pc){ studyToCompose(); return; }
+    var py = e.target.closest && e.target.closest('.stPipeCopy'); if (py){ studyCopyNote(); return; }
+    var db = e.target.closest && e.target.closest('.swDeepBtn');
+    if (db){ var dcode2 = db.getAttribute('data-deep'), dword = db.getAttribute('data-deepw'), dbox = $('#swdeep-' + dcode2);
+      if (dbox && dbox.style.display !== 'none' && dbox.getAttribute('data-open')){ dbox.style.display = 'none'; dbox.removeAttribute('data-open'); }
+      else { if (dbox){ dbox.style.display = ''; dbox.setAttribute('data-open', '1'); } studyWordStudy(dcode2, dword); }
+      return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
     var mo = e.target.closest && e.target.closest('.td2more');
     if (mo){ var cont = mo.parentNode, rest = cont.querySelector('.td2rest'); if (rest){ var op = rest.style.display !== 'none'; rest.style.display = op ? 'none' : ''; mo.textContent = op ? ('더보기 ' + rest.children.length + '개 ▾') : '접기 ▴'; } return; }
@@ -15807,7 +15855,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v423';
+var APP_VER = 'v424';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
