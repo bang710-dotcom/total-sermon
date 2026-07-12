@@ -2839,7 +2839,7 @@ function illCard(it){
     + illSrc(it.source, it.sourceConfidence, it.sourceNote)
     + '<div style="margin-top:6px"><button class="linkbtn illInsert" data-illid="' + esc(it.id) + '">＋ 이 예화를 대지에 삽입</button></div></details>';
 }
-function illNormLib(it){ return { key:'lib:'+it.id, src:'lib', category:it.category||'', title:it.title||'', message:it.message||'', story:it.story||'', refs:it.bibleRefs||[], source:it.source||'', sourceConf:it.sourceConfidence||'', sourceNote:it.sourceNote||'' }; }
+function illNormLib(it){ return { key:'lib:'+it.id, src:'lib', category:it.category||'', title:it.title||'', message:it.message||'', story:it.story||'', refs:it.bibleRefs||[], layer:it.layer||[], source:it.source||'', sourceConf:it.sourceConfidence||'', sourceNote:it.sourceNote||'' }; }
 function illNormInbox(d){ var story=String(d['내용']||'').trim(); var folded=(d['상태']==='편입됨'); return { key:'inbox:'+d['ID'], src: folded?'lib':'inbox', category: folded?'인박스 편입':'내 인박스', title:d['제목']||illFirstLine(story), message:d['강조메시지']||'', story:story, refs:String(d['관련본문']||'').split(/;\s*/).filter(Boolean) }; }
 function renderRefIllust(){
   var box = $('#c_illust'); if (!box) return;
@@ -2880,12 +2880,13 @@ function renderRefIllust(){
       if (arcHit.length >= 6) return;
       if ((it.refs || []).some(function(r){ var v = refToInterval(r); return v && v.idx === iv.idx; })) arcHit.push(it);
     });
-    if (!same.length && !book.length && !reso.length && !arcHit.length){ box.innerHTML = ''; return; }  /* 연결 예화가 있을 때만 패널 노출 */
+    var coachHtml = illLayerCoachHtml();   /* #5: 작성 중 원고 예화 층위 균형 코칭 */
+    if (!same.length && !book.length && !reso.length && !arcHit.length){ box.innerHTML = coachHtml || ''; return; }
     ILLUST.refMap = {}; same.concat(book).concat(reso).forEach(function(it){ ILLUST.refMap[it.key] = it; });
     ILLUST.refArcMap = {}; arcHit.forEach(function(it){ ILLUST.refArcMap[it.key] = it; });
     function inboxFirst(a, b){ return (a.src === 'inbox' ? 0 : 1) - (b.src === 'inbox' ? 0 : 1); }
     same.sort(inboxFirst); book.sort(inboxFirst);
-    var html = '<div class="pastbox collapsed"><h4>📚 연결 예화'
+    var html = coachHtml + '<div class="pastbox collapsed"><h4>📚 연결 예화'
       + (same.length ? ' · 본문 겹침 ' + same.length : '')
       + (book.length ? ' · 같은 책 ' + book.length : '')
       + (reso.length ? ' · 메시지 공명 ' + reso.length : '')
@@ -2919,7 +2920,7 @@ function renderRefIllust(){
 })();
 
 /* ===================== 예화 도서관 (강화 DB + 인박스 + 내가 쓴 예화 아카이브 통합) ===================== */
-var ILLIB = { src: 'all', cat: '', theme: '', tone: '', map: null, catsInit: false };
+var ILLIB = { src: 'all', cat: '', theme: '', tone: '', layer: '', map: null, catsInit: false };
 function illFirstLine(t){ return String(t || '').split(/[\n.]/)[0].slice(0, 50); }
 function illUnified(){
   var out = [];
@@ -2927,7 +2928,7 @@ function illUnified(){
     ILLUST.items.forEach(function(it){ if (!it.enhanced) return;
       out.push({ key: 'lib:' + it.id, src: 'lib', category: it.category || '', title: it.title || '',
         message: it.message || '', story: it.story || '', refs: it.bibleRefs || [], keywords: it.keywords || '',
-        stdThemes: it.stdThemes || null, tone: it.tone || '',
+        stdThemes: it.stdThemes || null, tone: it.tone || '', layer: it.layer || [],
         source: it.source || '', sourceConf: it.sourceConfidence || '', sourceNote: it.sourceNote || '' });
     });
   }
@@ -2976,6 +2977,44 @@ function illSeedHay(it){
 /* 표준주제·결(대상) 접근자 — 도서관 필터용(C2 태그). */
 function illThemesOf(it){ var s = illSeedFor(it); return (s && s[0]) ? s[0].split('|').filter(Boolean) : []; }
 function illToneOf(it){ var s = illSeedFor(it); return (s && s[1]) ? s[1] : ''; }
+/* 예화 3층위(자기일화·시사문화·성경평행) 접근자 — 도서관 필터·작성 균형 코칭용(#5) */
+function illLayersOf(it){ return (it && it.layer && it.layer.length) ? it.layer : []; }
+var ILL_LAYER_ICON = { '자기일화': '🏠', '시사문화': '🌍', '성경평행': '📖' };
+function illLayerBadges(it){
+  var L = illLayersOf(it); if (!L.length) return '';
+  return '<div style="margin-top:4px">' + L.map(function(l){ return '<span class="badge" style="opacity:.8;margin-right:4px">' + (ILL_LAYER_ICON[l] || '') + ' ' + esc(l) + '</span>'; }).join('') + '</div>';
+}
+/* srcKey(lib:ID)로 layer 조회 — 작성 중 원고의 삽입 예화 층위 파악용 */
+function illLayersForKey(key){
+  key = String(key || '');
+  if (/^lib:/.test(key) && ILLUST && ILLUST.items){
+    var id = key.slice(4);
+    for (var i = 0; i < ILLUST.items.length; i++){ if (ILLUST.items[i].id === id) return ILLUST.items[i].layer || []; }
+  }
+  return [];
+}
+/* 작성 중 설교에 이미 삽입된 예화들의 층위 분포 — 균형 코칭용 */
+function illDraftLayerBalance(){
+  var have = {}, n = 0;
+  (state.compose.points || []).forEach(function(p){
+    pBlocks(p).forEach(function(b){
+      if (b.type !== 'ill') return;
+      var layers = illLayersForKey(b.srcKey || '');
+      if (layers && layers.length){ n++; layers.forEach(function(l){ have[l] = (have[l] || 0) + 1; }); }
+    });
+  });
+  return { have: have, n: n };
+}
+function illLayerCoachHtml(){
+  var bal = illDraftLayerBalance();
+  if (bal.n < 2) return '';
+  var order = ['자기일화', '시사문화', '성경평행'];
+  var miss = order.filter(function(l){ return !bal.have[l]; });
+  if (!miss.length || miss.length === 3) return '';
+  var haveTxt = order.filter(function(l){ return bal.have[l]; }).map(function(l){ return (ILL_LAYER_ICON[l] || '') + l + ' ' + bal.have[l]; }).join(' · ');
+  return '<div class="cnt" style="margin:2px 2px 8px;padding:7px 9px;background:var(--card,#0000000a);border-radius:8px;color:var(--accent2);line-height:1.55">'
+    + '🧭 지금 원고 예화 층위 — ' + haveTxt + '<br><b>' + miss.map(function(l){ return (ILL_LAYER_ICON[l] || '') + l; }).join(' · ') + '</b> 층위를 하나 더하면 메시지가 입체적으로 박힙니다.</div>';
+}
 /* ===================== 내가 쓴 예화(설교 아카이브) =====================
    정적 스냅샷 illustrations-archive.json(2003~빌드일, 원고 ex) 블록 전수)
    + 이 기기가 보유한 원고텍스트 실시간 추출(스냅샷 이후 저장·수정분)을 합쳐
@@ -3211,7 +3250,7 @@ function illCardU(it){
     : '';
   return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
     + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConf) + '<span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
-    + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + illSeedBadges(it) + '</summary>'
+    + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + illSeedBadges(it) + illLayerBadges(it) + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
     + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
     + illSrc(it.source, it.sourceConf, it.sourceNote)
@@ -3262,22 +3301,26 @@ function renderIllLib(){
       return true;
     });
     /* 표준주제·결(대상) 필터 칩 — 개수 표시(예화서랍 이식, C2 태그 기반) */
-    var thC = {}, toC = {};
-    base.forEach(function(it){ illThemesOf(it).forEach(function(t){ thC[t] = (thC[t] || 0) + 1; }); var to = illToneOf(it); if (to) toC[to] = (toC[to] || 0) + 1; });
+    var thC = {}, toC = {}, lyC = {};
+    base.forEach(function(it){ illThemesOf(it).forEach(function(t){ thC[t] = (thC[t] || 0) + 1; }); var to = illToneOf(it); if (to) toC[to] = (toC[to] || 0) + 1; illLayersOf(it).forEach(function(l){ lyC[l] = (lyC[l] || 0) + 1; }); });
     var fb = document.getElementById('illFilters');
     if (fb){
       var themes = Object.keys(thC).sort(function(a, b){ return thC[b] - thC[a]; });
       var tones = ['공통', '새벽·장년', '대학부'].filter(function(t){ return toC[t]; });
+      var layers = ['자기일화', '시사문화', '성경평행'].filter(function(t){ return lyC[t]; });
       var fh = '';
       if (themes.length) fh += '<div class="chips" style="margin:0 0 6px"><span class="chip' + (ILLIB.theme ? '' : ' on') + '" data-fk="theme" data-v="">전체 주제 ' + base.length + '</span>'
         + themes.map(function(t){ return '<span class="chip' + (ILLIB.theme === t ? ' on' : '') + '" data-fk="theme" data-v="' + esc(t) + '">' + esc(t) + ' ' + thC[t] + '</span>'; }).join('') + '</div>';
-      if (tones.length) fh += '<div class="chips"><span class="chip' + (ILLIB.tone ? '' : ' on') + '" data-fk="tone" data-v="">전체 대상</span>'
+      if (tones.length) fh += '<div class="chips" style="margin:0 0 6px"><span class="chip' + (ILLIB.tone ? '' : ' on') + '" data-fk="tone" data-v="">전체 대상</span>'
         + tones.map(function(t){ return '<span class="chip' + (ILLIB.tone === t ? ' on' : '') + '" data-fk="tone" data-v="' + esc(t) + '">' + esc(t) + ' ' + toC[t] + '</span>'; }).join('') + '</div>';
+      if (layers.length) fh += '<div class="chips"><span class="chip' + (ILLIB.layer ? '' : ' on') + '" data-fk="layer" data-v="">전체 층위</span>'
+        + layers.map(function(t){ return '<span class="chip' + (ILLIB.layer === t ? ' on' : '') + '" data-fk="layer" data-v="' + esc(t) + '">' + esc(t) + ' ' + lyC[t] + '</span>'; }).join('') + '</div>';
       fb.innerHTML = fh;
     }
     var list = base.filter(function(it){
       if (ILLIB.theme && illThemesOf(it).indexOf(ILLIB.theme) < 0) return false;
       if (ILLIB.tone && illToneOf(it) !== ILLIB.tone) return false;
+      if (ILLIB.layer && illLayersOf(it).indexOf(ILLIB.layer) < 0) return false;
       return true;
     });
     /* #4 랭킹: 검색어가 있으면 관련도(별점 가중 포함) 내림차순으로 정렬 — 넓게 검색해도 잘 맞는 것이 위로 */
@@ -3304,9 +3347,9 @@ function renderIllLib(){
   var cat = $('#illCat'); if (cat) cat.addEventListener('change', function(){ ILLIB.cat = cat.value; renderIllLib(); });
   var flt = $('#illFilters'); if (flt) flt.addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (!c) return;
     var fk = c.getAttribute('data-fk'), v = c.getAttribute('data-v') || '';
-    var curV = fk === 'theme' ? ILLIB.theme : ILLIB.tone;
+    var curV = fk === 'theme' ? ILLIB.theme : (fk === 'tone' ? ILLIB.tone : ILLIB.layer);
     var next = (v === '' || curV === v) ? '' : v;
-    if (fk === 'theme') ILLIB.theme = next; else ILLIB.tone = next;
+    if (fk === 'theme') ILLIB.theme = next; else if (fk === 'tone') ILLIB.tone = next; else ILLIB.layer = next;
     renderIllLib(); });
   var box = $('#illResults'); if (box) box.addEventListener('click', function(e){
     var b = e.target.closest('.illInsertU'); if (!b) return; e.preventDefault();
