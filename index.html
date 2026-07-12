@@ -1458,7 +1458,7 @@ body.uiDlgOpen{overflow:hidden}
     <!-- ============ 예화 도서관 (강화 DB + 인박스 + 내가 쓴 예화 아카이브 통합) ============ -->
     <section class="page" id="page-illlib">
       <div class="card">
-        <input type="text" id="illQ" placeholder="예화 검색 — 제목·강조메시지·내용·키워드·본문" autocomplete="off">
+        <input type="text" id="illQ" placeholder="예화 검색 — 제목·강조메시지·내용·키워드·본문·인물" autocomplete="off">
         <div class="chips" id="illSrc" style="margin-top:10px">
           <span class="chip on" data-v="all">전체</span>
           <span class="chip" data-v="lib">강화 라이브러리</span>
@@ -1469,6 +1469,7 @@ body.uiDlgOpen{overflow:hidden}
           <select id="illCat"><option value="">전체 카테고리</option></select>
           <span class="cnt" id="illCount"></span>
         </div>
+        <div id="illFilters" style="margin-top:8px"></div>
         <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto">📥 인박스 예화 라이브러리로 편입</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
         <div class="cnt" style="margin-top:8px;line-height:1.6">「<b>내 인박스</b>」=빠른 입력으로 넣어 아직 인박스에 남아 있는 예화 · 「<b>인박스 편입</b>」=검토 끝나 도서관에만 정리한 예화 · 「<b>강화 라이브러리</b>」=기본 제공 예화 · 「<b>내가 쓴 예화</b>」=과거 설교 원고 속 ex) 예화 블록 전체(2003~현재, 재사용 표시 포함 — 이 기기에서 저장한 새 원고도 자동 반영). 모두 검색·설교 삽입이 됩니다. [전체]에서 검색하면 내가 쓴 예화도 결과 아래에 함께 나옵니다.</div>
       </div>
@@ -2904,7 +2905,7 @@ function renderRefIllust(){
 })();
 
 /* ===================== 예화 도서관 (강화 DB + 인박스 + 내가 쓴 예화 아카이브 통합) ===================== */
-var ILLIB = { src: 'all', cat: '', map: null, catsInit: false };
+var ILLIB = { src: 'all', cat: '', theme: '', tone: '', map: null, catsInit: false };
 function illFirstLine(t){ return String(t || '').split(/[\n.]/)[0].slice(0, 50); }
 function illUnified(){
   var out = [];
@@ -2958,6 +2959,9 @@ function illSeedHay(it){
   var s = illSeedFor(it); if (!s) return '';
   return ' ' + String(s[0] || '').replace(/\|/g, ' ') + ' ' + (s[1] || '');
 }
+/* 표준주제·결(대상) 접근자 — 도서관 필터용(C2 태그). */
+function illThemesOf(it){ var s = illSeedFor(it); return (s && s[0]) ? s[0].split('|').filter(Boolean) : []; }
+function illToneOf(it){ var s = illSeedFor(it); return (s && s[1]) ? s[1] : ''; }
 /* ===================== 내가 쓴 예화(설교 아카이브) =====================
    정적 스냅샷 illustrations-archive.json(2003~빌드일, 원고 ex) 블록 전수)
    + 이 기기가 보유한 원고텍스트 실시간 추출(스냅샷 이후 저장·수정분)을 합쳐
@@ -3175,12 +3179,13 @@ function renderIllLib(){
     var cnt = $('#illCount');
     /* [내가 쓴 예화] 칩: 아카이브만 검색·열람 (연도 최신순) */
     if (ILLIB.src === 'arc'){
+      var _fb0 = document.getElementById('illFilters'); if (_fb0) _fb0.innerHTML = '';
       var la = arc.filter(hitArc);
       if (cnt) cnt.textContent = '내가 쓴 예화 ' + la.length + '건' + (la.length > 80 ? ' (상위 80건 표시)' : '') + (ILLARC.builtAt ? ' · 스냅샷 ' + ILLARC.builtAt : '');
       box.innerHTML = la.length ? la.slice(0, 80).map(illCardArc).join('') : '<div class="empty">검색 결과가 없습니다.</div>';
       return;
     }
-    var list = all.filter(function(it){
+    var base = all.filter(function(it){
       if (ILLIB.src === 'lib' && it.src !== 'lib') return false;
       if (ILLIB.src === 'inbox' && it.src !== 'inbox') return false;
       if (ILLIB.cat && it.category !== ILLIB.cat) return false;
@@ -3188,6 +3193,25 @@ function renderIllLib(){
         var hay = (it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ') + illSeedHay(it)).toLowerCase();
         if (!terms.every(function(t){ return hay.indexOf(t) >= 0; })) return false;
       }
+      return true;
+    });
+    /* 표준주제·결(대상) 필터 칩 — 개수 표시(예화서랍 이식, C2 태그 기반) */
+    var thC = {}, toC = {};
+    base.forEach(function(it){ illThemesOf(it).forEach(function(t){ thC[t] = (thC[t] || 0) + 1; }); var to = illToneOf(it); if (to) toC[to] = (toC[to] || 0) + 1; });
+    var fb = document.getElementById('illFilters');
+    if (fb){
+      var themes = Object.keys(thC).sort(function(a, b){ return thC[b] - thC[a]; });
+      var tones = ['공통', '새벽·장년', '대학부'].filter(function(t){ return toC[t]; });
+      var fh = '';
+      if (themes.length) fh += '<div class="chips" style="margin:0 0 6px"><span class="chip' + (ILLIB.theme ? '' : ' on') + '" data-fk="theme" data-v="">전체 주제 ' + base.length + '</span>'
+        + themes.map(function(t){ return '<span class="chip' + (ILLIB.theme === t ? ' on' : '') + '" data-fk="theme" data-v="' + esc(t) + '">' + esc(t) + ' ' + thC[t] + '</span>'; }).join('') + '</div>';
+      if (tones.length) fh += '<div class="chips"><span class="chip' + (ILLIB.tone ? '' : ' on') + '" data-fk="tone" data-v="">전체 대상</span>'
+        + tones.map(function(t){ return '<span class="chip' + (ILLIB.tone === t ? ' on' : '') + '" data-fk="tone" data-v="' + esc(t) + '">' + esc(t) + ' ' + toC[t] + '</span>'; }).join('') + '</div>';
+      fb.innerHTML = fh;
+    }
+    var list = base.filter(function(it){
+      if (ILLIB.theme && illThemesOf(it).indexOf(ILLIB.theme) < 0) return false;
+      if (ILLIB.tone && illToneOf(it) !== ILLIB.tone) return false;
       return true;
     });
     /* [전체]에서 검색어가 있으면 내가 쓴 예화도 아래에 함께 (상위 20건) */
@@ -3207,6 +3231,12 @@ function renderIllLib(){
   var sc = $('#illSrc'); if (sc) sc.addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (!c) return;
     sc.querySelectorAll('.chip').forEach(function(x){ x.classList.remove('on'); }); c.classList.add('on'); ILLIB.src = c.dataset.v; renderIllLib(); });
   var cat = $('#illCat'); if (cat) cat.addEventListener('change', function(){ ILLIB.cat = cat.value; renderIllLib(); });
+  var flt = $('#illFilters'); if (flt) flt.addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (!c) return;
+    var fk = c.getAttribute('data-fk'), v = c.getAttribute('data-v') || '';
+    var curV = fk === 'theme' ? ILLIB.theme : ILLIB.tone;
+    var next = (v === '' || curV === v) ? '' : v;
+    if (fk === 'theme') ILLIB.theme = next; else ILLIB.tone = next;
+    renderIllLib(); });
   var box = $('#illResults'); if (box) box.addEventListener('click', function(e){
     var b = e.target.closest('.illInsertU'); if (!b) return; e.preventDefault();
     var it = ILLIB.map && ILLIB.map[b.getAttribute('data-illkey')]; if (!it) return;
@@ -15481,7 +15511,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v419';
+var APP_VER = 'v420';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
