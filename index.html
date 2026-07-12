@@ -3101,6 +3101,38 @@ function illRecordUsage(sermonId){
     }
   });
 }
+/* C3(2026-07-12): 예화 반응 별점 — 잘 먹힘(2)/보통(1)/다시 안 씀(0). localStorage 개인 신호.
+   A1·A2 추천(illScoreOne)이 별점을 가중 — 잘 먹힌 예화는 우선, 다시 안 쓸 예화는 강등. */
+function illRateStore(){ try { return JSON.parse(localStorage.getItem('tsa.illRate') || '{}') || {}; } catch (e){ return {}; } }
+function illRateSave(m){ try { localStorage.setItem('tsa.illRate', JSON.stringify(m)); } catch (e){} }
+function illRateFor(key){ var v = illRateStore()[key]; return (v === 0 || v === 1 || v === 2) ? v : null; }
+var ILL_RATE_LABEL = ['다시 안 씀', '보통', '잘 먹힘'];
+function illRateColor(v){ return v === 2 ? 'var(--accent)' : v === 0 ? 'var(--warn)' : 'var(--dim)'; }
+function illRateRow(key){
+  var cur = illRateFor(key);
+  var btns = [2, 1, 0].map(function(v){
+    var on = cur === v, col = illRateColor(v);
+    return '<button type="button" class="illRateBtn" data-illkey="' + esc(key) + '" data-val="' + v + '" '
+      + 'style="width:auto;font-size:11px;padding:2px 9px;border:1px solid ' + (on ? col : 'var(--line)') + ';border-radius:12px;'
+      + 'background:' + (on ? col : 'transparent') + ';color:' + (on ? '#fff' : 'var(--dim)') + ';cursor:pointer">' + ILL_RATE_LABEL[v] + '</button>';
+  }).join(' ');
+  return '<div class="illRateRow" style="margin-top:7px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'
+    + '<span style="font-size:11px;color:var(--dim)">이 예화 반응:</span>' + btns + '</div>';
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('.illRateBtn'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  var key = b.getAttribute('data-illkey'), val = +b.getAttribute('data-val');
+  var m = illRateStore();
+  if (m[key] === val) delete m[key]; else m[key] = val;
+  illRateSave(m);
+  var row = b.closest('.illRateRow');
+  if (row) row.querySelectorAll('.illRateBtn').forEach(function(x){
+    var v = +x.getAttribute('data-val'), on = m[key] === v, col = illRateColor(v);
+    x.style.borderColor = on ? col : 'var(--line)'; x.style.background = on ? col : 'transparent'; x.style.color = on ? '#fff' : 'var(--dim)';
+  });
+  toast(m[key] == null ? '반응 기록을 지웠습니다.' : '반응을 기록했습니다 — 추천에 반영됩니다.');
+}, true);
 function illCardU(it){
   var used = illUsedInSermons(it);
   var usedHtml = used.length
@@ -3115,6 +3147,7 @@ function illCardU(it){
     + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
     + illSrc(it.source, it.sourceConf, it.sourceNote)
     + usedHtml
+    + illRateRow(it.key)
     + '<div style="margin-top:6px"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button></div></details>';
 }
 function renderIllLib(){
@@ -4073,6 +4106,8 @@ function illScoreOne(ctx, iv, it){
     it._ivs.forEach(function(x){ if (x.idx !== iv.idx) return; var l = (x.lo <= iv.hi && iv.lo <= x.hi) ? 6 : 3; if (l > best) best = l; });
     sc += best;
   }
+  var _r = illRateFor(it.key);   /* C3: 별점 가중 — 잘 먹힘 우선, 다시 안 씀 강등 */
+  if (_r === 2) sc += 2; else if (_r === 0) sc -= 4;
   return sc;
 }
 /* ctx(대지·핵심메시지·직전내용 등 텍스트)와 본문 ref로 소장 예화(라이브러리+인박스) 상위 후보를 뽑는다. */
@@ -15323,7 +15358,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v415';
+var APP_VER = 'v416';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
