@@ -7148,6 +7148,82 @@ function obsIllNote(it){
 function obsIllFname(it){
   return String(it.title || '무제').replace(/[\\\/:*?"<>|#\[\]^]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || '무제';
 }
+/* 본문 참조 문자열("시편 95:1"·"눅 24:13-26" 등) → 책 약어+장. 설교 노트와 같은 약어([[본문/눅 24장]])로
+   통일해 예화·설교가 같은 본문 노드에서 만나게 한다(전체이름 노드 분리 방지). */
+var _OBS_BTOK = null;
+function obsBookTokens(){ if (_OBS_BTOK) return _OBS_BTOK; _OBS_BTOK = BOOK_FULL.slice().sort(function(a, b){ return b.length - a.length; }); return _OBS_BTOK; }
+function obsBookAbbr(name){ var i = BOOK_FULL.indexOf(name); if (i < 0) return name; return i < 66 ? BOOK_FULL[66 + i] : name; }
+function obsParseRef(raw){
+  var s = String(raw || '').trim(); if (!s) return null;
+  var toks = obsBookTokens();
+  for (var i = 0; i < toks.length; i++){
+    var t = toks[i];
+    if (s.indexOf(t) === 0){ var rest = s.slice(t.length).replace(/^\s+/, ''); var m = rest.match(/^(\d+)/); if (m) return { ab: obsBookAbbr(t), c: parseInt(m[1], 10) }; return null; }
+  }
+  return null;
+}
+function obsIllChapLinksU(it){
+  var seen = {}, out = [];
+  (it.refs || []).forEach(function(r){ var p = obsParseRef(r); if (!p) return; var name = p.ab + ' ' + p.c + '장'; if (seen[name]) return; seen[name] = 1; out.push('[[본문/' + obsLinkName(name) + ']]'); });
+  return out;
+}
+/* 통합 예화(라이브러리 + 사용자가 입력한 새 예화) 노트 — illUnified 항목 형태 기준 */
+function obsIllNoteU(it){
+  var fm = ['---'];
+  function f(k, v){ if (v != null && String(v).trim() !== '') fm.push(k + ': ' + obsYaml(v)); }
+  f('id', String(it.key || '').replace(/^(lib:|inbox:|arc:)/, ''));
+  fm.push('분류: 예화'); f('카테고리', it.category);
+  fm.push('제목: ' + obsYaml(it.title || '무제'));
+  var th = it.stdThemes || [];
+  if (th && th.length) fm.push('표준주제: [' + th.map(function(t){ return obsYaml(t); }).join(', ') + ']');
+  f('결', it.tone);
+  var ly = it.layer || [];
+  if (ly && ly.length) fm.push('층위: [' + ly.map(function(l){ return obsYaml(l); }).join(', ') + ']');
+  if (String(it.source || '').trim()) f('출처', it.source + (it.sourceConf ? ' (' + it.sourceConf + ')' : ''));
+  var refs = it.refs || [];
+  if (refs.length) fm.push('연결본문: [' + refs.map(function(r){ return obsYaml(r); }).join(', ') + ']');
+  fm.push('---');
+  var head = [];
+  if (String(it.message || '').trim()) head.push('> [!quote] 강조 메시지\n> ' + String(it.message).trim());
+  var links = [], cl = obsIllChapLinksU(it);
+  if (cl.length) links.push('본문: ' + cl.join(' · '));
+  if (th && th.length) links.push('주제: ' + th.map(function(t){ return '#' + obsTagName(t); }).join(' '));
+  if (links.length) head.push(links.join('\n'));
+  var blocks = [fm.join('\n')];
+  if (head.length) blocks.push(head.join('\n\n'));
+  if (String(it.story || '').trim()) blocks.push(String(it.story).trim());
+  return blocks.join('\n\n') + '\n';
+}
+/* 과거 원고 예화(아카이브) 노트 — illArcItem 형태 기준 */
+function obsArcTitle(text){
+  var line = String(text || '').trim().split('\n')[0].trim();
+  var m = line.search(/[.!?。…]/);
+  var cand = (m >= 8 && m <= 40) ? line.slice(0, m) : line.slice(0, 40);
+  cand = cand.replace(/^[\s·—\-"'“”‘’()\[\]]+|[\s·—\-"'“”‘’()\[\]]+$/g, '');
+  return cand || '예화';
+}
+function obsArcFname(it){
+  return (obsArcTitle(it.story).replace(/[\\\/:*?"<>|#\[\]^]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50) || '예화') + ' [' + it.sid + ']';
+}
+function obsArcNote(it){
+  var fm = ['---', '분류: 예화', '출처: 과거 설교 원고'];
+  function f(k, v){ if (v != null && String(v).trim() !== '') fm.push(k + ': ' + obsYaml(v)); }
+  var date = String(it.date || ''), stitle = String(it.sermonTitle || ''), ref = (it.refs && it.refs[0]) || '';
+  fm.push('제목: ' + obsYaml(obsArcTitle(it.story)));
+  if (stitle) f('출처설교', stitle + (date ? ' (' + date + ')' : ''));
+  f('설교일', date); f('설교id', it.sid);
+  if (ref) f('연결본문', ref);
+  if (it.reuse && +it.reuse > 0) f('재사용', +it.reuse);
+  fm.push('---');
+  var head = [], lb = [];
+  var p = obsParseRef(ref); if (p) lb.push('본문: [[본문/' + obsLinkName(p.ab + ' ' + p.c + '장') + ']]');
+  if (stitle) lb.push('출처 설교: ' + stitle + (date ? ' (' + date + ')' : ''));
+  if (lb.length) head.push(lb.join('\n'));
+  var blocks = [fm.join('\n')];
+  if (head.length) blocks.push(head.join('\n\n'));
+  blocks.push(String(it.story || '').trim());
+  return blocks.join('\n\n') + '\n';
+}
 async function exportObsidianVault(){
   var all = (state.data.sermons || []).filter(function(s){ return isLiveSermon(s); });
   if (!all.length){ toast('내보낼 설교가 없습니다.'); return; }
