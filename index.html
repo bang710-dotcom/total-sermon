@@ -2966,7 +2966,7 @@ function renderRefIllust(){
 })();
 
 /* ===================== 예화 도서관 (강화 DB + 인박스 + 내가 쓴 예화 아카이브 통합) ===================== */
-var ILLIB = { src: 'all', cat: '', theme: '', tone: '', layer: '', map: null, catsInit: false };
+var ILLIB = { src: 'all', cat: '', theme: '', tone: '', layer: '', grade: '', map: null, catsInit: false };
 function illFirstLine(t){ return String(t || '').split(/[\n.]/)[0].slice(0, 50); }
 function illUnified(){
   var out = [];
@@ -3347,26 +3347,32 @@ function renderIllLib(){
       return true;
     });
     /* 표준주제·결(대상) 필터 칩 — 개수 표시(예화서랍 이식, C2 태그 기반) */
-    var thC = {}, toC = {}, lyC = {};
-    base.forEach(function(it){ illThemesOf(it).forEach(function(t){ thC[t] = (thC[t] || 0) + 1; }); var to = illToneOf(it); if (to) toC[to] = (toC[to] || 0) + 1; illLayersOf(it).forEach(function(l){ lyC[l] = (lyC[l] || 0) + 1; }); });
+    var thC = {}, toC = {}, lyC = {}, grC = {};
+    base.forEach(function(it){ illThemesOf(it).forEach(function(t){ thC[t] = (thC[t] || 0) + 1; }); var to = illToneOf(it); if (to) toC[to] = (toC[to] || 0) + 1; illLayersOf(it).forEach(function(l){ lyC[l] = (lyC[l] || 0) + 1; }); if (it.sourceConf) grC[it.sourceConf] = (grC[it.sourceConf] || 0) + 1; });
+    if (ILLIB.grade && !grC[ILLIB.grade]) ILLIB.grade = '';   /* 현재 소스에 해당 등급이 없으면 자동 해제(빈 결과 방지) */
     var fb = document.getElementById('illFilters');
     if (fb){
       var themes = Object.keys(thC).sort(function(a, b){ return thC[b] - thC[a]; });
       var tones = ['공통', '새벽·장년', '대학부'].filter(function(t){ return toC[t]; });
       var layers = ['자기일화', '시사문화', '성경평행'].filter(function(t){ return lyC[t]; });
+      var grades = ['확정', '전언', '미상'].filter(function(g){ return grC[g]; });
+      var GR_LABEL = { '확정': '✅ 확정', '전언': '⚠️ 전언', '미상': '❓ 미상' };
       var fh = '';
-      if (themes.length) fh += '<div class="chips" style="margin:0 0 6px"><span class="chip' + (ILLIB.theme ? '' : ' on') + '" data-fk="theme" data-v="">전체 주제 ' + base.length + '</span>'
-        + themes.map(function(t){ return '<span class="chip' + (ILLIB.theme === t ? ' on' : '') + '" data-fk="theme" data-v="' + esc(t) + '">' + esc(t) + ' ' + thC[t] + '</span>'; }).join('') + '</div>';
-      if (tones.length) fh += '<div class="chips" style="margin:0 0 6px"><span class="chip' + (ILLIB.tone ? '' : ' on') + '" data-fk="tone" data-v="">전체 대상</span>'
-        + tones.map(function(t){ return '<span class="chip' + (ILLIB.tone === t ? ' on' : '') + '" data-fk="tone" data-v="' + esc(t) + '">' + esc(t) + ' ' + toC[t] + '</span>'; }).join('') + '</div>';
-      if (layers.length) fh += '<div class="chips"><span class="chip' + (ILLIB.layer ? '' : ' on') + '" data-fk="layer" data-v="">전체 층위</span>'
-        + layers.map(function(t){ return '<span class="chip' + (ILLIB.layer === t ? ' on' : '') + '" data-fk="layer" data-v="' + esc(t) + '">' + esc(t) + ' ' + lyC[t] + '</span>'; }).join('') + '</div>';
+      if (themes.length) fh += '<div class="fgrp"><span class="fgrp-l">주제</span><div class="chips"><span class="chip' + (ILLIB.theme ? '' : ' on') + '" data-fk="theme" data-v="">전체 ' + base.length + '</span>'
+        + themes.map(function(t){ return '<span class="chip' + (ILLIB.theme === t ? ' on' : '') + '" data-fk="theme" data-v="' + esc(t) + '">' + esc(t) + ' ' + thC[t] + '</span>'; }).join('') + '</div></div>';
+      if (tones.length) fh += '<div class="fgrp"><span class="fgrp-l">대상</span><div class="chips"><span class="chip' + (ILLIB.tone ? '' : ' on') + '" data-fk="tone" data-v="">전체</span>'
+        + tones.map(function(t){ return '<span class="chip' + (ILLIB.tone === t ? ' on' : '') + '" data-fk="tone" data-v="' + esc(t) + '">' + esc(t) + ' ' + toC[t] + '</span>'; }).join('') + '</div></div>';
+      if (layers.length) fh += '<div class="fgrp"><span class="fgrp-l">층위</span><div class="chips"><span class="chip' + (ILLIB.layer ? '' : ' on') + '" data-fk="layer" data-v="">전체</span>'
+        + layers.map(function(t){ return '<span class="chip' + (ILLIB.layer === t ? ' on' : '') + '" data-fk="layer" data-v="' + esc(t) + '">' + esc(t) + ' ' + lyC[t] + '</span>'; }).join('') + '</div></div>';
+      if (grades.length) fh += '<div class="fgrp"><span class="fgrp-l">출처</span><div class="chips"><span class="chip' + (ILLIB.grade ? '' : ' on') + '" data-fk="grade" data-v="">전체</span>'
+        + grades.map(function(g){ return '<span class="chip' + (ILLIB.grade === g ? ' on' : '') + '" data-fk="grade" data-v="' + esc(g) + '">' + GR_LABEL[g] + ' ' + grC[g] + '</span>'; }).join('') + '</div></div>';
       fb.innerHTML = fh;
     }
     var list = base.filter(function(it){
       if (ILLIB.theme && illThemesOf(it).indexOf(ILLIB.theme) < 0) return false;
       if (ILLIB.tone && illToneOf(it) !== ILLIB.tone) return false;
       if (ILLIB.layer && illLayersOf(it).indexOf(ILLIB.layer) < 0) return false;
+      if (ILLIB.grade && it.sourceConf !== ILLIB.grade) return false;
       return true;
     });
     /* #4 랭킹: 검색어가 있으면 관련도(별점 가중 포함) 내림차순으로 정렬 — 넓게 검색해도 잘 맞는 것이 위로 */
@@ -3393,9 +3399,9 @@ function renderIllLib(){
   var cat = $('#illCat'); if (cat) cat.addEventListener('change', function(){ ILLIB.cat = cat.value; renderIllLib(); });
   var flt = $('#illFilters'); if (flt) flt.addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (!c) return;
     var fk = c.getAttribute('data-fk'), v = c.getAttribute('data-v') || '';
-    var curV = fk === 'theme' ? ILLIB.theme : (fk === 'tone' ? ILLIB.tone : ILLIB.layer);
+    var curV = fk === 'theme' ? ILLIB.theme : (fk === 'tone' ? ILLIB.tone : (fk === 'layer' ? ILLIB.layer : ILLIB.grade));
     var next = (v === '' || curV === v) ? '' : v;
-    if (fk === 'theme') ILLIB.theme = next; else if (fk === 'tone') ILLIB.tone = next; else ILLIB.layer = next;
+    if (fk === 'theme') ILLIB.theme = next; else if (fk === 'tone') ILLIB.tone = next; else if (fk === 'layer') ILLIB.layer = next; else ILLIB.grade = next;
     renderIllLib(); });
   var box = $('#illResults'); if (box) box.addEventListener('click', function(e){
     var b = e.target.closest('.illInsertU'); if (!b) return; e.preventDefault();
@@ -15869,7 +15875,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v424';
+var APP_VER = 'v425';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
