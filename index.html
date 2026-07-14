@@ -3289,14 +3289,31 @@ function illUseRecord(libId, sermonId){
 }
 /* 제목 정규화 — 공백·문장부호를 걷어낸 뒤 비교(코워크 원고의 표기 차이 흡수). */
 function illNormT(s){ return String(s || '').toLowerCase().replace(/[\s "'“”‘’·—–\-…,.!?()\[\]{}:;<>~%]/g, ''); }
-/* compose의 예화 블록 → 라이브러리(json) 예화 id 역해석: srcKey(lib:) 우선, 제목 정규화 일치/포함 폴백. */
+/* 본문 유사성 — 서랍 예화 story의 연속 20자 조각(스트라이드 10)이 대상 텍스트에 존재하면 같은 예화로 판정.
+   "살아계신 하나님"처럼 성경 어구와 겹치는 제목의 우연 일치(2026-07-14 검증: 과거 원고 매칭 36건 전부 이 유형)를
+   걸러낸다 — 제목만 같고 내용이 다르면 기록하지 않는다(둘 다 정규화 텍스트 기준). */
+function illStoryOverlap(storyN, hayN){
+  if (!storyN || !hayN) return false;
+  var n = Math.min(storyN.length, 800);
+  if (n < 20) return n >= 8 && hayN.indexOf(storyN.slice(0, n)) >= 0;
+  for (var i = 0; i + 20 <= n; i += 10){
+    if (hayN.indexOf(storyN.slice(i, i + 20)) >= 0) return true;
+  }
+  return false;
+}
+/* compose의 예화 블록 → 라이브러리(json) 예화 id 역해석.
+   srcKey(lib:) = 확실. 제목 폴백은 (a) 정규화 완전일치(본문 있으면 유사성까지 확인),
+   (b) 포함일치는 블록 본문이 story와 실제로 겹칠 때만 — 성경 어구형 제목 오탐 차단. */
 function illComposeUsedLibIds(){
   if (!(ILLUST && ILLUST.items && ILLUST.items.length)) return [];
   var seen = {}, out = [];
   var norm = ILLUST._normIdx;
   if (!norm || norm._n !== ILLUST.items.length){
-    norm = { _n: ILLUST.items.length, map: {} };
-    ILLUST.items.forEach(function(x){ var k = illNormT(x.title); if (k.length >= 4 && !norm.map[k]) norm.map[k] = x.id; });
+    norm = { _n: ILLUST.items.length, map: {}, story: {} };
+    ILLUST.items.forEach(function(x){
+      var k = illNormT(x.title);
+      if (k.length >= 4 && !norm.map[k]){ norm.map[k] = x.id; norm.story[k] = illNormT(String(x.story || '')).slice(0, 800); }
+    });
     ILLUST._normIdx = norm;
   }
   (state.compose.points || []).forEach(function(p){
@@ -3306,11 +3323,14 @@ function illComposeUsedLibIds(){
       var sk = String(b.srcKey || '');
       if (/^lib:/.test(sk)) id = sk.slice(4);
       if (!id && !sk){   /* srcKey 없는 블록(코워크 원고 등) — 제목 정규화 매칭 */
-        var t = illNormT(b.ill || '');
+        var t = illNormT(b.ill || ''), bodyN = illNormT(b.illBody || '');
         if (t.length >= 4){
-          if (norm.map[t]) id = norm.map[t];
-          else {   /* 포함 관계(6자+): 블록 제목 안에 서랍 제목이 통째로 들어 있는 경우 */
-            for (var k in norm.map){ if (k.length >= 6 && t.indexOf(k) >= 0){ id = norm.map[k]; break; } }
+          if (norm.map[t]){   /* 완전일치 — 본문이 있으면 유사성까지 확인, 없으면 제목 신뢰 */
+            if (!bodyN || illStoryOverlap(norm.story[t], bodyN)) id = norm.map[t];
+          } else if (bodyN){   /* 포함일치(6자+)는 본문 유사성 검증 통과 시에만 */
+            for (var k in norm.map){
+              if (k.length >= 6 && t.indexOf(k) >= 0 && illStoryOverlap(norm.story[k], bodyN)){ id = norm.map[k]; break; }
+            }
           }
         }
       }
@@ -3628,10 +3648,14 @@ async function requestFoldInbox(){
 (function(){ var b = $('#foldInboxBtn'); if (b) b.addEventListener('click', requestFoldInbox); })();
 /* ── 예화 사용 이력 소급 스캔(2026-07-14) ──
    v412(삽입→저장 자동 기록) 이전에 쓴 설교들의 사용 이력을 일괄 백필한다.
-   live 설교의 '예화' 요약 + 로컬 보유 '원고텍스트'에서 서랍 예화 제목(정규화 6자+)을 찾아
+   live 설교에서 서랍 예화를 찾아
    · 인박스·편입(INBOX_*) 예화 → 시트 '사용설교ID' 누적(멱등)
    · 라이브러리(json) 예화 → prefs(illUse) 누적(멱등)
-   확실 매칭(제목 전체가 텍스트에 등장)만 자동 기록 — 오탐이 재사용 경고를 오염시키지 않게 보수적으로. */
+   판정(보수적 — 오탐이 재사용 경고를 오염시키지 않게):
+   · '예화' 요약 필드에 제목(정규화 6자+)이 등장 → 기록(예화 전용 필드).
+   · 원고텍스트는 ex)/(예화) 블록 안에서 제목이 등장하고 + 블록 본문이 서랍 story와
+     실제로 겹칠 때(illStoryOverlap)만 기록. 제목이 성경 어구인 예화("그의 나라와 그의 의",
+     "살아계신 하나님" 등)가 성경 인용에 우연 매칭되는 오탐(2026-07-14 실측 36건)을 차단. */
 async function illBackfillUsage(){
   var btn = $('#illBackfillBtn'); if (btn) btn.disabled = true;
   var hint = $('#illBackfillHint');
@@ -3640,23 +3664,34 @@ async function illBackfillUsage(){
     var pool = illUnified();   /* 라이브러리 + 인박스 */
     var sermons = (state.data.sermons || []).filter(isLiveSermon);
     if (!pool.length || !sermons.length){ toast('스캔할 예화 또는 설교가 없습니다.'); return; }
-    /* 예화 제목 정규화(6자 미만 제목은 흔해서 제외 — 오탐 방지) */
+    /* 예화 제목 정규화(6자 미만 제목은 흔해서 제외 — 오탐 방지) + 본문 검증용 story */
     var cand = [];
     pool.forEach(function(it){
       var nt = illNormT(it.title);
-      if (nt.length >= 6) cand.push({ key: it.key, title: String(it.title || '').trim(), nt: nt });
+      if (nt.length >= 6) cand.push({ key: it.key, title: String(it.title || '').trim(), nt: nt,
+        sn: illNormT(String(it.story || '')).slice(0, 800) });
     });
     var recIdea = 0, recLib = 0, hitSermons = 0, scanned = 0;
     for (var si = 0; si < sermons.length; si++){
       var s = sermons[si];
       var sid = String(s['ID'] || '').trim(); if (!sid) continue;
-      var hay = illNormT(String(s['예화'] || '') + ' ' + String(s['원고텍스트'] || ''));
-      if (hay.length < 6) continue;
+      var illF = illNormT(String(s['예화'] || ''));
+      var blocks = [];
+      try { blocks = illParseExBlocks(String(s['원고텍스트'] || '')).map(function(b){ return illNormT(b.text); }); } catch (eB){}
+      if (illF.length < 6 && !blocks.length) continue;
       scanned++;
       var hit = false;
       for (var ci = 0; ci < cand.length; ci++){
         var c = cand[ci];
-        if (hay.indexOf(c.nt) < 0) continue;
+        var ok = (illF.length >= 6 && illF.indexOf(c.nt) >= 0);   /* 예화 전용 필드 — 제목 등장이면 인정 */
+        if (!ok){   /* 원고는 ex) 블록 안 + 본문 겹침까지 요구 */
+          for (var bi = 0; bi < blocks.length; bi++){
+            if (blocks[bi].indexOf(c.nt) < 0) continue;
+            if (illStoryOverlap(c.sn, blocks[bi])) ok = true;
+            break;
+          }
+        }
+        if (!ok) continue;
         hit = true;
         var iid = illSrcKeyToIdeaId(c.key);
         if (iid){   /* 인박스·편입분 → 사용설교ID */
@@ -16214,7 +16249,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v430';
+var APP_VER = 'v431';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
