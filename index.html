@@ -2113,6 +2113,7 @@ function _pullData(opts){
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
     if ($('#page-library') && $('#page-library').classList.contains('on')) renderLibrary();
+    try { reconcileCleanDraftWithSheet(); } catch (e) {}   /* 동기화로 더 최신 저장본이 들어왔으면 깨끗한 초안을 자동 교체 */
     return state.data;
   });
 }
@@ -6022,11 +6023,12 @@ function clearCompose(){
   state.savedSig = composeSig();
   clearComposeDraft();
 }
-function editSermonFill(id){
+function editSermonFill(id, noNav){
   var s = findSermon(id);
   if (!s) return;
   state.remoteConflict = null;   /* 새 설교를 편집 시작 → 이전 충돌 표시 해제(기준본이 새로 잡힘) */
   state._draftBaseMod = null;    /* 초안 기준 시점도 해제 — 방금 불러온 행이 새 기준본 */
+  state._draftAt = 0;
   /* 수정하기: 원본을 직접 불러와 수정 — [저장]하면 같은 행 업데이트(원본 갱신).
      원본을 보존하고 사본을 만들려면 작성화면의 [새 설교로 저장]을 쓴다. */
   state.editing = id;
@@ -6065,7 +6067,7 @@ function editSermonFill(id){
   var ap2 = $('#ptApply'); if (ap2) ap2.innerHTML = '';
   state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
-  showPage('compose');
+  if (!noNav) showPage('compose');   /* noNav=true면 현재 보고 있는 화면을 바꾸지 않음(자동 최신본 반영용) */
 }
 /* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
 window.editSermon = function(id){ if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 불러올까요?')) return; loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
@@ -6080,6 +6082,42 @@ window.loadRemoteConflict = function(){
   var id = String(r['ID']);
   loadSermonThen(id, null, '다른 기기 내용을 불러오는 중…', function(){ editSermonFill(id); });
 };
+/* ── 동기화 후 자동 최신본 반영(캐시 초안이 '깨끗'할 때) ──
+   복원한 캐시 초안이 미저장 편집이 없는(깨끗한) 상태이고, 그 사이 다른 기기가 같은 설교를 시트에
+   더 새로 저장했으면 — 오래된 캐시 초안 대신 시트 최신본을 작성창에 자동으로 불러온다.
+   (미저장 편집이 있으면(dirty) 손실 방지를 위해 자동 교체하지 않고 기존 remoteConflict 배너 경로를 유지한다.
+    깨끗한 초안은 이미 저장된 옛 버전의 사본일 뿐이라, 더 최신 저장본으로 교체해도 잃을 것이 없다.) */
+function reconcileCleanDraftWithSheet(){
+  try {
+    var id = state.editing;
+    if (!id) return;                         /* 시트 행에 연결된 초안만 대상(새 미저장 초안 제외) */
+    if (composeDirty()) return;              /* 미저장 편집 있음 → 자동 교체 금지(충돌 배너로 안내) */
+    var row = findSermon(id);
+    if (!row) return;
+    var rm = String(row['수정일'] || '');
+    if (!rm) return;
+    var base = state._draftBaseMod ? String(state._draftBaseMod) : '';
+    var newer = false;
+    if (base) {
+      newer = rm > base;                     /* 'yyyy-MM-dd HH:mm' 은 사전식 = 시간순 */
+    } else if (state._draftAt) {             /* 옛 초안(기준 스탬프 없음) 폴백: 시트 수정일이 초안 시각보다 1분 이상 뒤면 */
+      var rmMs = new Date(rm.replace(' ', 'T')).getTime();
+      newer = !!rmMs && rmMs > (+state._draftAt + 60000);
+    }
+    if (!newer) return;                      /* 시트가 더 최신이 아님 → 캐시 초안 유지(현행 동작) */
+    ensureText(id).then(function(){
+      if (String(state.editing) !== String(id)) return;   /* 그 사이 다른 설교로 이동 */
+      if (composeDirty()) {                  /* 본문 로드 대기 중 사용자가 편집 시작 → 자동 교체 취소, 배너로 넘김 */
+        state.remoteConflict = row; try { updateComposeBadge(); } catch (e) {}
+        return;
+      }
+      editSermonFill(id, true);              /* noNav=true — 보고 있는 화면은 바꾸지 않고 버퍼만 최신본으로 */
+      state._draftBaseMod = rm; state._draftAt = 0;
+      try { saveComposeDraft(); } catch (e) {}   /* 로컬 캐시도 최신본으로 갱신 */
+      try { toast('다른 기기에서 더 최신으로 저장된 원고를 불러왔습니다.'); } catch (e) {}
+    }).catch(function(){});
+  } catch (e) {}
+}
 $('#c_new').addEventListener('click', function(){
   if (!confirmDiscardCompose('작성 중인 내용을 비우고 새 설교를 시작할까요?')) return;
   clearCompose();
@@ -6179,6 +6217,7 @@ function restoreComposeDraft(){
     state.compose = c;
     try { Object.keys(C_META).forEach(function(k){ var el = $('#' + C_META[k]); if (el && d.meta && d.meta[k] != null) el.value = d.meta[k]; }); } catch (e) {}
     state.savedSig = d.savedSig || '';
+    state._draftAt = +d.at || 0;   /* 초안 스냅샷 시각 — 기준 스탬프(baseMod) 없는 옛 초안의 최신본 비교 폴백 */
     /* ── 잠자던 초안 vs 시트 최신본 시점 비교 ──
        이 초안이 기반한 행(baseMod) 이후에 다른 기기가 같은 설교를 저장했으면, 조용한 덮어쓰기가 되지 않도록
        기존 충돌 UI(작성칸 상단 경고 + 저장 시 확인 대화상자)를 켠다. 수정일 비교라 본문만 바뀐 경우도 잡힌다. */
@@ -15965,7 +16004,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v426';
+var APP_VER = 'v427';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -16065,9 +16104,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     return idbGet('syncAt').then(function(v){ if (v) state.syncAt = v; }).catch(function(){});
   }).then(function(){
     /* 미저장 작성 버퍼 복원(다른 기기/이전 세션에서 저장 안 하고 닫은 원고 되살리기) */
-    restoreComposeDraft();
-    /* 실행 시 동기화: 기준점 있으면 변경분만, 없으면 전체. 이후엔 기기 포커스/저장 시 델타로 따라잡음. */
-    if (state.settings.url) bootLoad();
+    return restoreComposeDraft();   /* 복원 완료(editing·기준시점 설정)까지 기다린 뒤 동기화 → 최신본 자동 반영 판정이 정확 */
+  }).then(function(){
+    /* 실행 시 동기화: 기준점 있으면 변경분만, 없으면 전체. 동기화 후 _pullData가 깨끗한 초안을 최신본으로 자동 교체. */
+    if (state.settings.url) return bootLoad();
   });
 })();
 

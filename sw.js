@@ -1,5 +1,5 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v426';           /* 앱 셸 — 버전마다 교체(index.html 등) */
+var CACHE = 'tsa-v427';           /* 앱 셸 — 버전마다 교체(index.html 등) */
 var CONTENT = 'tsa-content-v1';   /* 대용량 콘텐츠 — 버전 업에도 유지(매번 재다운로드 방지) */
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 var CONTENT_RE = /(illustrations(-archive)?\.json$|\/bible\/|\/commentary\/|\/fonts\/|\/devo_assets\/)/;
