@@ -11082,17 +11082,40 @@ async function bulletinKakao(){
   var d = sermonLtcData(id);
   var gbs = (d && d.gbs) || [];
   if (!gbs.length && !await uiConfirm('GBS 질문이 없습니다(LTC 교재 미생성).\nGBS 질문 없이 보낼까요?')) return;
+  /* 본문을 약어 표기로 (요한복음 1:43-51 → 요 1:43-51) — 변환 실패 시 원문 그대로 */
+  var ref = String(s['본문'] || '').trim();
+  try {
+    var pr = parseRange(ref);
+    if (pr && ref.indexOf(pr.book) === 0) {
+      var bidx = await bibleIndex();
+      var bk0 = bidx.filter(function(b){ return b.ko === pr.book || b.abbr === pr.book; })[0];
+      if (bk0) ref = (bk0.abbr + ' ' + ref.slice(pr.book.length).trim()).trim();
+    }
+  } catch (e) {}
   var dm = String(s['날짜'] || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
   var dateKo = dm ? (Number(dm[2]) + '월 ' + Number(dm[3]) + '일') : String(s['날짜'] || '');
-  var lines = ['📖 ' + dateKo + (s['예배구분'] ? ' ' + s['예배구분'] : '') + ' 주보 내용'];
-  lines.push('제목: ' + String(s['제목'] || ''));
-  lines.push('본문: ' + String(s['본문'] || ''));
-  if (hymn) lines.push('결단찬양: ' + hymn);
+  var svc = String(s['예배구분'] || '').trim();
+  var svcLabel = svc ? (/(예배|기도회)$/.test(svc) ? svc : svc + ' 예배') : '예배';
+  /* 확정 양식:
+     [6월 7일 대학부 예배]
+     요 1:43-51
+     요한복음 1  내가 너를 보았노라
+     결단 찬양: 주께 가오니
+
+     GBS Qs.
+     1. …  (LTC 교재의 질문 원문 그대로, 번호만) */
+  var titleLine = (String(s['시리즈'] || '').trim()
+    ? String(s['시리즈']).trim() + (String(s['시리즈순번'] || '').trim() ? ' ' + String(s['시리즈순번']).trim() : '') + '  '
+    : '') + String(s['제목'] || '').trim();
+  var lines = ['[' + dateKo + ' ' + svcLabel + ']'];
+  if (ref) lines.push(ref);
+  if (titleLine) lines.push(titleLine);
+  if (hymn) lines.push('결단 찬양: ' + hymn);
   if (gbs.length){
     lines.push('');
-    lines.push('▪ GBS 질문');
+    lines.push('GBS Qs.');
     gbs.forEach(function(q, i){
-      lines.push((i + 1) + '. ' + (q.category ? '(' + q.category + ') ' : '') + String(q.text || '').trim());
+      lines.push((i + 1) + '. ' + String(q.text || '').trim());
     });
   }
   var full = lines.join('\n');
@@ -16542,7 +16565,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v433';
+var APP_VER = 'v434';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
