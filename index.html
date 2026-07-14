@@ -1305,6 +1305,7 @@ body.uiDlgOpen{overflow:hidden}
           </div>
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
         </div>
+        <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab">📮 주보 내용 카톡 보내기</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 내 카톡(나와의 채팅)</small></button>
         <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(원고 DOCX는 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">설교 기본원고 저장 폴더 지정</button>
@@ -11047,6 +11048,73 @@ $$('#composeMeta [data-req]').forEach(function(b){
   });
 });
 
+/* ----- 주보 내용 카톡 보내기 -----
+   저장된 설교의 제목·본문·결단찬양·GBS 질문(LTC 교재의 gbs)을 모아
+   백엔드(action=kakaoSend) 경유로 카카오 '나와의 채팅'에 발송한다.
+   카카오 텍스트 템플릿 한도(200자)에 맞춰 줄 경계에서 여러 통으로 나눈다.
+   결단찬양은 파일맵.hymn에 저장해 기기 간 공유·재사용. */
+function splitKakao(text, limit){
+  limit = limit || 200;
+  var out = [], cur = '';
+  String(text || '').split('\n').forEach(function(ln){
+    while (ln.length > limit){                       /* 한 줄 자체가 한도 초과 → 강제 분할 */
+      if (cur.trim()) { out.push(cur); cur = ''; }
+      out.push(ln.slice(0, limit));
+      ln = ln.slice(limit);
+    }
+    var add = cur ? cur + '\n' + ln : ln;
+    if (add.length > limit) { out.push(cur); cur = ln; }
+    else cur = add;
+  });
+  if (cur.trim()) out.push(cur);
+  return out.map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+}
+async function bulletinKakao(){
+  var id = state.editing;
+  if (!id) { toast('먼저 [저장]으로 설교를 저장해 주세요.'); return; }
+  var s = findSermon(id);
+  if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
+  var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
+  var hymn = await uiPrompt('결단찬양 제목을 입력하세요\n(없으면 비워 두세요 — 설교에 저장되어 다음에도 쓰입니다)', String(fm.hymn || ''), { placeholder: '예) 주 은혜임을' });
+  if (hymn === null) return;
+  hymn = hymn.trim();
+  if (hymn !== String(fm.hymn || '')) setSermonFileMap(id, 'hymn', hymn);
+  var d = sermonLtcData(id);
+  var gbs = (d && d.gbs) || [];
+  if (!gbs.length && !await uiConfirm('GBS 질문이 없습니다(LTC 교재 미생성).\nGBS 질문 없이 보낼까요?')) return;
+  var dm = String(s['날짜'] || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  var dateKo = dm ? (Number(dm[2]) + '월 ' + Number(dm[3]) + '일') : String(s['날짜'] || '');
+  var lines = ['📖 ' + dateKo + (s['예배구분'] ? ' ' + s['예배구분'] : '') + ' 주보 내용'];
+  lines.push('제목: ' + String(s['제목'] || ''));
+  lines.push('본문: ' + String(s['본문'] || ''));
+  if (hymn) lines.push('결단찬양: ' + hymn);
+  if (gbs.length){
+    lines.push('');
+    lines.push('▪ GBS 질문');
+    gbs.forEach(function(q, i){
+      lines.push((i + 1) + '. ' + (q.category ? '(' + q.category + ') ' : '') + String(q.text || '').trim());
+    });
+  }
+  var full = lines.join('\n');
+  if (!await uiConfirm('아래 내용을 내 카톡(나와의 채팅)으로 보낼까요?\n\n' + full)) return;
+  var chunks = splitKakao(full, 200);
+  try {
+    toast('카카오톡으로 보내는 중…');
+    var r = await apiPost({ action: 'kakaoSend', messages: chunks });
+    toast('내 카톡으로 ' + ((r && r.sent) || chunks.length) + '통 발송 완료 — 나와의 채팅에서 확인하세요.');
+  } catch (e) {
+    toast('카톡 발송 실패: ' + e.message);
+  }
+}
+(function(){
+  var b = $('#c_kakao');
+  if (b) b.addEventListener('click', function(){
+    if (b.dataset.busy === '1') return;
+    b.dataset.busy = '1'; b.disabled = true;
+    Promise.resolve(bulletinKakao()).catch(function(){}).then(function(){ b.dataset.busy = ''; b.disabled = false; });
+  });
+})();
+
 /* ----- 시리즈 설교 계획: 목록 + 마법사 -----
    목록(누적 시리즈, 시트 기록 포함) → 선택 시 마법사 → 타임라인 단계 클릭으로 화면 이동·수정·재사용
    ① 시리즈묵상: 초안 → 검토·수정 → 확정(묵상집 업서트) → [묵상집 PDF 요청]
@@ -16474,7 +16542,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v432';
+var APP_VER = 'v433';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
