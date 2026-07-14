@@ -1525,6 +1525,7 @@ body.uiDlgOpen{overflow:hidden}
           <div id="illFilters"></div>
         </div>
         <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto">📥 인박스 예화 라이브러리로 편입</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
+        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="illBackfillBtn" type="button" style="flex:0 0 auto">🔎 예화 사용 이력 소급 스캔</button><span class="cnt" id="illBackfillHint" style="margin-left:8px">과거 설교의 예화 요약·원고에서 서랍 예화를 찾아 사용 기록을 채웁니다</span></div>
         <div class="cnt" style="margin-top:8px;line-height:1.6">「<b>내 인박스</b>」=빠른 입력으로 넣어 아직 인박스에 남아 있는 예화 · 「<b>인박스 편입</b>」=검토 끝나 도서관에만 정리한 예화 · 「<b>강화 라이브러리</b>」=기본 제공 예화 · 「<b>내가 쓴 예화</b>」=과거 설교 원고 속 ex) 예화 블록 전체(2003~현재, 재사용 표시 포함 — 이 기기에서 저장한 새 원고도 자동 반영). 모두 검색·설교 삽입이 됩니다. [전체]에서 검색하면 내가 쓴 예화도 결과 아래에 함께 나옵니다.</div>
       </div>
       <div id="illResults"></div>
@@ -2143,6 +2144,7 @@ function sync(opts){
   return pullData(opts).then(function(d){
     toast('동기화 완료 (설교 ' + (d.sermons || []).length + ' · 아이디어 ' + (d.ideas || []).length + ')');
     try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
+    try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
@@ -2198,6 +2200,7 @@ function bootLoad(){
     var cur = (pg && pg.id === 'page-series');
     if (cur) renderSeriesPage();
     try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
+    try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
   }).catch(function(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
@@ -3158,6 +3161,10 @@ function illUsedInSermons(it){
     var d = findIdea(it.key.replace(/^inbox:/, ''));
     if (d && d['사용설교ID']) String(d['사용설교ID']).split(/[,;]\s*/).forEach(function(sid){ var s = findSermon(sid.trim()); if (s && out.indexOf(s) < 0) out.push(s); });
   }
+  if (/^lib:/.test(String(it.key || ''))){   /* 라이브러리 예화 — prefs(illUse) 사용 기록(2026-07-14) */
+    var rec = illUseFor(String(it.key).slice(4));
+    if (rec) rec.split(/[,;]\s*/).forEach(function(sid){ var s = findSermon(sid.trim()); if (s && out.indexOf(s) < 0) out.push(s); });
+  }
   if (title.length >= 4 || msg.length >= 6){
     (state.data.sermons || []).forEach(function(s){
       if (isOptRow(s) || out.indexOf(s) >= 0) return;
@@ -3174,7 +3181,7 @@ var ILL_USED = { stamp: '', set: null };
 function illUsedKeySet(){
   var sm = (state.data.sermons || []).filter(isLiveSermon);
   var mx = ''; sm.forEach(function(s){ var m = String((s && s['수정일']) || ''); if (m > mx) mx = m; });
-  var stamp = sm.length + ':' + mx;
+  var stamp = sm.length + ':' + mx + ':' + Object.keys(illUseStore()).length;   /* illUse 변경도 캐시 무효화(2026-07-14) */
   if (ILL_USED.set && ILL_USED.stamp === stamp) return ILL_USED.set;
   var hay = sm.map(function(s){ return String(s['예화'] || ''); }).join('\n');
   var set = {};
@@ -3184,6 +3191,7 @@ function illUsedKeySet(){
       var iid = illSrcKeyToIdeaId(it.key), d = iid && findIdea(iid);
       if (d && String(d['사용설교ID'] || '').trim()) used = true;
     }
+    if (!used && /^lib:/.test(it.key) && illUseFor(String(it.key).slice(4))) used = true;   /* prefs(illUse) 기록(2026-07-14) */
     if (!used){ var t = String(it.title || '').trim(); if (t.length >= 4 && hay.indexOf(t) >= 0) used = true; }
     if (used) set[it.key] = 1;
   });
@@ -3224,7 +3232,7 @@ function illComposeUsedIdeaIds(){
 }
 function illRecordUsage(sermonId){
   sermonId = String(sermonId || '').trim(); if (!sermonId) return;
-  var ids = illComposeUsedIdeaIds(); if (!ids.length) return;
+  var ids = illComposeUsedIdeaIds();
   ids.forEach(function(iid){
     var d = findIdea(iid); if (!d) return;
     var cur = String(d['사용설교ID'] || '').split(/[,;]\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
@@ -3235,6 +3243,81 @@ function illRecordUsage(sermonId){
       apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '사용설교ID': val } }).catch(function(){});
     }
   });
+  /* 라이브러리(json) 예화도 기록 — 인박스 레코드가 없으므로 prefs(ns=illUse) 채널에 남긴다(2026-07-14). */
+  try { illComposeUsedLibIds().forEach(function(lid){ illUseRecord(lid, sermonId); }); } catch (e){}
+}
+/* ── 라이브러리(json) 예화 사용 이력(ns=illUse, 2026-07-14) ──
+   인박스 예화의 '사용설교ID'에 해당하는 것을 순수 라이브러리 예화에도 제공.
+   { libId: 'S0001, S0002' } — localStorage + IndexedDB 미러 + 시트 prefs 동기화(별점과 동일 채널).
+   illUsedInSermons(역링크)·illUsedKeySet(소진률·미사용 가중)이 이 기록을 함께 본다. */
+function illUseStore(){ try { return JSON.parse(localStorage.getItem('tsa.illUse') || '{}') || {}; } catch (e){ return {}; } }
+function illUseSave(m){ try { localStorage.setItem('tsa.illUse', JSON.stringify(m)); } catch (e){} try { idbSet('illUse', m); } catch (e){} }
+(function(){ try { if (localStorage.getItem('tsa.illUse') == null) idbGet('illUse').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illUse', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
+function illUsePush(key, val){
+  var s = state.settings || {};
+  if (!s.url || !s.token) return;
+  var patch = {}; patch[key] = val;
+  try { apiPostOrQueue({ action: 'setPrefs', ns: 'illUse', patch: patch }).catch(function(){}); } catch (e){}
+}
+function illUsePull(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
+  return api({ action: 'prefs' }).then(function(prefs){
+    var srv = prefs && prefs.illUse;
+    if (!srv || typeof srv !== 'object') return;
+    var local = illUseStore(), merged = {};
+    Object.keys(local).forEach(function(k){ merged[k] = local[k]; });
+    Object.keys(srv).forEach(function(k){   /* 설교ID 목록은 합집합 병합(다른 기기 기록 보존) */
+      var a = String(merged[k] || '').split(/[,;]\s*/).filter(Boolean);
+      String(srv[k] || '').split(/[,;]\s*/).filter(Boolean).forEach(function(x){ if (a.indexOf(x) < 0) a.push(x); });
+      merged[k] = a.join(', ');
+    });
+    if (JSON.stringify(merged) !== JSON.stringify(local)) illUseSave(merged);
+  }).catch(function(){});
+}
+function illUseFor(libId){ return String(illUseStore()[libId] || ''); }
+function illUseRecord(libId, sermonId){
+  libId = String(libId || ''); sermonId = String(sermonId || '').trim();
+  if (!libId || !sermonId) return false;
+  if (/^INBOX_I\d+/.test(libId)) return false;   /* 인박스 편입분은 사용설교ID 경로가 담당 */
+  var m = illUseStore();
+  var cur = String(m[libId] || '').split(/[,;]\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+  if (cur.indexOf(sermonId) >= 0) return false;   /* 멱등 */
+  cur.push(sermonId); m[libId] = cur.join(', ');
+  illUseSave(m); illUsePush(libId, m[libId]);
+  return true;
+}
+/* 제목 정규화 — 공백·문장부호를 걷어낸 뒤 비교(코워크 원고의 표기 차이 흡수). */
+function illNormT(s){ return String(s || '').toLowerCase().replace(/[\s "'“”‘’·—–\-…,.!?()\[\]{}:;<>~%]/g, ''); }
+/* compose의 예화 블록 → 라이브러리(json) 예화 id 역해석: srcKey(lib:) 우선, 제목 정규화 일치/포함 폴백. */
+function illComposeUsedLibIds(){
+  if (!(ILLUST && ILLUST.items && ILLUST.items.length)) return [];
+  var seen = {}, out = [];
+  var norm = ILLUST._normIdx;
+  if (!norm || norm._n !== ILLUST.items.length){
+    norm = { _n: ILLUST.items.length, map: {} };
+    ILLUST.items.forEach(function(x){ var k = illNormT(x.title); if (k.length >= 4 && !norm.map[k]) norm.map[k] = x.id; });
+    ILLUST._normIdx = norm;
+  }
+  (state.compose.points || []).forEach(function(p){
+    pBlocks(p).forEach(function(b){
+      if (b.type !== 'ill') return;
+      var id = '';
+      var sk = String(b.srcKey || '');
+      if (/^lib:/.test(sk)) id = sk.slice(4);
+      if (!id && !sk){   /* srcKey 없는 블록(코워크 원고 등) — 제목 정규화 매칭 */
+        var t = illNormT(b.ill || '');
+        if (t.length >= 4){
+          if (norm.map[t]) id = norm.map[t];
+          else {   /* 포함 관계(6자+): 블록 제목 안에 서랍 제목이 통째로 들어 있는 경우 */
+            for (var k in norm.map){ if (k.length >= 6 && t.indexOf(k) >= 0){ id = norm.map[k]; break; } }
+          }
+        }
+      }
+      if (id && !/^INBOX_I\d+/.test(id) && !seen[id]){ seen[id] = 1; out.push(id); }
+    });
+  });
+  return out;
 }
 /* C3(2026-07-12): 예화 반응 별점 — 잘 먹힘(2)/보통(1)/다시 안 씀(0). localStorage 개인 신호.
    A1·A2 추천(illScoreOne)이 별점을 가중 — 잘 먹힌 예화는 우선, 다시 안 쓸 예화는 강등. */
@@ -3543,6 +3626,72 @@ async function requestFoldInbox(){
   toast('라이브러리 편입 완료: ' + ok + '건');
 }
 (function(){ var b = $('#foldInboxBtn'); if (b) b.addEventListener('click', requestFoldInbox); })();
+/* ── 예화 사용 이력 소급 스캔(2026-07-14) ──
+   v412(삽입→저장 자동 기록) 이전에 쓴 설교들의 사용 이력을 일괄 백필한다.
+   live 설교의 '예화' 요약 + 로컬 보유 '원고텍스트'에서 서랍 예화 제목(정규화 6자+)을 찾아
+   · 인박스·편입(INBOX_*) 예화 → 시트 '사용설교ID' 누적(멱등)
+   · 라이브러리(json) 예화 → prefs(illUse) 누적(멱등)
+   확실 매칭(제목 전체가 텍스트에 등장)만 자동 기록 — 오탐이 재사용 경고를 오염시키지 않게 보수적으로. */
+async function illBackfillUsage(){
+  var btn = $('#illBackfillBtn'); if (btn) btn.disabled = true;
+  var hint = $('#illBackfillHint');
+  try {
+    if (!(ILLUST && ILLUST.items && ILLUST.items.length)) await illustLoad();
+    var pool = illUnified();   /* 라이브러리 + 인박스 */
+    var sermons = (state.data.sermons || []).filter(isLiveSermon);
+    if (!pool.length || !sermons.length){ toast('스캔할 예화 또는 설교가 없습니다.'); return; }
+    /* 예화 제목 정규화(6자 미만 제목은 흔해서 제외 — 오탐 방지) */
+    var cand = [];
+    pool.forEach(function(it){
+      var nt = illNormT(it.title);
+      if (nt.length >= 6) cand.push({ key: it.key, title: String(it.title || '').trim(), nt: nt });
+    });
+    var recIdea = 0, recLib = 0, hitSermons = 0, scanned = 0;
+    for (var si = 0; si < sermons.length; si++){
+      var s = sermons[si];
+      var sid = String(s['ID'] || '').trim(); if (!sid) continue;
+      var hay = illNormT(String(s['예화'] || '') + ' ' + String(s['원고텍스트'] || ''));
+      if (hay.length < 6) continue;
+      scanned++;
+      var hit = false;
+      for (var ci = 0; ci < cand.length; ci++){
+        var c = cand[ci];
+        if (hay.indexOf(c.nt) < 0) continue;
+        hit = true;
+        var iid = illSrcKeyToIdeaId(c.key);
+        if (iid){   /* 인박스·편입분 → 사용설교ID */
+          var d = findIdea(iid);
+          if (d){
+            var cur = String(d['사용설교ID'] || '').split(/[,;]\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+            if (cur.indexOf(sid) < 0){
+              cur.push(sid); var val = cur.join(', ');
+              d['사용설교ID'] = val;
+              if (state.settings && state.settings.url && state.settings.token){
+                try { await apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '사용설교ID': val } }); } catch (e){}
+              }
+              recIdea++;
+            }
+          }
+        } else if (/^lib:/.test(c.key)){   /* 순수 라이브러리 → prefs illUse */
+          if (illUseRecord(String(c.key).slice(4), sid)) recLib++;
+        }
+      }
+      if (hit) hitSermons++;
+      if (hint && (si % 50 === 0)) hint.textContent = '스캔 중… ' + (si + 1) + '/' + sermons.length;
+    }
+    ILL_USED.stamp = '';   /* 사용 판정 캐시 무효화 */
+    var msg = '소급 스캔 완료 — 설교 ' + scanned + '편 스캔, 예화 발견 ' + hitSermons + '편 · 새 기록 ' + (recIdea + recLib) + '건(인박스 ' + recIdea + ' · 라이브러리 ' + recLib + ')';
+    if (hint) hint.textContent = msg;
+    toast(msg);
+  } catch (e){
+    toast('소급 스캔 실패: ' + (e && e.message ? e.message : e));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+(function(){ var b = $('#illBackfillBtn'); if (b) b.addEventListener('click', function(){
+  if (confirm('과거 설교 전체에서 서랍 예화 사용 기록을 소급 채웁니다.\n(제목이 정확히 등장하는 확실한 경우만 기록 — 멱등이라 여러 번 눌러도 안전)\n진행할까요?')) illBackfillUsage();
+}); })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
 var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, netInline: {}, com: {}, range: null, tab: 'orig', lastCodes: null, tr: {}, versions: ['NKRV'], split: false };
 /* 번역본 레지스트리 — 개역개정은 동봉(nkrv-strong), 나머지는 배포 성경앱에서 fetch */
@@ -16065,7 +16214,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v429';
+var APP_VER = 'v430';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
