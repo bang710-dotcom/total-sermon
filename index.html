@@ -455,6 +455,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .studyText .svn{display:inline-block;min-width:32px;color:var(--accent2);font-weight:700;font-size:12.5px;margin-right:3px}
 .swrd{cursor:pointer;border-bottom:1px dotted var(--accent);padding:0 1px}
 .swrd:hover{background:var(--card2)}
+/* NET 인라인 노트 번호(위첨자) — 성경앱과 동일한 각주 주제별 색상 */
+.studyText .net-n{font-weight:700;font-size:.62em;vertical-align:.5em;line-height:0;cursor:pointer;padding:0 .12em;letter-spacing:.02em}
+.studyText .net-n.net-tn{color:#2bb3a3}  /* 번역=청록 */
+.studyText .net-n.net-sn{color:#e0922e}  /* 해설=주황 */
+.studyText .net-n.net-tc{color:#9b7bd4}  /* 본문=보라 */
+.studyText .net-n.net-tr{color:#9aa0a6}  /* 역=회색 */
+.studyText .net-n:hover{background:var(--card2);border-radius:3px}
 .studyDetail{margin-top:4px}
 .sworddef{border:1px solid var(--line);background:var(--card2);border-radius:10px;padding:10px 12px;margin-top:8px}
 .swh{margin-bottom:5px}
@@ -3537,7 +3544,7 @@ async function requestFoldInbox(){
 }
 (function(){ var b = $('#foldInboxBtn'); if (b) b.addEventListener('click', requestFoldInbox); })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
-var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, com: {}, range: null, tab: 'orig', lastCodes: null, tr: {}, versions: ['NKRV'], split: false };
+var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, netInline: {}, com: {}, range: null, tab: 'orig', lastCodes: null, tr: {}, versions: ['NKRV'], split: false };
 /* 번역본 레지스트리 — 개역개정은 동봉(nkrv-strong), 나머지는 배포 성경앱에서 fetch */
 var TR_REG = [
   { id: 'NKRV', name: '개역개정', file: '', ko: true, strong: true },
@@ -3585,7 +3592,11 @@ function studyFillCol(colEl, vid){
   if (!colEl) return;
   colEl.innerHTML = '<div class="cnt">불러오는 중…</div>';
   var R = STUDY.range; if (!R){ colEl.innerHTML = ''; return; }
-  studyLoadTr(vid).then(function(data){
+  /* NET는 인라인 노트(anchors)까지 함께 받아 본문에 성경앱과 동일한 색상 번호를 단다(실패해도 본문은 정상). */
+  var jobs = [studyLoadTr(vid)];
+  if (vid === 'NET') jobs.push(studyLoadNetInline(R.idx).catch(function(){ return null; }));
+  Promise.all(jobs).then(function(res){
+    var data = res[0], inlineData = (vid === 'NET') ? res[1] : null;
     var reg = TR_MAP[vid], book = data && data.books && data.books[R.idx];
     if (!book){ colEl.innerHTML = '<div class="cnt">이 역본에 본문이 없습니다.</div>'; return; }
     var r = R.r, html = '';
@@ -3593,7 +3604,8 @@ function studyFillCol(colEl, vid){
       var verses = book.chapters[c - 1] || [];
       var vs = (c === r.c1) ? r.v1 : 1, ve = (c === r.c2) ? Math.min(r.v2, verses.length) : verses.length;
       for (var vi = vs; vi <= ve; vi++){ if (!verses[vi - 1]) continue;
-        html += '<div class="sv"><span class="svn">' + c + ':' + vi + '</span>' + studyVerseInner(verses[vi - 1], reg) + '</div>';
+        var inner = (vid === 'NET' && inlineData) ? studyNetVerseInner(verses[vi - 1], c, vi, inlineData) : studyVerseInner(verses[vi - 1], reg);
+        html += '<div class="sv"><span class="svn">' + c + ':' + vi + '</span>' + inner + '</div>';
       }
     }
     colEl.innerHTML = html || '<div class="cnt">해당 절을 찾지 못했습니다.</div>';
@@ -3625,6 +3637,54 @@ function studyLoadNet(idx){
   if (STUDY.net[idx]) return Promise.resolve(STUDY.net[idx]);
   return fetch('bible/netnotes/netnotes_' + ('0' + idx).slice(-2) + '.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(d){ STUDY.net[idx] = d; return d; });
+}
+/* ── NET 인라인 노트(성경앱 이식): 본문 절에 색상 번호 마커를 단다 ──
+   net_inline_NN.json = { anchors:{장:{절:[[어절index, 노트번호, 분류], ...]}}, notes:{장:{노트번호:{cat,md}}} }
+   (성경앱 배포본 commentary/ 에서 로드 — NET 절 본문의 공백 토큰 순번에 맞춰 마커를 삽입한다.) */
+function studyLoadNetInline(idx){
+  STUDY.netInline = STUDY.netInline || {};
+  if (STUDY.netInline[idx] !== undefined) return Promise.resolve(STUDY.netInline[idx]);
+  STUDY._netInlineP = STUDY._netInlineP || {};
+  if (STUDY._netInlineP[idx]) return STUDY._netInlineP[idx];
+  STUDY._netInlineP[idx] = fetch(COM_BASE + '/commentary/net_inline_' + ('0' + idx).slice(-2) + '.json')
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.netInline[idx] = d; return d; })
+    .catch(function(){ STUDY.netInline[idx] = null; return null; });
+  return STUDY._netInlineP[idx];
+}
+var NET_CAT = { tn: '번역', sn: '해설', tc: '본문', tr: '역' };
+function netCatLabel(c){ return NET_CAT[c] || '노트'; }
+/* NET 한 절을 렌더 — 스트롱 단어(밑줄·원어클릭)는 유지하고, anchors 위치에 색상 번호(위첨자)를 끼워 넣는다.
+   어절 순번은 성경앱과 동일하게 '공백 분할' 기준(net.json 절 본문은 "단어[Gxxxx]" 형식). */
+function studyNetVerseInner(verseText, chapter, v, inlineData){
+  var ans = (inlineData && inlineData.anchors && inlineData.anchors[String(chapter)] && inlineData.anchors[String(chapter)][String(v)]) || [];
+  var byWi = {};
+  ans.forEach(function(a){ (byWi[a[0]] = byWi[a[0]] || []).push([a[1], a[2]]); });   /* a=[어절index, 노트번호, 분류] */
+  var toks = String(verseText || '').split(' '), out = '';
+  for (var i = 0; i < toks.length; i++){
+    var tk = toks[i];
+    var codes = (tk.match(/\[[GH]\d+\]/g) || []).map(function(m){ return m.slice(1, -1); });
+    var core = tk.replace(/\[[GH]\d+\]/g, '');
+    var cc = contentCodes(codes);
+    out += cc.length ? '<span class="swrd" data-codes="' + cc.join(',') + '">' + esc(core) + '</span>' : esc(core);
+    if (byWi[i]) byWi[i].sort(function(a, b){ return a[0] - b[0]; }).forEach(function(p){   /* p=[노트번호, 분류] */
+      out += '<sup class="net-n net-' + p[1] + '" data-c="' + chapter + '" data-v="' + v + '" data-n="' + p[0] + '">' + p[0] + '</sup>';
+    });
+    if (i < toks.length - 1) out += ' ';
+  }
+  return out;
+}
+/* NET 번호 클릭 → 해당 노트를 팝업(Holman 별항과 같은 featOv 재사용)으로 보여준다 */
+function studyOpenNetNote(c, num, v){
+  var d = (STUDY.netInline || {})[STUDY.range && STUDY.range.idx];
+  if (!d || !d.notes){ toast('노트를 불러오지 못했습니다.'); return; }
+  var ch = d.notes[String(c)], note = ch && ch[String(num)];
+  if (!note){ toast('노트를 찾을 수 없습니다.'); return; }
+  var ft = $('#featTitle'), fb = $('#featBody');
+  if (ft) ft.textContent = 'NET ' + c + ':' + v + ' · 노트 ' + num + ' (' + netCatLabel(note.cat) + ')';
+  var md = String(note.md || '').replace(/^\s*〈(번역|해설|본문|역|역주)〉\s*/, '');
+  if (fb){ fb.innerHTML = stMd(md); fb.scrollTop = 0; }
+  var ov = $('#featOv'); if (ov){ ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false'); }
 }
 function studyLoadCom(idx){
   if (STUDY.com[idx]) return Promise.resolve(STUDY.com[idx]);
@@ -4184,6 +4244,7 @@ function fillConc(code){
       if (dbox && dbox.style.display !== 'none' && dbox.getAttribute('data-open')){ dbox.style.display = 'none'; dbox.removeAttribute('data-open'); }
       else { if (dbox){ dbox.style.display = ''; dbox.setAttribute('data-open', '1'); } studyWordStudy(dcode2, dword); }
       return; }
+    var nn = e.target.closest && e.target.closest('.net-n'); if (nn){ studyOpenNetNote(+nn.getAttribute('data-c'), +nn.getAttribute('data-n'), +nn.getAttribute('data-v')); return; }
     var w = e.target.closest && e.target.closest('.swrd'); if (w){ studyWordDetail(w.getAttribute('data-codes')); return; }
     var mo = e.target.closest && e.target.closest('.td2more');
     if (mo){ var cont = mo.parentNode, rest = cont.querySelector('.td2rest'); if (rest){ var op = rest.style.display !== 'none'; rest.style.display = op ? 'none' : ''; mo.textContent = op ? ('더보기 ' + rest.children.length + '개 ▾') : '접기 ▴'; } return; }
@@ -16004,7 +16065,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v428';
+var APP_VER = 'v429';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
