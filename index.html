@@ -10232,6 +10232,25 @@ async function archiveDevoRows(S){
   if (adds.length || ups.length) sync();
   return adds.length + ups.length;
 }
+/* 이달의 말씀 생성 — 주(週)들을 달별로 묶어, 그 달의 본문 범위에서 선포·신앙고백형 1~2절 선정 */
+async function genMonthlyVerses(S){
+  var mos = {}, order = [];
+  ((S && S.sermon && S.sermon.weeks) || []).forEach(function(w){
+    if (w.skip) return;
+    var mk = String(w['주일'] || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(mk)) return;
+    if (!mos[mk]) { mos[mk] = { '월': mk, '본문범위': [] }; order.push(mk); }
+    if (w['주간범위']) mos[mk]['본문범위'].push(w['주간범위']);
+  });
+  var arr = order.map(function(k){ return mos[k]; }).filter(function(o){ return o['본문범위'].length; });
+  if (!arr.length) return null;
+  var out = await callClaude(P_MONTHWORD, JSON.stringify({ '시리즈명': (S.meta || {})['시리즈명'] || '', '달': arr }), 4000, aiTick('이달의 말씀'));
+  var j = aiJson(out);
+  if (!Array.isArray(j) || !j.length) throw new Error('응답 형식 오류');
+  return j.map(function(r){
+    return { '월': String(r['월'] || ''), '구절': String(r['구절'] || ''), '말씀': String(r['말씀'] || ''), '이유': String(r['이유'] || '') };
+  });
+}
 async function aiSeriesSermon(noteOverride){
   var S = state.series;
   try {
@@ -10261,6 +10280,11 @@ async function aiSeriesSermon(noteOverride){
     }) };
     /* 빈 주제근거 자동 보완 */
     try { var nf = await fillMissingJeokgeo(S.sermon.weeks); if (nf) refreshWeekEdits(S.sermon.weeks); } catch (fe) {}
+    /* 이달의 말씀 — 대학부(주일) 시리즈: 예배 마지막에 다 함께 읽는 선포·신앙고백 구절(달마다 1~2절) */
+    if (!isDawn(S) && !isTopic(S)) {
+      try { toast('이달의 말씀 선정 중…'); S.sermon.monthly = await genMonthlyVerses(S); }
+      catch (me) { toast('이달의 말씀 생성 실패(선택지는 정상 — 화면의 [이달의 말씀 생성]으로 다시 시도하세요): ' + me.message); }
+    }
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['시리즈설교'] = '';
     saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
@@ -12377,6 +12401,26 @@ function spSermonHtml(){
   var _tp = isTopic(S);
   var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> — ' + (_tp ? '주제별 설교 계획' + (m['주제'] ? ' <span style="color:var(--dim);font-weight:400;font-size:13px">「' + esc(m['주제']) + '」</span>' : '') : '주일 설교 계획') +
     '<div class="cnt" style="margin-top:4px">' + (_tp ? '회차' : '주일') + '마다 선택지 하나를 고르고 아래 칸에서 다듬은 뒤 확정하세요. 제외할 ' + (_tp ? '회차' : '주일') + '은 "등록" 체크를 해제합니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
+  /* 이달의 말씀 — 주일(대학부) 시리즈: 달별 선포·신앙고백 구절(예배 마무리 화면용) */
+  if (!_tp && !isDawn(S)) {
+    var _mv = (S.sermon && S.sermon.monthly) || [];
+    h += '<div class="card"><b>🗓 이달의 말씀</b> <span style="color:var(--dim);font-size:12.5px">— 예배 마지막에 다 함께 읽는 선포·신앙고백 구절</span>';
+    if (_mv.length) {
+      h += _mv.map(function(v){
+        var _mm = String(v['월'] || '');
+        var _mmKo = /^\d{4}-\d{2}$/.test(_mm) ? Number(_mm.slice(5)) + '월' : _mm;
+        return '<div style="margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px">' +
+          '<b>' + esc(_mmKo) + '</b> · <span style="color:var(--accent)">' + esc(v['구절'] || '') + '</span>' +
+          '<div style="margin-top:4px">' + esc(v['말씀'] || '') + '</div>' +
+          (v['이유'] ? '<div class="cnt" style="margin-top:4px;font-size:12px">' + esc(v['이유']) + '</div>' : '') + '</div>';
+      }).join('') +
+      '<div class="toolrow" style="margin-top:8px"><button class="btn sub" id="spMonthlyGen" style="flex:0 0 auto;width:auto">다시 선정</button></div>';
+    } else {
+      h += '<div class="cnt" style="margin-top:6px">아직 없습니다 — 버튼을 누르면 달마다 그 달 본문 범위에서 1~2절을 선정합니다.</div>' +
+        '<div class="toolrow" style="margin-top:6px"><button class="btn sub" id="spMonthlyGen" style="flex:0 0 auto;width:auto">이달의 말씀 생성</button></div>';
+    }
+    h += '</div>';
+  }
   /* 기본 열림: 확정되지 않은(제외 제외) 가장 빠른 주차. 모두 확정/제외면 1주차 */
   var openIdx = -1;
   S.sermon.weeks.forEach(function(w, i){
@@ -12513,6 +12557,20 @@ $('#seriesPane').addEventListener('change', function(e){
 $('#seriesPane').addEventListener('click', async function(e){
   var ddr = e.target.closest('#spDawnRedo');
   if (ddr) { spDawnRedo(); return; }
+  /* 이달의 말씀 생성/다시 선정 — 주일(대학부) 시리즈 */
+  var mgB = e.target.closest('#spMonthlyGen');
+  if (mgB) {
+    if (mgB.dataset.busy) return;
+    if (!aiKey()) { toast('설정에 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 생성할 수 있습니다.'); return; }
+    mgB.dataset.busy = '1'; var _omg = mgB.innerHTML; mgB.innerHTML = '<span class="spin"></span>선정 중…';
+    try {
+      var _mvr = await genMonthlyVerses(state.series);
+      if (_mvr) { state.series.sermon.monthly = _mvr; saveSeries(); toast('이달의 말씀 ' + _mvr.length + '개월 선정 완료'); }
+      else toast('선정할 본문 범위가 없습니다 — 주간범위가 있는 주일이 필요합니다.');
+    } catch (errM) { toast('이달의 말씀 생성 실패: ' + errM.message); }
+    finally { delete mgB.dataset.busy; mgB.innerHTML = _omg; renderSeriesPane(); }
+    return;
+  }
   var rd = e.target.closest('#spDevoRedo, #spSermonRedo');
   if (rd) {
     if (rd.id === 'spSermonRedo' && isTopic(state.series)) { spTopicRedo(); return; }
@@ -16572,7 +16630,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v434';
+var APP_VER = 'v435';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
