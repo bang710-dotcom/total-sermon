@@ -1174,6 +1174,7 @@ body.uiDlgOpen{overflow:hidden}
             <span class="chip" data-scope="devon">묵상노트</span>
           </div>
         </div>
+        <div class="card" id="illRecapCard" style="display:none;margin-top:10px"></div>
         <div class="card" id="dailyIllCard" style="display:none;margin-top:10px">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <b>📮 오늘의 서랍</b><span class="cnt" id="dailyIllMeta"></span>
@@ -2145,6 +2146,7 @@ function sync(opts){
     toast('동기화 완료 (설교 ' + (d.sermons || []).length + ' · 아이디어 ' + (d.ideas || []).length + ')');
     try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
     try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
+    try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
@@ -2201,6 +2203,7 @@ function bootLoad(){
     if (cur) renderSeriesPage();
     try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
     try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
+    try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
   }).catch(function(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
@@ -2937,7 +2940,7 @@ function renderRefIllust(){
       if (arcHit.length >= 6) return;
       if ((it.refs || []).some(function(r){ var v = refToInterval(r); return v && v.idx === iv.idx; })) arcHit.push(it);
     });
-    var coachHtml = illLayerCoachHtml();   /* #5: 작성 중 원고 예화 층위 균형 코칭 */
+    var coachHtml = illLayerCoachHtml() + illSourceCoachHtml();   /* #5 층위 균형 + ③ 출처 등급 코칭 */
     if (!same.length && !book.length && !reso.length && !arcHit.length){ box.innerHTML = coachHtml || ''; return; }
     ILLUST.refMap = {}; same.concat(book).concat(reso).forEach(function(it){ ILLUST.refMap[it.key] = it; });
     ILLUST.refArcMap = {}; arcHit.forEach(function(it){ ILLUST.refArcMap[it.key] = it; });
@@ -3071,6 +3074,34 @@ function illLayerCoachHtml(){
   var haveTxt = order.filter(function(l){ return bal.have[l]; }).map(function(l){ return (ILL_LAYER_ICON[l] || '') + l + ' ' + bal.have[l]; }).join(' · ');
   return '<div class="cnt" style="margin:2px 2px 8px;padding:7px 9px;background:var(--card,#0000000a);border-radius:8px;color:var(--accent2);line-height:1.55">'
     + '🧭 지금 원고 예화 층위 — ' + haveTxt + '<br><b>' + miss.map(function(l){ return (ILL_LAYER_ICON[l] || '') + l; }).join(' · ') + '</b> 층위를 하나 더하면 메시지가 입체적으로 박힙니다.</div>';
+}
+/* ── 출처 등급 코칭(2026-07-14, 2차제안 후속 ③) ──
+   작성 중 원고에 삽입된 서랍 예화 중 출처 '미상'·'전언'을 모아, 설교 전 확인 또는
+   "전해지는 이야기입니다" 화법을 권한다(단정 화법으로 오기가 굳는 것을 방지 — 킴볼 1858 오기 전례).
+   srcKey(lib:)가 있는 삽입분만 판정(확실한 것만) — 조용한 정보 표시, 강제 없음. */
+function illGradeForKey(key){
+  key = String(key || '');
+  if (!(/^lib:/.test(key) && ILLUST && ILLUST.items)) return '';
+  var id = key.slice(4);
+  for (var i = 0; i < ILLUST.items.length; i++){
+    if (ILLUST.items[i].id === id) return String(ILLUST.items[i].sourceConfidence || '');
+  }
+  return '';
+}
+var ILL_GRADE_ICON = { '확정': '✅', '전언': '⚠️', '미상': '❓' };
+function illSourceCoachHtml(){
+  var rows = [];
+  (state.compose.points || []).forEach(function(p){
+    pBlocks(p).forEach(function(b){
+      if (b.type !== 'ill') return;
+      var g = illGradeForKey(b.srcKey || '');
+      if (g === '전언' || g === '미상') rows.push({ t: String(b.ill || '').trim() || '(제목 없음)', g: g });
+    });
+  });
+  if (!rows.length) return '';
+  return '<div class="cnt" style="margin:2px 2px 8px;padding:7px 9px;background:var(--card,#0000000a);border-radius:8px;color:var(--warn);line-height:1.55">'
+    + '🔍 출처 미검증 예화 ' + rows.length + '편 — ' + rows.map(function(r){ return (ILL_GRADE_ICON[r.g] || '') + '「' + esc(r.t) + '」'; }).join(' · ')
+    + '<br>설교 전 사실을 확인하거나, <b>"전해지는 이야기입니다"</b> 화법으로 여지를 남겨 두세요.</div>';
 }
 /* ===================== 내가 쓴 예화(설교 아카이브) =====================
    정적 스냅샷 illustrations-archive.json(2003~빌드일, 원고 ex) 블록 전수)
@@ -3370,6 +3401,41 @@ function illRatePull(){
   }).catch(function(){});
 }
 function illRateFor(key){ var v = illRateStore()[key]; return (v === 0 || v === 1 || v === 2) ? v : null; }
+/* ── 별점 한 줄 메모(2026-07-14, 2차제안 후속 ②) ──
+   "이 예화가 왜 먹혔나/안 먹혔나"를 한 줄로 남긴다. 별점과 같은 채널 구조:
+   localStorage tsa.illRateNote + IndexedDB 미러 + 시트 prefs(ns=illRateNote) 동기화. */
+function illNoteStore(){ try { return JSON.parse(localStorage.getItem('tsa.illRateNote') || '{}') || {}; } catch (e){ return {}; } }
+function illNoteSave(m){ try { localStorage.setItem('tsa.illRateNote', JSON.stringify(m)); } catch (e){} try { idbSet('illRateNote', m); } catch (e){} }
+(function(){ try { if (localStorage.getItem('tsa.illRateNote') == null) idbGet('illRateNote').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illRateNote', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
+function illNoteFor(key){ return String(illNoteStore()[key] || ''); }
+function illNoteSet(key, val){
+  var m = illNoteStore();
+  val = String(val || '').trim().slice(0, 120);
+  if (val) m[key] = val; else delete m[key];
+  illNoteSave(m);
+  var s = state.settings || {};
+  if (s.url && s.token){
+    var patch = {}; patch[key] = (val || null);
+    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illRateNote', patch: patch }).catch(function(){}); } catch (e){}
+  }
+}
+function illNotePull(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
+  return api({ action: 'prefs' }).then(function(prefs){
+    var srv = prefs && prefs.illRateNote;
+    if (!srv || typeof srv !== 'object') return;
+    var local = illNoteStore();
+    var merged = Object.assign({}, local, srv);   /* 서버 우선 + 로컬 전용 키 보존(별점과 동일 규칙) */
+    if (JSON.stringify(merged) !== JSON.stringify(local)) illNoteSave(merged);
+  }).catch(function(){});
+}
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (!(t && t.classList && t.classList.contains('illNoteIn'))) return;
+  illNoteSet(t.getAttribute('data-illkey'), t.value);
+  toast(t.value.trim() ? '메모를 저장했습니다.' : '메모를 지웠습니다.');
+}, true);
 var ILL_RATE_LABEL = ['다시 안 씀', '보통', '잘 먹힘'];
 function illRateColor(v){ return v === 2 ? 'var(--accent)' : v === 0 ? 'var(--warn)' : 'var(--dim)'; }
 function illRateRow(key){
@@ -3380,8 +3446,10 @@ function illRateRow(key){
       + 'style="width:auto;font-size:11px;padding:2px 9px;border:1px solid ' + (on ? col : 'var(--line)') + ';border-radius:12px;'
       + 'background:' + (on ? col : 'transparent') + ';color:' + (on ? '#fff' : 'var(--dim)') + ';cursor:pointer">' + ILL_RATE_LABEL[v] + '</button>';
   }).join(' ');
+  var note = illNoteFor(key);
   return '<div class="illRateRow" style="margin-top:7px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'
-    + '<span style="font-size:11px;color:var(--dim)">이 예화 반응:</span>' + btns + '</div>';
+    + '<span style="font-size:11px;color:var(--dim)">이 예화 반응:</span>' + btns + '</div>'
+    + (note ? '<div style="margin-top:3px;font-size:11.5px;color:var(--accent2)">💬 ' + esc(note) + '</div>' : '');
 }
 document.addEventListener('click', function(e){
   var b = e.target.closest && e.target.closest('.illRateBtn'); if (!b) return;
@@ -3584,11 +3652,61 @@ function dailyPick(pool){
   dailySave(st);
   return { items: picks, st: st };
 }
+/* ── 설교 후 회고 카드(2026-07-14, 2차제안 후속 ②) ──
+   최근 14일 안에 전한 설교에 '기록된' 사용 예화(사용설교ID·illUse — v412/v430 훅이 남긴 것) 중
+   아직 별점이 없는 것을 홈에서 한 번에 회고한다. 별점 UI(illRateRow)와 위임 리스너 재사용,
+   한 줄 메모(illNoteIn)까지 남기면 A1·A2 추천 가중과 카드 메모로 되돌아온다. 전부 평가되면 숨김. */
+function renderIllRecap(){
+  var card = $('#illRecapCard'); if (!card) return;
+  try {
+    var today = dailyTodayStr();
+    var cut = new Date(new Date(today).getTime() - 14 * 86400000).toISOString().slice(0, 10);
+    var recent = (state.data.sermons || []).filter(function(s){
+      if (!isLiveSermon(s)) return false;
+      var d = String(s['날짜'] || '').slice(0, 10);
+      return d && d <= today && d >= cut;
+    });
+    if (!recent.length){ card.style.display = 'none'; return; }
+    var sidSet = {}; recent.forEach(function(s){ sidSet[String(s['ID'] || '').trim()] = s; });
+    var pool = illUnified(), items = [], seen = {};
+    var useMap = illUseStore();
+    function hitSermon(ids){
+      var hit = null;
+      String(ids || '').split(/[,;]\s*/).forEach(function(x){ x = x.trim(); if (!hit && sidSet[x]) hit = sidSet[x]; });
+      return hit;
+    }
+    pool.forEach(function(it){
+      if (seen[it.key] || illRateFor(it.key) !== null) return;
+      var s = null;
+      var iid = illSrcKeyToIdeaId(it.key);
+      if (iid){ var d = findIdea(iid); if (d) s = hitSermon(d['사용설교ID']); }
+      if (!s && /^lib:/.test(it.key)) s = hitSermon(useMap[String(it.key).slice(4)]);
+      if (!s) return;
+      seen[it.key] = 1;
+      items.push({ it: it, s: s });
+    });
+    if (!items.length){ card.style.display = 'none'; return; }
+    items = items.slice(0, 5);
+    var rows = items.map(function(x){
+      return '<div style="padding:8px 0;border-top:1px solid var(--line)">'
+        + '<div style="font-size:13px"><b>' + esc(x.it.title || '') + '</b>'
+        + ' <span class="cnt" style="font-size:11.5px">— ' + esc(String(x.s['날짜'] || '').slice(0, 10)) + ' 「' + esc(x.s['제목'] || '') + '」</span></div>'
+        + illRateRow(x.it.key)
+        + '<input type="text" class="illNoteIn" data-illkey="' + esc(x.it.key) + '" value="' + esc(illNoteFor(x.it.key)) + '"'
+        + ' placeholder="한 줄 메모 — 왜 먹혔나/안 먹혔나 (선택)" style="margin-top:5px;font-size:12px;padding:6px 9px">'
+        + '</div>';
+    }).join('');
+    card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b>🎤 지난 설교 예화 회고</b>'
+      + '<span class="cnt">반응을 별점으로 남기면 추천이 그 별점을 기억합니다</span></div>' + rows;
+    card.style.display = '';
+  } catch (e){ card.style.display = 'none'; }
+}
 function renderDailyIll(){
   var card = $('#dailyIllCard'); if (!card) return;
   var today = dailyTodayStr();
-  if (DAILY.renderedFor === today && card.style.display !== 'none') return;  /* 같은 날 재진입 시 재계산 생략 */
+  if (DAILY.renderedFor === today && card.style.display !== 'none'){ try { renderIllRecap(); } catch (eR0){} return; }  /* 같은 날 재진입 시 재계산 생략(회고 카드만 갱신) */
   illustLoad().catch(function(){}).then(function(){
+    try { renderIllRecap(); } catch (eR){}   /* 회고 카드는 서랍 카드와 같은 타이밍에 */
     var pool = illUnified(); if (!pool.length) return;
     var r = dailyPick(pool);
     if (!r.items.length) return;
@@ -5036,8 +5154,10 @@ function renderPoints(){
     var blk = p.blocks.map(function(b, bi){
       var handle = '<span class="dragH" data-i="' + i + '" data-bi="' + bi + '" title="드래그로 이동 · 우클릭/길게 눌러 삭제">⠿</span>';
       if (b.type === 'ill') {
+        var _g = illGradeForKey(b.srcKey || '');   /* ③ 출처 등급(서랍 삽입분만) */
+        var _gIco = (_g === '전언' || _g === '미상') ? '<span title="출처 ' + _g + ' — 설교 전 확인 또는 \'전해지는 이야기\' 화법 권장" style="flex:0 0 auto;font-size:12px">' + (ILL_GRADE_ICON[_g] || '') + '</span>' : '';
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
-          '<span class="blkTag illTag" title="길게 눌러 타입 변경">ex)</span>' +
+          '<span class="blkTag illTag" title="길게 눌러 타입 변경">ex)</span>' + _gIco +
           '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
           '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="이 위치에 맞는 예화 추천·생성">AI</button></div>';
       }
@@ -12026,6 +12146,53 @@ function illPlanRow(src){
       + rows + '</div>';
   } catch (e){ return ''; }
 }
+/* ── 시리즈 예화 예산(2026-07-14, 2차제안 후속 ⑤) ──
+   확정된 주차 전체의 선배정 후보(주차별 2편)를 한 표로 모아, 시리즈 수준의
+   중복(같은 예화가 여러 주에 배정)과 주제 편중을 계획 단계에서 한눈에 보여준다.
+   읽기전용·무AI — illPlanRow와 같은 스코어러를 쓰므로 주차 카드와 항상 일치한다. */
+function illPlanBudget(weeks, isTp){
+  try {
+    if (!ILLUST || !ILLUST.items || !weeks || !weeks.length) return '';
+    var rows = [], useCount = {}, themeCount = {}, confirmedN = 0;
+    weeks.forEach(function(w, wi){
+      if (w.skip) return;
+      var ed = w.edit || {};
+      var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
+      var confirmed = w.done && w.sig === weekSig(w);
+      if (!confirmed) return;
+      var src = selO || ed;
+      var ctx = String(src['핵심메시지'] || '') + ' ' + String(src['대지'] || '');
+      if (!ctx.trim()) return;
+      confirmedN++;
+      var cands = illPickCandidates(ctx, String(src['본문'] || ''), 2) || [];
+      var label = isTp ? String(w['회차명'] || (wSeq(w, wi) + '회')) : (wSeq(w, wi) + '주차');
+      rows.push({ label: label, title: String(src['제목'] || ''), cands: cands.map(function(c){ return c.it; }) });
+      cands.forEach(function(c){
+        var it = c.it;
+        (useCount[it.title] = useCount[it.title] || []).push(label);
+        illThemesOf(it).forEach(function(t){ themeCount[t] = (themeCount[t] || 0) + 1; });
+      });
+    });
+    if (confirmedN < 2 || !rows.length) return '';   /* 시리즈 수준 조망은 확정 2주차부터 의미 */
+    var dups = Object.keys(useCount).filter(function(t){ return useCount[t].length >= 2; });
+    var themes = Object.keys(themeCount).sort(function(a, b){ return themeCount[b] - themeCount[a]; });
+    var body = rows.map(function(r){
+      return '<div style="display:flex;gap:8px;align-items:baseline;margin:3px 0;font-size:12.5px;flex-wrap:wrap">'
+        + '<span style="flex:0 0 64px;color:var(--dim);font-weight:600">' + esc(r.label) + '</span>'
+        + '<span style="color:var(--txt)">' + (r.cands.length ? r.cands.map(function(it){
+            var dup = useCount[it.title] && useCount[it.title].length >= 2;
+            return (dup ? '<span style="color:var(--warn);font-weight:700">⚠ ' : '<span>') + esc(it.title || '') + '</span>';
+          }).join(' <span style="color:var(--dim)">·</span> ') : '<span style="color:var(--dim)">후보 없음</span>') + '</span></div>';
+    }).join('');
+    return '<div class="card" style="margin-bottom:10px"><details><summary style="cursor:pointer;list-style:none;font-size:13.5px"><b>📚 시리즈 예화 예산</b> <span class="cnt">— 확정 ' + confirmedN + (isTp ? '회' : '주') + ' 선배정 조망'
+      + (dups.length ? ' · <span style="color:var(--warn);font-weight:700">중복 ' + dups.length + '편</span>' : ' · 중복 없음') + '</span></summary>'
+      + '<div style="margin-top:7px">' + body + '</div>'
+      + (dups.length ? '<div style="margin-top:7px;font-size:12px;color:var(--warn)">⚠ ' + dups.map(function(t){ return '「' + esc(t) + '」(' + useCount[t].join('·') + ')'; }).join(' , ') + ' — 같은 예화가 여러 ' + (isTp ? '회차' : '주') + '에 앉아 있습니다. 한쪽은 다른 예화로 바꿔 보세요.</div>' : '')
+      + (themes.length ? '<div class="cnt" style="margin-top:6px;font-size:11.5px">주제 분포: ' + themes.slice(0, 5).map(function(t){ return esc(t) + ' ' + themeCount[t]; }).join(' · ') + (themes.length > 5 ? ' 외' : '') + '</div>' : '')
+      + '<div class="cnt" style="margin-top:4px;font-size:11.5px;color:var(--dim)">후보는 각 주차 카드의 선배정과 동일한 로컬 추천입니다. 원고 작성 시 [예화 추천]에서 최종 선택하세요.</div>'
+      + '</details></div>';
+  } catch (e){ return ''; }
+}
 function renderSeriesPane(){
   var S = state.series, pane = $('#seriesPane');
   if ((!ILLUST || !ILLUST.items) && !state._spIllPend && typeof illustLoad === 'function'){
@@ -12119,6 +12286,7 @@ function spSermonHtml(){
     if (!w.skip && !(w.done && w.sig === weekSig(w))) openIdx = i;
   });
   if (openIdx < 0) openIdx = 0;
+  h += illPlanBudget(S.sermon.weeks, _tp);   /* 2026-07-14: 시리즈 예화 예산 — 중복·편중 조망 */
   h += S.sermon.weeks.map(function(w, wi){
     var ed = w.edit || {};
     var selO = (w.sel >= 0 && w.opts && w.opts.length > w.sel) ? w.opts[w.sel] : null;
@@ -15431,6 +15599,62 @@ function anDrawerUsage(){
     + '<div class="cnt" style="margin-top:7px;color:var(--dim);font-size:11.5px">소진 판정: 인박스·편입 예화의 사용 이력(사용설교ID) 또는 제목이 실제 전한 설교의 예화 요약에 등장. 새벽 시리즈에서 미소진 카테고리를 우선 소진해 보세요.</div>'
     + '</div></div>';
 }
+/* ── 커버리지 나침반(2026-07-14, 2차제안 후속 ①) ──
+   소장 예화 전체를 표준주제 13 × 결 3 매트릭스로 집계해 서랍의 빈 칸을 보여준다.
+   빈약 칸(3편 이하)은 새벽 스캔의 수집 목표 — 수집이 '많이'에서 '고르게'로 바뀐다.
+   무AI 로컬 집계. 칸을 누르면 도서관이 그 주제×결 필터로 열린다. */
+function anCoverageCompass(){
+  if (!ILLUST || !ILLUST.items) return '';
+  var pool = illUnified();
+  if (!pool.length) return '';
+  var THEMES = ['고난·회복','헌신·사명','믿음·신뢰','소망·영원','주권·섭리','사랑·관계','겸손·섬김','은혜·감사','말씀','순종·행함','정체성','기도·성령','공동체·예배'];
+  var TONES = ['공통','새벽·장년','대학부'];
+  var M = {}; THEMES.forEach(function(t){ M[t] = { '공통': 0, '새벽·장년': 0, '대학부': 0 }; });
+  var counted = 0;
+  pool.forEach(function(it){
+    var ths = illThemesOf(it); if (!ths.length) return;
+    var tn = illToneOf(it); if (TONES.indexOf(tn) < 0) tn = '공통';
+    counted++;
+    ths.forEach(function(t){ if (M[t]) M[t][tn]++; });
+  });
+  if (!counted) return '';
+  var mx = 1; THEMES.forEach(function(t){ TONES.forEach(function(n){ if (M[t][n] > mx) mx = M[t][n]; }); });
+  var sparse = [];
+  THEMES.forEach(function(t){ TONES.forEach(function(n){ if (M[t][n] <= 3) sparse.push({ t: t, n: n, c: M[t][n] }); }); });
+  sparse.sort(function(a, b){ return a.c - b.c; });
+  function cell(t, n){
+    var c = M[t][n];
+    var op = c ? (0.12 + 0.55 * Math.min(1, c / mx)) : 0;
+    var thin = c <= 3;
+    return '<td class="ccCell" data-cct="' + esc(t) + '" data-ccn="' + esc(n) + '" title="' + esc(t) + ' × ' + esc(n) + ' — ' + c + '편 (누르면 도서관에서 열람)"'
+      + ' style="text-align:center;padding:5px 2px;font-size:12px;cursor:pointer;border-radius:6px;'
+      + 'background:rgba(124,154,255,' + op.toFixed(2) + ');'
+      + (thin ? 'box-shadow:inset 0 0 0 1.5px var(--warn);color:var(--warn);font-weight:700' : 'color:var(--txt)') + '">' + c + '</td>';
+  }
+  var rows = THEMES.map(function(t){
+    return '<tr><td style="font-size:12px;color:var(--dim);padding:4px 8px 4px 2px;white-space:nowrap">' + esc(t) + '</td>'
+      + TONES.map(function(n){ return cell(t, n); }).join('') + '</tr>';
+  }).join('');
+  var goal = sparse.slice(0, 3).map(function(s){ return '<b>' + esc(s.n) + '×' + esc(s.t) + '</b>(' + s.c + ')'; }).join(' · ');
+  return '<div class="anCard"><h3>커버리지 나침반 <span style="font-weight:400;color:var(--dim);font-size:13px">— 주제 × 대상(결)별 서랍 두께</span></h3>'
+    + '<div class="anBody" style="display:block;padding:4px 2px;overflow-x:auto">'
+    + '<table style="border-collapse:separate;border-spacing:3px 2px;width:100%"><thead><tr><th></th>'
+    + TONES.map(function(n){ return '<th style="font-size:11.5px;color:var(--dim);font-weight:600;padding:2px">' + esc(n) + '</th>'; }).join('')
+    + '</tr></thead><tbody>' + rows + '</tbody></table>'
+    + (sparse.length ? '<div style="margin-top:7px;font-size:12.5px;color:var(--txt)">🧭 이번 주 새벽 스캔 목표 — ' + goal + ' 칸이 얇습니다. 이런 결의 예화를 만나면 우선 등록해 보세요.</div>' : '')
+    + '<div class="cnt" style="margin-top:5px;color:var(--dim);font-size:11.5px">복수 주제 예화는 각 주제에 함께 셉니다. 3편 이하 칸은 주황 테두리. 칸을 누르면 도서관이 해당 필터로 열립니다.</div>'
+    + '</div></div>';
+}
+document.addEventListener('click', function(e){
+  var td = e.target.closest && e.target.closest('.ccCell'); if (!td) return;
+  try {
+    ILLIB.theme = td.getAttribute('data-cct') || '';
+    ILLIB.tone = td.getAttribute('data-ccn') || '';
+    ILLIB.src = 'all'; ILLIB.cat = '';
+    showPage('illlib');
+    if (typeof renderIllLib === 'function') renderIllLib();
+  } catch (err){}
+}, true);
 function renderAnalytics(){
   var box = $('#anResults'); if (!box) return;
   var A = ANALYTICS;
@@ -15480,6 +15704,7 @@ function renderAnalytics(){
   html += anTestamentBars(byBook);
   /* 서랍 소진률 게이지(B4) */
   html += anDrawerUsage();
+  html += anCoverageCompass();   /* 2026-07-14: 주제×결 서랍 두께 매트릭스(수집 나침반) */
   /* 커버리지 코치(통산 기준) */
   html += anCoverage(all);
   /* 절기 커버리지(통산 기준) */
@@ -16249,7 +16474,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v431';
+var APP_VER = 'v432';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
