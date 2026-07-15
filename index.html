@@ -3495,6 +3495,109 @@ document.addEventListener('change', function(e){
   illInsightSet(t.getAttribute('data-illkey'), t.value);
   toast(t.value.trim() ? '인사이트를 저장했습니다.' : '인사이트를 지웠습니다.');
 }, true);
+/* ── 앵커 본문(2026-07-16): 예화의 성경평행 리스트 옆 ＋버튼으로 목사님이 직접 연결 본문을 덧붙인다.
+   원본 예화 데이터(refs)는 불변, 사용자 추가분만 별도 저장. localStorage tsa.illAnchor + IndexedDB 미러 + 시트 prefs(ns=illAnchor) 동기화. 값 = 본문 문자열 배열. */
+function illAnchorStore(){ try { return JSON.parse(localStorage.getItem('tsa.illAnchor') || '{}') || {}; } catch (e){ return {}; } }
+function illAnchorSave(m){ try { localStorage.setItem('tsa.illAnchor', JSON.stringify(m)); } catch (e){} try { idbSet('illAnchor', m); } catch (e){} }
+(function(){ try { if (localStorage.getItem('tsa.illAnchor') == null) idbGet('illAnchor').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illAnchor', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
+function illAnchorRefs(key){ var v = illAnchorStore()[key]; return Array.isArray(v) ? v.slice() : []; }
+function illAnchorPush(key, arr){
+  var s = state.settings || {};
+  if (s.url && s.token){
+    var patch = {}; patch[key] = (arr && arr.length ? arr : null);
+    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illAnchor', patch: patch }).catch(function(){}); } catch (e){}
+  }
+}
+function illAnchorAdd(key, ref){
+  ref = String(ref || '').trim().slice(0, 60);
+  if (!ref) return false;
+  var m = illAnchorStore(), arr = Array.isArray(m[key]) ? m[key] : [];
+  if (arr.indexOf(ref) >= 0) return false;   /* 중복 방지 */
+  arr = arr.concat([ref]); m[key] = arr; illAnchorSave(m); illAnchorPush(key, arr);
+  return true;
+}
+function illAnchorDel(key, ref){
+  var m = illAnchorStore(), arr = Array.isArray(m[key]) ? m[key] : [];
+  var idx = arr.indexOf(String(ref)); if (idx < 0) return;
+  arr = arr.slice(); arr.splice(idx, 1);
+  if (arr.length) m[key] = arr; else delete m[key];
+  illAnchorSave(m); illAnchorPush(key, arr);
+}
+function illAnchorPull(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
+  return api({ action: 'prefs' }).then(function(prefs){
+    var srv = prefs && prefs.illAnchor;
+    if (!srv || typeof srv !== 'object') return;
+    var local = illAnchorStore();
+    var merged = Object.assign({}, local, srv);   /* 서버 우선 + 로컬 전용 키 보존 */
+    if (JSON.stringify(merged) !== JSON.stringify(local)) illAnchorSave(merged);
+  }).catch(function(){});
+}
+function illAnchorChipHtml(key, ref){
+  return '<span class="illAnchorChip" style="display:inline-flex;align-items:center;gap:2px;background:var(--card2);border:1px solid var(--accent2);border-radius:11px;padding:1px 3px 1px 8px;color:var(--accent2)">'
+    + '⚓ ' + linkifyRefs(ref)
+    + '<button type="button" class="illAnchorDel" data-illkey="' + esc(key) + '" data-ref="' + esc(ref) + '" title="앵커 본문 삭제" style="width:auto;min-height:0;padding:0 3px;border:0;background:transparent;color:var(--dim);cursor:pointer;font-size:13px;line-height:1">×</button></span>';
+}
+/* 📖 리스트 HTML(원본 refs 링크 + 사용자 앵커 칩). key로 재렌더 가능. */
+function illRefListHtml(it, key){
+  key = key || (it && it.key) || '';
+  var parts = [];
+  ((it && it.refs) || []).forEach(function(r){ parts.push(linkifyRefs(r)); });
+  illAnchorRefs(key).forEach(function(r){ parts.push(illAnchorChipHtml(key, r)); });
+  return parts.length ? parts.join('  ·  ') : '<span style="color:var(--dim)">연결된 본문 없음 — ＋로 추가</span>';
+}
+/* 예화 카드 📖 본문 행(항상 렌더 — ＋본문 버튼 + 인라인 입력폼 포함) */
+function illRefRow(it){
+  var key = it.key;
+  return '<div class="illRefRow" data-illkey="' + esc(key) + '" style="margin-top:6px;font-size:12px;color:var(--dim);display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap">'
+    + '<span style="flex:0 0 auto">📖</span>'
+    + '<span class="illRefList" data-illkey="' + esc(key) + '" style="flex:1 1 auto;min-width:0;line-height:1.9">' + illRefListHtml(it, key) + '</span>'
+    + '<button type="button" class="linkbtn illAnchorAddBtn" data-illkey="' + esc(key) + '" style="flex:0 0 auto" title="앵커 본문 추가">＋ 본문</button>'
+    + '</div>'
+    + '<div class="illAnchorForm" data-illkey="' + esc(key) + '" style="display:none;margin-top:5px;gap:6px;align-items:center;flex-wrap:wrap">'
+    + '<input type="text" class="illAnchorIn" data-illkey="' + esc(key) + '" placeholder="예: 요한복음 3:16 · 시편 23편" style="flex:1 1 200px;min-width:0;font-family:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card2);color:var(--text)">'
+    + '<button type="button" class="btn sub mini illAnchorGo" data-illkey="' + esc(key) + '" style="flex:0 0 auto;width:auto;min-height:0;padding:6px 12px;font-size:12.5px">추가</button>'
+    + '</div>';
+}
+function illRefListRerender(key){
+  var it = (typeof illByKey === 'function') ? illByKey(key) : null;
+  var nodes = document.querySelectorAll('.illRefList');
+  for (var i = 0; i < nodes.length; i++){ if (nodes[i].getAttribute('data-illkey') === key) nodes[i].innerHTML = illRefListHtml(it, key); }
+}
+function illAnchorForm(key){ var fs = document.querySelectorAll('.illAnchorForm'); for (var i = 0; i < fs.length; i++){ if (fs[i].getAttribute('data-illkey') === key) return fs[i]; } return null; }
+function illAnchorAddFromForm(key){
+  var form = illAnchorForm(key); if (!form) return;
+  var inp = form.querySelector('.illAnchorIn'), val = inp ? inp.value : '';
+  if (!String(val || '').trim()){ if (inp) inp.focus(); return; }
+  if (!illAnchorAdd(key, val)){ toast('이미 추가된 본문입니다.'); return; }
+  if (inp) inp.value = '';
+  form.style.display = 'none';
+  illRefListRerender(key);
+  toast('앵커 본문을 추가했습니다.');
+}
+document.addEventListener('click', function(e){
+  var addB = e.target.closest && e.target.closest('.illAnchorAddBtn');
+  if (addB){
+    e.preventDefault(); e.stopPropagation();
+    var key = addB.getAttribute('data-illkey'), form = illAnchorForm(key);
+    if (form){
+      var show = (form.style.display === 'none' || !form.style.display);
+      form.style.display = show ? 'flex' : 'none';
+      if (show){ var inp = form.querySelector('.illAnchorIn'); if (inp) setTimeout(function(){ inp.focus(); }, 30); }
+    }
+    return;
+  }
+  var goB = e.target.closest && e.target.closest('.illAnchorGo');
+  if (goB){ e.preventDefault(); e.stopPropagation(); illAnchorAddFromForm(goB.getAttribute('data-illkey')); return; }
+  var delB = e.target.closest && e.target.closest('.illAnchorDel');
+  if (delB){ e.preventDefault(); e.stopPropagation(); var k = delB.getAttribute('data-illkey'); illAnchorDel(k, delB.getAttribute('data-ref')); illRefListRerender(k); toast('앵커 본문을 삭제했습니다.'); return; }
+}, true);
+document.addEventListener('keydown', function(e){
+  var t = e.target;
+  if (!(t && t.classList && t.classList.contains('illAnchorIn'))) return;
+  if (e.key === 'Enter'){ e.preventDefault(); illAnchorAddFromForm(t.getAttribute('data-illkey')); }
+}, true);
 var ILL_RATE_LABEL = ['다시 안 씀', '보통', '잘 먹힘'];
 function illRateColor(v){ return v === 2 ? 'var(--accent)' : v === 0 ? 'var(--warn)' : 'var(--dim)'; }
 function illRateRow(key){
@@ -3536,7 +3639,7 @@ function illCardU(it){
     + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConf) + '<span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + illSeedBadges(it) + illLayerBadges(it) + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
-    + (it.refs && it.refs.length ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
+    + illRefRow(it)
     + illSrc(it.source, it.sourceConf, it.sourceNote)
     + usedHtml
     + illRateRow(it.key)
