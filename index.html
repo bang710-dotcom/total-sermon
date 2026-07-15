@@ -2161,6 +2161,7 @@ function sync(opts){
     try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
     try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
     try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
+    try { illInsightPull(); } catch (e){}   /* 예화 인사이트 메모 병합(2026-07-16) */
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
@@ -2218,6 +2219,7 @@ function bootLoad(){
     try { illRatePull(); } catch (e){}   /* #2 별점 blob 병합 */
     try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
     try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
+    try { illInsightPull(); } catch (e){}   /* 예화 인사이트 메모 병합(2026-07-16) */
   }).catch(function(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
@@ -3450,6 +3452,49 @@ document.addEventListener('change', function(e){
   illNoteSet(t.getAttribute('data-illkey'), t.value);
   toast(t.value.trim() ? '메모를 저장했습니다.' : '메모를 지웠습니다.');
 }, true);
+/* ── 인사이트 메모(2026-07-16): 오늘의 서랍/도서관 예화를 읽다 떠오른 생각을 예화 카드에 자유롭게 적어 둔다.
+   별점 반응 메모(illRateNote, "왜 먹혔나")와는 별개 채널. localStorage tsa.illInsight + IndexedDB 미러 + 시트 prefs(ns=illInsight) 동기화. */
+function illInsightStore(){ try { return JSON.parse(localStorage.getItem('tsa.illInsight') || '{}') || {}; } catch (e){ return {}; } }
+function illInsightSave(m){ try { localStorage.setItem('tsa.illInsight', JSON.stringify(m)); } catch (e){} try { idbSet('illInsight', m); } catch (e){} }
+(function(){ try { if (localStorage.getItem('tsa.illInsight') == null) idbGet('illInsight').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illInsight', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
+function illInsightFor(key){ return String(illInsightStore()[key] || ''); }
+function illInsightSet(key, val){
+  var m = illInsightStore();
+  val = String(val || '').trim().slice(0, 1000);
+  if (val) m[key] = val; else delete m[key];
+  illInsightSave(m);
+  var s = state.settings || {};
+  if (s.url && s.token){
+    var patch = {}; patch[key] = (val || null);
+    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illInsight', patch: patch }).catch(function(){}); } catch (e){}
+  }
+}
+function illInsightPull(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
+  return api({ action: 'prefs' }).then(function(prefs){
+    var srv = prefs && prefs.illInsight;
+    if (!srv || typeof srv !== 'object') return;
+    var local = illInsightStore();
+    var merged = Object.assign({}, local, srv);   /* 서버 우선 + 로컬 전용 키 보존(별점·메모와 동일 규칙) */
+    if (JSON.stringify(merged) !== JSON.stringify(local)) illInsightSave(merged);
+  }).catch(function(){});
+}
+/* 예화 카드용 인사이트 입력 UI(펼친 카드 본문에 노출). data-illkey로 예화별 저장. */
+function illInsightRow(key){
+  var v = illInsightFor(key);
+  return '<div class="illInsightRow" style="margin-top:8px">'
+    + '<label style="display:block;font-size:11px;color:var(--dim);margin-bottom:3px">💡 인사이트 — 읽다 떠오른 생각을 적어 두세요</label>'
+    + '<textarea class="illInsightIn" data-illkey="' + esc(key) + '" rows="2" placeholder="이 예화에서 떠오른 설교 아이디어·적용점·연결되는 본문 등"'
+    + ' style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;font-size:12.5px;line-height:1.55;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card2);color:var(--text)">' + esc(v) + '</textarea>'
+    + '</div>';
+}
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (!(t && t.classList && t.classList.contains('illInsightIn'))) return;
+  illInsightSet(t.getAttribute('data-illkey'), t.value);
+  toast(t.value.trim() ? '인사이트를 저장했습니다.' : '인사이트를 지웠습니다.');
+}, true);
 var ILL_RATE_LABEL = ['다시 안 씀', '보통', '잘 먹힘'];
 function illRateColor(v){ return v === 2 ? 'var(--accent)' : v === 0 ? 'var(--warn)' : 'var(--dim)'; }
 function illRateRow(key){
@@ -3495,6 +3540,7 @@ function illCardU(it){
     + illSrc(it.source, it.sourceConf, it.sourceNote)
     + usedHtml
     + illRateRow(it.key)
+    + illInsightRow(it.key)
     + '<div style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button>'
     + '<button class="linkbtn illCardNewsBtn" data-illkey="' + esc(it.key) + '">🖼 카드뉴스</button></div></details>';
 }
@@ -16679,7 +16725,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v436';
+var APP_VER = 'v437';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
