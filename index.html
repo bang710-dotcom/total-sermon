@@ -3061,8 +3061,13 @@ function illSeedHay(it){
   var s = illSeedFor(it); if (!s) return '';
   return ' ' + String(s[0] || '').replace(/\|/g, ' ') + ' ' + (s[1] || '');
 }
-/* 표준주제·결(대상) 접근자 — 도서관 필터용(C2 태그). */
-function illThemesOf(it){ var s = illSeedFor(it); return (s && s[0]) ? s[0].split('|').filter(Boolean) : []; }
+/* 표준주제·결(대상) 접근자 — 도서관 필터용(C2 태그). 사용자가 카드에서 추가 연결한 주제(illTopic)도 합쳐 필터·칩에 함께 반영. */
+function illThemesOf(it){
+  var s = illSeedFor(it), out = (s && s[0]) ? s[0].split('|').filter(Boolean) : [];
+  var u = (it && it.key && typeof illTopicList === 'function') ? illTopicList(it.key) : [];
+  if (u && u.length){ out = out.slice(); u.forEach(function(t){ t = String(t || '').trim(); if (t && out.indexOf(t) < 0) out.push(t); }); }
+  return out;
+}
 function illToneOf(it){ var s = illSeedFor(it); return (s && s[1]) ? s[1] : ''; }
 /* 예화 3층위(자기일화·시사문화·성경평행) 접근자 — 도서관 필터·작성 균형 코칭용(#5) */
 function illLayersOf(it){ return (it && it.layer && it.layer.length) ? it.layer : []; }
@@ -3827,7 +3832,7 @@ function renderIllLib(){
       if (ILLIB.src === 'sleep' && illIsUsed(it)) return false;   /* #1 잠자는 예화: 아직 설교에 안 쓴 소장분만 */
       if (ILLIB.cat && it.category !== ILLIB.cat) return false;
       if (terms.length){
-        var hay = (it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ') + illSeedHay(it)).toLowerCase();
+        var hay = (it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ') + illSeedHay(it) + ' ' + illTopicList(it.key).join(' ')).toLowerCase();
         if (!terms.every(function(t){ return illSynSet(t).some(function(w){ return hay.indexOf(w) >= 0; }); })) return false;
       }
       return true;
@@ -5158,6 +5163,8 @@ function illScoreOne(ctx, iv, it){
   illTokens(it.message).forEach(function(t){ hit(t, 1); });
   var seed = illSeedFor(it);
   if (seed) String(seed[0] || '').split(/[|·]/).forEach(function(t){ hit(t, 2); illSynSet(t).forEach(function(w){ if (w !== t) hit(w, 1); }); });
+  /* 사용자가 카드에서 직접 연결한 주제(illTopic) — 의도적 신호이므로 표준주제보다 살짝 높은 가중. */
+  try { if (it.key && typeof illTopicList === 'function') illTopicList(it.key).forEach(function(tp){ String(tp || '').split(/[|·]/).forEach(function(t){ hit(t, 3); illSynSet(t).forEach(function(w){ if (w !== t) hit(w, 1); }); }); }); } catch (eT){}
   if (iv && it._ivs && it._ivs.length){
     var best = 0;
     it._ivs.forEach(function(x){ if (x.idx !== iv.idx) return; var l = (x.lo <= iv.hi && iv.lo <= x.hi) ? 6 : 3; if (l > best) best = l; });
