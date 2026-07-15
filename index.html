@@ -5209,7 +5209,7 @@ function renderPoints(){
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
           '<span class="blkTag illTag" title="길게 눌러 타입 변경">ex)</span>' + _gIco +
           '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
-          '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="이 위치에 맞는 예화 추천·생성">AI</button></div>';
+          '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="필요한 예화를 설명하면 그에 맞춰 추천·생성">AI</button></div>';
       }
       var role = blockRole(b), field = blockField(b);
       var raw = (b[field] || '').replace(/\s+/g, ' ').trim();
@@ -5278,9 +5278,9 @@ $('#pointList').addEventListener('click', async function(e){
       return;
     }
   }
-  /* ⑥ 예화 위치 맞춤 AI 추천·생성 */
+  /* ⑥ 예화 위치 맞춤 AI 추천·생성 — 왼쪽 구조화 창은 "필요한 예화 설명"을 먼저 입력받는다 */
   var iai = e.target.closest('.ptIllAi');
-  if (iai) { aiIllustration(+iai.dataset.i, +iai.dataset.bi); return; }
+  if (iai) { aiIllustrationAsk(+iai.dataset.i, +iai.dataset.bi); return; }
 });
 $('#addPoint').addEventListener('click', function(){
   state.compose.points.push(newPoint());
@@ -16679,7 +16679,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v435';
+var APP_VER = 'v436';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
