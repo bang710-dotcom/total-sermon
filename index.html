@@ -3561,7 +3561,7 @@ function illRefListHtml(it, key){
   var parts = [];
   ((it && it.refs) || []).forEach(function(r){ parts.push(linkifyRefs(r)); });
   illAnchorRefs(key).forEach(function(r){ parts.push(illAnchorChipHtml(key, r)); });
-  return parts.length ? parts.join('  ·  ') : '<span style="color:var(--dim)">연결된 본문 없음 — ＋로 추가</span>';
+  return parts.length ? parts.join('  ·  ') : '';
 }
 /* 예화 카드 📖 본문 행(항상 렌더 — ＋본문 버튼 + 인라인 입력폼 포함) */
 function illRefRow(it){
@@ -3673,7 +3673,7 @@ function illTopicPull(){
 /* 사용자 추가 주제 칩(본문 편집행) */
 function illTopicChipsHtml(key){
   var list = illTopicList(key);
-  if (!list.length) return '<span style="color:var(--dim)">추가 연결 없음</span>';
+  if (!list.length) return '';
   return list.map(function(t){
     return '<span class="illTopicChip badge b-idea" style="display:inline-flex;align-items:center;gap:3px">' + esc(t)
       + '<button type="button" class="illTopicDel" data-illkey="' + esc(key) + '" data-topic="' + esc(t) + '" title="주제 연결 해제" style="border:0;background:transparent;color:inherit;cursor:pointer;font-size:12px;line-height:1;padding:0 1px">×</button></span>';
@@ -3686,8 +3686,10 @@ function illTopicSummaryHtml(key){
 /* 카드 본문의 주제 편집 행(＋주제 드롭다운 + 인라인 메뉴) */
 function illTopicRow(it){
   var key = it.key;
+  var s = illSeedFor(it), baseThemes = (s && s[0]) ? s[0].split('|').filter(Boolean).join(' · ') : '';
   return '<div class="illTopicRow" data-illkey="' + esc(key) + '" style="margin-top:7px;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
     + '<span style="flex:0 0 auto">🏷 주제</span>'
+    + (baseThemes ? '<span class="illTopicBase" style="opacity:.72;flex:0 1 auto;min-width:0">' + esc(baseThemes) + '</span>' : '')
     + '<span class="illTopicList" data-illkey="' + esc(key) + '">' + illTopicChipsHtml(key) + '</span>'
     + '<button type="button" class="linkbtn illTopicAddBtn" data-illkey="' + esc(key) + '" style="flex:0 0 auto" title="주제 추가 연결">＋ 주제</button>'
     + '</div>'
@@ -16979,7 +16981,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v440';
+var APP_VER = 'v441';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
