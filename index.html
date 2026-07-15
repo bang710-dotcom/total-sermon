@@ -2162,6 +2162,7 @@ function sync(opts){
     try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
     try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
     try { illInsightPull(); } catch (e){}   /* 예화 인사이트 메모 병합(2026-07-16) */
+    try { illAnchorPull(); } catch (e){}   /* 예화 앵커 본문 병합(2026-07-16) */
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
@@ -2220,6 +2221,7 @@ function bootLoad(){
     try { illUsePull(); } catch (e){}   /* 라이브러리 예화 사용 기록 병합(2026-07-14) */
     try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
     try { illInsightPull(); } catch (e){}   /* 예화 인사이트 메모 병합(2026-07-16) */
+    try { illAnchorPull(); } catch (e){}   /* 예화 앵커 본문 병합(2026-07-16) */
   }).catch(function(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
@@ -16828,7 +16830,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v437';
+var APP_VER = 'v438';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
