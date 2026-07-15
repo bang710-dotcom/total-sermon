@@ -368,6 +368,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .brefBody .verse{margin-bottom:7px;line-height:1.7}
 #illOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
 #illOv.on{display:flex;animation:fade .12s ease}
+#illReqOv{position:fixed;inset:0;z-index:341;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+#illReqOv.on{display:flex;animation:fade .12s ease}
+#illReqOv textarea{width:100%;box-sizing:border-box;resize:vertical}
 .illBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:620px;max-width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .illOvBody{padding:12px 14px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .illOpt{display:block;width:100%;text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:9px;font-family:inherit}
@@ -1721,6 +1724,16 @@ body.uiDlgOpen{overflow:hidden}
   <div class="illBox" role="dialog" aria-modal="true" aria-label="예화 추천">
     <div class="brefHd"><span class="t" id="illOvTitle"></span><button class="x" id="illOvClose" type="button" aria-label="닫기">✕</button></div>
     <div class="illOvBody" id="illOvBody"></div>
+  </div>
+</div>
+<div id="illReqOv" aria-hidden="true">
+  <div class="illBox" role="dialog" aria-modal="true" aria-label="필요한 예화 설명">
+    <div class="brefHd"><span class="t">필요한 예화 설명 — 맞춤 추천</span><button class="x" id="illReqClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="illOvBody">
+      <div class="cnt" style="margin-bottom:8px">이 자리에 어떤 예화가 필요한지 자유롭게 설명해 주세요. 설명하신 내용을 최우선 기준으로 삼아, 소장 서랍 예화를 우선 고르고 부족분만 창작해 추천합니다.</div>
+      <textarea id="illReqText" rows="6" placeholder="예) 용서가 얼마나 어려운지, 그러나 용서할 때 오히려 내가 자유로워진다는 것을 보여 주는 실화. 가족 사이의 갈등을 소재로 하면 좋겠습니다."></textarea>
+      <div class="illOvFoot"><button class="btn" id="illReqGen" type="button">예화 추천</button></div>
+    </div>
   </div>
 </div>
 <div id="studyOv" aria-hidden="true">
@@ -4891,17 +4904,23 @@ var P_ILLUS_PICK = [
 '출력은 반드시 JSON 배열만(설명·코드펜스 금지), 추천 순. 서랍 항목: {"출처":"서랍","번호":3,"이유":"...","각색":"..."} · 창작 항목: {"출처":"창작","제목":"짧은 예화 제목","내용":"3~5문장 예화"}',
 '한국어.'].join('\n');
 var ILL_PEND = null;
-async function aiIllustration(i, bi){
+var ILL_REQ_TARGET = null;
+/* userReq(선택): 목사님이 왼쪽 구조화 창의 AI 버튼으로 "필요한 예화 설명"을 직접 입력한 경우.
+   그 요청을 최우선 기준으로 삼아 후보 선별·프롬프트가 작동한다. 오른쪽 편집기 버튼은 userReq 없이 자동 맥락으로 작동. */
+async function aiIllustration(i, bi, userReq){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 예화 AI를 쓸 수 있습니다.'); return; }
   var p = state.compose.points[i]; if (!p) return;
+  userReq = String(userReq || '').trim();
   var blocks = pBlocks(p), role = 'body', prevText = '';
   for (var k = bi - 1; k >= 0; k--){ var bb = blocks[k]; if (bb.type === 'apply'){ role = 'apply'; prevText = bb.apply || ''; break; } if (bb.type === 'body'){ role = 'body'; prevText = bb.body || ''; break; } }
+  var reqDirective = userReq ? ('\n[사용자 요청 — 최우선] 목사님이 이 자리에 필요한 예화를 직접 설명했다(입력의 "예화요청"). 이 요청을 가장 중요한 기준으로 삼아 요청에 부합하는 예화를 선택·창작하라. 대지·직전내용과도 자연스럽게 잇되, 요청 내용과 어긋나는 예화는 배제한다.') : '';
   try {
     var refStr = $('#c_ref').value.trim();
     var input = { 본문: refStr, 핵심메시지: $('#c_msg').value.trim(), 대지: p.text || '', 직전내용: String(prevText).trim().slice(0, 800), 예화역할: role === 'apply' ? '적용강화' : '본문이해' };
+    if (userReq) input.예화요청 = userReq;
     /* 1단(무AI): 소장 서랍에서 후보 선별 → 2단(AI): 후보 중 선택+각색, 부족분만 창작 */
     try { await illustLoad(); } catch (eL){}
-    var ctx = (input.대지 + ' ' + input.핵심메시지 + ' ' + input.직전내용).trim();
+    var ctx = ((userReq ? userReq + ' ' : '') + input.대지 + ' ' + input.핵심메시지 + ' ' + input.직전내용).trim();
     var cands = [];
     try { cands = illPickCandidates(ctx, refStr, 18); } catch (eC){ cands = []; }
     var arr = null;
@@ -4912,7 +4931,8 @@ async function aiIllustration(i, bi){
         return { 번호: n + 1, 제목: c.it.title || '', 강조메시지: c.it.message || '', 내용앞부분: String(c.it.story || '').slice(0, 100), 재사용: used ? '있음(' + used + '회)' : '없음' };
       });
       var input2 = { 본문: input.본문, 핵심메시지: input.핵심메시지, 대지: input.대지, 직전내용: input.직전내용, 예화역할: input.예화역할, 서랍후보: candList };
-      var out = await callClaude(P_ILLUS_PICK + audienceDirective(), JSON.stringify(input2), 4000, aiTick('예화 추천(서랍 우선)'));
+      if (userReq) input2.예화요청 = userReq;
+      var out = await callClaude(P_ILLUS_PICK + reqDirective + audienceDirective(), JSON.stringify(input2), 4000, aiTick('예화 추천(서랍 우선)'));
       var picked = aiJson(out);
       if (Array.isArray(picked) && picked.length){
         arr = [];
@@ -4930,13 +4950,22 @@ async function aiIllustration(i, bi){
     }
     if (!arr){
       /* 서랍 후보가 없거나 응답 이상 → 기존 창작 흐름 */
-      var out2 = await callClaude(P_ILLUS + audienceDirective(), JSON.stringify(input), 4000, aiTick('예화 추천'));
+      var out2 = await callClaude(P_ILLUS + reqDirective + audienceDirective(), JSON.stringify(input), 4000, aiTick('예화 추천'));
       arr = aiJson(out2);
       if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
       arr.forEach(function(d){ if (d) d._src = '창작'; });
     }
     illPick(i, bi, role, arr);
   } catch (e){ toast('예화 추천 실패: ' + e.message); }
+}
+/* 왼쪽 구조화 창의 예화 AI 버튼: 상황설교처럼 "필요한 예화 설명"을 먼저 입력받는 모달을 연다. */
+function aiIllustrationAsk(i, bi){
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 예화 AI를 쓸 수 있습니다.'); return; }
+  var ov = $('#illReqOv'); if (!ov){ aiIllustration(i, bi); return; }
+  ILL_REQ_TARGET = { i: i, bi: bi };
+  var ta = $('#illReqText'); if (ta) ta.value = '';
+  ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  setTimeout(function(){ if (ta) ta.focus(); }, 60);
 }
 function illPick(i, bi, role, arr){
   var ov = $('#illOv'); if (!ov) return;
@@ -4988,6 +5017,26 @@ function illSaveToLibrary(k, btn){
     if (e.target === ov || (e.target.closest && (e.target.closest('#illOvClose') || e.target.closest('#illDone')))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); ILL_PEND = null; return; }
     var addB = e.target.closest && e.target.closest('.illAdd'); if (addB){ illAddToManuscript(+addB.dataset.k, addB); return; }
     var saveB = e.target.closest && e.target.closest('.illSave'); if (saveB){ illSaveToLibrary(+saveB.dataset.k, saveB); return; }
+  });
+})();
+/* 필요한 예화 설명 입력 모달 — 왼쪽 구조화 창 AI 버튼 전용 */
+(function(){
+  var ov = $('#illReqOv'); if (!ov) return;
+  function close(){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); ILL_REQ_TARGET = null; }
+  function go(){
+    var ta = $('#illReqText'), txt = ta ? ta.value.trim() : '';
+    if (!txt){ toast('필요한 예화를 한 줄이라도 설명해 주세요.'); if (ta) ta.focus(); return; }
+    var t = ILL_REQ_TARGET; if (!t){ close(); return; }
+    close();
+    aiIllustration(t.i, t.bi, txt);
+  }
+  ov.addEventListener('click', function(e){
+    if (e.target === ov || (e.target.closest && e.target.closest('#illReqClose'))){ close(); return; }
+    if (e.target.closest && e.target.closest('#illReqGen')){ go(); return; }
+  });
+  var ta = $('#illReqText');
+  if (ta) ta.addEventListener('keydown', function(e){
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter'){ e.preventDefault(); go(); }
   });
 })();
 
