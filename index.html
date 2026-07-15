@@ -371,6 +371,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #illReqOv{position:fixed;inset:0;z-index:341;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
 #illReqOv.on{display:flex;animation:fade .12s ease}
 #illReqOv textarea{width:100%;box-sizing:border-box;resize:vertical}
+.illTopicMenu{margin-top:5px;border:1px solid var(--line);border-radius:10px;background:var(--card2);padding:7px;max-width:360px}
+.illTopicPickWrap{max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.illTopicMenu .illTopicPick{display:inline-block;margin:2px;padding:3px 10px;font-size:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--text);cursor:pointer;font-family:inherit}
+.illTopicMenu .illTopicPick:hover{border-color:var(--accent);color:var(--accent)}
+.illTopicNewRow{display:flex;gap:6px;align-items:center;margin-top:7px;border-top:1px solid var(--line);padding-top:7px}
+.illTopicNewRow input{flex:1 1 auto;min-width:0;font-family:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
+.illTopicChip{margin-right:4px}
 .illBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:620px;max-width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
 .illOvBody{padding:12px 14px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .illOpt{display:block;width:100%;text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:9px;font-family:inherit}
@@ -2163,6 +2170,7 @@ function sync(opts){
     try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
     try { illInsightPull(); } catch (e){}   /* 예화 인사이트 메모 병합(2026-07-16) */
     try { illAnchorPull(); } catch (e){}   /* 예화 앵커 본문 병합(2026-07-16) */
+    try { illTopicPull(); } catch (e){}   /* 예화 추가 주제 병합(2026-07-16) */
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
@@ -2222,6 +2230,7 @@ function bootLoad(){
     try { illNotePull(); } catch (e){}   /* 별점 한 줄 메모 병합(2026-07-14) */
     try { illInsightPull(); } catch (e){}   /* 예화 인사이트 메모 병합(2026-07-16) */
     try { illAnchorPull(); } catch (e){}   /* 예화 앵커 본문 병합(2026-07-16) */
+    try { illTopicPull(); } catch (e){}   /* 예화 추가 주제 병합(2026-07-16) */
   }).catch(function(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
@@ -3558,7 +3567,7 @@ function illRefRow(it){
     + '<button type="button" class="linkbtn illAnchorAddBtn" data-illkey="' + esc(key) + '" style="flex:0 0 auto" title="앵커 본문 추가">＋ 본문</button>'
     + '</div>'
     + '<div class="illAnchorForm" data-illkey="' + esc(key) + '" style="display:none;margin-top:5px;gap:6px;align-items:center;flex-wrap:wrap">'
-    + '<input type="text" class="illAnchorIn" data-illkey="' + esc(key) + '" placeholder="예: 요한복음 3:16 · 시편 23편" style="flex:1 1 200px;min-width:0;font-family:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card2);color:var(--text)">'
+    + '<input type="text" class="illAnchorIn" data-illkey="' + esc(key) + '" placeholder="예: 요한복음 3:16 · 요 3:16 · 시편 23편 (약어 가능)" style="flex:1 1 200px;min-width:0;font-family:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card2);color:var(--text)">'
     + '<button type="button" class="btn sub mini illAnchorGo" data-illkey="' + esc(key) + '" style="flex:0 0 auto;width:auto;min-height:0;padding:6px 12px;font-size:12.5px">추가</button>'
     + '</div>';
 }
@@ -3600,6 +3609,138 @@ document.addEventListener('keydown', function(e){
   if (!(t && t.classList && t.classList.contains('illAnchorIn'))) return;
   if (e.key === 'Enter'){ e.preventDefault(); illAnchorAddFromForm(t.getAttribute('data-illkey')); }
 }, true);
+/* ── 주제 추가 연결(2026-07-16): 예화 주제 표기 옆 ＋버튼으로 다른 주제를 덧붙인다.
+   드롭다운에 기존 분류(표준주제 13종 + 도서관 카테고리)를 나열하고, 맨 아래 [새 주제]로 없는 주제를 직접 입력.
+   원본 예화 데이터 불변, 사용자 추가분만 별도 저장. localStorage tsa.illTopic + IndexedDB 미러 + 시트 prefs(ns=illTopic). 값 = 주제 문자열 배열. */
+var ILL_STD_THEMES = ['고난·회복','헌신·사명','믿음·신뢰','소망·영원','주권·섭리','사랑·관계','겸손·섬김','은혜·감사','말씀','순종·행함','정체성','기도·성령','공동체·예배'];
+function illTopicStore(){ try { return JSON.parse(localStorage.getItem('tsa.illTopic') || '{}') || {}; } catch (e){ return {}; } }
+function illTopicSave(m){ try { localStorage.setItem('tsa.illTopic', JSON.stringify(m)); } catch (e){} try { idbSet('illTopic', m); } catch (e){} }
+(function(){ try { if (localStorage.getItem('tsa.illTopic') == null) idbGet('illTopic').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illTopic', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
+function illTopicList(key){ var v = illTopicStore()[key]; return Array.isArray(v) ? v.slice() : []; }
+function illTopicPush(key, arr){
+  var s = state.settings || {};
+  if (s.url && s.token){
+    var patch = {}; patch[key] = (arr && arr.length ? arr : null);
+    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illTopic', patch: patch }).catch(function(){}); } catch (e){}
+  }
+}
+/* 이 예화에 이미 표기된 주제(원본 카테고리 + 표준주제) — 중복 추가·드롭다운 제외용 */
+function illTopicBaseSet(key){
+  var it = (typeof illByKey === 'function') ? illByKey(key) : null, s = {};
+  if (it){ if (it.category) s[String(it.category).trim()] = 1; try { illThemesOf(it).forEach(function(t){ s[String(t).trim()] = 1; }); } catch (e){} }
+  return s;
+}
+function illKnownTopics(){
+  var seen = {}, out = [];
+  function add(t){ t = String(t || '').trim(); if (t && !seen[t]){ seen[t] = 1; out.push(t); } }
+  ILL_STD_THEMES.forEach(add);
+  try { illUnified().forEach(function(it){ add(it.category); illThemesOf(it).forEach(add); }); } catch (e){}
+  try { var m = illTopicStore(); Object.keys(m).forEach(function(k){ (m[k] || []).forEach(add); }); } catch (e){}
+  return out;
+}
+function illTopicAdd(key, topic){
+  topic = String(topic || '').trim().slice(0, 30);
+  if (!topic) return false;
+  if (illTopicBaseSet(key)[topic]) return false;   /* 이미 원본에 있는 주제 */
+  var m = illTopicStore(), arr = Array.isArray(m[key]) ? m[key] : [];
+  if (arr.indexOf(topic) >= 0) return false;
+  arr = arr.concat([topic]); m[key] = arr; illTopicSave(m); illTopicPush(key, arr);
+  return true;
+}
+function illTopicDel(key, topic){
+  var m = illTopicStore(), arr = Array.isArray(m[key]) ? m[key] : [];
+  var idx = arr.indexOf(String(topic)); if (idx < 0) return;
+  arr = arr.slice(); arr.splice(idx, 1);
+  if (arr.length) m[key] = arr; else delete m[key];
+  illTopicSave(m); illTopicPush(key, arr);
+}
+function illTopicPull(){
+  var s = state.settings || {};
+  if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
+  return api({ action: 'prefs' }).then(function(prefs){
+    var srv = prefs && prefs.illTopic;
+    if (!srv || typeof srv !== 'object') return;
+    var local = illTopicStore();
+    var merged = Object.assign({}, local, srv);
+    if (JSON.stringify(merged) !== JSON.stringify(local)) illTopicSave(merged);
+  }).catch(function(){});
+}
+/* 사용자 추가 주제 칩(본문 편집행) */
+function illTopicChipsHtml(key){
+  var list = illTopicList(key);
+  if (!list.length) return '<span style="color:var(--dim)">추가 연결 없음</span>';
+  return list.map(function(t){
+    return '<span class="illTopicChip badge b-idea" style="display:inline-flex;align-items:center;gap:3px">' + esc(t)
+      + '<button type="button" class="illTopicDel" data-illkey="' + esc(key) + '" data-topic="' + esc(t) + '" title="주제 연결 해제" style="border:0;background:transparent;color:inherit;cursor:pointer;font-size:12px;line-height:1;padding:0 1px">×</button></span>';
+  }).join('');
+}
+/* 헤더(summary)에 표기되는 사용자 추가 주제 배지(읽기전용) */
+function illTopicSummaryHtml(key){
+  return illTopicList(key).map(function(t){ return ' <span class="badge b-idea" style="opacity:.85">' + esc(t) + '</span>'; }).join('');
+}
+/* 카드 본문의 주제 편집 행(＋주제 드롭다운 + 인라인 메뉴) */
+function illTopicRow(it){
+  var key = it.key;
+  return '<div class="illTopicRow" data-illkey="' + esc(key) + '" style="margin-top:7px;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+    + '<span style="flex:0 0 auto">🏷 주제</span>'
+    + '<span class="illTopicList" data-illkey="' + esc(key) + '">' + illTopicChipsHtml(key) + '</span>'
+    + '<button type="button" class="linkbtn illTopicAddBtn" data-illkey="' + esc(key) + '" style="flex:0 0 auto" title="주제 추가 연결">＋ 주제</button>'
+    + '</div>'
+    + '<div class="illTopicMenu" data-illkey="' + esc(key) + '" style="display:none"></div>';
+}
+function illTopicMenuBuild(key){
+  var base = illTopicBaseSet(key), user = illTopicList(key), taken = {};
+  Object.keys(base).forEach(function(k){ taken[k] = 1; }); user.forEach(function(t){ taken[t] = 1; });
+  var avail = illKnownTopics().filter(function(t){ return !taken[t]; });
+  var picks = avail.map(function(t){ return '<button type="button" class="illTopicPick" data-illkey="' + esc(key) + '" data-topic="' + esc(t) + '">' + esc(t) + '</button>'; }).join('');
+  return '<div class="illTopicPickWrap">' + (picks || '<span style="font-size:12px;color:var(--dim)">추가할 기존 주제가 없습니다 — 아래에서 새로 입력하세요.</span>') + '</div>'
+    + '<div class="illTopicNewRow"><span style="font-size:11.5px;color:var(--dim);flex:0 0 auto">＋ 새 주제</span>'
+    + '<input type="text" class="illTopicNewIn" data-illkey="' + esc(key) + '" placeholder="현재 분류에 없는 주제 입력">'
+    + '<button type="button" class="btn sub mini illTopicNewGo" data-illkey="' + esc(key) + '" style="width:auto;min-height:0;padding:6px 12px;font-size:12.5px">추가</button></div>';
+}
+function illTopicMenuEl(key){ var ms = document.querySelectorAll('.illTopicMenu'); for (var i = 0; i < ms.length; i++){ if (ms[i].getAttribute('data-illkey') === key) return ms[i]; } return null; }
+function illTopicRerender(key){
+  var nodes = document.querySelectorAll('.illTopicList'), i;
+  for (i = 0; i < nodes.length; i++){ if (nodes[i].getAttribute('data-illkey') === key) nodes[i].innerHTML = illTopicChipsHtml(key); }
+  var sums = document.querySelectorAll('.illTopicSummary');
+  for (i = 0; i < sums.length; i++){ if (sums[i].getAttribute('data-illkey') === key) sums[i].innerHTML = illTopicSummaryHtml(key); }
+}
+function illTopicMenuClose(key){ var el = illTopicMenuEl(key); if (el){ el.style.display = 'none'; el.innerHTML = ''; } }
+function illTopicNewFromMenu(key){
+  var el = illTopicMenuEl(key); if (!el) return;
+  var inp = el.querySelector('.illTopicNewIn'), val = inp ? inp.value : '';
+  if (!String(val || '').trim()){ if (inp) inp.focus(); return; }
+  if (!illTopicAdd(key, val)){ toast('이미 연결된 주제입니다.'); return; }
+  illTopicMenuClose(key); illTopicRerender(key); toast('주제를 추가했습니다.');
+}
+document.addEventListener('click', function(e){
+  var addB = e.target.closest && e.target.closest('.illTopicAddBtn');
+  if (addB){
+    e.preventDefault(); e.stopPropagation();
+    var key = addB.getAttribute('data-illkey'), el = illTopicMenuEl(key);
+    if (el){
+      if (el.style.display === 'none' || !el.style.display){ el.innerHTML = illTopicMenuBuild(key); el.style.display = 'block'; }
+      else { el.style.display = 'none'; el.innerHTML = ''; }
+    }
+    return;
+  }
+  var pick = e.target.closest && e.target.closest('.illTopicPick');
+  if (pick){
+    e.preventDefault(); e.stopPropagation();
+    var k1 = pick.getAttribute('data-illkey');
+    if (illTopicAdd(k1, pick.getAttribute('data-topic'))){ illTopicMenuClose(k1); illTopicRerender(k1); toast('주제를 추가했습니다.'); }
+    return;
+  }
+  var newGo = e.target.closest && e.target.closest('.illTopicNewGo');
+  if (newGo){ e.preventDefault(); e.stopPropagation(); illTopicNewFromMenu(newGo.getAttribute('data-illkey')); return; }
+  var tdel = e.target.closest && e.target.closest('.illTopicDel');
+  if (tdel){ e.preventDefault(); e.stopPropagation(); var k2 = tdel.getAttribute('data-illkey'); illTopicDel(k2, tdel.getAttribute('data-topic')); illTopicRerender(k2); toast('주제 연결을 해제했습니다.'); return; }
+}, true);
+document.addEventListener('keydown', function(e){
+  var t = e.target;
+  if (!(t && t.classList && t.classList.contains('illTopicNewIn'))) return;
+  if (e.key === 'Enter'){ e.preventDefault(); illTopicNewFromMenu(t.getAttribute('data-illkey')); }
+}, true);
 var ILL_RATE_LABEL = ['다시 안 씀', '보통', '잘 먹힘'];
 function illRateColor(v){ return v === 2 ? 'var(--accent)' : v === 0 ? 'var(--warn)' : 'var(--dim)'; }
 function illRateRow(key){
@@ -3638,10 +3779,11 @@ function illCardU(it){
       + (used.length > 5 ? ' 외' : '') + '</div>'
     : '';
   return '<details class="illCard" style="border:1px solid var(--line,#3334);border-radius:8px;padding:8px 10px;margin-bottom:6px">'
-    + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConf) + '<span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span> <b>' + esc(it.title) + '</b>'
+    + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConf) + '<span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category) + '</span><span class="illTopicSummary" data-illkey="' + esc(it.key) + '">' + illTopicSummaryHtml(it.key) + '</span> <b>' + esc(it.title) + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + illSeedBadges(it) + illLayerBadges(it) + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
     + illRefRow(it)
+    + illTopicRow(it)
     + illSrc(it.source, it.sourceConf, it.sourceNote)
     + usedHtml
     + illRateRow(it.key)
@@ -16830,7 +16972,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v438';
+var APP_VER = 'v439';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
