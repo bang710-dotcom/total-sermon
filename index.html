@@ -14965,7 +14965,7 @@ function xferCopy(text, okMsg){
     xferCopy(url, '이전 링크를 복사했습니다 — 새 기기 브라우저에서 열면 바로 적용됩니다(본인에게만 전달).');
   });
   if (p) p.addEventListener('click', async function(){
-    var code = await uiPrompt('다른 기기에서 복사한 설정 코드(TSA1.…)를 붙여넣으세요', '', { placeholder: 'TSA1.eyJ1cmwiOi…' });
+    var code = await uiPrompt('다른 기기에서 복사한 설정 코드(TSA1.…)를 붙여넣으세요', '', { placeholder: 'TSA1.eyJ1cmwiOi…', multiline: true });
     if (code === null) return;
     var o = xferDecode(code);
     if (!o){ toast('설정 코드를 인식하지 못했습니다 — TSA1. 으로 시작하는 전체 코드를 붙여넣어 주세요.'); return; }
@@ -17385,7 +17385,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v443';
+var APP_VER = 'v444';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면

@@ -1,8 +1,9 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v443';           /* 앱 셸 — 버전마다 교체(index.html 등) */
+var CACHE = 'tsa-v444';           /* 앱 셸 — 버전마다 교체(index.html 등) */
 var CONTENT = 'tsa-content-v1';   /* 대용량 콘텐츠 — 버전 업에도 유지(매번 재다운로드 방지) */
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
-var CONTENT_RE = /(illustrations(-archive)?\.json$|\/bible\/|\/commentary\/|\/fonts\/|\/devo_assets\/)/;
+/* ill-index(색인)·ill-story(전문 샤드, 해시 파일명=불변)도 콘텐츠 캐시 — v444 */
+var CONTENT_RE = /(illustrations(-archive)?\.json$|ill-index\.json$|ill-story-[^\/]+\.json$|\/bible\/|\/commentary\/|\/fonts\/|\/devo_assets\/)/;
 
 self.addEventListener('install', function (e) {
   e.waitUntil(Promise.all([
@@ -10,9 +11,11 @@ self.addEventListener('install', function (e) {
     caches.open(CACHE).then(function (c) {
       return Promise.all(ASSETS.map(function (u) { return c.add(new Request(u, { cache: 'reload' })); }));
     }),
-    /* 예화 DB·아카이브는 콘텐츠 캐시에 선적재 — 이미 있으면 재다운로드하지 않음 */
+    /* 예화 색인·아카이브는 콘텐츠 캐시에 선적재 — 이미 있으면 재다운로드하지 않음
+       (v444: 단일 illustrations.json 선적재 → 경량 ill-index.json 으로 교체.
+        전문 샤드는 앱이 백그라운드에서 받고, illustrations.json 은 폴백·성경앱용으로만 남음) */
     caches.open(CONTENT).then(function (c) {
-      return Promise.all(['./illustrations.json', './illustrations-archive.json'].map(function (u) {
+      return Promise.all(['./ill-index.json', './illustrations-archive.json'].map(function (u) {
         return c.match(u).then(function (hit) { return hit ? null : c.add(u); }).catch(function () {});
       }));
     }).catch(function () {})
@@ -46,12 +49,13 @@ self.addEventListener('fetch', function (e) {
   }
 
   /* 대용량 콘텐츠(예화DB·성경·주석·폰트) — 버전과 무관한 영속 캐시 우선.
-     illustrations.json만은 갱신될 수 있어 캐시 응답 후 백그라운드로 새 버전을 받아 둔다. */
+     illustrations*.json·ill-index.json 은 갱신될 수 있어 캐시 응답 후 백그라운드로 새 버전을
+     받아 둔다(SWR). ill-story-* 샤드는 해시 파일명(불변)이라 순수 캐시 우선으로 충분. */
   if (CONTENT_RE.test(url.pathname)) {
     e.respondWith(
       caches.open(CONTENT).then(function (c) {
         return c.match(e.request).then(function (hit) {
-          var isIll = /illustrations(-archive)?\.json$/.test(url.pathname);
+          var isIll = /(illustrations(-archive)?|ill-index)\.json$/.test(url.pathname);
           if (hit) {
             if (isIll) fetch(e.request).then(function (res) { if (res.ok) c.put(e.request, res.clone()); }).catch(function () {});
             return hit;
