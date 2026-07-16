@@ -1116,6 +1116,53 @@ body.uiDlgOpen{overflow:hidden}
   #uiDlgOv .uiDlgIn{font-size:16px;padding:13px 13px}
   #uiDlgOv .uiDlgFt button{padding:14px 0;font-size:16px}
 }
+/* ── 주간 준비 대시보드 (#prepDash, v445 디자인) ──
+   테마 변수만 사용(다크·라이트·세피아 등 5테마 공용). color-mix 미지원 브라우저는
+   앞선 rgba 폴백 선언이 적용된다. */
+#prepDash{position:relative;overflow:hidden;padding:14px 16px 12px}
+#prepDash::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;
+  background:linear-gradient(90deg,var(--accent),transparent 70%);opacity:.8}
+#prepDash::after{content:"";position:absolute;top:-40px;left:-30px;width:200px;height:140px;border-radius:50%;
+  background:rgba(124,154,255,.07);background:color-mix(in srgb,var(--accent) 7%,transparent);
+  filter:blur(30px);pointer-events:none}
+#prepDash .pdTop{display:flex;gap:13px;align-items:stretch;position:relative}
+#prepDash .pdDay{flex:0 0 auto;min-width:64px;border-radius:13px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding:7px 9px 6px;
+  border:1px solid rgba(124,154,255,.45);border-color:color-mix(in srgb,var(--accent) 45%,transparent);
+  background:linear-gradient(160deg,rgba(124,154,255,.16),rgba(124,154,255,.04));
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 16%,transparent),color-mix(in srgb,var(--accent) 4%,transparent))}
+#prepDash .pdDay b{font-size:21px;line-height:1.1;color:var(--accent);letter-spacing:.3px}
+#prepDash .pdDay span{font-size:11.5px;color:var(--dim);margin-top:2px;white-space:nowrap}
+#prepDash .pdDay.hot{border-color:rgba(224,182,92,.55);border-color:color-mix(in srgb,var(--accent2) 55%,transparent);
+  background:linear-gradient(160deg,rgba(224,182,92,.18),rgba(224,182,92,.05));
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent2) 18%,transparent),color-mix(in srgb,var(--accent2) 5%,transparent))}
+#prepDash .pdDay.hot b{color:var(--accent2)}
+#prepDash .pdMain{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px}
+#prepDash .pdEyebrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;
+  letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+#prepDash .pdSt{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;letter-spacing:0}
+#prepDash .pdSt i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
+#prepDash .pdQ{font-size:11px;font-weight:700;letter-spacing:0;color:var(--warn);border:1px solid currentColor;border-radius:99px;padding:1px 8px}
+#prepDash .pdTitle{font-size:16.5px;font-weight:800;line-height:1.3;cursor:pointer}
+#prepDash .pdTitle:active{opacity:.7}
+#prepDash .pdRef{font-size:12.5px;color:var(--dim)}
+#prepDash .pdProg{display:flex;align-items:center;gap:10px;margin-top:11px;position:relative}
+#prepDash .pdSegs{flex:1;display:flex;gap:4px}
+#prepDash .pdSeg{flex:1;height:5px;border-radius:3px;background:var(--line);transition:background .3s}
+#prepDash .pdSeg.on{background:linear-gradient(90deg,var(--accent),rgba(124,154,255,.65));
+  background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 65%,transparent))}
+#prepDash .pdSeg.on.gold{background:linear-gradient(90deg,var(--accent2),rgba(224,182,92,.65));
+  background:linear-gradient(90deg,var(--accent2),color-mix(in srgb,var(--accent2) 65%,transparent))}
+#prepDash .pdCnt{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+#prepDash .pdCnt b{color:var(--text)}
+#prepDash .pdChips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;position:relative}
+#prepDash .pdChip{border-radius:99px;padding:5px 12px;font-size:12.5px;font-weight:600;
+  border:1px solid var(--line);color:var(--dim);background:transparent}
+#prepDash .pdChip.done{color:var(--ok);border-color:rgba(93,187,122,.45);border-color:color-mix(in srgb,var(--ok) 45%,transparent);
+  background:rgba(93,187,122,.10);background:color-mix(in srgb,var(--ok) 10%,transparent)}
+#prepDash .pdChip.todo{border-style:dashed;opacity:.75}
+#prepDash .pdFoot{display:flex;justify-content:flex-end;margin-top:4px;position:relative}
+#prepDash .pdFoot .linkbtn{font-size:13px;font-weight:700;padding:6px 0 2px 8px}
 </style>
 </head>
 <body>
@@ -4134,22 +4181,31 @@ function renderPrepDash(){
     { k: '주보카톡', ok: !!fm.kakaoAt }
   ];
   var doneN = checks.filter(function(c){ return c.ok; }).length;
-  var chips = checks.map(function(c){
-    return '<span class="chip" style="cursor:default;' + (c.ok ? 'border-color:var(--accent);color:var(--accent)' : 'opacity:.55') + '">' + (c.ok ? '✓ ' : '· ') + c.k + '</span>';
-  }).join('');
   var st = String(s['상태'] || '');
-  var stCol = (st === '완료' || st === '설교함') ? 'var(--accent)' : (st === '작성중' ? 'var(--accent2)' : 'var(--dim)');
+  var stCol = (st === '완료' || st === '설교함') ? 'var(--ok)' : (st === '작성중' ? 'var(--accent2)' : 'var(--dim)');
   var q = (state.queue || []).length;
+  var dateStr = String(s['날짜']).slice(0, 10);
+  var yoil = ''; try { yoil = ['일', '월', '화', '수', '목', '금', '토'][new Date(dateStr + 'T12:00:00').getDay()]; } catch (eY){}
+  var segs = checks.map(function(c){
+    return '<span class="pdSeg' + (c.ok ? ' on' + (doneN === checks.length ? ' gold' : '') : '') + '"></span>';
+  }).join('');
+  var chips = checks.map(function(c){
+    return '<span class="pdChip ' + (c.ok ? 'done' : 'todo') + '">' + (c.ok ? '✓ ' : '') + c.k + '</span>';
+  }).join('');
   box.innerHTML =
-    '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
-    + '<b style="font-size:15px">🗓 ' + esc(dLabel) + ' · ' + esc(String(s['날짜']).slice(5, 10).replace('-', '/')) + ' ' + esc(String(s['예배구분'] || '')) + '</b>'
-    + '<span class="badge" style="color:' + stCol + ';border-color:currentColor">' + esc(st || '상태 없음') + '</span>'
-    + '<span class="cnt" style="margin:0">준비 ' + doneN + '/' + checks.length + '</span>'
-    + (q ? '<span class="badge b-state" title="설정에서 [보기·관리]로 확인">미전송 ' + q + '건</span>' : '')
-    + '</div>'
-    + '<div style="margin-top:5px;font-weight:700">' + esc(String(s['제목'] || '(제목 없음)')) + ' <span class="cnt" style="font-weight:400">' + esc(String(s['본문'] || '')) + '</span></div>'
-    + '<div class="chips" style="margin-top:7px">' + chips + '</div>'
-    + '<div style="margin-top:8px"><button class="linkbtn prepOpen" type="button" data-id="' + esc(s['ID'] || '') + '">이 설교 열기 →</button></div>';
+    '<div class="pdTop">'
+    + '<div class="pdDay' + (dd != null && dd <= 1 ? ' hot' : '') + '"><b>' + esc(dLabel) + '</b><span>' + esc(dateStr.slice(5).replace('-', '/')) + (yoil ? '(' + yoil + ')' : '') + '</span></div>'
+    + '<div class="pdMain">'
+    +   '<div class="pdEyebrow">이번 주일 준비'
+    +     '<span class="pdSt" style="color:' + stCol + '"><i></i>' + esc(st || '상태 없음') + '</span>'
+    +     (q ? '<span class="pdQ" title="설정에서 [보기·관리]로 확인">미전송 ' + q + '</span>' : '')
+    +   '</div>'
+    +   '<div class="pdTitle prepOpen" data-id="' + esc(s['ID'] || '') + '" title="이 설교 열기">' + esc(String(s['제목'] || '(제목 없음)')) + '</div>'
+    +   '<div class="pdRef">📖 ' + esc(String(s['본문'] || '')) + (s['예배구분'] ? ' · ' + esc(String(s['예배구분'])) : '') + '</div>'
+    + '</div></div>'
+    + '<div class="pdProg"><div class="pdSegs">' + segs + '</div><span class="pdCnt"><b>' + doneN + '</b>/' + checks.length + '</span></div>'
+    + '<div class="pdChips">' + chips + '</div>'
+    + '<div class="pdFoot"><button class="linkbtn prepOpen" type="button" data-id="' + esc(s['ID'] || '') + '">이 설교 열기 →</button></div>';
   box.style.display = '';
 }
 (function(){
@@ -17386,7 +17442,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v444';
+var APP_VER = 'v445';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
