@@ -4096,9 +4096,74 @@ function renderIllRecap(){
     card.style.display = '';
   } catch (e){ card.style.display = 'none'; }
 }
+/* ── 주간 준비 대시보드 (v444) — 이번 주일 D-N·설교 상태·산출물 체크리스트 ──
+   데이터는 전부 기존 것: 설교마스터(상태·요약본·파일맵 hymn/ltcData/ltc/cardArr/kakaoAt)와
+   산출물 시트(유형=이미지생성). 가장 가까운 미래(오늘 포함) 실제 설교 1건을 보여 준다. */
+function prepNextSermon(){
+  var today = todayLocal_();
+  var cands = (state.data.sermons || []).filter(function(s){
+    if (!isLiveSermon(s)) return false;
+    var d = String(s['날짜'] || '').slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= today;
+  }).sort(function(a, b){ return String(a['날짜']).localeCompare(String(b['날짜'])); });
+  if (!cands.length) return null;
+  var d0 = String(cands[0]['날짜']).slice(0, 10);
+  var sameDay = cands.filter(function(s){ return String(s['날짜']).slice(0, 10) === d0; });
+  return sameDay.filter(function(s){ return /주일/.test(String(s['예배구분'] || '')); })[0] || sameDay[0];
+}
+function prepDayDiff(dstr){
+  try {
+    var a = new Date(todayLocal_() + 'T12:00:00'), b = new Date(String(dstr).slice(0, 10) + 'T12:00:00');
+    return Math.round((b - a) / 86400000);
+  } catch (e){ return null; }
+}
+function renderPrepDash(){
+  var box = $('#prepDash'); if (!box) return;
+  var s = prepNextSermon();
+  if (!s){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e){ fm = {}; }
+  var dd = prepDayDiff(s['날짜']);
+  var dLabel = dd === 0 ? '오늘' : (dd === 1 ? '내일' : 'D-' + dd);
+  var hasImg = (state.data.outputs || []).some(function(o){ return o['설교ID'] === s['ID'] && String(o['유형'] || '') === '이미지생성'; });
+  var checks = [
+    { k: '요약본', ok: !!String(s['요약본'] || '').trim() },
+    { k: 'LTC', ok: !!(fm.ltcData || fm.ltc) },
+    { k: '카드원고', ok: !!fm.cardArr },
+    { k: '이미지', ok: hasImg },
+    { k: '결단찬양', ok: !!String(fm.hymn || '').trim() },
+    { k: '주보카톡', ok: !!fm.kakaoAt }
+  ];
+  var doneN = checks.filter(function(c){ return c.ok; }).length;
+  var chips = checks.map(function(c){
+    return '<span class="chip" style="cursor:default;' + (c.ok ? 'border-color:var(--accent);color:var(--accent)' : 'opacity:.55') + '">' + (c.ok ? '✓ ' : '· ') + c.k + '</span>';
+  }).join('');
+  var st = String(s['상태'] || '');
+  var stCol = (st === '완료' || st === '설교함') ? 'var(--accent)' : (st === '작성중' ? 'var(--accent2)' : 'var(--dim)');
+  var q = (state.queue || []).length;
+  box.innerHTML =
+    '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+    + '<b style="font-size:15px">🗓 ' + esc(dLabel) + ' · ' + esc(String(s['날짜']).slice(5, 10).replace('-', '/')) + ' ' + esc(String(s['예배구분'] || '')) + '</b>'
+    + '<span class="badge" style="color:' + stCol + ';border-color:currentColor">' + esc(st || '상태 없음') + '</span>'
+    + '<span class="cnt" style="margin:0">준비 ' + doneN + '/' + checks.length + '</span>'
+    + (q ? '<span class="badge b-state" title="설정에서 [보기·관리]로 확인">미전송 ' + q + '건</span>' : '')
+    + '</div>'
+    + '<div style="margin-top:5px;font-weight:700">' + esc(String(s['제목'] || '(제목 없음)')) + ' <span class="cnt" style="font-weight:400">' + esc(String(s['본문'] || '')) + '</span></div>'
+    + '<div class="chips" style="margin-top:7px">' + chips + '</div>'
+    + '<div style="margin-top:8px"><button class="linkbtn prepOpen" type="button" data-id="' + esc(s['ID'] || '') + '">이 설교 열기 →</button></div>';
+  box.style.display = '';
+}
+(function(){
+  var box = $('#prepDash'); if (!box) return;
+  box.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.prepOpen'); if (!b) return;
+    e.preventDefault();
+    openDetail('sermon', b.getAttribute('data-id'));
+  });
+})();
 function renderDailyIll(){
   var card = $('#dailyIllCard'); if (!card) return;
   var today = dailyTodayStr();
+  try { renderPrepDash(); } catch (eP){}        /* 주간 준비 대시보드 — 홈 재진입·동기화 후 항상 최신 */
   if (DAILY.renderedFor === today && card.style.display !== 'none'){ try { renderIllRecap(); } catch (eR0){} return; }  /* 같은 날 재진입 시 재계산 생략(회고 카드만 갱신) */
   illustLoad().catch(function(){}).then(function(){
     try { renderIllRecap(); } catch (eR){}   /* 회고 카드는 서랍 카드와 같은 타이밍에 */
@@ -4113,6 +4178,11 @@ function renderDailyIll(){
     if (body){ body.style.display = folded ? 'none' : ''; body.innerHTML = r.items.map(illCardU).join(''); }
     card.style.display = '';
     DAILY.renderedFor = today;
+    /* 샤드 병합 전에 그렸으면: 전문 도착 후 한 번 다시 그려 카드 펼침 본문을 채움 */
+    if (ILLUST && ILLUST._sharded && !ILLUST._storyDone && !DAILY._storyRe){
+      DAILY._storyRe = 1;
+      illEnsureStories().then(function(){ DAILY.renderedFor = ''; renderDailyIll(); }).catch(function(){});
+    }
   });
 }
 (function(){
@@ -4130,11 +4200,17 @@ function renderDailyIll(){
     var b = e.target.closest && e.target.closest('.illInsertU'); if (!b) return;
     e.preventDefault();
     var it = DAILY.map[b.getAttribute('data-illkey')]; if (!it) return;
-    var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
-    var target = pts[pts.length - 1]; target.blocks = target.blocks || [];
-    target.blocks.push(newIllBlock(it.title || '', it.story || '', it.key));
-    renderPoints(); renderEditor();
-    toast('예화 「' + (it.title || '') + '」를 작성 중 설교 ' + pts.length + '번 대지에 삽입했습니다. (작성 화면에서 확인)');
+    var doIns = function(){
+      var pts = state.compose.points; if (!pts || !pts.length){ pts = state.compose.points = [newPoint()]; }
+      var target = pts[pts.length - 1]; target.blocks = target.blocks || [];
+      target.blocks.push(newIllBlock(it.title || '', it.story || '', it.key));
+      renderPoints(); renderEditor();
+      toast('예화 「' + (it.title || '') + '」를 작성 중 설교 ' + pts.length + '번 대지에 삽입했습니다. (작성 화면에서 확인)');
+    };
+    /* 샤드 병합 전이면 전문을 채운 뒤 삽입(빈 본문 삽입 방지) */
+    if (!String(it.story || '').trim() && /^lib:/.test(it.key || '') && ILLUST && !ILLUST._storyDone){
+      illustLoadFull().then(function(){ var f = ILLUST.byId[String(it.key).slice(4)]; if (f && f.story) it.story = f.story; doIns(); }).catch(doIns);
+    } else doIns();
   });
 })();
 
@@ -4173,7 +4249,7 @@ async function illBackfillUsage(){
   var btn = $('#illBackfillBtn'); if (btn) btn.disabled = true;
   var hint = $('#illBackfillHint');
   try {
-    if (!(ILLUST && ILLUST.items && ILLUST.items.length)) await illustLoad();
+    await illustLoadFull();   /* 백필은 story 대조가 핵심 — 전문 병합까지 대기 */
     var pool = illUnified();   /* 라이브러리 + 인박스 */
     var sermons = (state.data.sermons || []).filter(isLiveSermon);
     if (!pool.length || !sermons.length){ toast('스캔할 예화 또는 설교가 없습니다.'); return; }
@@ -5302,7 +5378,7 @@ async function aiIllustration(i, bi, userReq){
     var input = { 본문: refStr, 핵심메시지: $('#c_msg').value.trim(), 대지: p.text || '', 직전내용: String(prevText).trim().slice(0, 800), 예화역할: role === 'apply' ? '적용강화' : '본문이해' };
     if (userReq) input.예화요청 = userReq;
     /* 1단(무AI): 소장 서랍에서 후보 선별 → 2단(AI): 후보 중 선택+각색, 부족분만 창작 */
-    try { await illustLoad(); } catch (eL){}
+    try { await illustLoadFull(); } catch (eL){}
     var ctx = ((userReq ? userReq + ' ' : '') + input.대지 + ' ' + input.핵심메시지 + ' ' + input.직전내용).trim();
     var cands = [];
     try { cands = illPickCandidates(ctx, refStr, 18); } catch (eC){ cands = []; }
@@ -8077,7 +8153,7 @@ async function exportObsidianVault(){
     /* 예화 → 예화/<카테고리>/<제목>.md (라이브러리 + 사용자가 입력한 새 예화, illUnified)
        + 과거 원고 예화 → 예화/_과거원고/<연도>/ (아카이브: 이 기기 원고에서 실시간 추출 → 새 설교 예화 자동 반영) */
     var illCount = 0, arcCount = 0;
-    try { await illustLoad(); } catch (eI){}
+    try { await illustLoadFull(); } catch (eI){}
     var ilf = root.folder('예화'), iused = {};
     illUnified().forEach(function(it){
       if (!String(it.story || '').trim()) return;
@@ -8293,7 +8369,7 @@ function fillDevoIllust(refStr){
   var box = document.getElementById('devoIllust'); if (!box) return;
   box.innerHTML = '';
   var iv = refToInterval(String(refStr || '')); if (!iv) return;
-  illustLoad().then(function(){
+  illustLoadFull().catch(function(){ return illustLoad(); }).then(function(){
     var best = null, bestLvl = 0;
     (ILLUST.intervals || []).forEach(function(x){
       if (x.idx !== iv.idx) return;
@@ -9121,6 +9197,7 @@ function illByKey(key){
   return null;
 }
 async function shareIllCardNews(key){
+  try { await illustLoadFull(); } catch (eF){}   /* 카드뉴스는 story 전문 필요(샤드 병합 대기) */
   var it = illByKey(key); if (!it){ toast('예화를 찾지 못했습니다.'); return; }
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 카드뉴스를 만들 수 있습니다.'); return; }
   try {
@@ -11589,6 +11666,7 @@ async function bulletinKakao(){
     toast('카카오톡으로 보내는 중…');
     var r = await apiPost({ action: 'kakaoSend', messages: chunks });
     toast('내 카톡으로 ' + ((r && r.sent) || chunks.length) + '통 발송 완료 — 나와의 채팅에서 확인하세요.');
+    try { setSermonFileMap(id, 'kakaoAt', nowLocalStr_()); } catch (eK){}   /* 주간 대시보드 '주보카톡' 체크용 */
   } catch (e) {
     toast('카톡 발송 실패: ' + e.message);
   }
@@ -15188,7 +15266,7 @@ async function buildDevoBookletHtml(S, opts){
   var ovMap = {};
   for (var ko3 in need){ try { ovMap[ko3] = await ensureOverview(S, ko3); } catch(e){ ovMap[ko3] = null; } }
   var lastBook = null;
-  try { await illustLoad(); } catch (eIll){}   /* D-3: 한 주의 예화용 */
+  try { await illustLoadFull(); } catch (eIll){}   /* D-3: 한 주의 예화용(전문 표시) */
   /* 주차별 */
   weeks.forEach(function(w, wi){
     var first = w.rows[0], last = w.rows[w.rows.length - 1];
