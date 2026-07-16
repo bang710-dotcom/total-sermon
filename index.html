@@ -7644,6 +7644,12 @@ function mm2twip(v){ return Math.round(v * 56.6929); }
 function buildDocxParas(D, paras, st){
   var FONT = { ascii: st.font, eastAsia: st.font, hAnsi: st.font };
   var children = paras.map(function(p){
+    if (p.bar) return new D.Paragraph({   /* 이미지 전환 바 — 빨간 띠·가운데·흰 글씨(본문 양식과 무관한 표시 전용) */
+      shading: { type: D.ShadingType.CLEAR, fill: 'B12121' },
+      alignment: D.AlignmentType.CENTER,
+      spacing: { line: st.line, before: 160, after: 160 },
+      children: [new D.TextRun({ text: p.text || '', bold: true, color: 'FFFFFF' })]
+    });
     var opts = {
       alignment: D.AlignmentType.JUSTIFIED,   /* 본문 양쪽 정렬 — 미리보기(종이 페이지)와 동일 */
       spacing: { line: st.line },
@@ -7695,6 +7701,7 @@ function parasFromText(meta, bodyText, style){
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
     if (!l) { paras.push({ text: '' }); return; }      /* 빈 줄은 그대로 유지(간격) */
+    if (/^▶.*◀$/.test(l)) { paras.push({ text: l, bar: true }); return; }   /* 이미지 전환 바(전환표시본 전용 — 원고 양식은 그대로, 띠만 추가) */
     /* 마크다운 볼드(**…**) 대응: 줄 전체가 감싸이면 굵게, 줄 안 표기는 기호만 제거 */
     var mdBold = /^\*\*[^*]+\*\*$/.test(l);
     if (mdBold) l = l.slice(2, -2).trim();
