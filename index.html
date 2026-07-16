@@ -10407,47 +10407,16 @@ async function aiTransDoc(meta, cuts){
   var j = aiJson(out);
   return (j && typeof j.body === 'string') ? j.body : (typeof j === 'string' ? j : '');
 }
+/* 전환표시본 DOCX — [DOCX 원고 내보내기]와 완전히 같은 양식으로 생성 (v446).
+   같은 파이프라인(parasFromText→buildDocxParas: 함초롬바탕·26pt·행간 360·같은 용지 규격·
+   대지 굵게·예화 파랑·성경 인용 빨강·들여쓰기)을 그대로 타고, 전환 바(빨간 띠)만
+   parasFromText 의 bar 문단으로 추가된다. 스타일은 저장된 원고유형을 따른다.
+   (이전 버전은 맑은 고딕 자체 양식이라 원고 문서와 폰트·규격이 달랐음) */
 function buildTransDocx(D, meta, body){
-  var FONT = { ascii: '맑은 고딕', eastAsia: '맑은 고딕', hAnsi: '맑은 고딕' };
-  function pt(v){ return Math.round(v * 20); }
-  function mm(v){ return Math.round(v * 56.6929); }
-  var refRe = new RegExp('^\\s*(' + BOOKS + ')\\s*\\d+[:장]');
-  var barRe = /^\s*▶.*◀\s*$/;
-  var exTag = /^\(예화\)\s*/;                                              /* 예화 코드(괄호형) */
-  var ptTag = /^\(대지\)\s*/;                                              /* 대지 명제 코드 */
-  var dropTag = /^\((서론|주해|근거|내용|적용|강화|실천|정리|결론)\)\s*/;   /* 구조화 태그: 출력에서 제거 */
-  var titleLine = (meta['예배구분'] ? meta['예배구분'] + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
-  var ch = [new D.Paragraph({ spacing: { line: 360, after: 200 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 32, color: '000000' })] })];
-  String(body || '').split('\n').forEach(function(line){
-    var t = line.replace(/\s+$/, '').trim();
-    if (!t) return;
-    if (barRe.test(t)) {
-      ch.push(new D.Paragraph({ shading: { type: D.ShadingType.CLEAR, fill: 'B12121' }, alignment: D.AlignmentType.CENTER, spacing: { line: 360, before: 160, after: 160 }, children: [new D.TextRun({ text: t, bold: true, color: 'FFFFFF', size: 26 })] }));
-      return;
-    }
-    /* 예화 제목(ex) … 또는 (예화) …) → 파란색 볼드, ex) 표기 유지 */
-    if (/^ex\)/i.test(t) || exTag.test(t)) {
-      var exT = exTag.test(t) ? ('ex) ' + t.replace(exTag, '')) : t;
-      ch.push(new D.Paragraph({ spacing: { line: 360, before: 80, after: 80 }, indent: { firstLine: mm(8) }, children: [new D.TextRun({ text: exT, bold: true, color: '0070C0', size: 26 })] }));
-      return;
-    }
-    /* 대지 명제((대지) … 또는 "1." 번호) → 볼드 */
-    if (ptTag.test(t) || /^\d+\.\s/.test(t)) {
-      ch.push(new D.Paragraph({ spacing: { line: 360, before: 120, after: 80 }, children: [new D.TextRun({ text: t.replace(ptTag, ''), bold: true, color: '000000', size: 26 })] }));
-      return;
-    }
-    t = t.replace(dropTag, '');   /* 나머지 구조화 태그 제거 */
-    if (!t) return;
-    if (refRe.test(t)) {
-      ch.push(new D.Paragraph({ spacing: { line: 360, after: 80 }, children: [new D.TextRun({ text: t, bold: true, color: '000000', size: 32 })] }));
-    } else {
-      ch.push(new D.Paragraph({ spacing: { line: 360, after: 80 }, indent: { firstLine: mm(8) }, children: [new D.TextRun({ text: t, size: 26 })] }));
-    }
-  });
-  return new D.Document({ styles: { default: { document: { run: { font: FONT, size: 26 } } } },
-    sections: [{ properties: { page: { size: { width: pt(612), height: pt(822) }, margin: { top: mm(18), bottom: mm(18), left: mm(16), right: mm(16), header: mm(8), footer: mm(8) } } },
-      headers: { default: new D.Header({ children: [new D.Paragraph({ alignment: D.AlignmentType.RIGHT, children: [new D.TextRun({ children: [D.PageNumber.CURRENT], size: 18 })] })] }) },
-      children: ch }] });
+  var style = String(meta['원고유형'] || '').trim() || '기본원고';
+  if (!DOCX_STYLES[style]) style = '기본원고';
+  var r = parasFromText(meta, body, style);
+  return buildDocxParas(D, r.paras, r.st);
 }
 async function generateTransDoc(id, meta){
   try {
@@ -17449,7 +17418,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v445';
+var APP_VER = 'v446';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
