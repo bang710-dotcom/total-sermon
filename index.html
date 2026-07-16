@@ -1784,6 +1784,7 @@ body.uiDlgOpen{overflow:hidden}
           <button type="button" data-sttab="net">NET 노트</button>
           <button type="button" data-sttab="com">호크마 주석</button>
           <button type="button" data-sttab="holman">Holman 핸드북</button>
+          <button type="button" data-sttab="memo">📝 내 메모</button>
           <button type="button" data-sttab="ai">✦ AI 정리</button>
         </div>
         <div class="stPane" id="stPane"></div>
@@ -2914,23 +2915,73 @@ function renderRefPast(){
 /* ===================== 연결 예화 추천 (본문 기준, 무AI) ===================== */
 /* illustrations.json(867 강화 예화)을 본문 책·장·절로 매칭해 추천. byBook 역색인 대신 절구간 교집합으로 정밀 매칭. */
 var ILLUST = { items: null, intervals: null, byId: null, _p: null };
+/* ── 예화 DB 2단 로드 (v444) ──
+   1단 ill-index.json: story·sourceNote·source 를 뺀 색인(~2MB) — 부팅·검색·매칭·통계는 충분.
+   2단 ill-story-NN.<해시8>.json: 대용량 필드를 백그라운드 병합. 해시 파일명=불변 캐시라
+       예화가 바뀐 날도 변경된 샤드만 재다운로드된다. 전문이 꼭 필요한 경로(도서관·연결예화·
+       AI추천·내보내기·백필)는 illustLoadFull()로 병합 완료를 기다린다.
+   ill-index.json 이 없으면(구배포·첫 오프라인) 기존 illustrations.json 전체 로드로 폴백. */
 function illustLoad(){
   if (ILLUST._p) return ILLUST._p;
-  ILLUST._p = fetch('illustrations.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function(j){
-    ILLUST.items = j.items; ILLUST.byId = {};
-    var bm = devoBookIdxMap(), ivs = [];
-    j.items.forEach(function(it){
-      ILLUST.byId[it.id] = it;
-      if (!it.enhanced) return;
-      (it.bibleRefsParsed || []).forEach(function(p){
-        if (!p || !p.book) return; var idx = bm[p.book]; if (idx == null) return;
-        var ch = p.chapter || 1;
-        ivs.push({ idx: idx, lo: ch * 1000 + (p.v1 || 1), hi: ch * 1000 + (p.v2 || p.v1 || 999), it: it });
-      });
+  ILLUST._p = fetch('ill-index.json')
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(j){ ILLUST._sharded = true; illustIndexReady(j); illEnsureStories(); return ILLUST; })
+    .catch(function(){
+      return fetch('illustrations.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(j){ ILLUST._sharded = false; ILLUST._storyDone = true; illustIndexReady(j); return ILLUST; });
     });
-    ILLUST.intervals = ivs; return ILLUST;
-  });
   return ILLUST._p;
+}
+function illustIndexReady(j){
+  ILLUST.items = j.items; ILLUST.byId = {}; ILLUST.shards = j.shards || [];
+  var bm = devoBookIdxMap(), ivs = [];
+  j.items.forEach(function(it){
+    ILLUST.byId[it.id] = it;
+    if (!it.enhanced) return;
+    (it.bibleRefsParsed || []).forEach(function(p){
+      if (!p || !p.book) return; var idx = bm[p.book]; if (idx == null) return;
+      var ch = p.chapter || 1;
+      ivs.push({ idx: idx, lo: ch * 1000 + (p.v1 || 1), hi: ch * 1000 + (p.v2 || p.v1 || 999), it: it });
+    });
+  });
+  ILLUST.intervals = ivs;
+}
+/* 샤드(전문) 병합 완료 보장 — 실패 시 다음 호출에서 재시도(항목은 story '' 상태로 동작) */
+function illEnsureStories(){
+  if (ILLUST._storyDone) return Promise.resolve(ILLUST);
+  if (ILLUST._storyP) return ILLUST._storyP;
+  ILLUST._storyP = Promise.all((ILLUST.shards || []).map(function(m){
+    return fetch(m.file).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  })).then(function(maps){
+    maps.forEach(function(mp){
+      for (var id in mp){
+        var it = ILLUST.byId[id]; if (!it) continue;
+        var v = mp[id] || [];
+        it.story = v[0] || ''; it.sourceNote = v[1] || ''; it.source = v[2] || '';
+      }
+    });
+    ILLUST._storyDone = true;
+    illShardCleanup();
+    return ILLUST;
+  }).catch(function(e){ ILLUST._storyP = null; throw e; });
+  return ILLUST._storyP;
+}
+/* 색인+전문까지 한 번에 — 전문(story) 의존 경로용 */
+function illustLoadFull(){ return illustLoad().then(function(){ return illEnsureStories(); }); }
+/* 매니페스트에 없는 옛 해시 샤드를 콘텐츠 캐시에서 청소(조용히, 캐시 무한성장 방지) */
+function illShardCleanup(){
+  try {
+    if (!('caches' in window)) return;
+    var keep = {}; (ILLUST.shards || []).forEach(function(m){ keep[m.file] = 1; });
+    caches.open('tsa-content-v1').then(function(c){
+      return c.keys().then(function(reqs){
+        reqs.forEach(function(rq){
+          var mm = /\/(ill-story-[^\/?]+\.json)$/.exec(rq.url || '');
+          if (mm && !keep[mm[1]]) c.delete(rq);
+        });
+      });
+    }).catch(function(){});
+  } catch (e){}
 }
 /* 예화 출처 표시(확정/전언/미상). 확정은 정자체, 전언·미상은 이탤릭. note는 작은 보조줄. */
 /* 출처 등급 아이콘(카테고리 배지 왼쪽에 작게). 확정=✅ 전언=⚠️ 미상=❓ */
@@ -2963,7 +3014,7 @@ function renderRefIllust(){
   var iv = refToInterval($('#c_ref').value);
   var msg = ($('#c_msg') && $('#c_msg').value || '').trim();
   if (!iv && !msg){ box.innerHTML = ''; return; }
-  Promise.all([ illustLoad(), illArcLoad().catch(function(){ return []; }) ]).then(function(_rr){
+  Promise.all([ illustLoadFull().catch(function(){ return illustLoad(); }), illArcLoad().catch(function(){ return []; }) ]).then(function(_rr){
     var _arcAll = _rr[1] || [];
     var m = {};  /* key -> {lvl, it(정규화)} */
     if (iv) ILLUST.intervals.forEach(function(x){
@@ -3830,7 +3881,7 @@ function illCardU(it){
 }
 function renderIllLib(){
   var box = $('#illResults'); if (!box) return;
-  Promise.all([ illustLoad().catch(function(){}), illArcLoad().catch(function(){ return []; }) ]).then(function(rr){
+  Promise.all([ illustLoadFull().catch(function(){}), illArcLoad().catch(function(){ return []; }) ]).then(function(rr){
     var arc = rr[1] || [];
     var all = illUnified();
     ILLIB.map = {}; all.forEach(function(it){ ILLIB.map[it.key] = it; }); arc.forEach(function(it){ ILLIB.map[it.key] = it; });
@@ -17526,6 +17577,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   <button data-act="inc" type="button" title="글자 크게">A＋</button>
   <span class="fbSep"></span>
   <button id="fmFontBtn" data-act="font" type="button" title="글꼴 바꾸기 (눌러서 순환 · 화면 표시용)">글꼴</button>
+  <span class="fbSep"></span>
+  <button id="fmTimerBtn" data-act="timer" type="button" title="리허설 타이머 — 시작/일시정지 (예상 시간은 낭독 분당 300자 기준)">⏱ 리허설</button>
+  <button data-act="timer0" type="button" title="리허설 시간 재설정">↺</button>
   <span class="fbSep fbChipSep"></span>
   <span class="fbChips" aria-label="구조화 도구"></span>
 </div>
