@@ -6,6 +6,7 @@
 - 로컬 저장: 설정·대기열·테마는 localStorage, 대용량 데이터(`data`)·`syncAt`·`seriesList`·`composeDraft`는 IndexedDB(`tsa`/`kv`).
 - 자동 커밋·푸시 워처가 이 폴더에서 돌며 origin/main에 푸시 → 배포된다.
 - 예화 데이터: `illustrations.json`(마스터색인 변환본, `total-sermon/tools/build_illustrations_json.py`로 재생성) + `illustrations-archive.json`(과거 원고 ex) 블록 스냅샷 — 예화 도서관 「내가 쓴 예화」 소스, 기기 보유 원고는 앱이 실시간 추출·대체). 상세: `Dropbox/total-sermon/docs/예화아카이브_통합_20260712.md`.
+- **예화 샤드(v444+)**: 앱은 부팅 때 `ill-index.json`(story·sourceNote·source 제외 색인)만 파싱하고, 전문은 `ill-story-NN.<해시8>.json` 샤드로 백그라운드 병합(`illustLoad`/`illEnsureStories`/`illustLoadFull`). **illustrations.json 을 갱신하면 반드시 샤드도 재생성** — `build_illustrations_json.py`가 끝에서 자동 호출하며, 수동으로는 `python3 total-sermon/tools/build_ill_shards.py <illustrations.json 경로>`. illustrations.json 자체는 성경앱(CORS)·폴백용으로 계속 배포한다. 옛 해시 샤드는 생성기가 지우고, 기기 캐시는 앱이 청소.
 
 ## ⚠ 버전 규칙 (앱 코드 수정 시 항상 지킬 것)
 
@@ -17,7 +18,7 @@
 → 둘이 어긋나면(예: 캐시 v235 / 표시 v234) 실제 배포 버전을 화면으로 확인할 수 없다. **둘은 항상 동일 번호**여야 한다. 한쪽만 올리지 말 것.
 
 ## 작업 규칙
-- 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1.
+- 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
 - 백엔드(`Code.gs`) 변경은 수동 반영: 구글시트 → 확장 → Apps Script에 전체 붙여넣기 → `setup` 실행 → 배포 관리에서 기존 웹앱 **"새 버전"**으로(URL 유지).
 - 멀티기기 동기화 설계·문제·해결책은 `Dropbox/total-sermon/docs/멀티기기_사용문제_진단_20260623.md` 참고.
