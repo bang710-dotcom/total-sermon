@@ -4895,6 +4895,44 @@ function studyDonut(segs, total, code){
   }
   return '<svg class="stDonut" viewBox="0 0 ' + W + ' ' + H + '" width="100%" preserveAspectRatio="xMidYMid meet">' + ring + side(lab.filter(function(o){ return !o.right; }), false) + side(lab.filter(function(o){ return o.right; }), true) + '</svg>';
 }
+/* ── 본문연구 [내 메모] — 성경앱 설교메모 시트(웹앱) 역연동 (E4, v444) ──
+   성경앱과 같은 좌표(bookIdx 0=창세기, 장·절 구간)로 겹침을 판정한다. 읽기전용. */
+function tsaMemoCfg(){
+  var s = state.settings || {};
+  var u = String(s.memoUrl || '').trim().replace(/\/+$/, '');
+  return (u && s.memoKey) ? { url: u, key: String(s.memoKey).trim() } : null;
+}
+function tsaMemoLoad(){
+  var cfg = tsaMemoCfg();
+  if (!cfg) return Promise.reject(new Error('설정에 성경앱 메모 URL·키가 없습니다.'));
+  if (STUDY._memoP) return STUDY._memoP;
+  STUDY._memoP = fetch(cfg.url + '?key=' + encodeURIComponent(cfg.key))
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(j){
+      if (!j || j.ok === false) throw new Error((j && j.error) || '메모 응답 오류');
+      return (j.memos || []).filter(function(m){ return String(m.deleted) !== '1'; });
+    })
+    .catch(function(e){ STUDY._memoP = null; throw e; });
+  return STUDY._memoP;
+}
+function tsaMemoOverlap(m, idx, lo, hi){
+  function hit(b, c1, v1, c2, v2){
+    if (+b !== idx) return false;
+    var mLo = (+c1 || 1) * 1000 + (+v1 || 1);
+    var mHi = (+c2 || +c1 || 1) * 1000 + (+v2 || +v1 || 999);
+    return mLo <= hi && mHi >= lo;
+  }
+  if (hit(m.bookIdx, m.startChap, m.startVerse, m.endChap, m.endVerse)) return true;
+  try {
+    var an = (typeof m.anchors === 'string') ? JSON.parse(m.anchors || '[]') : (m.anchors || []);
+    return (an || []).some(function(a){
+      if (!a) return false;
+      return hit((a.bookIdx != null ? a.bookIdx : a.b), (a.startChap != null ? a.startChap : a.c1),
+        (a.startVerse != null ? a.startVerse : a.v1), (a.endChap != null ? a.endChap : a.c2),
+        (a.endVerse != null ? a.endVerse : a.v2));
+    });
+  } catch (e){ return false; }
+}
 function openStudy(ref){
   var r = parseRange(String(ref || '').trim());
   if (!r){ toast('본문 형식을 인식하지 못했습니다 (예: 로마서 5:1-11)'); return; }
@@ -6603,6 +6641,7 @@ function enterFocusMode(){
       var bar = document.getElementById('focusBar'); if (bar) bar.classList.add('free');
       if (typeof refreshSaveButtons === 'function') refreshSaveButtons();   /* 저장/수정저장 라벨 동기화 */
       fmRestorePrefs();
+      try { fmTmLabel(); } catch (eTm){}   /* 리허설 타이머 라벨(예상 낭독시간) 초기화 */
       fmSetSpellcheck(false);                                  /* 맞춤법 밑줄 숨김 */
       fmFlip(ed, first);                                       /* 우측 → 가운데 */
       setTimeout(function(){ var ta = fmActiveTa(); if (ta) { try { ta.focus({ preventScroll: true }); } catch (_) {} } fmAutosize(); }, 80);
@@ -6617,6 +6656,7 @@ function exitFocusMode(){
   var ed = document.getElementById('editorPane');
   /* PHASE 3 — 역순: 전체화면 해제 → 작성창이 원래 자리로 슬라이드 → 주변이 다시 나타남 */
   var doReverse = function(){
+    try { if (_fmTm.run) fmTmToggle(); } catch (eTm){}         /* 리허설 타이머 일시정지(경과 보존 — 재진입 시 이어감) */
     fmSetSpellcheck(true);                                     /* 일반 화면에선 맞춤법 도움 복원 */
     var fta = ed && ed.querySelector('.edFree'); if (fta) fta.style.height = '';   /* 집중모드 인라인 높이 해제 → 일반 에디터 CSS 높이 복원 */
     var first = ed ? ed.getBoundingClientRect() : null;       /* 가운데(현재) 위치 */
@@ -6643,6 +6683,29 @@ function fmInjectChips(){
     }).join('');
   }
 }
+/* ── 리허설 타이머 (E5, v444) — 집중 모드에서 경과시간 + 예상 낭독시간(분당 300자) ──
+   ⏱ 버튼: 시작/일시정지 토글(경과 유지), ↺: 재설정. 예상보다 길어지면 주황으로 경고. */
+var _fmTm = { run: false, acc: 0, t0: 0, iv: null };
+function fmRehearseEstimate(){
+  var ta = (typeof fmActiveTa === 'function') ? fmActiveTa() : null;
+  var n = ta ? String(ta.value || '').replace(/\s+/g, '').length : 0;
+  return n ? Math.max(1, Math.round(n / 300)) : 0;
+}
+function fmTmLabel(){
+  var b = document.getElementById('fmTimerBtn'); if (!b) return;
+  var ms = _fmTm.acc + (_fmTm.run ? Date.now() - _fmTm.t0 : 0);
+  var s = Math.floor(ms / 1000), mm = Math.floor(s / 60), ss = ('0' + (s % 60)).slice(-2);
+  var est = fmRehearseEstimate();
+  if (!_fmTm.run && !_fmTm.acc) b.textContent = '⏱ 리허설' + (est ? ' · 예상 ' + est + '분' : '');
+  else b.textContent = (_fmTm.run ? '⏸ ' : '▶ ') + mm + ':' + ss + (est ? ' / ' + est + '분' : '');
+  b.style.color = (est && _fmTm.run && mm >= est) ? 'var(--accent2)' : '';
+}
+function fmTmToggle(){
+  if (_fmTm.run){ _fmTm.acc += Date.now() - _fmTm.t0; _fmTm.run = false; clearInterval(_fmTm.iv); _fmTm.iv = null; }
+  else { _fmTm.run = true; _fmTm.t0 = Date.now(); _fmTm.iv = setInterval(fmTmLabel, 1000); }
+  fmTmLabel();
+}
+function fmTmReset(){ _fmTm.run = false; _fmTm.acc = 0; clearInterval(_fmTm.iv); _fmTm.iv = null; fmTmLabel(); }
 /* 툴바 버튼 동작 — 문서 위임으로 붙여, focusBar가 늦게 파싱돼도 항상 동작 */
 document.addEventListener('click', function(e){
   if (!(e.target.closest && e.target.closest('#focusBar'))) return;
@@ -6656,6 +6719,8 @@ document.addEventListener('click', function(e){
   else if (act === 'dec') fmSetScale(-0.08);
   else if (act === 'size0') fmSetScale('reset');
   else if (act === 'font') fmCycleFont();
+  else if (act === 'timer') fmTmToggle();
+  else if (act === 'timer0') fmTmReset();
 });
 /* 집중 모드 하단 토스트 — 집중 오버레이(z-index 600) 위에 뜨는 전용 토스트(일반 #toast는 뒤에 가려짐) */
 function fmToast(msg){
@@ -14884,8 +14949,9 @@ async function xferApply(o, srcLabel){
 }
 function xferCopy(text, okMsg){
   var done = function(){ toast(okMsg || '복사했습니다.'); };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function(){ prompt('아래 내용을 길게 눌러 복사하세요', text); });
-  else prompt('아래 내용을 길게 눌러 복사하세요', text);
+  var fallback = function(){ uiPrompt('자동 복사가 차단되었습니다 — 아래 코드를 직접 복사하세요', text, {}); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+  else fallback();
 }
 (function(){
   var c = $('#setXferCopy'), p = $('#setXferPaste'), l = $('#setXferLink');
@@ -15214,10 +15280,10 @@ function openDevoThemePicker(){
    build.py(검증본)의 구조·수치를 그대로 이식. 배경은 인쇄에서 항상 출력되도록 <img>(z-index:-1)로 깐다.
    데이터: 본문=bible/bNN.json(동봉), 질문·일정=S.devo.rows, 배경=S.theme 또는 devo_assets 기본. */
 var DEVO_CSS = "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}"
- + "@font-face{font-family:'NotoKR';font-weight:400;src:url('fonts/NotoKR-400.ttf')}"
- + "@font-face{font-family:'NotoKR';font-weight:500;src:url('fonts/NotoKR-500.ttf')}"
- + "@font-face{font-family:'NotoKR';font-weight:700;src:url('fonts/NotoKR-700.ttf')}"
- + "@font-face{font-family:'NotoKR';font-weight:900;src:url('fonts/NotoKR-900.ttf')}"
+ + "@font-face{font-family:'NotoKR';font-weight:400;src:url('fonts/NotoKR-400.woff2') format('woff2')}"
+ + "@font-face{font-family:'NotoKR';font-weight:500;src:url('fonts/NotoKR-500.woff2') format('woff2')}"
+ + "@font-face{font-family:'NotoKR';font-weight:700;src:url('fonts/NotoKR-700.woff2') format('woff2')}"
+ + "@font-face{font-family:'NotoKR';font-weight:900;src:url('fonts/NotoKR-900.woff2') format('woff2')}"
  + "body{font-family:'NotoKR';color:#3A3024;-webkit-print-color-adjust:exact;print-color-adjust:exact}"
  + "*{-webkit-print-color-adjust:exact;print-color-adjust:exact}"
  + ".pg{position:relative;z-index:0;width:210mm;height:297mm;overflow:hidden;page-break-after:always;padding:14mm 13mm}"
@@ -15566,7 +15632,7 @@ var _scrFontFam = null;
 async function ensureScriptureFont(){
   if (_scrFontFam) return _scrFontFam;
   try {
-    var f = new FontFace('TSAScripture', 'url(fonts/NotoKR-500.ttf)');
+    var f = new FontFace('TSAScripture', 'url(fonts/NotoKR-500.woff2)');
     await f.load(); document.fonts.add(f);
     _scrFontFam = 'TSAScripture';
   } catch (e) { _scrFontFam = '"Noto Sans KR","Apple SD Gothic Neo",sans-serif'; }
@@ -15626,7 +15692,7 @@ var _covFontFam = null;
 async function ensureCoverFont(){
   if (_covFontFam) return _covFontFam;
   try {
-    var f = new FontFace('TSACover', 'url(fonts/NotoKR-700.ttf)');
+    var f = new FontFace('TSACover', 'url(fonts/NotoKR-700.woff2)');
     await f.load(); document.fonts.add(f);
     _covFontFam = 'TSACover';
   } catch (e) { _covFontFam = '"Noto Sans KR","Apple SD Gothic Neo",sans-serif'; }
@@ -16916,6 +16982,9 @@ function renderSyncState(){
 function renderStats(){
   $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건 · 앱 버전 ' + APP_VER;
   $('#queueStat').textContent = state.queue.length ? '전송 대기 중인 입력: ' + state.queue.length + '건' : '';
+  var _qvB = $('#queueViewBtn');
+  if (_qvB){ _qvB.style.display = state.queue.length ? '' : 'none'; if (!state.queue.length){ var _qv = $('#queueView'); if (_qv){ _qv._open = false; _qv.innerHTML = ''; _qvB.textContent = '보기·관리'; } } }
+  if (typeof renderQueueView === 'function') try { renderQueueView(); } catch (eQV){}
   var _qn = (state.queue && state.queue.length) || 0;
   ['#queueBadge', '#queueBadgeD'].forEach(function(sel){
     var el = $(sel); if (!el) return;
@@ -17356,7 +17425,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setProxyUrl')) $('#setProxyUrl').value = state.settings.proxyUrl || '';
   if ($('#setProxyToken')) $('#setProxyToken').value = state.settings.proxyToken || '';
   if ($('#setVidProxyUrl')) $('#setVidProxyUrl').value = state.settings.vidProxyUrl || '';
+  if ($('#setMemoUrl')) $('#setMemoUrl').value = state.settings.memoUrl || '';
+  if ($('#setMemoKey')) $('#setMemoKey').value = state.settings.memoKey || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
+  try { xferBootFromHash(); } catch (eXf){}      /* 이전 링크(#tsa-setup=…)로 열렸으면 설정 주입 제안 */
+  try { bibCacheStat(); } catch (eBc){}          /* 성경 오프라인 저장 상태 표시 */
   $('#page-search').classList.add('on');
   setTimeout(function(){ try { renderDailyIll(); } catch (eD){} }, 600);  /* 첫 화면 오늘의 서랍 (기기 데이터 로드 여유) */
   $('#smDate').value = todayLocal_();
