@@ -16985,6 +16985,7 @@ function renderStats(){
   var _qvB = $('#queueViewBtn');
   if (_qvB){ _qvB.style.display = state.queue.length ? '' : 'none'; if (!state.queue.length){ var _qv = $('#queueView'); if (_qv){ _qv._open = false; _qv.innerHTML = ''; _qvB.textContent = '보기·관리'; } } }
   if (typeof renderQueueView === 'function') try { renderQueueView(); } catch (eQV){}
+  if (typeof renderPrepDash === 'function') try { renderPrepDash(); } catch (ePD){}   /* 동기화·저장 후 주간 대시보드 최신화 */
   var _qn = (state.queue && state.queue.length) || 0;
   ['#queueBadge', '#queueBadgeD'].forEach(function(sel){
     var el = $(sel); if (!el) return;
