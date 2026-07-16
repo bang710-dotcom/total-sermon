@@ -17429,7 +17429,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setMemoUrl')) $('#setMemoUrl').value = state.settings.memoUrl || '';
   if ($('#setMemoKey')) $('#setMemoKey').value = state.settings.memoKey || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
-  try { xferBootFromHash(); } catch (eXf){}      /* 이전 링크(#tsa-setup=…)로 열렸으면 설정 주입 제안 */
+  setTimeout(function(){ try { xferBootFromHash(); } catch (eXf){} }, 800);   /* 이전 링크(#tsa-setup=…) 설정 주입 — uiConfirm(3번째 블록) 파싱 후 실행 */
   try { bibCacheStat(); } catch (eBc){}          /* 성경 오프라인 저장 상태 표시 */
   $('#page-search').classList.add('on');
   setTimeout(function(){ try { renderDailyIll(); } catch (eD){} }, 600);  /* 첫 화면 오늘의 서랍 (기기 데이터 로드 여유) */
