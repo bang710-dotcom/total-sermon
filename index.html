@@ -2575,6 +2575,8 @@ function hideLoad(){ clearTimeout(_loadT); var ov = document.getElementById('loa
 function markCardLoading(el){ if (!el || !el.classList) return function(){}; el.classList.add('cardLoading'); return function(){ el.classList.remove('cardLoading'); }; }
 /* 카드 클릭 → 시트 로드 → 콜백. 누름 카드 표시 + 전체 오버레이를 일관되게 처리 */
 function loadSermonThen(id, el, msg, done){
+  /* 첫 시트 로딩 중에는 설교 불러오기(수정·이어쓰기·미리보기·내보내기) 잠금 — 미완성 데이터로 덮어쓰기 방지 */
+  if (bootGuardBlocked('시트를 불러오는 중입니다 — 설교 불러오기는 로딩이 끝나면 이용할 수 있어요.')) return Promise.resolve();
   var unmark = markCardLoading(el);
   showLoad(msg || '설교를 불러오는 중…');
   /* ── 기기 전환 동기화(문제: 아이패드 작성 → 맥 이어쓰기 → 아이패드에서 구버전 캐시가 보임) ──
@@ -2790,6 +2792,8 @@ $('#qResults').addEventListener('click', function(e){
 });
 
 function openDetail(kind, id){
+  /* 첫 시트 로딩 중에는 검색 상세 열람 잠금(미완성 데이터 노출·삭제/수정 진입 방지) */
+  if (bootGuardBlocked('시트를 불러오는 중입니다 — 설교 열람은 로딩이 끝나면 이용할 수 있어요.')) return;
   var pane = $('#detailPane');
   var prevId = state.detailId;
   /* 재렌더 시 스크롤 보존 — 같은 설교를 다시 그릴 때는 보던 위치 유지 */
@@ -16070,6 +16074,8 @@ $('#fullSyncBtn').addEventListener('click', function(){ fullResync(); });
 /* ===================== 페이지 전환 ===================== */
 function showPage(name){
   if (!name) return; /* data-page 없는 버튼(예: 더보기)으로 인한 빈 화면 방지 */
+  /* 첫 시트 로딩 중에는 작성 탭만 잠금 — 나머지 화면(예화·통계 등)은 자유롭게 이동 */
+  if (name === 'compose' && bootGuardBlocked('시트를 불러오는 중입니다 — 설교 작성은 로딩이 끝나면 열 수 있어요.')) return;
   /* 작성 화면을 떠날 때 미저장 변경이 있으면 확인(취소 시 현재 화면 유지) */
   var _curPage = ((document.querySelector('.page.on') || {}).id || '').replace('page-', '');
   if (_curPage === 'compose' && name !== 'compose' && !confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 화면을 이동할까요?')) return;
@@ -17460,7 +17466,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v446';
+var APP_VER = 'v447';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
