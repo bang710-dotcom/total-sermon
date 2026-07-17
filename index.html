@@ -348,6 +348,15 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 /* ── 시트 재동기화 중 흐림 처리 ── */
 .page{transition:opacity .32s ease}
 .page.stale{opacity:.38;pointer-events:none}
+/* 검색 페이지 재동기화(stale) 중에도 '오늘의 서랍'·예화 회고·주간 준비 대시보드는 계속 보고
+   펼칠 수 있게 예외 처리 — 시트 데이터가 아닌 예화·읽기 전용 콘텐츠라 잠글 필요가 없다.
+   (페이지 루트의 흐림은 풀고, 시트 기반 요소 — 검색창·결과·상세 — 만 개별로 흐림·잠금.) */
+#page-search.stale{opacity:1;pointer-events:none}
+#page-search.stale #searchLeft > *{opacity:.38;pointer-events:none}
+#page-search.stale #detailPane{opacity:.38;pointer-events:none}
+#page-search.stale #searchLeft #dailyIllCard,
+#page-search.stale #searchLeft #illRecapCard,
+#page-search.stale #searchLeft #prepDash{opacity:1;pointer-events:auto}
 #syncBanner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:360;display:none;align-items:center;gap:11px;padding:13px 22px;border-radius:99px;background:rgba(22,26,34,.96);border:1px solid rgba(127,196,255,.42);color:#fff;font-size:14.5px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.5)}
 #syncBanner.on{display:flex;animation:fade .18s ease}
 /* 첫 실행 시트 로딩 가드 배너 — 화면 중앙을 가리지 않도록 하단 고정(탭바 위) */
@@ -17466,7 +17475,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v447';
+var APP_VER = 'v448';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
