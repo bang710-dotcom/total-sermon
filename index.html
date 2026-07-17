@@ -350,6 +350,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .page.stale{opacity:.38;pointer-events:none}
 #syncBanner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:360;display:none;align-items:center;gap:11px;padding:13px 22px;border-radius:99px;background:rgba(22,26,34,.96);border:1px solid rgba(127,196,255,.42);color:#fff;font-size:14.5px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.5)}
 #syncBanner.on{display:flex;animation:fade .18s ease}
+/* 첫 실행 시트 로딩 가드 배너 — 화면 중앙을 가리지 않도록 하단 고정(탭바 위) */
+#syncBanner.boot{top:auto;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:13px;font-weight:600;padding:10px 18px;max-width:calc(100vw - 24px);white-space:normal;text-align:center}
 #syncBanner .sbRing{width:18px;height:18px;border-radius:50%;border:3px solid rgba(127,196,255,.25);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:0 0 auto}
 /* ── 시리즈 목록 스와이프 삭제(모바일) ── */
 .swipeRow{position:relative;margin-bottom:10px;border-radius:var(--radius);overflow:hidden}
@@ -2288,6 +2290,38 @@ var _seriesReady = null; /* 실행 시 seriesList(IndexedDB) 로드 완료 프�
 var _syncBannerN = 0;
 function showSyncBanner(){ _syncBannerN++; var el = $('#syncBanner'); if (el) el.classList.add('on'); }
 function hideSyncBanner(){ _syncBannerN = Math.max(0, _syncBannerN - 1); if (_syncBannerN === 0){ var el = $('#syncBanner'); if (el) el.classList.remove('on'); } }
+/* ── 첫 실행(캐시 없음) 시트 로딩 가드 ──
+   예전에는 첫 동기화가 끝날 때까지 전체화면 오버레이로 앱 전체를 막았다(시트 데이터 오염 방지).
+   이제는 시트 저장 데이터를 직접 다루는 기능만 잠근다 — ①작성 탭 진입 ②검색·목록에서 설교/아이디어
+   불러오기(상세 열람·수정·이어쓰기·미리보기·내보내기). 예화 도서관·통계·설정 등 나머지는 바로 사용 가능. */
+var _bootGuard = false;
+function bootGuardOn(){
+  _bootGuard = true;
+  var el = $('#syncBanner');
+  if (el){
+    el.classList.add('boot');
+    var t = el.querySelector('span:last-child');
+    if (t) t.textContent = '시트를 불러오는 중 — 설교 작성·불러오기는 잠시 후 이용할 수 있어요';
+  }
+  showSyncBanner();
+}
+function bootGuardOff(){
+  if (!_bootGuard) return;
+  _bootGuard = false;
+  hideSyncBanner();
+  var el = $('#syncBanner');
+  if (el){
+    el.classList.remove('boot');
+    var t = el.querySelector('span:last-child');
+    if (t) t.textContent = '최신 시트로 동기화 중입니다…';   /* 원래 문구 복원(시리즈 재동기화 등에서 재사용) */
+  }
+}
+/* 잠긴 기능을 눌렀을 때: true = 차단(토스트 안내) */
+function bootGuardBlocked(msg){
+  if (!_bootGuard) return false;
+  toast(msg || '시트를 불러오는 중입니다 — 잠시 후 다시 시도해 주세요.');
+  return true;
+}
 /* 실행 시 1회: 시트 전체 + 시리즈 세부까지 한 번에 로드(흐림→선명).
    사용 중에는 더 이상 시트를 자동으로 부르지 않는다. */
 function bootLoad(){
@@ -2295,10 +2329,11 @@ function bootLoad(){
   if (!s.url || !s.token || !navigator.onLine) return;
   var pg = document.querySelector('.page.on');
   /* 캐시(이전 동기화 데이터)가 있으면 화면을 막지 않고 배경에서 조용히 갱신 → 첫 화면 즉시 사용.
-     캐시가 없을 때(첫 실행)만 전체화면 오버레이를 띄운다. (느린 시트가 시작부터 앱을 막지 않게.) */
+     캐시가 없을 때(첫 실행)는 전체화면 오버레이 대신 '부분 잠금'(bootGuard) — 작성 탭·설교 불러오기만
+     잠그고 예화 도서관·통계 등은 로딩 중에도 바로 쓸 수 있게 한다. */
   var hasCache = !!((state.data.sermons || []).length);
-  if (pg) pg.classList.add('stale');
-  if (!hasCache) showWaitOverlay('시트를 불러오고 있어요', '최신 설교·묵상·시리즈 데이터를 가져오는 중입니다.', 0);
+  if (pg && hasCache) pg.classList.add('stale');
+  if (!hasCache) bootGuardOn();
   return Promise.all([pullData(), Promise.resolve(_seriesReady)]).then(function(){
     syncSeriesDetails(); /* 각 시리즈 세부까지 로컬에 반영 */
     var cur = (pg && pg.id === 'page-series');
@@ -2313,7 +2348,14 @@ function bootLoad(){
     /* 로드 실패 시 캐시 화면 유지 */
   }).then(function(){
     if (pg) pg.classList.remove('stale');
-    if (!hasCache) hideWaitOverlay();
+    if (!hasCache) {
+      bootGuardOff();
+      /* 로딩 완료 → 보고 있던 시트 기반 화면 갱신(검색·진행중 목록은 pullData가 이미 갱신) */
+      try {
+        var cur2 = ((document.querySelector('.page.on') || {}).id || '').replace('page-', '');
+        if (['analytics', 'library', 'archive', 'devo', 'occ', 'mindmap'].indexOf(cur2) >= 0) showPage(cur2);
+      } catch (e2) {}
+    }
   });
 }
 
