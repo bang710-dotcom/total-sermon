@@ -16063,9 +16063,11 @@ async function generateSermonImageSet(id, meta, opts){
     if (!String(meta['원고텍스트'] || '').trim()) { if (!opts.auto) toast('원고를 먼저 작성해 주세요.'); return; }
     var cuts = await loadCutsSidecar(meta);   /* 이미 만든 컷이 있으면 재사용(손실 없는 JSON) */
     if (!cuts) {
-      setGenStage('이미지자료(프롬프트) 생성 중…');
+      setGenStage('이미지 컷(전환표) 생성 중…');
       cuts = await aiImgData(meta);
-      if (cuts && cuts.length) await saveImgDataArtifacts(id, meta, cuts);
+      /* ★ 이미지만 목적인 경로 — 사이드카 JSON만 저장(프롬프트 DOCX는 부산물로 만들지 않는다.
+         DOCX가 필요하면 [프롬프트 DOCX] 버튼/토글이 같은 JSON에서 만든다 — 2026-07-18 확정) */
+      if (cuts && cuts.length) await saveCutsSidecar(id, meta, cuts);
     }
     if (!cuts || !cuts.length) throw new Error('컷 생성 실패');
     if (!opts.auto && !await uiConfirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) { hideGenOverlay(); return; }   /* 취소 시 전체화면 오버레이 닫기(앱 잠김 방지) */
@@ -17479,7 +17481,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v449';
+var APP_VER = 'v450';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
