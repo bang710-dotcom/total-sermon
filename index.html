@@ -1645,7 +1645,7 @@ body.uiDlgOpen{overflow:hidden}
         <input type="url" id="setProxyUrl" placeholder="https://sermon-image-proxy.계정.workers.dev">
         <label>이미지 프록시 토큰 (APP_TOKEN)</label>
         <input type="password" autocomplete="off" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
-        <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>(Flux / Gemini)에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
+        <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>(Flux / Gemini / Krea)에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
         <label style="margin-top:14px">유튜브 영상분석 프록시 URL (선택 — 비우면 위 이미지 프록시 주소 사용)</label>
         <input type="url" id="setVidProxyUrl" placeholder="비워두면 위 이미지 프록시 URL을 그대로 사용">
         <div class="cnt" style="margin-top:6px">설교 <b>유튜브 링크</b>만 넣으면 영상에서 설교 부분을 찾아 전사하고 <b>요약본</b>까지 자동 생성합니다(전사=Gemini, 요약=Claude). 권장 구성은 <b>기존 이미지 프록시 워커에 /youtube 라우트만 추가</b>하는 것입니다 — 이때 이 칸은 비워두면 됩니다(토큰·주소 공용). 별도 워커를 쓸 때만 주소를 입력하세요. <b>Gemini 키는 결제 계정이 연결된(유료) 키여야</b> 지역 차단 없이 작동합니다.</div>
@@ -10312,7 +10312,8 @@ function styleCueEn(styleKo){
 }
 /* ★ 엔진 맞춤 배경 프롬프트 빌더.
    Flux: 주어(장면)를 맨 앞에 두고 간결하게(앞 토큰 가중), 부정문 최소화 — 화풍 키워드 중심.
-   Gemini(nano-banana): 자연어로 더 풍부하게, 지시·사실주의 묘사를 충분히. (둘 다 자연어 산문 선호) */
+   Gemini(nano-banana): 자연어로 더 풍부하게, 지시·사실주의 묘사를 충분히. (둘 다 자연어 산문 선호)
+   Krea 2 Turbo: 디퓨전 계열이라 Flux와 같은 원칙(장면 우선·긍정형·화풍 키워드) — Flux 경로를 공유한다. */
 function buildBgPrompt(c, engine){
   var en = String((c && c.en) || '').trim();
   var sc = styleCueEn(c && c.style);
@@ -16008,7 +16009,7 @@ async function genCoverWithRetry(c, engine){
   }
   return null;
 }
-/* 컷 배열로 실제 이미지 세트 생성: 표지=중앙 여백 배경 생성+제목·본문 합성, 일반=선택 엔진(Flux 또는 Gemini) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생+성구 합성 */
+/* 컷 배열로 실제 이미지 세트 생성: 표지=중앙 여백 배경 생성+제목·본문 합성, 일반=선택 엔진(Flux/Gemini/Krea) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생+성구 합성 */
 async function generateImageSetFromCuts(id, meta, cuts){
   if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
@@ -17478,7 +17479,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v448';
+var APP_VER = 'v449';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
