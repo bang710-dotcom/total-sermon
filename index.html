@@ -1666,8 +1666,9 @@ body.uiDlgOpen{overflow:hidden}
         <select id="imgEngineSel">
           <option value="flux">Flux (기본 · 분위기 배경에 최적)</option>
           <option value="gemini">Gemini (Nano Banana · 사실적 디테일)</option>
+          <option value="krea">Krea 2 Turbo (미감·질감 · 저가)</option>
         </select>
-        <div class="cnt" style="margin-top:6px">설교 이미지 세트(배경 컷)를 만들 때 사용할 AI 엔진입니다. <b>Flux</b>는 분위기·질감 배경, <b>Gemini</b>(Nano Banana)는 더 사실적이고 디테일한 배경에 강합니다. Gemini 직접 호출은 지역 제한이 있어 자동으로 fal.ai를 경유합니다. 선택은 즉시 저장되며 [배경 이미지 생성]·[전체 이미지 세트]에 그대로 적용됩니다.</div>
+        <div class="cnt" style="margin-top:6px">설교 이미지 세트(배경 컷)를 만들 때 사용할 AI 엔진입니다. <b>Flux</b>는 분위기·질감 배경, <b>Gemini</b>(Nano Banana)는 더 사실적이고 디테일한 배경, <b>Krea 2 Turbo</b>는 미감(aesthetic)·질감 중심의 회화적 배경에 강하고 장당 비용이 가장 낮습니다(약 $0.02). Gemini·Krea는 자동으로 fal.ai를 경유합니다. 선택은 즉시 저장되며 [배경 이미지 생성]·[전체 이미지 세트]에 그대로 적용됩니다.</div>
         <label style="margin-top:14px">🎨 설교 이미지 생성 (프록시 연결 테스트)</label>
         <textarea id="imgProxyPrompt" rows="3" placeholder="예) 검은 배경에 한 줄기 따뜻한 빛, 영화적, 글자 없음"></textarea>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
@@ -15162,7 +15163,7 @@ async function bibPrefetch(from, to, btn){
     state.settings = state.settings || {};
     state.settings.imgEngine = sel.value;
     save(LS.settings, state.settings);
-    toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini (Nano Banana)' : 'Flux'));
+    toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini (Nano Banana)' : sel.value === 'krea' ? 'Krea 2 Turbo' : 'Flux'));
   });
 })();
 
@@ -15178,19 +15179,21 @@ function vidProxyCfg(){
   var u = String(s.vidProxyUrl || s.proxyUrl || '').trim().replace(/\/+$/, '');
   return { url: u, token: String(s.proxyToken || '').trim() };
 }
-/* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) 또는 'gemini'(=fal.ai 경유 Nano Banana) */
-function imgEngine(){ return ((state.settings && state.settings.imgEngine) === 'gemini') ? 'gemini' : 'flux'; }
+/* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) / 'gemini'(=fal.ai 경유 Nano Banana) / 'krea'(=fal.ai 경유 Krea 2 Turbo) */
+function imgEngine(){ var e = state.settings && state.settings.imgEngine; return (e === 'gemini' || e === 'krea') ? e : 'flux'; }
 /* 작업유형 + 엔진 → {provider, model}.
    ※ 성구(본문) 컷은 어느 엔진을 써도 AI로 생성하지 않는다 — 직전 일반 이미지를
      톤다운·어둡게·흐리게 처리한 파생본을 배경으로 쓴다(아래 deriveScriptureBg).
      따라서 이 라우팅은 '배경' 생성에만 쓰이며, 'text'(제목 텍스트)는 연결테스트 전용이다.
    - 제목 텍스트는 한글 정확도 때문에 엔진과 무관하게 Nano Banana(fal.ai).
    - Gemini 선택 시: 지역 차단 회피를 위해 fal.ai 경유 nano-banana-pro로 라우팅.
+   - Krea 선택 시: fal.ai 경유 krea-2-turbo (배경·핵심 컷 동일 모델, 미감·질감 강점·저가).
    - Flux 선택 시: background→klein(저가·대량), background-hero→max(핵심 컷). */
 function engineRoute(jobType, engine){
   engine = engine || imgEngine();
   if (jobType === 'text') return { provider: 'fal', model: 'nano-banana-pro' };
   if (engine === 'gemini') return { provider: 'fal', model: 'nano-banana-pro' };
+  if (engine === 'krea') return { provider: 'fal', model: 'krea-2-turbo' };
   return { provider: 'flux', model: (jobType === 'background-hero' ? 'max' : 'klein') };
 }
 /* 데스크탑(File System Access API)에서만 폴더 저장 가능. iOS 사파리 등은 미지원 → 화면 저장. */
