@@ -6137,6 +6137,163 @@ function snClick(e){
   window.addEventListener('resize', function(){ if (SNS.on) snLayout(); });
 })();
 
+/* ===================== 펜슬 입력 패드 (v453) =====================
+   아이패드에서 애플펜슬이 작은 입력창(AI 대화·설교 작성칸 등)에 닿으면,
+   자유롭게 옮길 수 있는 큰 손글씨 패드가 뜬다. 패드의 큰 입력면에 펜슬로 쓰면
+   iPadOS 스크리블이 글자로 바꿔 주고, [✓ 입력]을 누르면 원래 입력창의
+   커서 자리에 들어간다. 문자 입력은 원래 창에, 손글씨 영역은 패드에. */
+var PP = { el: null, target: null, selS: null, selE: null, range: null, auto: true, x: null, y: null, closedEl: null, closedAt: 0, drag: null };
+try { var _ppc = load('tsa.penpad'); if (_ppc && _ppc.auto === false) PP.auto = false; } catch (e){}
+function ppEditable(el){
+  if (!el || !el.closest) return null;
+  var t = el.closest('textarea, input, [contenteditable]');
+  if (!t || (t.closest && t.closest('#penPad'))) return null;
+  if (t.tagName === 'INPUT'){
+    var ty = (t.getAttribute('type') || 'text').toLowerCase();
+    if (['text', 'search', 'url', 'email', 'tel'].indexOf(ty) < 0) return null;
+  } else if (t.tagName !== 'TEXTAREA' && !t.isContentEditable) return null;
+  if (t.disabled || t.readOnly) return null;
+  return t;
+}
+function ppLabel(t){
+  var s = t.getAttribute('placeholder') || t.getAttribute('aria-label') || '';
+  if (!s && t.id){ var lb = document.querySelector('label[for="' + t.id + '"]'); if (lb) s = lb.textContent; }
+  if (!s && t.previousElementSibling && t.previousElementSibling.tagName === 'LABEL') s = t.previousElementSibling.textContent;
+  return (String(s).trim() || '입력창').slice(0, 34);
+}
+function ppOpenNow(){ return PP.el && PP.el.style.display !== 'none'; }
+function ppBuild(){
+  if (PP.el) return;
+  var d = document.createElement('div');
+  d.id = 'penPad';
+  d.innerHTML = '<div class="ppHd" id="ppHd"><span class="ppGrip">⠿</span><span class="ppTitle" id="ppTitle"></span>'
+    + '<button type="button" class="ppMini" id="ppAuto"></button>'
+    + '<button type="button" class="ppMini" id="ppClear">지우기</button>'
+    + '<button type="button" class="ppMini" id="ppX">✕</button></div>'
+    + '<textarea id="ppTx" placeholder="여기에 애플펜슬로 크게 쓰세요 — 스크리블이 글자로 바꿔 줍니다" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>'
+    + '<div class="ppFt"><span class="ppHint">쓴 글은 원래 입력창의 커서 자리에 들어갑니다</span>'
+    + '<button type="button" class="btn sub mini" id="ppMore">＋ 넣고 이어쓰기</button>'
+    + '<button type="button" class="btn gold mini" id="ppOk">✓ 입력</button></div>';
+  document.body.appendChild(d);
+  PP.el = d;
+  $('#ppX').addEventListener('click', function(){ PP.closedEl = PP.target; PP.closedAt = Date.now(); ppClose(false); });
+  $('#ppClear').addEventListener('click', function(){ $('#ppTx').value = ''; $('#ppTx').focus(); });
+  $('#ppAuto').addEventListener('click', function(){ PP.auto = !PP.auto; save('tsa.penpad', { auto: PP.auto }); ppAutoPaint(); });
+  $('#ppOk').addEventListener('click', function(){ ppInsert(false); });
+  $('#ppMore').addEventListener('click', function(){ ppInsert(true); $('#ppTx').focus(); });
+  $('#ppTx').addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && PP.target && PP.target.tagName === 'INPUT'){ e.preventDefault(); ppInsert(false); }
+  });
+  /* 헤더 드래그로 자유 이동 */
+  var hd = $('#ppHd');
+  hd.addEventListener('pointerdown', function(e){
+    if (e.target.closest && e.target.closest('button')) return;
+    var r = d.getBoundingClientRect();
+    PP.drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    try { hd.setPointerCapture(e.pointerId); } catch (er){}
+    e.preventDefault();
+  });
+  hd.addEventListener('pointermove', function(e){
+    if (!PP.drag) return;
+    PP.x = Math.max(4, Math.min(e.clientX - PP.drag.dx, window.innerWidth - 120));
+    PP.y = Math.max(4, Math.min(e.clientY - PP.drag.dy, window.innerHeight - 60));
+    d.style.left = PP.x + 'px'; d.style.top = PP.y + 'px';
+  });
+  hd.addEventListener('pointerup', function(){ PP.drag = null; });
+  hd.addEventListener('pointercancel', function(){ PP.drag = null; });
+}
+function ppAutoPaint(){
+  var b = $('#ppAuto'); if (!b) return;
+  b.textContent = PP.auto ? '자동열림 ✓' : '자동열림 ✗';
+  b.classList.toggle('on', PP.auto);
+}
+function ppPlace(){
+  var d = PP.el, w = Math.min(window.innerWidth * 0.92, 700);
+  var x = (PP.x != null) ? PP.x : Math.max(4, (window.innerWidth - w) / 2);
+  var y = (PP.y != null) ? PP.y : Math.max(4, window.innerHeight - 320);
+  d.style.left = Math.max(4, Math.min(x, window.innerWidth - 120)) + 'px';
+  d.style.top = Math.max(4, Math.min(y, window.innerHeight - 80)) + 'px';
+}
+function ppOpen(t){
+  ppBuild();
+  /* 다른 입력창으로 옮겨 갈 때, 아직 안 넣은 글이 있으면 이전 창에 먼저 넣는다 */
+  if (ppOpenNow() && PP.target && PP.target !== t && $('#ppTx').value) ppInsert(true);
+  PP.target = t;
+  if (t.isContentEditable){
+    PP.range = null;
+    try { var s = window.getSelection(); if (s.rangeCount && t.contains(s.anchorNode)) PP.range = s.getRangeAt(0).cloneRange(); } catch (e){}
+  } else {
+    PP.selS = PP.selE = null;
+    try { PP.selS = t.selectionStart; PP.selE = t.selectionEnd; } catch (e){}
+    /* 아직 포커스한 적 없는 창(0,0)은 끝에 이어 쓰는 것이 자연스럽다 */
+    if (PP.selS == null || (document.activeElement !== t && PP.selS === 0 && PP.selE === 0 && (t.value || '').length)){
+      PP.selS = PP.selE = (t.value || '').length;
+    }
+  }
+  $('#ppTitle').textContent = '✍ ' + ppLabel(t);
+  $('#ppTx').value = '';
+  PP.el.style.display = 'flex';
+  ppPlace(); ppAutoPaint();
+  setTimeout(function(){ try { $('#ppTx').focus({ preventScroll: true }); } catch (e){ try { $('#ppTx').focus(); } catch (er){} } }, 30);
+}
+function ppClose(focusTarget){
+  if (!PP.el) return;
+  PP.el.style.display = 'none';
+  var t = PP.target; PP.target = null;
+  if (focusTarget && t && document.contains(t)){
+    try {
+      t.focus({ preventScroll: true });
+      if (!t.isContentEditable && PP.selS != null) t.setSelectionRange(PP.selS, PP.selS);
+    } catch (e){}
+  }
+}
+function ppInsert(keepOpen){
+  var t = PP.target;
+  if (!t || !document.contains(t)){ ppClose(false); return; }
+  var txt = $('#ppTx').value;
+  if (!txt){ if (!keepOpen) ppClose(true); return; }
+  if (t.isContentEditable){
+    try {
+      t.focus({ preventScroll: true });
+      var s = window.getSelection();
+      if (PP.range){ s.removeAllRanges(); s.addRange(PP.range); }
+      if (!document.execCommand('insertText', false, txt)) t.textContent += txt;
+      if (s.rangeCount) PP.range = s.getRangeAt(0).cloneRange();
+    } catch (e){ try { t.textContent += txt; t.dispatchEvent(new Event('input', { bubbles: true })); } catch (er){} }
+  } else {
+    var v = String(t.value || '');
+    var a = (PP.selS != null) ? Math.min(PP.selS, v.length) : v.length;
+    var b = (PP.selE != null) ? Math.min(PP.selE, v.length) : a;
+    t.value = v.slice(0, a) + txt + v.slice(b);
+    var np = a + txt.length;
+    PP.selS = PP.selE = np;
+    try { t.setSelectionRange(np, np); } catch (e){}
+    t.dispatchEvent(new Event('input', { bubbles: true }));
+    t.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  $('#ppTx').value = '';
+  if (!keepOpen) ppClose(true);
+}
+/* 펜슬이 입력창에 닿으면 패드를 연다 (자동열림 켜짐일 때) */
+document.addEventListener('pointerdown', function(e){
+  if (e.pointerType !== 'pen' || !PP.auto) return;
+  var t = ppEditable(e.target); if (!t) return;
+  if (ppOpenNow() && PP.target === t){ e.preventDefault(); try { $('#ppTx').focus({ preventScroll: true }); } catch (er){} return; }
+  if (PP.closedEl === t && Date.now() - PP.closedAt < 8000) return;
+  e.preventDefault();
+  ppOpen(t);
+}, true);
+/* 같은 상황의 stylus 터치 기본동작(작은 창 스크리블·포커스) 차단 */
+document.addEventListener('touchstart', function(e){
+  if (!PP.auto) return;
+  var t0 = e.changedTouches && e.changedTouches[0];
+  if (!t0 || t0.touchType !== 'stylus') return;
+  var t = ppEditable(e.target); if (!t) return;
+  if (ppOpenNow() && PP.target === t){ if (e.cancelable) e.preventDefault(); return; }
+  if (PP.closedEl === t && Date.now() - PP.closedAt < 8000) return;
+  if (e.cancelable) e.preventDefault();
+}, { passive: false, capture: true });
+
 /* ===================== 대지 보강: 재정의(reframe)·대조구조 (AI) ===================== */
 var P_REFRAME = [
 '당신은 영락교회 대학부 담임 설교자(목사님)의 대지 표현을 벼리는 비서다. 입력(JSON: 본문·핵심메시지·대지[{문,근거}])의 각 대지마다 목사님 시그니처 수사 두 가지를 제안한다.',
@@ -18406,7 +18563,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v452';
+var APP_VER = 'v453';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
