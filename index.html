@@ -474,8 +474,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .snCol{width:20px;height:20px;border-radius:50%;border:2px solid transparent;padding:0 !important;flex:0 0 auto}
 .snCol.on{border-color:var(--text) !important;transform:scale(1.12)}
 .snStatus{margin-left:auto;font-size:11px;color:var(--dim);flex:0 0 auto}
-#snWrap{min-width:0}
-#snPage{position:relative;margin:0 auto;background:var(--card2);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+#snWrap{min-width:0;margin:0 auto}
+/* 노트 페이지는 테마와 무관한 "종이" — 진한 펜색이 늘 잘 보이게 로컬 변수로 밝게 고정 */
+#snPage{position:relative;--text:#1f2430;--dim:#6b7280;--card:#ffffff;--card2:#faf7ef;--line:#d9d2c0;--bg:#fdfcf8;--accent:#a16207;--accent2:#0e7490;color:#1f2430;background:#fbf8f1;border:1px solid #d9d2c0;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.18)}
 #snPage .stCols{position:relative;z-index:1}
 #snSvg{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
 #snNotes{position:absolute;inset:0;z-index:3;pointer-events:none}
@@ -510,6 +511,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 #ppTx{height:190px;resize:none;border:none;outline:none;background:var(--card2);color:var(--text);font-family:inherit;font-size:19px;line-height:1.7;padding:14px 16px;border-radius:0}
 .ppFt{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line)}
 .ppHint{flex:1 1 auto;font-size:11px;color:var(--dim)}
+/* 지우개 ↔ 직전 도구 빠른 전환 (연구노트 모드 전용 플로팅 버튼) */
+#snSwap{position:fixed;right:16px;bottom:20px;z-index:340;width:52px;height:52px;border-radius:50%;background:var(--card);border:1.5px solid var(--line);color:var(--text);font-size:20px;line-height:1;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer}
+#snSwap.on{background:var(--accent);border-color:var(--accent);color:var(--bg)}
 .stSeg.stClimax .stSegRange{color:var(--gold,#d4af37)}
 .stStar{color:var(--gold,#d4af37);font-weight:700;margin-left:4px}
 .stXrefRow{font-size:12.5px;line-height:1.6;padding:4px 0;border-top:1px dashed var(--line)}
@@ -4589,7 +4593,7 @@ function studyRenderText(){
     + (SNS.on ? snBarHtml() : '')
     + (STUDY.structOn ? '<div id="svzBanner">' + svzBannerHtml() + '</div>' : '')
     + (SNS.on
-      ? '<div id="snWrap"><div id="snPage" style="' + snPageStyle() + '">' + colsHtml + '<svg id="snSvg" xmlns="http://www.w3.org/2000/svg"><g id="snGLines"></g><g id="snGInk"></g></svg><div id="snNotes"></div></div></div>'
+      ? '<div id="snWrap"><div id="snPage" style="' + snPageStyle() + '">' + colsHtml + '<svg id="snSvg" xmlns="http://www.w3.org/2000/svg"><g id="snGLines"></g><g id="snGInk"></g></svg><div id="snNotes"></div></div></div><button id="snSwap" type="button"></button>'
       : colsHtml);
   studyFillCol(host.querySelector('.stCol[data-vi="0"]'), STUDY.versions[0]);
   if (STUDY.split) studyFillCol(host.querySelector('.stCol[data-vi="1"]'), STUDY.versions[1] || 'RNKSV');
@@ -5538,8 +5542,10 @@ function svzMergeAt(cv){
    저장: 절+글자 오프셋 앵커(마크)·페이지 좌표(메모·잉크). IndexedDB 자동저장 +
    시트 웹앱 noteGet/noteSet(청크) 동기화 — 같은 본문을 다시 열면 그대로 복원. */
 var SN = { textW: 760, mL: 230, mR: 230, mT: 70, mB: 240, pageW: 1220 };
-var SN_COLORS = ['#facc15', '#4ade80', '#60a5fa', '#fb923c', '#f472b6', '#a78bfa'];
-var SNS = { on: false, tool: 'sel', color: '#facc15', penW: 3, zoom: 1, selNote: null,
+/* 앞 6개 = 형광 계열, 뒤 6개 = 펜용 진한 계열 */
+var SN_COLORS = ['#facc15', '#4ade80', '#60a5fa', '#fb923c', '#f472b6', '#a78bfa',
+  '#111827', '#b91c1c', '#1d4ed8', '#15803d', '#6d28d9', '#78350f'];
+var SNS = { on: false, tool: 'sel', color: '#facc15', colMark: '#facc15', colPen: '#111827', prevTool: 'pen', penW: 3, zoom: 1, selNote: null,
   draw: null, dragNote: null, anchorDrag: null, erasing: false, dragSquelch: 0, _selT: null };
 var SND = null;                                   /* 현재 문서 */
 var SN_DIRTY = false, SN_NEEDPUSH = false, SN_TSAVE = null, SN_TPUSH = null, SN_REMOTE = '';
@@ -5549,7 +5555,8 @@ function snEmpty(d){ return !d || (!(d.marks || []).length && !(d.notes || []).l
 function snNote(id){ var a = (SND && SND.notes) || []; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
 function snR1(v){ return Math.round(v * 10) / 10; }
 function snPageStyle(){
-  return 'width:' + SN.pageW + 'px;padding:' + SN.mT + 'px ' + SN.mR + 'px ' + SN.mB + 'px ' + SN.mL + 'px;zoom:' + SNS.zoom;
+  /* 축소·확대는 transform(scale)로 — CSS zoom은 iPad Safari에서 좌표계가 어긋난다(펜슬 오프셋 버그) */
+  return 'width:' + SN.pageW + 'px;padding:' + SN.mT + 'px ' + SN.mR + 'px ' + SN.mB + 'px ' + SN.mL + 'px;transform:scale(' + SNS.zoom + ');transform-origin:0 0';
 }
 function snPt(e){
   var pg = $('#snPage'); if (!pg) return null;
@@ -5655,7 +5662,7 @@ function snFitZoom(){
 function snZoom(dir){
   if (dir === 0) snFitZoom();
   else SNS.zoom = Math.max(0.4, Math.min(1.6, Math.round((SNS.zoom + dir * 0.1) * 10) / 10));
-  var pg = $('#snPage'); if (pg) pg.style.zoom = SNS.zoom;
+  var pg = $('#snPage'); if (pg) pg.style.transform = 'scale(' + SNS.zoom + ')';
   snBarRepaint(); snLayout();
 }
 function snApplyToolClass(){
@@ -5663,6 +5670,25 @@ function snApplyToolClass(){
   st.classList.toggle('snPen', SNS.on && SNS.tool === 'pen');
   st.classList.toggle('snErase', SNS.on && SNS.tool === 'erase');
   st.classList.toggle('snMemoTool', SNS.on && SNS.tool === 'memo');
+  snSwapPaint();
+}
+var SN_ICONS = { sel: '↖', hl: '🖍', box: '▭', cir: '◯', memo: '🗒', pen: '✒' };
+function snSwapPaint(){
+  var b = $('#snSwap'); if (!b) return;
+  b.textContent = SNS.tool === 'erase' ? (SN_ICONS[SNS.prevTool || 'pen'] || '✒') : '◌';
+  b.classList.toggle('on', SNS.tool === 'erase');
+  b.title = SNS.tool === 'erase' ? '이전 도구로 돌아가기' : '지우개로 전환';
+}
+function snSwapTool(){
+  if (SNS.tool === 'erase'){
+    SNS.tool = SNS.prevTool || 'pen';
+    SNS.color = (SNS.tool === 'pen') ? SNS.colPen : SNS.colMark;
+  } else {
+    SNS.prevTool = SNS.tool;
+    SNS.tool = 'erase';
+  }
+  SNS.selNote = null;
+  snHideApply(); snBarRepaint(); snApplyToolClass(); snRenderNotes(); snLayout();
 }
 /* ── 툴바 ── */
 function snBarHtml(){
@@ -5879,6 +5905,12 @@ function snLayout(){
   (SND.ink || []).forEach(function(k){ for (var i = 1; i < k.pts.length; i += 2) if (k.pts[i] > maxY) maxY = k.pts[i]; });
   (SND.notes || []).forEach(function(n){ if (n.y + 90 > maxY) maxY = n.y + 90; });
   pg.style.minHeight = maxY ? Math.ceil(maxY + 140) + 'px' : '';
+  /* transform은 레이아웃 크기를 안 바꾸므로, 래퍼가 스크롤 영역을 시각 크기로 맞춘다 */
+  var wrap = $('#snWrap');
+  if (wrap){
+    wrap.style.width = Math.ceil(pg.offsetWidth * SNS.zoom) + 'px';
+    wrap.style.height = Math.ceil(pg.offsetHeight * SNS.zoom) + 'px';
+  }
   svg.setAttribute('viewBox', '0 0 ' + pg.clientWidth + ' ' + pg.clientHeight);
   var gi = $('#snGInk');
   if (gi) gi.innerHTML = (SND.ink || []).map(function(k){
@@ -5974,7 +6006,8 @@ function snPD(e){
     try { $('#studyText').setPointerCapture(e.pointerId); } catch (er) {}
     e.preventDefault(); e.stopPropagation(); return;
   }
-  var penNow = (SNS.tool === 'pen') || (e.pointerType === 'pen' && SNS.tool !== 'erase');
+  /* 펜슬 특수동작 없음 — 필기는 [✒펜] 도구에서만, 그 외에는 iOS 기본 동작(탭·선택·스크롤) */
+  var penNow = (SNS.tool === 'pen');
   var noteEl = t.closest && t.closest('.snNote');
   if (noteEl && !penNow){
     if (noteEl.classList.contains('editing') || (t.closest && t.closest('.snNTools'))) return;
@@ -6105,14 +6138,6 @@ function snClick(e){
   window.addEventListener('pointerup', snPU);
   window.addEventListener('pointercancel', snPU);
   st.addEventListener('click', snClick);
-  /* 애플펜슬: 어느 도구에서든 스크롤 대신 필기가 되도록 stylus 터치의 기본동작 차단 */
-  st.addEventListener('touchstart', function(e){
-    if (!SNS.on || SNS.tool === 'erase') return;
-    var t0 = e.changedTouches && e.changedTouches[0];
-    if (!t0 || t0.touchType !== 'stylus') return;
-    var tg = e.target;
-    if (tg.closest && tg.closest('#snPage') && !tg.closest('.snBar') && !tg.closest('.snNote.editing')) e.preventDefault();
-  }, { passive: false });
   st.addEventListener('input', function(e){
     var tx = e.target && e.target.classList && e.target.classList.contains('snNTx') ? e.target : null;
     if (!tx) return;
