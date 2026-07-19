@@ -464,6 +464,42 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .svzCut i::before,.svzCut i::after{content:'';flex:1;border-top:1px dashed var(--line)}
 .svzCut:hover i,.svzCut:active i{opacity:1;color:var(--accent)}
 .svzCut:hover i::before,.svzCut:hover i::after,.svzCut:active i::before,.svzCut:active i::after{border-top-color:var(--accent)}
+/* ── 연구노트(아날로그 필기) 모드: 여백 페이지·형광펜·박스/원·메모·연결선·펜 잉크 (v452) ── */
+.snTBtn{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent2);border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12.5px;cursor:pointer}
+.snTBtn.on{background:var(--accent2);color:var(--bg);border-color:var(--accent2);font-weight:700}
+.snBar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;position:sticky;top:34px;left:0;z-index:2;background:var(--card);padding:6px 0 8px;border-bottom:1px dashed var(--line);margin-bottom:10px;max-width:100vw}
+.snBar button{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;cursor:pointer}
+.snBar button.on{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:700}
+.snSep{width:1px;height:18px;background:var(--line);margin:0 3px;flex:0 0 auto}
+.snCol{width:20px;height:20px;border-radius:50%;border:2px solid transparent;padding:0 !important;flex:0 0 auto}
+.snCol.on{border-color:var(--text) !important;transform:scale(1.12)}
+.snStatus{margin-left:auto;font-size:11px;color:var(--dim);flex:0 0 auto}
+#snWrap{min-width:0}
+#snPage{position:relative;margin:0 auto;background:var(--card2);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+#snPage .stCols{position:relative;z-index:1}
+#snSvg{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+#snNotes{position:absolute;inset:0;z-index:3;pointer-events:none}
+.snNote{position:absolute;pointer-events:auto;min-height:30px;padding:7px 9px;font-size:12.5px;line-height:1.55;color:var(--text);background:var(--card);border:1.6px solid;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.14);user-select:none;-webkit-user-select:none;touch-action:none}
+.snNote.sh-plain{background:transparent;border-color:transparent !important;box-shadow:none}
+.snNote.sh-ell{border-radius:50%;padding:12px 14px;text-align:center}
+.snNote.sel{outline:2px dashed var(--accent);outline-offset:3px}
+.snNTx{min-width:40px;min-height:16px;outline:none;white-space:pre-wrap;word-break:break-word;user-select:none;-webkit-user-select:none}
+.snNote.editing .snNTx{user-select:text;-webkit-user-select:text;cursor:text}
+.snNTools{position:absolute;left:-2px;top:-34px;display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px 5px;box-shadow:0 4px 12px rgba(0,0,0,.3);white-space:nowrap}
+.snNTools button{background:none;border:none;color:var(--text);font-size:12px;cursor:pointer;padding:2px 4px;font-family:inherit}
+.snNTools .snCol{width:15px;height:15px}
+.snAnchorH{position:absolute;right:-11px;bottom:-11px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--bg);font-size:11px;display:flex;align-items:center;justify-content:center;cursor:crosshair;box-shadow:0 2px 6px rgba(0,0,0,.3);touch-action:none}
+.snMk{border-radius:3px}
+.snMkHl{padding:1px 0}
+.snMkBox,.snMkCir{border-top:1.7px solid;border-bottom:1.7px solid;padding:1px 1px}
+.snMkBox.snMkA,.snMkCir.snMkA{border-left:1.7px solid;border-top-left-radius:5px;border-bottom-left-radius:5px}
+.snMkBox.snMkB,.snMkCir.snMkB{border-right:1.7px solid;border-top-right-radius:5px;border-bottom-right-radius:5px}
+.snMkCir.snMkA{border-top-left-radius:999px;border-bottom-left-radius:999px;padding-left:4px}
+.snMkCir.snMkB{border-top-right-radius:999px;border-bottom-right-radius:999px;padding-right:4px}
+#snApply{position:absolute;z-index:5;background:var(--accent);color:var(--bg);border:none;border-radius:999px;padding:5px 12px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.snPen #snPage,.snErase #snPage{touch-action:none}
+.snErase #snPage{cursor:cell}
+.snMemoTool #snPage{cursor:copy}
 .stSeg.stClimax .stSegRange{color:var(--gold,#d4af37)}
 .stStar{color:var(--gold,#d4af37);font-weight:700;margin-left:4px}
 .stXrefRow{font-size:12.5px;line-height:1.6;padding:4px 0;border-top:1px dashed var(--line)}
