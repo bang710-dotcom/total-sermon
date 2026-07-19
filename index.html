@@ -4561,8 +4561,9 @@ function studyFillCol(colEl, vid){
       }
     }
     var useSvz = STUDY.structOn && colEl.getAttribute('data-vi') === '0';
-    var html = rows.length ? (useSvz ? svzRowsHtml(rows) : rows.map(function(o){ return '<div class="sv"><span class="svn">' + o.label + '</span>' + o.inner + '</div>'; }).join('')) : '';
+    var html = rows.length ? (useSvz ? svzRowsHtml(rows) : rows.map(function(o){ return '<div class="sv" data-cv="' + o.cv + '"><span class="svn">' + o.label + '</span>' + o.inner + '</div>'; }).join('')) : '';
     colEl.innerHTML = html || '<div class="cnt">해당 절을 찾지 못했습니다.</div>';
+    if (colEl.getAttribute('data-vi') === '0') snAfterRender();
   }).catch(function(e){ colEl.innerHTML = '<div class="stWarn">불러오지 못했습니다.<br><span class="cnt">성경앱 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
 }
 function studyRenderText(){
@@ -4570,12 +4571,19 @@ function studyRenderText(){
   function opts(sel){ return TR_REG.map(function(r){ return '<option value="' + r.id + '"' + (r.id === sel ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join(''); }
   var bar = '<div class="stVerBar"><select class="stVerSel" data-vi="0">' + opts(STUDY.versions[0]) + '</select>';
   if (STUDY.split) bar += '<span class="stVerVs">↔</span><select class="stVerSel" data-vi="1">' + opts(STUDY.versions[1] || 'RNKSV') + '</select>';
-  bar += '<button class="svzTBtn' + (STUDY.structOn ? ' on' : '') + '" type="button" style="margin-left:auto">' + (STUDY.structOn ? '▦ 구조 켜짐' : '▦ 구조') + '</button>'
+  bar += '<button class="snTBtn' + (SNS.on ? ' on' : '') + '" type="button" style="margin-left:auto">' + (SNS.on ? '✎ 노트 켜짐' : '✎ 노트') + '</button>'
+    + '<button class="svzTBtn' + (STUDY.structOn ? ' on' : '') + '" type="button" style="margin-left:0">' + (STUDY.structOn ? '▦ 구조 켜짐' : '▦ 구조') + '</button>'
     + '<button class="stSplitBtn" type="button" style="margin-left:0">' + (STUDY.split ? '✕ 분할 해제' : '⊞ 2분할') + '</button></div>';
-  host.innerHTML = bar + (STUDY.structOn ? '<div id="svzBanner">' + svzBannerHtml() + '</div>' : '')
-    + '<div class="stCols' + (STUDY.split ? ' split' : '') + '"><div class="stCol" data-vi="0"></div>' + (STUDY.split ? '<div class="stCol" data-vi="1"></div>' : '') + '</div>';
+  var colsHtml = '<div class="stCols' + (STUDY.split ? ' split' : '') + '"><div class="stCol" data-vi="0"></div>' + (STUDY.split ? '<div class="stCol" data-vi="1"></div>' : '') + '</div>';
+  host.innerHTML = bar
+    + (SNS.on ? snBarHtml() : '')
+    + (STUDY.structOn ? '<div id="svzBanner">' + svzBannerHtml() + '</div>' : '')
+    + (SNS.on
+      ? '<div id="snWrap"><div id="snPage" style="' + snPageStyle() + '">' + colsHtml + '<svg id="snSvg" xmlns="http://www.w3.org/2000/svg"><g id="snGLines"></g><g id="snGInk"></g></svg><div id="snNotes"></div></div></div>'
+      : colsHtml);
   studyFillCol(host.querySelector('.stCol[data-vi="0"]'), STUDY.versions[0]);
   if (STUDY.split) studyFillCol(host.querySelector('.stCol[data-vi="1"]'), STUDY.versions[1] || 'RNKSV');
+  snApplyToolClass();
 }
 var COM_BASE = 'https://bible-7fi.pages.dev';   /* 호크마 주석 배포본 출처(성경앱) */
 var STUDY_HINT = '<div class="studyHint">왼쪽 본문에서 <b>한글 단어</b>를 누르면 여기에 원어·발음·뜻과 그 원어가 쓰인 다른 본문(용례)이 나옵니다.</div>';
@@ -5123,10 +5131,12 @@ function openStudy(ref){
   if (idx == null){ toast('성경 책을 인식하지 못했습니다: ' + r.book); return; }
   var ov = $('#studyOv'); if (!ov) return;
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  snReset();
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null;
   $('#studyTitle').textContent = ref + ' — 본문연구';
   studySetTab('orig');
   studyRenderText();
+  snProbe();
 }
 function studySetTab(tab){
   STUDY.tab = tab;
@@ -5246,7 +5256,9 @@ function fillConc(code){
   if (sb) sb.addEventListener('click', function(){ var ref = ($('#c_ref').value || '').trim(); if (!ref){ toast('먼저 본문을 입력해 주세요.'); return; } openStudy(ref); });
   var ov = $('#studyOv');
   if (ov) ov.addEventListener('click', function(e){
-    if (e.target === ov || (e.target.closest && e.target.closest('#studyClose'))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
+    if (e.target === ov || (e.target.closest && e.target.closest('#studyClose'))){ snFlush(); ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
+    var sd = e.target.closest && e.target.closest('#studySideBtn'); if (sd){ var bd = ov.querySelector('.studyBody'); if (bd) bd.classList.toggle('noSide'); return; }
+    var nt = e.target.closest && e.target.closest('.snTBtn'); if (nt){ snToggle(); return; }
     var zt = e.target.closest && e.target.closest('.svzTBtn'); if (zt){ svzToggle(); return; }
     var zg = e.target.closest && e.target.closest('.svzGenBtn'); if (zg){ svzGen(); return; }
     var zv = e.target.closest && e.target.closest('.svzVerify'); if (zv){ svzVerify(); return; }
@@ -5255,7 +5267,7 @@ function fillConc(code){
     var zc = e.target.closest && e.target.closest('.svzCut'); if (zc){ svzCutAt(+zc.getAttribute('data-cv')); return; }
     var zm = e.target.closest && e.target.closest('.svzMerge'); if (zm){ svzMergeAt(+zm.getAttribute('data-cv')); return; }
     var zu = e.target.closest && e.target.closest('.svzUseSuggest'); if (zu){ openStudy(zu.getAttribute('data-ref')); return; }
-    var sp = e.target.closest && e.target.closest('.stSplitBtn'); if (sp){ STUDY.split = !STUDY.split; if (STUDY.split && !STUDY.versions[1]) STUDY.versions[1] = (STUDY.versions[0] === 'RNKSV' ? 'NKRV' : 'RNKSV'); studyRenderText(); return; }
+    var sp = e.target.closest && e.target.closest('.stSplitBtn'); if (sp){ if (SNS.on){ toast('연구노트 모드에서는 2분할을 쓸 수 없습니다 — 노트를 먼저 꺼 주세요.'); return; } STUDY.split = !STUDY.split; if (STUDY.split && !STUDY.versions[1]) STUDY.versions[1] = (STUDY.versions[0] === 'RNKSV' ? 'NKRV' : 'RNKSV'); studyRenderText(); return; }
     var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }
     var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
@@ -5280,6 +5292,11 @@ function fillConc(code){
   if (ov) ov.addEventListener('change', function(e){
     var s = e.target.closest && e.target.closest('.stVerSel'); if (!s) return;
     var vi = +s.getAttribute('data-vi');
+    if (SNS.on && vi === 0 && SND && s.value !== SND.ver){
+      s.value = SND.ver;
+      toast('이 연구노트는 ' + ((TR_MAP[SND.ver] && TR_MAP[SND.ver].name) || SND.ver) + ' 본문 기준입니다 — 노트를 끄면 역본을 바꿀 수 있습니다.');
+      return;
+    }
     STUDY.versions[vi] = s.value;
     studyFillCol($('#studyText').querySelector('.stCol[data-vi="' + vi + '"]'), s.value);
   });
@@ -5390,7 +5407,7 @@ function svzRowsHtml(rows){
       var cut = ri > 0 ? '<button class="svzCut" type="button" data-cv="' + o.cv + '" title="여기서 단락 나누기"><i>✂ 나누기</i></button>' : '';
       var isTheme = o.cv === themeCv;
       var star = '<button class="svzStar' + (isTheme ? ' on' : '') + '" type="button" data-cv="' + o.cv + '" title="주제절로 지정/해제">★</button>';
-      return cut + '<div class="sv' + (isTheme ? ' svzTheme' : '') + '"><span class="svn">' + o.label + '</span>' + star + o.inner + '</div>';
+      return cut + '<div class="sv' + (isTheme ? ' svzTheme' : '') + '" data-cv="' + o.cv + '"><span class="svn">' + o.label + '</span>' + star + o.inner + '</div>';
     }).join('');
     return '<div class="svzBlk"><div class="svzHd"><span class="svzRange">' + esc(svzRangeLabel(f.cv, l.cv)) + '</span><span class="svzGist">'
       + esc(gist || (d && d.ai ? '내 단락 — [✓ 내 구조 검증]으로 요지·평가를 받으세요' : '')) + '</span>' + grade + merge + '</div>' + inner + '</div>';
