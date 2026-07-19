@@ -398,11 +398,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .illOptAct .btn.mini{flex:0 0 auto;width:auto;min-height:0;padding:7px 13px;font-size:12.5px}
 .illDoneBtn{color:var(--ok)!important;border-color:var(--ok)!important;opacity:1!important}
 .illOvFoot{position:sticky;bottom:0;background:var(--card);padding:10px 0 2px;display:flex;justify-content:flex-end;border-top:1px solid var(--line);margin-top:4px}
-#studyOv{position:fixed;inset:0;z-index:330;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+#studyOv{position:fixed;inset:0;z-index:330;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:0}
 #studyOv.on{display:flex;animation:fade .12s ease}
-.studyBox{background:var(--card);border:1px solid var(--line);border-radius:16px;width:1180px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.studyBox{background:var(--card);border:none;border-radius:0;width:100%;max-width:100%;height:100%;max-height:100%;display:flex;flex-direction:column;box-shadow:none}
 .studyBody{display:flex;align-items:stretch;flex:1 1 auto;min-height:0;overflow:hidden}
-.studyText{flex:1 1 58%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;border-right:1px solid var(--line)}
+.studyBody.noSide .studyDetail{display:none}
+.studyBody.noSide .studyText{border-right:none;flex:1 1 100%;max-height:none}
+.studyText{flex:1 1 58%;min-width:0;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;border-right:1px solid var(--line)}
 .stVerBar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:-4px 0 10px;position:sticky;top:-14px;background:var(--card);padding:8px 0;z-index:2}
 .stVerSel{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:13px}
 .stVerVs{color:var(--dim);font-size:13px}
@@ -1863,7 +1865,7 @@ body.uiDlgOpen{overflow:hidden}
 </div>
 <div id="studyOv" aria-hidden="true">
   <div class="studyBox" role="dialog" aria-modal="true" aria-label="본문 원어 연구">
-    <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x" id="studySideBtn" type="button" aria-label="오른쪽 패널 접기/펴기" title="오른쪽 패널 접기/펴기">⇔</button><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
     <div class="studyBody">
       <div id="studyText" class="studyText"></div>
       <div id="studyDetail" class="studyDetail">
