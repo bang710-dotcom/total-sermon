@@ -5189,6 +5189,7 @@ function openStudy(ref){
   studySetTab('orig');
   studyRenderText();
   snProbe();
+  svzProbe();
 }
 function studySetTab(tab){
   STUDY.tab = tab;
@@ -5417,6 +5418,42 @@ function svzSave(){
     }
   } catch (e) {}
   save(SVZ_LS, SVZ);
+  svzPushSoon(studyRangeKey());   /* 방금 바뀐 구간을 시트로도 올린다(다기기) */
+}
+/* ── 구조 시각화 다기기 동기화 — 연구노트 백엔드(noteGet/noteSet) 재사용, 키 접두어 'svz:' ── */
+var SVZ_TPUSH = {}, SVZ_REMOTE = {};
+function svzPushSoon(key){
+  if (!key || !SVZ[key]) return;
+  var s = state.settings; if (!s.url || !s.token) return;
+  clearTimeout(SVZ_TPUSH[key]);
+  SVZ_TPUSH[key] = setTimeout(function(){ svzPushSheet(key); }, 2200);
+}
+async function svzPushSheet(key){
+  var d = SVZ[key]; var s = state.settings;
+  if (!s.url || !s.token) return;
+  var up = new Date(d && d._t ? d._t : Date.now()).toISOString();
+  try {
+    await apiPost({ action: 'noteSet', key: 'svz:' + key, updatedAt: up, json: d ? JSON.stringify(d) : '' });
+    SVZ_REMOTE[key] = '☁';
+  } catch (e){ SVZ_REMOTE[key] = /알 수 없는 action/.test(String(e && e.message || '')) ? '구버전' : '대기'; }
+  if (STUDY.structOn && studyRangeKey() === key) svzPaintBanner();
+}
+/* 본문 열 때: 시트의 구조본이 더 최근이면 받아 덮는다(로컬이 최신이면 올린다) */
+async function svzProbe(){
+  var key = studyRangeKey(); if (!key) return;
+  var s = state.settings; if (!s.url || !s.token) return;
+  try {
+    var rm = await api({ action: 'noteGet', key: 'svz:' + key });
+    if (studyRangeKey() !== key || !rm) return;
+    var localT = (SVZ[key] && SVZ[key]._t) || 0;
+    var remoteT = rm.updatedAt ? Date.parse(rm.updatedAt) : 0;
+    if (rm.json && remoteT > localT){
+      SVZ[key] = JSON.parse(rm.json); SVZ_REMOTE[key] = '☁';
+      save(SVZ_LS, SVZ);
+      if (STUDY.structOn) studyRenderText();
+    } else if (rm.json){ SVZ_REMOTE[key] = '☁'; if (STUDY.structOn) svzPaintBanner(); }
+    else if (localT){ svzPushSoon(key); }   /* 시트엔 없고 로컬만 있으면 올림 */
+  } catch (e){ /* 시트 미설정·백엔드 구버전 — 로컬만으로 동작 */ }
 }
 function svzEnsure(){
   var key = studyRangeKey();
@@ -5519,7 +5556,10 @@ function svzBannerHtml(){
   if (d.user && d.dirty && aiKey()) h += '<button class="btn gold mini svzVerify" type="button">✓ 내 구조 검증</button>';
   if (d.user) h += '<button class="btn sub mini svzReset" type="button">↺ AI 구조로 되돌리기</button>';
   if (g.제안구간) h += '<button class="btn sub mini svzUseSuggest" type="button" data-ref="' + esc(g.제안구간) + '">제안 구간으로 열기 · ' + esc(g.제안구간) + '</button>';
-  h += '<button class="btn sub mini svzGenBtn" type="button">↻ 재분석</button></div></div>';
+  h += '<button class="btn sub mini svzGenBtn" type="button">↻ 재분석</button>';
+  var rm = SVZ_REMOTE[studyRangeKey()];
+  h += '<span class="svzTheme0" style="align-self:center;font-size:11px">' + (rm === '☁' ? '☁ 시트 동기화됨' : rm === '구버전' ? '⚠ 시트 동기화엔 Code.gs 갱신 필요' : rm === '대기' ? '⏳ 동기화 대기' : '') + '</span>';
+  h += '</div></div>';
   return h;
 }
 function svzPaintBanner(){ var el = $('#svzBanner'); if (el) el.innerHTML = svzBannerHtml(); }
@@ -5598,6 +5638,12 @@ function svzCutAt(cv){
 function svzMergeAt(cv){
   var d = svzEnsure(); var br = svzBreaks(d).filter(function(x){ return x !== cv; });
   d.user = d.user || {}; d.user.breaks = br; d.dirty = true; d._t = Date.now();
+  svzSave(); studyRenderText();
+}
+/* 내가 바꾼 구조(주제절·단락)를 지우고 AI 원분석으로 되돌린다 */
+function svzReset(){
+  var key = studyRangeKey(), d = SVZ[key]; if (!d) return;
+  d.user = null; d.verdict = null; d.dirty = false; d._t = Date.now();
   svzSave(); studyRenderText();
 }
 
@@ -18781,7 +18827,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v456';
+var APP_VER = 'v457';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
