@@ -5772,7 +5772,7 @@ function snBarHtml(){
     return '<button type="button" data-snw="' + p[0] + '"' + (SNS.penW === p[0] ? ' class="on"' : '') + '>' + p[1] + '</button>'; }).join('');
   return '<div class="snBar">'
     + tb('sel', '↖ 선택', '메모 이동·편집, 단어 원어 보기')
-    + tb('hl', '🖍 형광', '본문을 드래그(길게 눌러) 선택 → [칠하기], 단어는 탭')
+    + tb('hl', '🖍 형광', '펜슬로 본문을 긋는 대로 칠해집니다 · 단어는 탭, 손가락은 선택 후 [칠하기]')
     + tb('box', '▭ 박스', '단어 탭 또는 선택 → 박스 강조')
     + tb('cir', '◯ 원', '단어 탭 또는 선택 → 원 강조')
     + tb('memo', '🗒 메모', '본문 탭=연결 메모, 여백 탭=자유 메모')
@@ -6077,6 +6077,8 @@ function snPD(e){
   var t = e.target;
   if (t.closest && t.closest('.snBar')) return;
   var pg = $('#snPage'); if (!pg || !(pg === t || pg.contains(t))) return;
+  /* 펜 탭 추적(스크롤 차단으로 사라지는 click을 pointerup에서 합성하기 위함) */
+  if (e.pointerType === 'pen'){ SNS._penBlock = false; SNS._penDown = { x: e.clientX, y: e.clientY, t: Date.now() }; }
   var ah = t.closest && t.closest('.snAnchorH');
   if (ah){
     var hostN = ah.closest('.snNote');
@@ -6084,9 +6086,16 @@ function snPD(e){
     try { $('#studyText').setPointerCapture(e.pointerId); } catch (er) {}
     e.preventDefault(); e.stopPropagation(); return;
   }
-  /* 펜슬 특수동작 없음 — 필기는 [✒펜] 도구에서만, 그 외에는 iOS 기본 동작(탭·선택·스크롤) */
-  var penNow = (SNS.tool === 'pen');
   var noteEl = t.closest && t.closest('.snNote');
+  /* 형광 도구 + 펜슬 = 실제 형광펜처럼 긋는 대로 칠하기 */
+  if (SNS.tool === 'hl' && e.pointerType === 'pen' && !noteEl){
+    SNS.hlDrag = { pts: [], pp: [], last: null };
+    snHlAdd(e);
+    try { $('#studyText').setPointerCapture(e.pointerId); } catch (er) {}
+    e.preventDefault(); e.stopPropagation(); return;
+  }
+  /* 필기는 [✒펜] 도구에서만 — 그 외 도구의 펜슬은 탭(강조·선택)과 손글씨(스크리블)만 */
+  var penNow = (SNS.tool === 'pen');
   if (noteEl && !penNow){
     if (noteEl.classList.contains('editing') || (t.closest && t.closest('.snNTools'))) return;
     if (SNS.tool === 'erase') return;
@@ -6101,8 +6110,78 @@ function snPD(e){
   if (penNow){ snStartInk(e); e.preventDefault(); e.stopPropagation(); return; }
   if (SNS.tool === 'erase'){ SNS.erasing = true; snEraseAt(e); e.preventDefault(); e.stopPropagation(); return; }
 }
+/* 형광 긋기: 궤적 수집 + 라이브 미리보기 */
+function snHlAdd(e){
+  var d = SNS.hlDrag; if (!d) return;
+  if (d.last && Math.abs(e.clientX - d.last[0]) + Math.abs(e.clientY - d.last[1]) < 5) return;
+  d.last = [e.clientX, e.clientY];
+  d.pts.push(e.clientX, e.clientY);
+  var pt = snPt(e); if (!pt) return;
+  d.pp.push(Math.round(pt.x), Math.round(pt.y));
+  var p = $('#snHlTmp');
+  if (!p){
+    var gi = $('#snGInk'); if (!gi) return;
+    p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('id', 'snHlTmp'); p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', SNS.color); p.setAttribute('stroke-width', '14');
+    p.setAttribute('stroke-opacity', '0.4'); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
+    gi.appendChild(p);
+  }
+  p.setAttribute('d', snPathD(d.pp));
+}
+/* 궤적의 각 지점을 글자 위치로 환산 → 절별 min~max 범위를 형광 마크로 확정.
+   반환값: true = 탭 수준(마크 없음 — 호출부가 탭 처리로 이어감) */
+function snHlEnd(){
+  var d = SNS.hlDrag; SNS.hlDrag = null;
+  var p = $('#snHlTmp'); if (p && p.parentNode) p.parentNode.removeChild(p);
+  if (!d || !SND || d.pts.length < 4) return true;
+  var dx = Math.abs(d.pts[d.pts.length - 2] - d.pts[0]), dy = Math.abs(d.pts[d.pts.length - 1] - d.pts[1]);
+  if (dx + dy < 7) return true;
+  var per = {};
+  for (var i = 0; i < d.pts.length; i += 2){
+    var hit = snCaretAt(d.pts[i], d.pts[i + 1]);
+    if (!hit) continue;
+    var cur = per[hit.cv];
+    if (!cur) per[hit.cv] = { s: hit.s, e: hit.e };
+    else { cur.s = Math.min(cur.s, hit.s); cur.e = Math.max(cur.e, hit.e); }
+  }
+  var made = 0;
+  Object.keys(per).forEach(function(cv){
+    var g = per[cv];
+    if (g.e <= g.s) g.e = g.s + 1;
+    SND.marks.push({ id: snUid('m'), cv: +cv, s: g.s, e: g.e, kind: 'hl', color: SNS.color });
+    made++;
+  });
+  if (made){ snTouch(); snRefreshText(); }
+  return false;
+}
+/* 화면 좌표 → (절 cv, 본문 텍스트 오프셋) — 절번호·★ 등 스킵 영역이면 null */
+function snCaretAt(cx, cy){
+  var r = null;
+  try {
+    if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(cx, cy);
+    else if (document.caretPositionFromPoint){
+      var cp = document.caretPositionFromPoint(cx, cy);
+      if (cp && cp.offsetNode){ r = document.createRange(); r.setStart(cp.offsetNode, cp.offset); }
+    }
+  } catch (e){ r = null; }
+  if (!r || !r.startContainer) return null;
+  var nd = r.startContainer;
+  if (nd.nodeType !== 3) return null;
+  var el = nd.parentNode;
+  var sv = el && el.closest ? el.closest('.sv[data-cv]') : null;
+  if (!sv) return null;
+  var nodes = snTextNodes(sv), pos = 0, off = -1;
+  for (var i = 0; i < nodes.length; i++){
+    if (nodes[i] === nd){ off = pos + Math.min(r.startOffset, nodes[i].nodeValue.length); break; }
+    pos += nodes[i].nodeValue.length;
+  }
+  if (off < 0) return null;
+  return { cv: +sv.getAttribute('data-cv'), s: Math.max(0, off - 1), e: off + 1 };
+}
 function snPM(e){
   if (!SNS.on) return;
+  if (SNS.hlDrag){ snHlAdd(e); if (e.cancelable) e.preventDefault(); return; }
   if (SNS.draw){ snMoveInk(e); if (e.cancelable) e.preventDefault(); return; }
   if (SNS.dragNote){
     var pt = snPt(e); if (!pt) return;
@@ -6137,9 +6216,10 @@ function snPM(e){
 function snPU(e){
   if (!SNS.on) return;
   if (SNS.draw){ snEndInk(); return; }
+  if (SNS.hlDrag){ if (!snHlEnd()) return; /* 탭이면 아래 합성 클릭으로 */ }
   if (SNS.dragNote){
-    if (SNS.dragNote.moved){ snTouch(); snLayout(); SNS.dragSquelch = Date.now(); }
-    SNS.dragNote = null; return;
+    if (SNS.dragNote.moved){ snTouch(); snLayout(); SNS.dragSquelch = Date.now(); SNS.dragNote = null; return; }
+    SNS.dragNote = null; /* 탭 — 아래 합성 클릭으로 메모 선택 등 처리 */
   }
   if (SNS.anchorDrag){
     var tl = $('#snTmpLine'); if (tl && tl.parentNode) tl.parentNode.removeChild(tl);
@@ -6158,6 +6238,15 @@ function snPU(e){
     return;
   }
   if (SNS.erasing) SNS.erasing = false;
+  /* 펜 탭 합성 클릭 — 스크롤 차단(touchstart preventDefault)으로 사라진 click을 되살린다.
+     (단어 탭 강조·메모 선택·구조 뷰 ★/✂·원어 보기 등 기존 탭 동작이 펜슬로도 유지됨) */
+  if (e.pointerType === 'pen' && SNS._penBlock && SNS._penDown){
+    var pd = SNS._penDown; SNS._penDown = null; SNS._penBlock = false;
+    if (Math.abs(e.clientX - pd.x) < 8 && Math.abs(e.clientY - pd.y) < 8 && Date.now() - pd.t < 600){
+      var tgt = document.elementFromPoint(e.clientX, e.clientY) || e.target;
+      try { if (tgt && tgt.click) tgt.click(); } catch (er){}
+    }
+  }
 }
 function snClick(e){
   if (!SNS.on || !SND) return;
@@ -6229,6 +6318,19 @@ function snClick(e){
   window.addEventListener('pointerup', snPU);
   window.addEventListener('pointercancel', snPU);
   st.addEventListener('click', snClick);
+  /* 노트 모드: 펜슬로는 스크롤되지 않게 — 스크롤은 손가락 전용.
+     (stylus 터치의 기본동작을 차단; 이때 사라지는 click은 snPU의 펜 탭 합성이 되살린다.
+      단, 메모 편집 중에는 스크리블 손글씨가 되도록 차단하지 않는다) */
+  st.addEventListener('touchstart', function(e){
+    if (!SNS.on) return;
+    var t0 = e.changedTouches && e.changedTouches[0];
+    if (!t0 || t0.touchType !== 'stylus') return;
+    var tg = e.target;
+    if (!tg.closest || !tg.closest('#snPage')) return;
+    var noteHost = tg.closest('.snNote');
+    if (noteHost && noteHost.classList.contains('editing')) return;
+    if (e.cancelable){ e.preventDefault(); SNS._penBlock = true; }
+  }, { passive: false });
   st.addEventListener('input', function(e){
     var tx = e.target && e.target.classList && e.target.classList.contains('snNTx') ? e.target : null;
     if (!tx) return;
@@ -18679,7 +18781,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v455';
+var APP_VER = 'v456';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
