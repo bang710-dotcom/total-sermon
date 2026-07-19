@@ -405,7 +405,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .studyBody.noSide .studyDetail{display:none}
 .studyBody.noSide .studyText{border-right:none;flex:1 1 100%;max-height:none}
 .studyText{flex:1 1 58%;min-width:0;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;border-right:1px solid var(--line)}
-.stVerBar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:-4px 0 10px;position:sticky;top:-14px;background:var(--card);padding:8px 0;z-index:2}
+.stVerBar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:-4px 0 10px;position:sticky;top:-14px;left:0;background:var(--card);padding:8px 0;z-index:2;max-width:100vw}
 .stVerSel{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:13px}
 .stVerVs{color:var(--dim);font-size:13px}
 .stSplitBtn{margin-left:auto;flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent);border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12.5px;cursor:pointer}
@@ -5519,6 +5519,613 @@ function svzMergeAt(cv){
   d.user = d.user || {}; d.user.breaks = br; d.dirty = true; d._t = Date.now();
   svzSave(); studyRenderText();
 }
+
+/* ===================== 연구노트 — 아날로그 필기 모드 (v452) =====================
+   본문연구 왼쪽 본문을 "종이 노트 페이지"로 만든다: 고정폭 본문 + 상하좌우 여백.
+   ① 형광펜(6색)·박스·원 강조 — 텍스트 선택(드래그/길게 누르기) 후 [칠하기], 또는 단어 탭
+   ② 여백 메모(민무늬/박스/타원) — 본문·마크와 연결선(마인드맵), 끌어서 이동, ⚓로 재연결
+   ③ 펜 잉크 — 애플펜슬은 어느 도구에서든 바로 필기(손가락은 [✒펜] 도구), 지우개는 획 단위
+   저장: 절+글자 오프셋 앵커(마크)·페이지 좌표(메모·잉크). IndexedDB 자동저장 +
+   시트 웹앱 noteGet/noteSet(청크) 동기화 — 같은 본문을 다시 열면 그대로 복원. */
+var SN = { textW: 760, mL: 230, mR: 230, mT: 70, mB: 240, pageW: 1220 };
+var SN_COLORS = ['#facc15', '#4ade80', '#60a5fa', '#fb923c', '#f472b6', '#a78bfa'];
+var SNS = { on: false, tool: 'sel', color: '#facc15', penW: 3, zoom: 1, selNote: null,
+  draw: null, dragNote: null, anchorDrag: null, erasing: false, dragSquelch: 0, _selT: null };
+var SND = null;                                   /* 현재 문서 */
+var SN_DIRTY = false, SN_NEEDPUSH = false, SN_TSAVE = null, SN_TPUSH = null, SN_REMOTE = '';
+function snUid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function snNewDoc(){ return { key: studyRangeKey(), ver: STUDY.versions[0] || 'NKRV', updatedAt: new Date().toISOString(), marks: [], notes: [], ink: [] }; }
+function snEmpty(d){ return !d || (!(d.marks || []).length && !(d.notes || []).length && !(d.ink || []).length); }
+function snNote(id){ var a = (SND && SND.notes) || []; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
+function snR1(v){ return Math.round(v * 10) / 10; }
+function snPageStyle(){
+  return 'width:' + SN.pageW + 'px;padding:' + SN.mT + 'px ' + SN.mR + 'px ' + SN.mB + 'px ' + SN.mL + 'px;zoom:' + SNS.zoom;
+}
+function snPt(e){
+  var pg = $('#snPage'); if (!pg) return null;
+  var r = pg.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / SNS.zoom, y: (e.clientY - r.top) / SNS.zoom };
+}
+/* ── 상태·저장 ── */
+function snStatusText(){
+  if (!SND) return '';
+  if (SN_DIRTY) return '저장 중…';
+  return '✓ 저장됨' + (SN_REMOTE ? ' · 시트 ' + SN_REMOTE : '');
+}
+function snStatus(){ var el = $('#snStatus'); if (el) el.textContent = snStatusText(); }
+function snTouch(){
+  if (!SND) return;
+  SND.updatedAt = new Date().toISOString();
+  SN_DIRTY = true; SN_NEEDPUSH = true; snStatus();
+  clearTimeout(SN_TSAVE);
+  SN_TSAVE = setTimeout(snSaveLocal, 700);
+}
+function snSaveLocal(){
+  if (!SND) return;
+  idbSet('snote:' + SND.key, SND).then(function(){ SN_DIRTY = false; snStatus(); }).catch(function(){});
+  snPushSoon();
+}
+function snPushSoon(){ clearTimeout(SN_TPUSH); SN_TPUSH = setTimeout(snPushSheet, 2500); }
+async function snPushSheet(){
+  if (!SND || !SN_NEEDPUSH) return;
+  var s = state.settings; if (!s.url || !s.token){ SN_REMOTE = ''; snStatus(); return; }
+  var doc = SND;
+  try {
+    await apiPost({ action: 'noteSet', key: doc.key, updatedAt: doc.updatedAt, json: snEmpty(doc) ? '' : JSON.stringify(doc) });
+    if (SND === doc) SN_NEEDPUSH = false;
+    SN_REMOTE = '☁';
+  } catch (e){
+    SN_REMOTE = /알 수 없는 action/.test(String(e && e.message || '')) ? '구버전(Code.gs 갱신 필요)' : '대기';
+  }
+  snStatus();
+}
+function snFlush(){
+  clearTimeout(SN_TSAVE); clearTimeout(SN_TPUSH);
+  if (SND && SN_DIRTY){ idbSet('snote:' + SND.key, SND).catch(function(){}); SN_DIRTY = false; }
+  if (SND && SN_NEEDPUSH) snPushSheet();
+}
+function snReset(){
+  snFlush();
+  SNS.on = false; SNS.selNote = null; SNS.draw = null; SNS.dragNote = null; SNS.anchorDrag = null; SNS.erasing = false;
+  SND = null; SN_REMOTE = '';
+  snApplyToolClass(); snHideApply();
+  var bd = document.querySelector('.studyBody'); if (bd) bd.classList.remove('noSide');
+}
+/* 열 때: 로컬 → (설정 시) 시트 순으로 저장본을 찾아 있으면 자동으로 노트 모드 켬 */
+async function snProbe(){
+  var key = studyRangeKey(); if (!key) return;
+  var local = null;
+  try { local = await idbGet('snote:' + key); } catch (e){}
+  if (studyRangeKey() !== key) return;
+  if (local && !snEmpty(local) && !SNS.on){ SND = local; snEnable(); }
+  else if (local) SND = local;
+  try {
+    var s = state.settings; if (!s.url || !s.token) return;
+    var rm = await api({ action: 'noteGet', key: key });
+    if (studyRangeKey() !== key || !rm) return;
+    if (rm.json){
+      var doc = JSON.parse(rm.json);
+      if (!local || String(doc.updatedAt || '') > String(local.updatedAt || '')){
+        SND = doc; idbSet('snote:' + key, doc).catch(function(){});
+        SN_REMOTE = '☁';
+        if (!SNS.on && !snEmpty(doc)) snEnable(); else if (SNS.on) studyRenderText();
+        return;
+      }
+      SN_REMOTE = '☁'; snStatus();
+    }
+    if (local && rm && String(local.updatedAt || '') > String(rm.updatedAt || '')){ SN_NEEDPUSH = true; snPushSoon(); }
+  } catch (e){ /* 시트 미설정·백엔드 구버전 — 로컬만으로 동작 */ }
+}
+/* ── 켜기/끄기 ── */
+function snToggle(){
+  if (SNS.on){
+    snFlush();
+    SNS.on = false; SNS.selNote = null; SNS.draw = null;
+    snApplyToolClass(); snHideApply();
+    studyRenderText();
+    return;
+  }
+  if (!SND || SND.key !== studyRangeKey()) SND = snNewDoc();
+  snEnable();
+}
+function snEnable(){
+  SNS.on = true; SNS.tool = 'sel'; SNS.selNote = null;
+  if (!SND) SND = snNewDoc();
+  if (SND.ver && STUDY.versions[0] !== SND.ver) STUDY.versions[0] = SND.ver;
+  STUDY.split = false;
+  var bd = document.querySelector('.studyBody'); if (bd) bd.classList.add('noSide');
+  snFitZoom();
+  studyRenderText();
+}
+function snFitZoom(){
+  var host = $('#studyText');
+  var w = host ? host.clientWidth - 34 : SN.pageW;
+  SNS.zoom = Math.max(0.4, Math.min(1, Math.round(w / SN.pageW * 100) / 100));
+}
+function snZoom(dir){
+  if (dir === 0) snFitZoom();
+  else SNS.zoom = Math.max(0.4, Math.min(1.6, Math.round((SNS.zoom + dir * 0.1) * 10) / 10));
+  var pg = $('#snPage'); if (pg) pg.style.zoom = SNS.zoom;
+  snBarRepaint(); snLayout();
+}
+function snApplyToolClass(){
+  var st = $('#studyText'); if (!st) return;
+  st.classList.toggle('snPen', SNS.on && SNS.tool === 'pen');
+  st.classList.toggle('snErase', SNS.on && SNS.tool === 'erase');
+  st.classList.toggle('snMemoTool', SNS.on && SNS.tool === 'memo');
+}
+/* ── 툴바 ── */
+function snBarHtml(){
+  function tb(t, label, title){ return '<button type="button" data-sntool="' + t + '"' + (SNS.tool === t ? ' class="on"' : '') + ' title="' + title + '">' + label + '</button>'; }
+  var cols = SN_COLORS.map(function(c){ return '<button type="button" class="snCol' + (SNS.color === c ? ' on' : '') + '" data-sncol="' + c + '" style="background:' + c + '" title="색"></button>'; }).join('');
+  var ws = '';
+  if (SNS.tool === 'pen') ws = '<span class="snSep"></span>' + [[1.8, '가늘게'], [3, '중간'], [5.5, '굵게']].map(function(p){
+    return '<button type="button" data-snw="' + p[0] + '"' + (SNS.penW === p[0] ? ' class="on"' : '') + '>' + p[1] + '</button>'; }).join('');
+  return '<div class="snBar">'
+    + tb('sel', '↖ 선택', '메모 이동·편집, 단어 원어 보기')
+    + tb('hl', '🖍 형광', '본문을 드래그(길게 눌러) 선택 → [칠하기], 단어는 탭')
+    + tb('box', '▭ 박스', '단어 탭 또는 선택 → 박스 강조')
+    + tb('cir', '◯ 원', '단어 탭 또는 선택 → 원 강조')
+    + tb('memo', '🗒 메모', '본문 탭=연결 메모, 여백 탭=자유 메모')
+    + tb('pen', '✒ 펜', '자유 필기 (애플펜슬은 어느 도구에서나 바로)')
+    + tb('erase', '◌ 지우개', '획·형광·박스·원을 탭해 지우기')
+    + '<span class="snSep"></span>' + cols + ws
+    + '<span class="snSep"></span>'
+    + '<button type="button" data-snzoom="-1" title="축소">−</button>'
+    + '<button type="button" data-snzoom="0" title="화면 맞춤">' + Math.round(SNS.zoom * 100) + '%</button>'
+    + '<button type="button" data-snzoom="1" title="확대">＋</button>'
+    + '<span class="snStatus" id="snStatus">' + snStatusText() + '</span></div>';
+}
+function snBarRepaint(){ var bar = document.querySelector('#studyText .snBar'); if (bar) bar.outerHTML = snBarHtml(); }
+/* ── 렌더 후처리: 마크 적용 + 메모 + 레이아웃 ── */
+function snAfterRender(){
+  if (!SNS.on || !SND) return;
+  snApplyMarks();
+  snRenderNotes();
+  snLayout();
+}
+function snVerseEls(){
+  var col = document.querySelector('#studyText .stCol[data-vi="0"]');
+  return col ? Array.prototype.slice.call(col.querySelectorAll('.sv[data-cv]')) : [];
+}
+/* 절 요소 안의 "본문 텍스트 노드"만 순서대로 (절번호·★·NET 번호 제외) — 오프셋 기준 */
+function snTextNodes(sv){
+  var out = [], w = document.createTreeWalker(sv, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(n){
+      var p = n.parentNode;
+      while (p && p !== sv){
+        if (p.classList && (p.classList.contains('svn') || p.classList.contains('svzStar') || p.classList.contains('net-n'))) return NodeFilter.FILTER_REJECT;
+        p = p.parentNode;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  var n; while ((n = w.nextNode())) out.push(n);
+  return out;
+}
+function snApplyMarks(){
+  if (!SND || !(SND.marks || []).length) return;
+  var byCv = {};
+  SND.marks.forEach(function(m){ (byCv[m.cv] = byCv[m.cv] || []).push(m); });
+  snVerseEls().forEach(function(sv){
+    var list = byCv[+sv.getAttribute('data-cv')]; if (!list) return;
+    list.forEach(function(m){ snWrapMark(sv, m); });
+  });
+}
+function snWrapMark(sv, m){
+  var nodes = snTextNodes(sv), pos = 0, segs = [];
+  nodes.forEach(function(nd){
+    var len = nd.nodeValue.length;
+    var a = Math.max(m.s - pos, 0), b = Math.min(m.e - pos, len);
+    if (b > a) segs.push({ nd: nd, a: a, b: b });
+    pos += len;
+  });
+  for (var i = segs.length - 1; i >= 0; i--){
+    var g = segs[i], r = document.createRange();
+    try {
+      r.setStart(g.nd, g.a); r.setEnd(g.nd, g.b);
+      var sp = document.createElement('span');
+      sp.className = 'snMk ' + (m.kind === 'hl' ? 'snMkHl' : m.kind === 'box' ? 'snMkBox' : 'snMkCir')
+        + (i === 0 ? ' snMkA' : '') + (i === segs.length - 1 ? ' snMkB' : '');
+      sp.setAttribute('data-mid', m.id);
+      if (m.kind === 'hl') sp.style.background = m.color + '55';
+      else sp.style.borderColor = m.color;
+      r.surroundContents(sp);
+    } catch (e) {}
+  }
+}
+/* 선택 범위 → 절별 오프셋 */
+function snRangeOffsets(sv, range){
+  var nodes = snTextNodes(sv), pos = 0, s = -1, e = -1;
+  for (var i = 0; i < nodes.length; i++){
+    var nd = nodes[i], len = nd.nodeValue.length;
+    if (range.startContainer === nd) s = pos + Math.min(range.startOffset, len);
+    if (range.endContainer === nd) e = pos + Math.min(range.endOffset, len);
+    else { try { if (range.comparePoint(nd, len) === 0) e = pos + len; } catch (er) {} }
+    if (s < 0){ try { if (range.comparePoint(nd, 0) === 0) s = pos; } catch (er) {} }
+    pos += len;
+  }
+  if (s >= 0 && e < 0) e = pos;
+  if (s < 0 || e <= s) return null;
+  return { s: s, e: e };
+}
+function snSelApply(){
+  if (!SND) return false;
+  var selObj = window.getSelection();
+  if (!selObj || selObj.rangeCount === 0 || selObj.isCollapsed) return false;
+  var range = selObj.getRangeAt(0), made = 0;
+  snVerseEls().forEach(function(sv){
+    var hit; try { hit = range.intersectsNode(sv); } catch (e){ hit = false; }
+    if (!hit) return;
+    var off = snRangeOffsets(sv, range);
+    if (!off || off.e - off.s < 1) return;
+    SND.marks.push({ id: snUid('m'), cv: +sv.getAttribute('data-cv'), s: off.s, e: off.e, kind: SNS.tool, color: SNS.color });
+    made++;
+  });
+  if (made){
+    try { selObj.removeAllRanges(); } catch (e) {}
+    snHideApply(); snTouch(); snRefreshText();
+  }
+  return !!made;
+}
+function snMarkWord(sv, wordEl){
+  var nodes = snTextNodes(sv), pos = 0, s = -1, e = -1;
+  nodes.forEach(function(nd){
+    var len = nd.nodeValue.length;
+    if (wordEl.contains(nd)){ if (s < 0) s = pos; e = pos + len; }
+    pos += len;
+  });
+  if (s < 0 || e <= s) return;
+  SND.marks.push({ id: snUid('m'), cv: +sv.getAttribute('data-cv'), s: s, e: e, kind: SNS.tool, color: SNS.color });
+  snTouch(); snRefreshText();
+}
+function snRefreshText(){
+  var col = document.querySelector('#studyText .stCol[data-vi="0"]');
+  if (col) studyFillCol(col, STUDY.versions[0]);
+}
+/* ── [칠하기] 플로팅 버튼 ── */
+function snShowApply(){
+  var pg = $('#snPage'); if (!pg) return snHideApply();
+  if (!(SNS.tool === 'hl' || SNS.tool === 'box' || SNS.tool === 'cir')) return snHideApply();
+  var sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return snHideApply();
+  var range = sel.getRangeAt(0);
+  var col = document.querySelector('#studyText .stCol[data-vi="0"]');
+  var ok; try { ok = col && range.intersectsNode(col); } catch (e){ ok = false; }
+  if (!ok) return snHideApply();
+  var rc = range.getBoundingClientRect(), pr = pg.getBoundingClientRect(), z = SNS.zoom;
+  var btn = $('#snApply');
+  if (!btn){
+    btn = document.createElement('button'); btn.id = 'snApply'; btn.type = 'button';
+    btn.addEventListener('pointerdown', function(ev){ ev.preventDefault(); ev.stopPropagation(); snSelApply(); });
+    pg.appendChild(btn);
+  }
+  btn.textContent = SNS.tool === 'hl' ? '🖍 칠하기' : SNS.tool === 'box' ? '▭ 박스 치기' : '◯ 원 강조';
+  btn.style.left = Math.max(4, (rc.left - pr.left) / z) + 'px';
+  btn.style.top = Math.max(4, (rc.top - pr.top) / z - 42) + 'px';
+}
+function snHideApply(){ var b = $('#snApply'); if (b && b.parentNode) b.parentNode.removeChild(b); }
+/* ── 메모 ── */
+function snNoteToolsHtml(n){
+  var cols = SN_COLORS.map(function(c){ return '<button type="button" class="snCol" data-nncol="' + c + '" style="background:' + c + '"></button>'; }).join('');
+  return '<div class="snNTools">'
+    + '<button type="button" data-nnshape="1" title="모양(박스/타원/민무늬)">' + (n.shape === 'ell' ? '◯' : n.shape === 'plain' ? '〰' : '▭') + '</button>'
+    + '<button type="button" data-nnsize="1" title="너비 바꾸기">↔</button>' + cols
+    + '<button type="button" data-nndel="1" title="메모 삭제">✕</button></div>';
+}
+function snRenderNotes(){
+  var layer = $('#snNotes'); if (!layer || !SND) return;
+  layer.innerHTML = (SND.notes || []).map(function(n){
+    var shape = n.shape === 'ell' ? 'sh-ell' : n.shape === 'plain' ? 'sh-plain' : 'sh-rect';
+    var on = SNS.selNote === n.id;
+    return '<div class="snNote ' + shape + (on ? ' sel' : '') + '" data-nid="' + n.id + '" style="left:' + n.x + 'px;top:' + n.y + 'px;width:' + (n.w || 180) + 'px;border-color:' + n.color + '">'
+      + (on ? snNoteToolsHtml(n) : '')
+      + '<div class="snNTx"' + (n.shape === 'plain' ? ' style="color:' + n.color + '"' : '') + '>' + esc(n.text || '') + '</div>'
+      + (on ? '<div class="snAnchorH" title="끌어서 본문·마크·다른 메모에 연결">⚓</div>' : '')
+      + '</div>';
+  }).join('');
+}
+function snCreateNote(e, pt){
+  var t = e.target, anchor = null, x = pt.x, y = pt.y;
+  var mk = t.closest && t.closest('.snMk');
+  var sv = t.closest && t.closest('.sv[data-cv]');
+  if (mk) anchor = { t: 'm', id: mk.getAttribute('data-mid') };
+  else if (sv) anchor = { t: 'v', cv: +sv.getAttribute('data-cv') };
+  if (anchor){
+    x = (pt.x < SN.mL + SN.textW / 2) ? 14 : (SN.mL + SN.textW + 26);
+    y = Math.max(8, pt.y - 16);
+  } else { x = Math.max(4, x - 20); y = Math.max(4, y - 14); }
+  var n = { id: snUid('n'), x: Math.round(x), y: Math.round(y), w: 180, shape: anchor ? 'rect' : 'plain', color: SNS.color, text: '', anchor: anchor };
+  (SND.notes = SND.notes || []).push(n);
+  snTouch(); snRenderNotes(); snLayout();
+  snEditNote(n.id);
+}
+function snEditNote(id){
+  SNS.selNote = id; snRenderNotes(); snLayout();
+  var el = document.querySelector('#snNotes .snNote[data-nid="' + id + '"]'); if (!el) return;
+  el.classList.add('editing');
+  var tx = el.querySelector('.snNTx');
+  try { tx.setAttribute('contenteditable', 'plaintext-only'); } catch (e){}
+  if (tx.contentEditable !== 'plaintext-only') tx.setAttribute('contenteditable', 'true');
+  tx.focus();
+  try {
+    var r = document.createRange(); r.selectNodeContents(tx); r.collapse(false);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  } catch (e){}
+}
+/* ── 레이아웃: SVG 크기·잉크·연결선·페이지 높이 ── */
+function snPathD(pts){
+  if (!pts || pts.length < 4) return '';
+  var d = 'M' + pts[0] + ' ' + pts[1];
+  if (pts.length === 4) return d + ' L' + pts[2] + ' ' + pts[3];
+  for (var i = 2; i + 3 < pts.length; i += 2){
+    d += ' Q' + pts[i] + ' ' + pts[i + 1] + ' ' + snR1((pts[i] + pts[i + 2]) / 2) + ' ' + snR1((pts[i + 1] + pts[i + 3]) / 2);
+  }
+  return d + ' L' + pts[pts.length - 2] + ' ' + pts[pts.length - 1];
+}
+function snLayout(){
+  var pg = $('#snPage'), svg = $('#snSvg'); if (!pg || !svg || !SND) return;
+  var maxY = 0;
+  (SND.ink || []).forEach(function(k){ for (var i = 1; i < k.pts.length; i += 2) if (k.pts[i] > maxY) maxY = k.pts[i]; });
+  (SND.notes || []).forEach(function(n){ if (n.y + 90 > maxY) maxY = n.y + 90; });
+  pg.style.minHeight = maxY ? Math.ceil(maxY + 140) + 'px' : '';
+  svg.setAttribute('viewBox', '0 0 ' + pg.clientWidth + ' ' + pg.clientHeight);
+  var gi = $('#snGInk');
+  if (gi) gi.innerHTML = (SND.ink || []).map(function(k){
+    return '<path data-kid="' + k.id + '" d="' + snPathD(k.pts) + '" fill="none" stroke="' + k.color + '" stroke-width="' + k.w + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  }).join('');
+  snDrawLines();
+}
+function snDrawLines(){
+  var g = $('#snGLines'), pg = $('#snPage'); if (!g || !pg || !SND) return;
+  var pr = pg.getBoundingClientRect(), z = SNS.zoom, out = '';
+  (SND.notes || []).forEach(function(n){
+    if (!n.anchor) return;
+    var el = null;
+    if (n.anchor.t === 'm') el = document.querySelector('#snPage .snMk[data-mid="' + n.anchor.id + '"]');
+    else if (n.anchor.t === 'v') el = document.querySelector('#snPage .sv[data-cv="' + n.anchor.cv + '"]');
+    else if (n.anchor.t === 'n') el = document.querySelector('#snNotes .snNote[data-nid="' + n.anchor.id + '"]');
+    if (!el) return;
+    var ne = document.querySelector('#snNotes .snNote[data-nid="' + n.id + '"]'); if (!ne) return;
+    var er = el.getBoundingClientRect(), nr = ne.getBoundingClientRect();
+    var ax = (er.left + er.width / 2 - pr.left) / z, ay = (er.top + er.height / 2 - pr.top) / z;
+    var nx = (nr.left - pr.left) / z, ny = (nr.top - pr.top) / z, nw = nr.width / z, nh = nr.height / z;
+    var sx = ax < nx ? nx : ax > nx + nw ? nx + nw : ax;
+    var sy = ay < ny ? ny : ay > ny + nh ? ny + nh : ay;
+    if (sx > nx && sx < nx + nw && sy > ny && sy < ny + nh){ sx = nx; sy = ny + nh / 2; }
+    var dx = ax - sx, dy = ay - sy, ex, ey;
+    if (Math.abs(dx) > Math.abs(dy)){ ex = (dx > 0 ? er.left : er.right); ex = (ex - pr.left) / z; ey = ay; }
+    else { ey = (dy > 0 ? er.top : er.bottom); ey = (ey - pr.top) / z; ex = ax; }
+    var mx = (sx + ex) / 2, my = (sy + ey) / 2 - 14;
+    out += '<path d="M' + snR1(sx) + ' ' + snR1(sy) + ' Q' + snR1(mx) + ' ' + snR1(my) + ' ' + snR1(ex) + ' ' + snR1(ey) + '" fill="none" stroke="' + n.color + '" stroke-width="1.5" opacity="0.85"/>'
+      + '<circle cx="' + snR1(ex) + '" cy="' + snR1(ey) + '" r="2.6" fill="' + n.color + '"/>';
+  });
+  var tmp = $('#snTmpLine'), keep = tmp ? tmp.outerHTML : '';
+  g.innerHTML = out + keep;
+}
+/* ── 잉크 ── */
+function snStartInk(e){
+  var pt = snPt(e); if (!pt || !SND) return;
+  SNS.draw = { id: snUid('k'), color: SNS.color, w: SNS.penW, pts: [Math.round(pt.x), Math.round(pt.y)] };
+  var gi = $('#snGInk');
+  if (gi){
+    var p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('id', 'snTmpPath'); p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', SNS.draw.color); p.setAttribute('stroke-width', SNS.draw.w);
+    p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
+    gi.appendChild(p);
+  }
+  try { $('#studyText').setPointerCapture(e.pointerId); } catch (er) {}
+}
+function snMoveInk(e){
+  var d = SNS.draw; if (!d) return;
+  var pt = snPt(e); if (!pt) return;
+  var n = d.pts.length, lx = d.pts[n - 2], ly = d.pts[n - 1];
+  var x = Math.round(pt.x), y = Math.round(pt.y);
+  if ((x - lx) * (x - lx) + (y - ly) * (y - ly) < 3) return;
+  d.pts.push(x, y);
+  var p = $('#snTmpPath'); if (p) p.setAttribute('d', snPathD(d.pts));
+}
+function snEndInk(){
+  var d = SNS.draw; SNS.draw = null;
+  var p = $('#snTmpPath'); if (p && p.parentNode) p.parentNode.removeChild(p);
+  if (!d || d.pts.length < 6 || !SND) return;
+  (SND.ink = SND.ink || []).push(d);
+  snTouch(); snLayout();
+}
+function snSegDist(px, py, x1, y1, x2, y2){
+  var dx = x2 - x1, dy = y2 - y1;
+  var t = (dx || dy) ? ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy) : 0;
+  t = Math.max(0, Math.min(1, t));
+  var qx = x1 + t * dx - px, qy = y1 + t * dy - py;
+  return Math.sqrt(qx * qx + qy * qy);
+}
+function snEraseAt(e){
+  var pt = snPt(e); if (!pt || !SND) return;
+  var rr = 9 / SNS.zoom + 4, del = false;
+  SND.ink = (SND.ink || []).filter(function(k){
+    for (var i = 0; i + 3 < k.pts.length; i += 2){
+      if (snSegDist(pt.x, pt.y, k.pts[i], k.pts[i + 1], k.pts[i + 2], k.pts[i + 3]) < rr){ del = true; return false; }
+    }
+    return true;
+  });
+  if (del){ snTouch(); snLayout(); }
+}
+/* ── 포인터 흐름 ── */
+function snPD(e){
+  if (!SNS.on || !SND) return;
+  var t = e.target;
+  if (t.closest && t.closest('.snBar')) return;
+  var pg = $('#snPage'); if (!pg || !(pg === t || pg.contains(t))) return;
+  var ah = t.closest && t.closest('.snAnchorH');
+  if (ah){
+    var hostN = ah.closest('.snNote');
+    SNS.anchorDrag = { id: hostN.getAttribute('data-nid') };
+    try { $('#studyText').setPointerCapture(e.pointerId); } catch (er) {}
+    e.preventDefault(); e.stopPropagation(); return;
+  }
+  var penNow = (SNS.tool === 'pen') || (e.pointerType === 'pen' && SNS.tool !== 'erase');
+  var noteEl = t.closest && t.closest('.snNote');
+  if (noteEl && !penNow){
+    if (noteEl.classList.contains('editing') || (t.closest && t.closest('.snNTools'))) return;
+    if (SNS.tool === 'erase') return;
+    var n0 = snNote(noteEl.getAttribute('data-nid'));
+    var pt0 = snPt(e);
+    if (n0 && pt0){
+      SNS.dragNote = { id: n0.id, dx: pt0.x - n0.x, dy: pt0.y - n0.y, moved: false };
+      try { $('#studyText').setPointerCapture(e.pointerId); } catch (er) {}
+    }
+    return;
+  }
+  if (penNow){ snStartInk(e); e.preventDefault(); e.stopPropagation(); return; }
+  if (SNS.tool === 'erase'){ SNS.erasing = true; snEraseAt(e); e.preventDefault(); e.stopPropagation(); return; }
+}
+function snPM(e){
+  if (!SNS.on) return;
+  if (SNS.draw){ snMoveInk(e); if (e.cancelable) e.preventDefault(); return; }
+  if (SNS.dragNote){
+    var pt = snPt(e); if (!pt) return;
+    var dn = SNS.dragNote, n = snNote(dn.id); if (!n) return;
+    var nx = pt.x - dn.dx, ny = pt.y - dn.dy;
+    if (!dn.moved && Math.abs(nx - n.x) + Math.abs(ny - n.y) < 3) return;
+    dn.moved = true;
+    n.x = Math.round(Math.max(0, Math.min(nx, SN.pageW - 70)));
+    n.y = Math.round(Math.max(0, ny));
+    var el = document.querySelector('#snNotes .snNote[data-nid="' + dn.id + '"]');
+    if (el){ el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; }
+    snDrawLines();
+    if (e.cancelable) e.preventDefault(); return;
+  }
+  if (SNS.anchorDrag){
+    var pt2 = snPt(e); if (!pt2) return;
+    var an = snNote(SNS.anchorDrag.id); if (!an) return;
+    var g = $('#snGLines');
+    if (g){
+      var old = $('#snTmpLine'); if (old && old.parentNode) old.parentNode.removeChild(old);
+      var elp = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      elp.setAttribute('id', 'snTmpLine');
+      elp.setAttribute('d', 'M' + snR1(an.x + (an.w || 180) / 2) + ' ' + snR1(an.y + 14) + ' L' + snR1(pt2.x) + ' ' + snR1(pt2.y));
+      elp.setAttribute('stroke', an.color); elp.setAttribute('stroke-width', '1.5');
+      elp.setAttribute('stroke-dasharray', '4 3'); elp.setAttribute('fill', 'none');
+      g.appendChild(elp);
+    }
+    if (e.cancelable) e.preventDefault(); return;
+  }
+  if (SNS.erasing){ snEraseAt(e); if (e.cancelable) e.preventDefault(); }
+}
+function snPU(e){
+  if (!SNS.on) return;
+  if (SNS.draw){ snEndInk(); return; }
+  if (SNS.dragNote){
+    if (SNS.dragNote.moved){ snTouch(); snLayout(); SNS.dragSquelch = Date.now(); }
+    SNS.dragNote = null; return;
+  }
+  if (SNS.anchorDrag){
+    var tl = $('#snTmpLine'); if (tl && tl.parentNode) tl.parentNode.removeChild(tl);
+    var n = snNote(SNS.anchorDrag.id); SNS.anchorDrag = null;
+    if (n){
+      var hit = document.elementFromPoint(e.clientX, e.clientY);
+      var mk = hit && hit.closest && hit.closest('.snMk');
+      var sv = hit && hit.closest && hit.closest('.sv[data-cv]');
+      var nt = hit && hit.closest && hit.closest('.snNote');
+      if (nt && nt.getAttribute('data-nid') !== n.id) n.anchor = { t: 'n', id: nt.getAttribute('data-nid') };
+      else if (mk) n.anchor = { t: 'm', id: mk.getAttribute('data-mid') };
+      else if (sv) n.anchor = { t: 'v', cv: +sv.getAttribute('data-cv') };
+      else n.anchor = null;
+      snTouch(); snDrawLines();
+    }
+    return;
+  }
+  if (SNS.erasing) SNS.erasing = false;
+}
+function snClick(e){
+  if (!SNS.on || !SND) return;
+  var t = e.target;
+  var tl = t.closest && t.closest('[data-sntool]');
+  if (tl){ SNS.tool = tl.getAttribute('data-sntool'); SNS.selNote = null; snHideApply(); snBarRepaint(); snApplyToolClass(); snRenderNotes(); snLayout(); e.stopPropagation(); return; }
+  var cl = t.closest && t.closest('[data-sncol]');
+  if (cl){ SNS.color = cl.getAttribute('data-sncol'); snBarRepaint(); e.stopPropagation(); return; }
+  var wd = t.closest && t.closest('[data-snw]');
+  if (wd){ SNS.penW = +wd.getAttribute('data-snw'); snBarRepaint(); e.stopPropagation(); return; }
+  var zm = t.closest && t.closest('[data-snzoom]');
+  if (zm){ snZoom(+zm.getAttribute('data-snzoom')); e.stopPropagation(); return; }
+  var noteEl = t.closest && t.closest('.snNote');
+  if (noteEl){
+    if (Date.now() - (SNS.dragSquelch || 0) < 300){ e.stopPropagation(); return; }
+    var nid = noteEl.getAttribute('data-nid'), n = snNote(nid);
+    if (!n){ e.stopPropagation(); return; }
+    var ncol = t.closest && t.closest('[data-nncol]');
+    if (t.closest && t.closest('[data-nndel]')){ SND.notes = SND.notes.filter(function(x){ return x.id !== nid; }); SNS.selNote = null; snTouch(); snRenderNotes(); snLayout(); }
+    else if (t.closest && t.closest('[data-nnshape]')){ n.shape = n.shape === 'rect' ? 'ell' : n.shape === 'ell' ? 'plain' : 'rect'; snTouch(); snRenderNotes(); snLayout(); }
+    else if (t.closest && t.closest('[data-nnsize]')){ n.w = (n.w || 180) >= 260 ? 140 : (n.w || 180) + 60; snTouch(); snRenderNotes(); snLayout(); }
+    else if (ncol){ n.color = ncol.getAttribute('data-nncol'); snTouch(); snRenderNotes(); snLayout(); }
+    else if (SNS.selNote === nid && !noteEl.classList.contains('editing')){ snEditNote(nid); }
+    else if (SNS.selNote !== nid){ SNS.selNote = nid; snRenderNotes(); snLayout(); }
+    e.stopPropagation(); return;
+  }
+  var inPage = t.closest && t.closest('#snPage');
+  if (!inPage) return;
+  if (SNS.tool === 'erase'){
+    var mk = t.closest && t.closest('.snMk');
+    if (mk){
+      var mid = mk.getAttribute('data-mid');
+      SND.marks = SND.marks.filter(function(m){ return m.id !== mid; });
+      (SND.notes || []).forEach(function(x){ if (x.anchor && x.anchor.t === 'm' && x.anchor.id === mid) x.anchor = null; });
+      snTouch(); snRefreshText();
+    }
+    e.stopPropagation(); return;
+  }
+  if (SNS.tool === 'hl' || SNS.tool === 'box' || SNS.tool === 'cir'){
+    var w = t.closest && t.closest('.swrd'), sv = t.closest && t.closest('.sv[data-cv]');
+    if (w && sv) snMarkWord(sv, w);
+    e.stopPropagation(); return;
+  }
+  if (SNS.tool === 'memo'){
+    var pt = snPt(e);
+    if (pt) snCreateNote(e, pt);
+    e.stopPropagation(); return;
+  }
+  if (SNS.selNote){ SNS.selNote = null; snRenderNotes(); snLayout(); }
+}
+/* 리스너 (한 번만; #studyText는 정적 요소) */
+(function(){
+  var st = $('#studyText'); if (!st) return;
+  st.addEventListener('pointerdown', snPD, { passive: false });
+  window.addEventListener('pointermove', snPM, { passive: false });
+  window.addEventListener('pointerup', snPU);
+  window.addEventListener('pointercancel', snPU);
+  st.addEventListener('click', snClick);
+  /* 애플펜슬: 어느 도구에서든 스크롤 대신 필기가 되도록 stylus 터치의 기본동작 차단 */
+  st.addEventListener('touchstart', function(e){
+    if (!SNS.on || SNS.tool === 'erase') return;
+    var t0 = e.changedTouches && e.changedTouches[0];
+    if (!t0 || t0.touchType !== 'stylus') return;
+    var tg = e.target;
+    if (tg.closest && tg.closest('#snPage') && !tg.closest('.snBar') && !tg.closest('.snNote.editing')) e.preventDefault();
+  }, { passive: false });
+  st.addEventListener('input', function(e){
+    var tx = e.target && e.target.classList && e.target.classList.contains('snNTx') ? e.target : null;
+    if (!tx) return;
+    var noteEl = tx.closest('.snNote'), n = noteEl && snNote(noteEl.getAttribute('data-nid'));
+    if (n){ n.text = tx.innerText.replace(/ /g, ' '); snTouch(); snDrawLines(); }
+  });
+  st.addEventListener('focusout', function(e){
+    var tx = e.target && e.target.classList && e.target.classList.contains('snNTx') ? e.target : null;
+    if (!tx) return;
+    var noteEl = tx.closest('.snNote'); if (!noteEl) return;
+    noteEl.classList.remove('editing');
+    tx.removeAttribute('contenteditable');
+    var n = snNote(noteEl.getAttribute('data-nid'));
+    if (n){ var txt = tx.innerText.replace(/ /g, ' '); if (txt !== n.text){ n.text = txt; snTouch(); } }
+    snLayout();
+  });
+  document.addEventListener('selectionchange', function(){
+    if (!SNS.on) return;
+    clearTimeout(SNS._selT);
+    SNS._selT = setTimeout(snShowApply, 260);
+  });
+  window.addEventListener('resize', function(){ if (SNS.on) snLayout(); });
+})();
 
 /* ===================== 대지 보강: 재정의(reframe)·대조구조 (AI) ===================== */
 var P_REFRAME = [
@@ -17789,7 +18396,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v451';
+var APP_VER = 'v452';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
