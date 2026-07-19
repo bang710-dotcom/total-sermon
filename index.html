@@ -5214,6 +5214,17 @@ function studyRenderPane(){
       .catch(function(e){ if (STUDY.tab === 'holman') pane.innerHTML = '<div class="stWarn">Holman 핸드북을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ') 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
     return;
   }
+  if (STUDY.tab === 'esvsb'){
+    pane.innerHTML = '<div class="cnt">ESV 스터디바이블을 여는 중…</div>';
+    esvLoad().then(function(d){
+      if (STUDY.tab !== 'esvsb') return;
+      if (!d){ pane.innerHTML = esvGateHtml(); return; }
+      var bk = d.books ? d.books[R.idx] : null;
+      if (!bk || !bk.chapters){ pane.innerHTML = '<div class="cnt">이 책의 ESV 스터디바이블 주석은 아직 준비되지 않았습니다. (성경앱 작업이 진행되는 대로 [다시 받기]로 갱신하세요)</div>' + esvManageHtml(); return; }
+      pane.innerHTML = studyRenderNotes(studyVerseList(bk), '이 구간에는 ESV 스터디바이블 주석이 없습니다.') + esvManageHtml();
+    });
+    return;
+  }
   if (STUDY.tab === 'memo'){
     var cfgM = tsaMemoCfg();
     if (!cfgM){ pane.innerHTML = '<div class="cnt">성경앱에 단 <b>내 설교 메모·묵상 노트</b>를 이 본문에서 바로 봅니다.<br>설정 → <b>성경앱 설교메모 URL·키</b>(memo_sheet.gs 웹앱 주소와 SECRET)를 입력하면 켜집니다.</div>'; return; }
@@ -5320,6 +5331,24 @@ function fillConc(code){
     var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }
     var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
+    var eg = e.target.closest && e.target.closest('#esvGet');
+    if (eg){
+      var ekey = (($('#esvKeyIn') && $('#esvKeyIn').value) || esvKeyGet() || '').trim();
+      if (!ekey){ toast('키코드를 입력해 주세요.'); return; }
+      eg.disabled = true; eg.textContent = '받는 중…';
+      esvFetch(ekey).then(function(){ toast('ESV 스터디바이블을 받았습니다.'); if (STUDY.tab === 'esvsb') studyRenderPane(); })
+        .catch(function(er){ toast('받기 실패: ' + er.message); if (STUDY.tab === 'esvsb') studyRenderPane(); });
+      return;
+    }
+    var ed = e.target.closest && e.target.closest('#esvDel');
+    if (ed){
+      idbSet('esv_com', null).then(function(){
+        ESVSB.data = null;
+        toast('이 기기에서 ESV 스터디바이블을 삭제했습니다.');
+        if (STUDY.tab === 'esvsb') studyRenderPane();
+      }).catch(function(){});
+      return;
+    }
     var pc = e.target.closest && e.target.closest('.stPipeCompose'); if (pc){ studyToCompose(); return; }
     var py = e.target.closest && e.target.closest('.stPipeCopy'); if (py){ studyCopyNote(); return; }
     var db = e.target.closest && e.target.closest('.swDeepBtn');
@@ -5594,10 +5623,15 @@ function snPageStyle(){
   /* 축소·확대는 transform(scale)로 — CSS zoom은 iPad Safari에서 좌표계가 어긋난다(펜슬 오프셋 버그) */
   return 'width:' + SN.pageW + 'px;padding:' + SN.mT + 'px ' + SN.mR + 'px ' + SN.mB + 'px ' + SN.mL + 'px;transform:scale(' + SNS.zoom + ');transform-origin:0 0';
 }
+function snScale(pg, r){
+  /* 실측 배율 — 변수(SNS.zoom)와 실제 표시가 어긋나도 좌표가 틀어지지 않도록 rect/레이아웃 비로 계산 */
+  return { x: (r.width && pg.offsetWidth) ? r.width / pg.offsetWidth : 1,
+           y: (r.height && pg.offsetHeight) ? r.height / pg.offsetHeight : 1 };
+}
 function snPt(e){
   var pg = $('#snPage'); if (!pg) return null;
-  var r = pg.getBoundingClientRect();
-  return { x: (e.clientX - r.left) / SNS.zoom, y: (e.clientY - r.top) / SNS.zoom };
+  var r = pg.getBoundingClientRect(), s = snScale(pg, r);
+  return { x: (e.clientX - r.left) / s.x, y: (e.clientY - r.top) / s.y };
 }
 /* ── 상태·저장 ── */
 function snStatusText(){
@@ -5947,7 +5981,10 @@ function snLayout(){
     wrap.style.width = Math.ceil(pg.offsetWidth * SNS.zoom) + 'px';
     wrap.style.height = Math.ceil(pg.offsetHeight * SNS.zoom) + 'px';
   }
-  svg.setAttribute('viewBox', '0 0 ' + pg.clientWidth + ' ' + pg.clientHeight);
+  /* viewBox를 쓰지 않는다 — SVG 사용자 좌표 = CSS px 로 항상 1:1.
+     (viewBox가 페이지 크기와 어긋나는 순간 획 전체가 스케일되어 펜 끝과 다른 곳에 그려지는
+      좌표 밀림의 원인이었다. 크기는 inset:0 이 페이지를 따라가므로 별도 갱신 불필요) */
+  if (svg.hasAttribute('viewBox')) svg.removeAttribute('viewBox');
   var gi = $('#snGInk');
   if (gi) gi.innerHTML = (SND.ink || []).map(function(k){
     return '<path data-kid="' + k.id + '" d="' + snPathD(k.pts) + '" fill="none" stroke="' + k.color + '" stroke-width="' + k.w + '" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -5956,7 +5993,7 @@ function snLayout(){
 }
 function snDrawLines(){
   var g = $('#snGLines'), pg = $('#snPage'); if (!g || !pg || !SND) return;
-  var pr = pg.getBoundingClientRect(), z = SNS.zoom, out = '';
+  var pr = pg.getBoundingClientRect(), sc = snScale(pg, pr), out = '';
   (SND.notes || []).forEach(function(n){
     if (!n.anchor) return;
     var el = null;
@@ -5966,14 +6003,14 @@ function snDrawLines(){
     if (!el) return;
     var ne = document.querySelector('#snNotes .snNote[data-nid="' + n.id + '"]'); if (!ne) return;
     var er = el.getBoundingClientRect(), nr = ne.getBoundingClientRect();
-    var ax = (er.left + er.width / 2 - pr.left) / z, ay = (er.top + er.height / 2 - pr.top) / z;
-    var nx = (nr.left - pr.left) / z, ny = (nr.top - pr.top) / z, nw = nr.width / z, nh = nr.height / z;
+    var ax = (er.left + er.width / 2 - pr.left) / sc.x, ay = (er.top + er.height / 2 - pr.top) / sc.y;
+    var nx = (nr.left - pr.left) / sc.x, ny = (nr.top - pr.top) / sc.y, nw = nr.width / sc.x, nh = nr.height / sc.y;
     var sx = ax < nx ? nx : ax > nx + nw ? nx + nw : ax;
     var sy = ay < ny ? ny : ay > ny + nh ? ny + nh : ay;
     if (sx > nx && sx < nx + nw && sy > ny && sy < ny + nh){ sx = nx; sy = ny + nh / 2; }
     var dx = ax - sx, dy = ay - sy, ex, ey;
-    if (Math.abs(dx) > Math.abs(dy)){ ex = (dx > 0 ? er.left : er.right); ex = (ex - pr.left) / z; ey = ay; }
-    else { ey = (dy > 0 ? er.top : er.bottom); ey = (ey - pr.top) / z; ex = ax; }
+    if (Math.abs(dx) > Math.abs(dy)){ ex = (dx > 0 ? er.left : er.right); ex = (ex - pr.left) / sc.x; ey = ay; }
+    else { ey = (dy > 0 ? er.top : er.bottom); ey = (ey - pr.top) / sc.y; ex = ax; }
     var mx = (sx + ex) / 2, my = (sy + ey) / 2 - 14;
     out += '<path d="M' + snR1(sx) + ' ' + snR1(sy) + ' Q' + snR1(mx) + ' ' + snR1(my) + ' ' + snR1(ex) + ' ' + snR1(ey) + '" fill="none" stroke="' + n.color + '" stroke-width="1.5" opacity="0.85"/>'
       + '<circle cx="' + snR1(ex) + '" cy="' + snR1(ey) + '" r="2.6" fill="' + n.color + '"/>';
@@ -6020,7 +6057,9 @@ function snSegDist(px, py, x1, y1, x2, y2){
 }
 function snEraseAt(e){
   var pt = snPt(e); if (!pt || !SND) return;
-  var rr = 9 / SNS.zoom + 4, del = false;
+  var pg0 = $('#snPage');
+  var z0 = pg0 ? snScale(pg0, pg0.getBoundingClientRect()).x : 1;
+  var rr = 9 / (z0 || 1) + 4, del = false;
   SND.ink = (SND.ink || []).filter(function(k){
     for (var i = 0; i + 3 < k.pts.length; i += 2){
       if (snSegDist(pt.x, pt.y, k.pts[i], k.pts[i + 1], k.pts[i + 2], k.pts[i + 3]) < rr){ del = true; return false; }
