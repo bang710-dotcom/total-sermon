@@ -4691,7 +4691,13 @@ function esvLoad(){
   return ESVSB.loading;
 }
 async function esvFetch(key){
-  var r = await fetch(ESV_WORKER, { headers: { 'x-access-key': key } });
+  var r;
+  try {
+    r = await fetch(ESV_WORKER, { headers: { 'x-access-key': key } });
+  } catch (e){
+    /* CORS 차단·네트워크 실패는 여기서 TypeError로 떨어진다 */
+    throw new Error('CORS');
+  }
   if (r.status === 403) throw new Error('키코드가 올바르지 않습니다.');
   if (!r.ok) throw new Error('HTTP ' + r.status);
   var data = await r.json();
@@ -4700,6 +4706,15 @@ async function esvFetch(key){
   ESVSB.data = data;
   try { localStorage.setItem('tsa.esvKey', key); } catch (e){}
   return data;
+}
+/* 받아둔 데이터에서 커버된 책 목록(이름) — 안내용 */
+function esvCoverage(){
+  var d = ESVSB.data; if (!d || !d.books) return [];
+  var names = (typeof BOOK_KO !== 'undefined' && BOOK_KO) ? BOOK_KO : null;
+  return Object.keys(d.books).map(function(k){
+    var b = d.books[k];
+    return (b && b.ko) || (names && names[+k]) || ('#' + k);
+  });
 }
 function esvGateHtml(){
   return '<div class="cnt" style="margin-bottom:8px"><b>ESV 스터디바이블(주석)</b> — 비공개 개인 자료입니다. 성경앱에서 쓰는 <b>키코드</b>를 입력해 이 기기로 한 번 받아 두면, 본문 구간의 주석이 여기 절별로 표시됩니다(오프라인에서도 보임).</div>'
@@ -5222,9 +5237,15 @@ function studyRenderPane(){
     pane.innerHTML = '<div class="cnt">ESV 스터디바이블을 여는 중…</div>';
     esvLoad().then(function(d){
       if (STUDY.tab !== 'esvsb') return;
-      if (!d){ pane.innerHTML = esvGateHtml(); return; }
+      if (!d){ pane.innerHTML = (ESVSB.err ? '<div class="stWarn" style="margin-bottom:10px">' + esc(ESVSB.err) + '</div>' : '') + esvGateHtml(); return; }
       var bk = d.books ? d.books[R.idx] : null;
-      if (!bk || !bk.chapters){ pane.innerHTML = '<div class="cnt">이 책의 ESV 스터디바이블 주석은 아직 준비되지 않았습니다. (성경앱 작업이 진행되는 대로 [다시 받기]로 갱신하세요)</div>' + esvManageHtml(); return; }
+      if (!bk || !bk.chapters){
+        var cov = esvCoverage();
+        pane.innerHTML = '<div class="cnt">이 책의 ESV 스터디바이블 주석은 아직 <b>준비되지 않았습니다</b>.'
+          + (cov.length ? '<br><br>현재 받아 둔 범위: <b>' + esc(cov.join(', ')) + '</b> (' + cov.length + '권).<br>다른 책은 성경앱 작업이 진행되는 대로 [다시 받기]로 갱신됩니다.' : '')
+          + '</div>' + esvManageHtml();
+        return;
+      }
       pane.innerHTML = studyRenderNotes(studyVerseList(bk), '이 구간에는 ESV 스터디바이블 주석이 없습니다.') + esvManageHtml();
     });
     return;
@@ -5340,8 +5361,15 @@ function fillConc(code){
       var ekey = (($('#esvKeyIn') && $('#esvKeyIn').value) || esvKeyGet() || '').trim();
       if (!ekey){ toast('키코드를 입력해 주세요.'); return; }
       eg.disabled = true; eg.textContent = '받는 중…';
-      esvFetch(ekey).then(function(){ toast('ESV 스터디바이블을 받았습니다.'); if (STUDY.tab === 'esvsb') studyRenderPane(); })
-        .catch(function(er){ toast('받기 실패: ' + er.message); if (STUDY.tab === 'esvsb') studyRenderPane(); });
+      ESVSB.err = '';
+      esvFetch(ekey).then(function(){ ESVSB.err = ''; toast('ESV 스터디바이블을 받았습니다.'); if (STUDY.tab === 'esvsb') studyRenderPane(); })
+        .catch(function(er){
+          ESVSB.err = (er.message === 'CORS')
+            ? 'ESV 서버(esv-private 워커)에 연결하지 못했습니다. 이 앱 주소의 접근이 아직 허용되지 않았을 수 있습니다 — Cloudflare에서 esv-private 워커를 최신 worker.js로 재배포해야 합니다(성경앱에서는 정상 동작). 재배포 후 다시 시도해 주세요.'
+            : '받기 실패: ' + er.message;
+          toast(ESVSB.err);
+          if (STUDY.tab === 'esvsb') studyRenderPane();
+        });
       return;
     }
     var ed = e.target.closest && e.target.closest('#esvDel');
