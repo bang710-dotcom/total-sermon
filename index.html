@@ -414,8 +414,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stCols.split .stCol{flex:1 1 50%;min-width:0}
 .stCols.split .stCol:first-child{border-right:1px dashed var(--line);padding-right:14px}
 .studyDetail{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
-.stTabs{display:flex;gap:4px;padding:10px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--line)}
-.stTabs button{flex:0 0 auto;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:inherit;font-size:13px;padding:6px 9px 8px;cursor:pointer}
+.stTabs{display:flex;gap:4px;padding:10px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.stTabs::-webkit-scrollbar{display:none}
+.stTabs button{flex:0 0 auto;white-space:nowrap;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:inherit;font-size:13px;padding:6px 9px 8px;cursor:pointer}
 .stTabs button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
 .stPane{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px}
 .studyHint{color:var(--dim);font-size:13px;line-height:1.7}
@@ -1924,6 +1925,7 @@ body.uiDlgOpen{overflow:hidden}
           <button type="button" data-sttab="net">NET 노트</button>
           <button type="button" data-sttab="com">호크마 주석</button>
           <button type="button" data-sttab="holman">Holman 핸드북</button>
+          <button type="button" data-sttab="esvsb">ESV 스터디</button>
           <button type="button" data-sttab="memo">📝 내 메모</button>
           <button type="button" data-sttab="ai">✦ AI 정리</button>
         </div>
@@ -4674,6 +4676,39 @@ function studyLoadHolman(idx){
   if (STUDY.holman[idx]) return Promise.resolve(STUDY.holman[idx]);
   return fetch(COM_BASE + '/commentary/holman_' + ('0' + idx).slice(-2) + '.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(d){ STUDY.holman[idx] = d; return d; });
+}
+/* ── ESV 스터디바이블(주석) — 성경앱과 동일한 비공개 키코드·워커 방식 ──
+   자료는 공개 배포에 없고, 키코드로 워커에서 통째({index,books})로 받아
+   이 기기 IndexedDB('esv_com')에만 저장한다. 책별 형식은 호크마와 같은 chapters[][]. */
+var ESV_WORKER = 'https://esv-private.bang710.workers.dev';
+var ESVSB = { data: undefined, loading: null };
+function esvKeyGet(){ try { return localStorage.getItem('tsa.esvKey') || ''; } catch (e){ return ''; } }
+function esvLoad(){
+  if (ESVSB.data !== undefined) return Promise.resolve(ESVSB.data);
+  if (ESVSB.loading) return ESVSB.loading;
+  ESVSB.loading = idbGet('esv_com').then(function(d){ ESVSB.data = (d && d.books) ? d : null; ESVSB.loading = null; return ESVSB.data; })
+    .catch(function(){ ESVSB.data = null; ESVSB.loading = null; return null; });
+  return ESVSB.loading;
+}
+async function esvFetch(key){
+  var r = await fetch(ESV_WORKER, { headers: { 'x-access-key': key } });
+  if (r.status === 403) throw new Error('키코드가 올바르지 않습니다.');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  var data = await r.json();
+  if (!data || !data.index || !data.books) throw new Error('자료 형식 오류');
+  await idbSet('esv_com', data);
+  ESVSB.data = data;
+  try { localStorage.setItem('tsa.esvKey', key); } catch (e){}
+  return data;
+}
+function esvGateHtml(){
+  return '<div class="cnt" style="margin-bottom:8px"><b>ESV 스터디바이블(주석)</b> — 비공개 개인 자료입니다. 성경앱에서 쓰는 <b>키코드</b>를 입력해 이 기기로 한 번 받아 두면, 본문 구간의 주석이 여기 절별로 표시됩니다(오프라인에서도 보임).</div>'
+    + '<div style="display:flex;gap:6px;align-items:center"><input type="password" id="esvKeyIn" placeholder="키코드" value="' + esc(esvKeyGet()) + '" style="flex:1;min-width:120px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px">'
+    + '<button class="btn gold mini" id="esvGet" type="button" style="flex:0 0 auto">받기</button></div>'
+    + '<div class="cnt" style="margin-top:6px">키코드와 자료는 이 기기에만 저장되며 공개 코드에 포함되지 않습니다.</div>';
+}
+function esvManageHtml(){
+  return '<div style="display:flex;gap:6px;margin-top:12px;padding-top:8px;border-top:1px dashed var(--line)"><button class="btn sub mini" id="esvGet" type="button">↻ 다시 받기</button><button class="btn sub mini" id="esvDel" type="button">이 기기에서 삭제</button></div>';
 }
 function studyVerseList(data){
   /* STUDY.range 범위에서 (절번호, 텍스트) — 내용 있는 절만 */
