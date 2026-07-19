@@ -433,6 +433,35 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stSeg.stClimax{background:linear-gradient(90deg,rgba(212,175,55,.16),transparent);border-radius:8px;padding:6px 8px}
 .stSegRange{flex:0 0 auto;min-width:64px;font-size:11.5px;font-weight:700;color:var(--accent2)}
 .stSegPt{font-size:12.8px;line-height:1.55;color:var(--text)}
+/* ── 본문 구조 시각화(강해 구조 뷰): 단락 블록·주제절 강조·경계 편집·구간 진단 (v451) ── */
+.svzTBtn{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent);border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12.5px;cursor:pointer}
+.svzTBtn.on{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:700}
+#svzBanner{margin:0 0 10px}
+.svzBan{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.6px;line-height:1.62;color:var(--text);background:var(--card2)}
+.svzBan .svzTag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:1px 9px;margin-right:7px;vertical-align:1px;background:rgba(127,127,127,.15);color:var(--dim)}
+.svzBan.ok{border-color:rgba(74,222,128,.45)}.svzBan.ok .svzTag{background:rgba(74,222,128,.16);color:#4ade80}
+.svzBan.warn{border-color:rgba(250,204,21,.5)}.svzBan.warn .svzTag{background:rgba(250,204,21,.15);color:#eab308}
+.svzBan.bad{border-color:rgba(248,113,113,.55)}.svzBan.bad .svzTag{background:rgba(248,113,113,.16);color:#f87171}
+.svzBanRow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.svzTheme0{color:var(--dim)}
+.svzBlk{border:1px solid var(--line);border-radius:12px;margin:0 0 12px;overflow:hidden;background:var(--card2)}
+.svzHd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 10px;border-bottom:1px solid var(--line);background:rgba(127,127,127,.07)}
+.svzRange{flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--accent2)}
+.svzGist{flex:1 1 auto;font-size:12px;color:var(--dim);line-height:1.45;min-width:120px}
+.svzGr{flex:0 0 auto;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 8px}
+.svzGr.g1{background:rgba(74,222,128,.16);color:#4ade80}.svzGr.g2{background:rgba(250,204,21,.15);color:#eab308}.svzGr.g3{background:rgba(248,113,113,.16);color:#f87171}
+.svzMerge{flex:0 0 auto;background:none;border:1px dashed var(--line);color:var(--dim);border-radius:999px;padding:1px 8px;font-family:inherit;font-size:10.5px;cursor:pointer}
+.svzMerge:hover{color:var(--accent);border-color:var(--accent)}
+.svzBlk .sv{padding:4px 10px;margin:0}
+.svzStar{background:none;border:none;cursor:pointer;color:var(--line);font-size:13px;padding:0 5px 0 2px;font-family:inherit;vertical-align:1px}
+.svzStar.on{color:#d4af37}
+.sv.svzTheme{background:linear-gradient(90deg,rgba(212,175,55,.18),rgba(212,175,55,.03));border-left:3px solid #d4af37}
+.sv.svzTheme .svn{color:#d4af37;font-weight:700}
+.svzCut{display:block;width:100%;background:none;border:none;cursor:pointer;padding:1px 10px;line-height:0;font-family:inherit}
+.svzCut i{display:flex;align-items:center;gap:6px;color:var(--dim);opacity:.32;font-size:9.5px;font-style:normal;line-height:1}
+.svzCut i::before,.svzCut i::after{content:'';flex:1;border-top:1px dashed var(--line)}
+.svzCut:hover i,.svzCut:active i{opacity:1;color:var(--accent)}
+.svzCut:hover i::before,.svzCut:hover i::after,.svzCut:active i::before,.svzCut:active i::after{border-top-color:var(--accent)}
 .stSeg.stClimax .stSegRange{color:var(--gold,#d4af37)}
 .stStar{color:var(--gold,#d4af37);font-weight:700;margin-left:4px}
 .stXrefRow{font-size:12.5px;line-height:1.6;padding:4px 0;border-top:1px dashed var(--line)}
@@ -4429,7 +4458,7 @@ async function illBackfillUsage(){
   if (confirm('과거 설교 전체에서 서랍 예화 사용 기록을 소급 채웁니다.\n(제목이 정확히 등장하는 확실한 경우만 기록 — 멱등이라 여러 번 눌러도 안전)\n진행할까요?')) illBackfillUsage();
 }); })();
 /* ===================== 본문 원어 연구 패널 (무AI: nkrv-strong + strongs-lex + strong-xref) ===================== */
-var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, netInline: {}, com: {}, range: null, tab: 'orig', lastCodes: null, tr: {}, versions: ['NKRV'], split: false };
+var STUDY = { nkrv: null, lex: null, xref: null, conc: {}, net: {}, netInline: {}, com: {}, range: null, tab: 'orig', lastCodes: null, tr: {}, versions: ['NKRV'], split: false, structOn: false };
 /* 번역본 레지스트리 — 개역개정은 동봉(nkrv-strong), 나머지는 배포 성경앱에서 fetch */
 var TR_REG = [
   { id: 'NKRV', name: '개역개정', file: '', ko: true, strong: true },
@@ -4501,8 +4530,10 @@ function studyRenderText(){
   function opts(sel){ return TR_REG.map(function(r){ return '<option value="' + r.id + '"' + (r.id === sel ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join(''); }
   var bar = '<div class="stVerBar"><select class="stVerSel" data-vi="0">' + opts(STUDY.versions[0]) + '</select>';
   if (STUDY.split) bar += '<span class="stVerVs">↔</span><select class="stVerSel" data-vi="1">' + opts(STUDY.versions[1] || 'RNKSV') + '</select>';
-  bar += '<button class="stSplitBtn" type="button">' + (STUDY.split ? '✕ 분할 해제' : '⊞ 2분할') + '</button></div>';
-  host.innerHTML = bar + '<div class="stCols' + (STUDY.split ? ' split' : '') + '"><div class="stCol" data-vi="0"></div>' + (STUDY.split ? '<div class="stCol" data-vi="1"></div>' : '') + '</div>';
+  bar += '<button class="svzTBtn' + (STUDY.structOn ? ' on' : '') + '" type="button" style="margin-left:auto">' + (STUDY.structOn ? '▦ 구조 켜짐' : '▦ 구조') + '</button>'
+    + '<button class="stSplitBtn" type="button" style="margin-left:0">' + (STUDY.split ? '✕ 분할 해제' : '⊞ 2분할') + '</button></div>';
+  host.innerHTML = bar + (STUDY.structOn ? '<div id="svzBanner">' + svzBannerHtml() + '</div>' : '')
+    + '<div class="stCols' + (STUDY.split ? ' split' : '') + '"><div class="stCol" data-vi="0"></div>' + (STUDY.split ? '<div class="stCol" data-vi="1"></div>' : '') + '</div>';
   studyFillCol(host.querySelector('.stCol[data-vi="0"]'), STUDY.versions[0]);
   if (STUDY.split) studyFillCol(host.querySelector('.stCol[data-vi="1"]'), STUDY.versions[1] || 'RNKSV');
 }
