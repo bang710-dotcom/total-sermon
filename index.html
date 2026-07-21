@@ -4552,18 +4552,18 @@ function studyLoadTr(vid){
   return fetch(COM_BASE + '/' + reg.file).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(d){ STUDY.tr[vid] = d; return d; });
 }
+/* 성경앱 strongHTML 이식: 인라인 코드가 붙은 모든 단어를 그대로 밑줄(기능어 필터 없음) — 성경앱 리더와 1:1 동일.
+   단어=공백·대괄호가 아닌 문자열이 코드[Gxxxx]와 바로 붙은 경우. (개역개정 등 네이티브 스트롱 역본 + KJV/원어/NET 공통) */
+function studyStrongHTML(text){
+  var out = String(text == null ? '' : text).replace(/<\/?em>/gi, '')
+    .replace(/([^\s\[\]]+)((?:\[[GH]\d+\])+)/g, function(_, word, tags){
+      var nums = tags.match(/[GH]\d+/g) || [];
+      return '<span class="swrd" data-codes="' + nums.join(',') + '">' + esc(word) + '</span>';
+    });
+  return out.replace(/\[[GH]\d+\]/g, '');
+}
 function studyVerseInner(verseText, reg){
-  if (reg.strong){
-    return studyTokenizeVerse(verseText).map(function(t){
-      if (!t.w.trim()) return esc(t.w);
-      var cc = reg.orig ? t.codes : contentCodes(t.codes);
-      if (!cc.length) return esc(t.w);
-      var lead = t.w.match(/^\s*/)[0], trail = t.w.match(/\s*$/)[0];
-      var core = t.w.slice(lead.length, t.w.length - trail.length);
-      if (reg.ko) return esc(lead) + studyMatchChunk(core, cc) + esc(trail);          /* 한국어: 덩어리 매칭 */
-      return esc(lead) + '<span class="swrd" data-codes="' + cc.join(',') + '">' + esc(core) + '</span>' + esc(trail);  /* 영어/원어: 어절 단위 */
-    }).join('');
-  }
+  if (reg.strong) return studyStrongHTML(verseText);
   return esc(String(verseText || '').replace(/\[[GH]\d+\]/g, ''));   /* 코드 없는 역본 */
 }
 function studyFillCol(colEl, vid){
