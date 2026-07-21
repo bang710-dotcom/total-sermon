@@ -4655,8 +4655,7 @@ function studyNetVerseInner(verseText, chapter, v, inlineData){
     var tk = toks[i];
     var codes = (tk.match(/\[[GH]\d+\]/g) || []).map(function(m){ return m.slice(1, -1); });
     var core = tk.replace(/\[[GH]\d+\]/g, '');
-    var cc = contentCodes(codes);
-    out += cc.length ? '<span class="swrd" data-codes="' + cc.join(',') + '">' + esc(core) + '</span>' : esc(core);
+    out += codes.length ? '<span class="swrd" data-codes="' + codes.join(',') + '">' + esc(core) + '</span>' : esc(core);  /* 성경앱과 동일: 코드 붙은 모든 단어 밑줄(기능어 필터 없음) */
     if (byWi[i]) byWi[i].sort(function(a, b){ return a[0] - b[0]; }).forEach(function(p){   /* p=[노트번호, 분류] */
       out += '<sup class="net-n net-' + p[1] + '" data-c="' + chapter + '" data-v="' + v + '" data-n="' + p[0] + '">' + p[0] + '</sup>';
     });
@@ -18925,7 +18924,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v460';
+var APP_VER = 'v461';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
