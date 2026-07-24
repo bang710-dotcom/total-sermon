@@ -1721,7 +1721,7 @@ body.uiDlgOpen{overflow:hidden}
         <input type="password" autocomplete="off" id="setToken" placeholder="setToken 실행 시 로그에 표시된 값">
         <label>Claude API 키 (선택 — AI 직결 생성)</label>
         <input type="password" autocomplete="off" id="setClaude" placeholder="sk-ant-api03-...">
-        <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 4.8, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
+        <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 5, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
         <label style="margin-top:14px">브라우저 에이전트 모드 (선택 — 클로드 구독으로 생성)</label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <input type="checkbox" id="setBridge" style="width:auto;margin:0">
@@ -10088,10 +10088,10 @@ $('#devoNext').addEventListener('click', function(){ if (!confirmLeaveDevo()) re
 $('#devoToday').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; devoState.date = todayLocal_(); renderDevo(); });
 $('#devoDate').addEventListener('change', function(){ if (!this.value) return; if (!confirmLeaveDevo()) { this.value = devoState.date; return; } devoState.date = this.value; renderDevo(); });
 
-/* ===================== Claude API 직결 (Opus 4.8) =====================
+/* ===================== Claude API 직결 (Opus 5) =====================
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
    키가 없으면 기존 요청함 흐름으로 자동 폴백. */
-var AI_MODEL = 'claude-opus-4-8';
+var AI_MODEL = 'claude-opus-5';
 function realKey(){ return String(state.settings.claudeKey || '').trim(); }
 /* aiKey(): 브라우저 에이전트 모드가 켜져 있으면 키 유무와 무관하게 센티널 '__AGENT__' 반환
    → 생성은 항상 브리지(구독)가 우선(과금 방지), 모든 aiKey() 게이트·AI_DIRECT 라우팅은 열린 채 유지.
@@ -18929,7 +18929,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v463';
+var APP_VER = 'v464';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -19466,7 +19466,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     <span class="ttl"><b>설교</b><span>대화</span></span>
     <span class="sp"></span>
     <select id="aiModel" title="모델 선택">
-      <option value="claude-opus-4-8">Opus 4.8 · 최고 성능</option>
+      <option value="claude-opus-5">Opus 5 · 최고 성능</option>
       <option value="claude-sonnet-5">Sonnet 5 · 균형</option>
       <option value="claude-haiku-4-5-20251001">Haiku 4.5 · 빠름</option>
     </select>
@@ -20332,7 +20332,15 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   });
   ctxOn.addEventListener('change', refreshCtxTag);
   /* 닫기는 [닫기] 버튼 또는 다른 메뉴로 이동할 때만 — 작성창 클릭/Esc로는 닫히지 않음 */
-  try { modelSel.value = (localStorage.getItem('tsa.aiModel') || 'claude-opus-4-8').replace('claude-sonnet-4-6', 'claude-sonnet-5'); } catch(e){}
+  /* 구모델명 자동 승격 — 저장값이 목록에 없으면 select.value가 빈 값이 되어 모델 선택이 깨진다 */
+  var AI_MODEL_MIGRATE = { 'claude-sonnet-4-6': 'claude-sonnet-5', 'claude-opus-4-8': 'claude-opus-5', 'claude-opus-4-1-20250805': 'claude-opus-5' };
+  try {
+    var mv = localStorage.getItem('tsa.aiModel') || AI_MODEL;
+    mv = AI_MODEL_MIGRATE[mv] || mv;
+    if (!Array.prototype.some.call(modelSel.options, function(o){ return o.value === mv; })) mv = AI_MODEL;
+    modelSel.value = mv;
+    localStorage.setItem('tsa.aiModel', mv);
+  } catch(e){}
   modelSel.addEventListener('change', function(){ try { localStorage.setItem('tsa.aiModel', modelSel.value); } catch(e){} });
 
   /* ── 대화창 너비 조절(우측 경계 드래그) ── */
