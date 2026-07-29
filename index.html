@@ -4772,6 +4772,12 @@ function hbTitleRange(title){
 /* Holman 본문 렌더 — 이미지·성구링크·소제목·굵게 + {{feat:KEY|라벨}} 별항 링크 */
 function hbRenderBody(body){
   var imgs = [];
+  /* ★소제목 절 범위는 "원문 제목"에서 미리 계산한다.
+     linkifyRefs가 "시편 89"를 <span>으로 감싸면 89와 '편' 사이에 태그가 끼어 파싱이 실패하므로,
+     링크 변환 전에 순서대로 뽑아 두고 아래에서 같은 순서로 꺼내 쓴다. */
+  var subRanges = [];
+  String(body || '').replace(/^###\s+(.+)$/gm, function(_, t){ subRanges.push(hbTitleRange(t)); return _; });
+  var subI = 0;
   var withImg = String(body || '').replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, src){
     var url = /^https?:\/\//.test(src) ? src : (COM_BASE + '/' + String(src).replace(/^\.?\//, ''));
     imgs.push({ url: url, alt: alt });
@@ -4784,7 +4790,7 @@ function hbRenderBody(body){
   });
   /* 소제목(예: "시편 89편(Psalm 89) — 공동체 탄원시")에 절 범위를 심어, 그 지점으로 정밀 스크롤 */
   return html.replace(/^###\s+(.+)$/gm, function(_, t){
-    var rg = hbTitleRange(t);
+    var rg = subRanges[subI++];
     return '<b class="hbSub"' + (rg ? ' data-hb-lo="' + rg.lo + '" data-hb-hi="' + rg.hi + '"' : '') + '>' + t + '</b>';
   })
     .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
@@ -4843,7 +4849,23 @@ function hbScrollToHit(pane){
     if (target) target.classList.add('hbSubHit');
   }
   if (!target) target = pane.querySelector('.hbHit');
-  if (target && target.scrollIntoView) target.scrollIntoView({ block: 'start' });
+  if (!target || !target.scrollIntoView) return;
+  /* ★위쪽의 lazy 이미지가 나중에 로드되면 레이아웃이 밀려 목표가 아래로 내려간다.
+     → 이미지 로드/레이아웃이 안정될 때까지 재보정하고, 사용자가 직접 스크롤하면 즉시 중단. */
+  var done = false;
+  function stop(){ done = true; }
+  pane.addEventListener('wheel', stop, { passive: true, once: true });
+  pane.addEventListener('touchstart', stop, { passive: true, once: true });
+  function go(){ if (!done) try { target.scrollIntoView({ block: 'start' }); } catch (e){} }
+  go();
+  if (window.requestAnimationFrame) requestAnimationFrame(go);
+  var imgs = pane.querySelectorAll('img');
+  for (var k = 0; k < imgs.length; k++){
+    if (!imgs[k].complete) imgs[k].addEventListener('load', go, { once: true });
+    imgs[k].addEventListener('error', go, { once: true });
+  }
+  [60, 200, 500, 1000].forEach(function(ms){ setTimeout(go, ms); });
+  setTimeout(stop, 1500);
 }
 /* ── 공통: 성경 절 인용 규칙 (설교 생성 프롬프트에 부착) ──
    주해근거·적용·실천·원고·예화 등에서 성경 본문 "텍스트"를 인용해 실을 때는 절 전체를 온전히.
