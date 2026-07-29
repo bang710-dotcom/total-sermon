@@ -4943,6 +4943,66 @@ function studyHolmanMatched(){
     return picked.join('\n\n').slice(0, 3500);
   }).catch(function(){ return ''; });
 }
+/* ── 본문연구 AI 산출물 영구 저장·다기기 동기화 ────────────────────────────
+   AI 정리(구간별)·원어 심층(스트롱 코드별)은 그동안 메모리에만 있어 앱을 닫으면 사라졌다.
+   구조 시각화(SVZ)와 똑같이 localStorage + 시트 노트 백엔드(noteSet/noteGet)로 보존한다.
+   → 백엔드 수정 불필요(이미 배포된 범용 키-값 action 재사용). 키 접두어: 'ai:' · 'ws:' */
+var SAI_LS = 'tsa.studyai', SAI = load(SAI_LS) || {};        /* 구간키 → { j: 결과, _t: 시각 } */
+var SWS_LS = 'tsa.wordstudy', SWS = load(SWS_LS) || {};      /* 스트롱코드 → { j: 결과, _t: 시각 } */
+function _pruneKeep(obj, n){
+  try {
+    var ks = Object.keys(obj);
+    if (ks.length > n){
+      ks.sort(function(a, b){ return (obj[a]._t || 0) - (obj[b]._t || 0); });
+      ks.slice(0, ks.length - n).forEach(function(k){ delete obj[k]; });
+    }
+  } catch (e){}
+  return obj;
+}
+/* 시트로 올리기(디바운스) — 설정에 URL·토큰이 없으면 로컬 전용으로 조용히 동작 */
+var _NOTE_TPUSH = {};
+function studyNotePush(prefix, key, rec){
+  if (!key || !rec) return;
+  var s = state.settings; if (!s.url || !s.token) return;
+  var id = prefix + key;
+  clearTimeout(_NOTE_TPUSH[id]);
+  _NOTE_TPUSH[id] = setTimeout(async function(){
+    try {
+      await apiPost({ action: 'noteSet', key: id,
+        updatedAt: new Date(rec._t || Date.now()).toISOString(), json: JSON.stringify(rec) });
+    } catch (e){ /* 백엔드 구버전·오프라인 — 로컬 저장은 이미 끝났으므로 무시 */ }
+  }, 1500);
+}
+/* 시트에서 받아오기 — 로컬보다 최신이면 갈아끼운다 */
+async function studyNotePull(prefix, key, store, lsName){
+  var s = state.settings; if (!s.url || !s.token || !key) return null;
+  try {
+    var rm = await api({ action: 'noteGet', key: prefix + key });
+    if (!rm || !rm.json) return null;
+    var rec = JSON.parse(rm.json); if (!rec || !rec.j) return null;
+    var localT = (store[key] && store[key]._t) || 0;
+    if ((rec._t || 0) > localT){ store[key] = rec; _pruneKeep(store, prefix === 'ai:' ? 40 : 120); save(lsName, store); return rec; }
+    return store[key] || rec;
+  } catch (e){ return null; }
+}
+function studyAiGet(key){ var r = SAI[key]; return r ? r.j : (STUDY.ai && STUDY.ai[key]) || null; }
+function studyAiSet(key, j){
+  if (!key || !j) return;
+  SAI[key] = { j: j, _t: Date.now() };
+  _pruneKeep(SAI, 40); save(SAI_LS, SAI);
+  STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = j;      /* 기존 읽기 경로 호환 */
+  studyNotePush('ai:', key, SAI[key]);
+}
+/* 본문연구를 열 때: 다른 기기에서 만든 AI 정리가 있으면 받아와 반영 */
+async function saiProbe(){
+  var key = studyRangeKey(); if (!key) return;
+  if (SAI[key]){ STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = SAI[key].j; if (STUDY.tab === 'ai') studyRenderPane(); }
+  var rec = await studyNotePull('ai:', key, SAI, SAI_LS);
+  if (rec && rec.j && studyRangeKey() === key){
+    STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = rec.j;
+    if (STUDY.tab === 'ai') studyRenderPane();
+  } else if (!rec && SAI[key]) studyNotePush('ai:', key, SAI[key]);   /* 시트에 없으면 올려 둔다 */
+}
 async function studyAiSynth(){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 AI 정리를 쓸 수 있습니다.'); return; }
   var R = STUDY.range; if (!R) return;
@@ -4965,8 +5025,7 @@ async function studyAiSynth(){
       Holman발췌: holman || ''
     };
     var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 9000, aiTick('본문연구 정리'));
-    STUDY.ai = STUDY.ai || {};
-    STUDY.ai[key] = aiJson(out);
+    studyAiSet(key, aiJson(out));    /* 로컬 저장 + 시트 동기화(다기기) */
     if (STUDY.tab === 'ai') studyRenderPane();
   } catch (e){ toast('본문연구 정리 실패: ' + e.message); }
 }
@@ -5028,6 +5087,13 @@ async function studyWordStudy(code, word){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 원어 심층 연구를 쓸 수 있습니다.'); return; }
   var box = $('#swdeep-' + code); if (!box) return;
   if (WSTUDY[code]){ box.innerHTML = renderWordStudy(WSTUDY[code]); return; }
+  /* 저장해 둔 결과 우선 — 로컬(이 기기) → 시트(다른 기기). 있으면 재생성하지 않는다. */
+  if (SWS[code] && SWS[code].j){ WSTUDY[code] = SWS[code].j; box.innerHTML = renderWordStudy(WSTUDY[code]); return; }
+  box.innerHTML = '<div class="cnt">저장된 원어 심층 연구를 찾는 중…</div>';
+  try {
+    var rec0 = await studyNotePull('ws:', code, SWS, SWS_LS);
+    if (rec0 && rec0.j){ WSTUDY[code] = rec0.j; box.innerHTML = renderWordStudy(WSTUDY[code]); return; }
+  } catch (e0){}
   box.innerHTML = '<div class="cnt">원어 심층 연구 생성 중…</div>';
   try {
     await studyLoad();
@@ -5043,6 +5109,9 @@ async function studyWordStudy(code, word){
     };
     var out = await callClaude(P_WORDSTUDY, JSON.stringify(input), 4000, aiTick('원어 심층 연구'));
     WSTUDY[code] = aiJson(out);
+    SWS[code] = { j: WSTUDY[code], _t: Date.now() };          /* 영구 저장(이 기기) */
+    _pruneKeep(SWS, 120); save(SWS_LS, SWS);
+    studyNotePush('ws:', code, SWS[code]);                     /* 시트 동기화(다기기) */
     box.innerHTML = renderWordStudy(WSTUDY[code]);
   } catch (e){ box.innerHTML = '<div class="stWarn">원어 심층 연구 실패: ' + esc(e.message) + '</div>'; }
 }
@@ -5075,13 +5144,13 @@ function studyResearchText(j, title){
   return L.join('\n');
 }
 function studyCopyNote(){
-  var j = STUDY.ai && STUDY.ai[studyRangeKey()]; if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  var j = studyAiGet(studyRangeKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
   var txt = studyResearchText(j, String($('#studyTitle').textContent || '').replace(/ — .*$/, ''));
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast('연구노트를 복사했습니다 — 원고·옵시디언에 붙여넣으세요.'); }).catch(function(){ toast('복사에 실패했습니다.'); });
   else toast('이 브라우저는 클립보드 복사를 지원하지 않습니다.');
 }
 function studyToCompose(){
-  var j = STUDY.ai && STUDY.ai[studyRangeKey()]; if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  var j = studyAiGet(studyRangeKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
   try {
     if (!state.compose) state.compose = newCompose();
     if (!state.compose.points) state.compose.points = [];
@@ -5283,6 +5352,7 @@ function openStudy(ref){
   studyRenderText();
   snProbe();
   svzProbe();
+  saiProbe();      /* 저장해 둔 AI 정리 복원 + 다기기 동기화 */
 }
 function studySetTab(tab){
   STUDY.tab = tab;
@@ -5349,7 +5419,7 @@ function studyRenderPane(){
     return;
   }
   if (STUDY.tab === 'ai'){
-    var j = STUDY.ai && STUDY.ai[studyRangeKey()];
+    var j = studyAiGet(studyRangeKey());
     if (j){ pane.innerHTML = renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
     pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
       + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
@@ -19012,7 +19082,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v469';
+var APP_VER = 'v470';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
