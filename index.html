@@ -1747,8 +1747,11 @@ body.uiDlgOpen{overflow:hidden}
         <label>성경앱 설교메모 키</label>
         <input type="password" autocomplete="off" id="setMemoKey" placeholder="memo_sheet.gs 의 SECRET 값">
         <div class="cnt" style="margin-top:6px">성경앱(설교 메모)의 시트 웹앱 주소·키를 넣으면, 본문 연구 모달의 <b>📝 내 메모</b> 탭에 그 본문 구간과 겹치는 <b>내 설교 메모·묵상 노트</b>가 표시됩니다. 또한 <b>이달의 묵상</b>에서 쓴 묵상 노트가 성경앱 <b>[노트]</b>에 그대로 나타나고, 양쪽 어디서 고쳐도 서로 반영됩니다. 비워두면 묵상 노트는 설교앱 안에만 저장됩니다.</div>
-        <div style="margin-top:10px"><button class="btn sub" id="btnDevoMigrate">기존 묵상 노트를 성경앱으로 이관</button></div>
-        <div class="cnt" style="margin-top:6px">지금까지 설교앱에만 있던 묵상 노트를 성경앱 <b>[노트]</b>로 한 번에 올립니다(1회만 하면 됩니다). 성경앱에 이미 더 최근에 고친 노트가 있으면 그 날짜는 건너뜁니다.</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sub" id="btnDevoMigrate">기존 묵상 노트를 성경앱으로 이관</button>
+          <button class="btn sub" id="btnSermonPushAll">설교 요약본을 성경앱으로 일괄 반영</button>
+        </div>
+        <div class="cnt" style="margin-top:6px">지금까지 설교앱에만 있던 묵상 노트를 성경앱 <b>[노트]</b>로 한 번에 올립니다(1회만 하면 됩니다). 성경앱에 이미 더 최근에 고친 노트가 있으면 그 날짜는 건너뜁니다.<br>요약본 일괄 반영은 요약본이 있는 설교를 성경앱 <b>[설교]</b> 노트로 올립니다 — 기존 수동 업로드분과 <b>같은 id 규칙</b>이라 덮어쓰기만 되고 중복은 생기지 않습니다. 이후 새 요약본은 생성할 때 자동으로 올라갑니다.</div>
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
       <div class="card">
@@ -2358,6 +2361,7 @@ function sync(opts){
     try { illAnchorPull(); } catch (e){}   /* 예화 앵커 본문 병합(2026-07-16) */
     try { illTopicPull(); } catch (e){}   /* 예화 추가 주제 병합(2026-07-16) */
     try { bmFlush(); STUDY._memoP = null; } catch (e){}   /* 성경앱 노트 재전송 + 읽기 캐시 갱신(2026-07-30) */
+    try { bmIdMapPull(); } catch (e){}   /* 설교ID→성경앱 노트id 매핑 병합(v472) */
   }).catch(function(e){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
@@ -9983,6 +9987,7 @@ async function exportObsidianVault(){
 window.exportObsidianVault = exportObsidianVault;
 (function(){ var b = $('#btnObsidianExport'); if (b) b.addEventListener('click', function(){ exportObsidianVault(); }); })();
 (function(){ var b = $('#btnDevoMigrate'); if (b) b.addEventListener('click', function(){ devoMigrateToBible(); }); })();
+(function(){ var b = $('#btnSermonPushAll'); if (b) b.addEventListener('click', function(){ bmPushAllSermons(); }); })();
 /* 설교앱에만 있던 묵상노트를 성경앱 [노트] 시트로 1회 이관. 성경앱 쪽이 더 최신이면 건너뛴다. */
 function devoMigrateToBible(){
   if (!tsaMemoCfg()){ toast('설정에 성경앱 설교메모 URL·키를 먼저 입력해 주세요.'); return; }
@@ -10154,6 +10159,158 @@ function devoPushBible(date, data){
     return bmUpsert(m).then(function(){ devoState.bmNote = m; return m; });
   });
 }
+
+/* ═══════════ 설교 요약본 → 성경앱 [설교] 노트 자동 업서트 (v472) ═══════════
+   기존 수동 파이프라인(요약본_YYYY.md → sermon-sheet-upload 스킬)과 **같은 id 규칙**을 써서
+   이미 올라간 노트를 덮어쓰되 중복을 만들지 않는다.
+     id  = sermon-<usfm3><장2자리><절2자리>[b,c…]-<연도2자리>   (예: sermon-luk1528-25)
+     title = "<제목> (<예배구분> <시리즈><순번>)"
+     memo  = 요약본 마크다운 그대로 · tags = 키워드 배열
+   설교ID→노트id 매핑은 _prefs(ns='bmSermon')에 보관해 본문을 나중에 고쳐도 노트가 갈리지 않게 한다. */
+var BM_USFM = ['gen','exo','lev','num','deu','jos','jdg','rut','1sa','2sa','1ki','2ki','1ch','2ch','ezr','neh','est','job','psa','pro','ecc','sng','isa','jer','lam','ezk','dan','hos','jol','amo','oba','jon','mic','nam','hab','zep','hag','zec','mal','mat','mrk','luk','jhn','act','rom','1co','2co','gal','eph','php','col','1th','2th','1ti','2ti','tit','phm','heb','jas','1pe','2pe','1jn','2jn','3jn','jud','rev'];
+function bmAbbr(bookIdx){ var p = BOOKS.split('|'); return p[66 + bookIdx] || p[bookIdx] || ''; }
+function bmPad2(n){ n = String(n == null ? '' : n); return n.length < 2 ? '0' + n : n; }
+/* 표시용 한글 약어 참조 — 파이프라인과 같은 모양("눅 15:28-32", "신 31:30-32:14") */
+function bmRefShort(c){
+  var ab = bmAbbr(c.bookIdx), s = c.startChap + ':' + c.startVerse, e = '';
+  if (c.endChap !== c.startChap) e = '-' + c.endChap + ':' + c.endVerse;
+  else if (c.endVerse !== c.startVerse) e = '-' + c.endVerse;
+  return (ab ? ab + ' ' : '') + s + e;
+}
+function bmSermonTitle(s){
+  var t = String(s['제목'] || '').trim();
+  var w = String(s['예배구분'] || '').trim();
+  var ser = String(s['시리즈'] || '').trim(), no = String(s['시리즈순번'] || '').trim();
+  var inner = w + (ser ? (w ? ' ' : '') + ser + no : '');
+  return inner ? (t + ' (' + inner + ')') : t;
+}
+function bmSermonTags(s){
+  var ks = String(s['키워드'] || '').split(/[,;]/).map(function(x){ return x.trim(); }).filter(Boolean);
+  return JSON.stringify(ks);
+}
+function bmSermonBaseId(s, c){
+  var yy = String(s['날짜'] || '').replace(/[^0-9]/g, '').slice(2, 4) || '00';
+  return 'sermon-' + (BM_USFM[c.bookIdx] || 'unk') + bmPad2(c.startChap) + bmPad2(c.startVerse) + '-' + yy;
+}
+/* 같은 연도·같은 시작절 설교가 둘 이상이면 파이프라인 규칙대로 b·c… 접미사로 유일화 */
+function bmResolveSermonId(base, s, all, map){
+  var mine = map[String(s['ID'])];
+  if (mine) return mine;
+  var owner = {};
+  Object.keys(map).forEach(function(k){ owner[map[k]] = k; });
+  var want = bmSermonTitle(s).trim();
+  var sfx = ['', 'b', 'c', 'd', 'e', 'f', 'g'];
+  for (var i = 0; i < sfx.length; i++){
+    var id = base.replace(/-(\d\d)$/, sfx[i] + '-$1');
+    var ex = (all || []).filter(function(x){ return String(x.id) === id; })[0];
+    if (!ex) return id;                                            /* 빈 자리 */
+    if (owner[id] && owner[id] !== String(s['ID'])) continue;      /* 다른 설교가 이미 씀 */
+    if (String(ex.title || '').trim() === want) return id;          /* 파이프라인이 올린 같은 설교 */
+  }
+  return base.replace(/-(\d\d)$/, 'z-$1');
+}
+/* 설교ID → 성경앱 노트 id 매핑(로컬 + _prefs 동기화) */
+function bmIdMap(){ try { return JSON.parse(localStorage.getItem('tsa.bmIds')) || {}; } catch (e){ return {}; } }
+function bmIdMapSave(m){ try { localStorage.setItem('tsa.bmIds', JSON.stringify(m)); } catch (e){} }
+function bmIdMapPush(sid, nid){
+  var st = state.settings || {};
+  if (!st.url || !st.token) return;
+  var patch = {}; patch[sid] = nid;
+  try { apiPostOrQueue({ action: 'setPrefs', ns: 'bmSermon', patch: patch }).catch(function(){}); } catch (e){}
+}
+function bmIdMapPull(){
+  var st = state.settings || {};
+  if (!st.url || !st.token || !navigator.onLine) return Promise.resolve();
+  return api({ action: 'prefs' }).then(function(prefs){
+    var srv = prefs && prefs.bmSermon;
+    if (!srv || typeof srv !== 'object') return;
+    var local = bmIdMap(), merged = Object.assign({}, local, srv);
+    if (JSON.stringify(merged) !== JSON.stringify(local)) bmIdMapSave(merged);
+  }).catch(function(){});
+}
+/* 설교 한 편의 요약본을 성경앱 [설교] 노트로 업서트 */
+function bmPushSermon(s){
+  var sum = String(s['요약본'] || '').trim();
+  var refStr = String(s['본문'] || '').trim();
+  if (!tsaMemoCfg()) return Promise.reject(new Error('설정에 성경앱 메모 URL·키가 없습니다.'));
+  if (!sum) return Promise.reject(new Error('요약본이 없습니다.'));
+  if (!refStr) return Promise.reject(new Error('본문이 비어 있습니다.'));
+  return bmCoords(refStr).then(function(c){
+    if (!c) throw new Error('본문 좌표를 인식하지 못했습니다: ' + refStr);
+    return tsaMemoLoad().catch(function(){ return []; }).then(function(all){
+      var map = bmIdMap();
+      var id = bmResolveSermonId(bmSermonBaseId(s, c), s, all, map);
+      var prev = (all || []).filter(function(x){ return String(x.id) === id; })[0];
+      var m = {
+        id: id, kind: '설교', ref: bmRefShort(c), title: bmSermonTitle(s),
+        memo: sum, color: '', tags: bmSermonTags(s),
+        bookIdx: c.bookIdx, startChap: c.startChap, startVerse: c.startVerse,
+        endChap: c.endChap, endVerse: c.endVerse,
+        createdAt: (prev && prev.createdAt) || new Date().toISOString(),
+        updatedAt: new Date().toISOString(), deleted: ''
+      };
+      return bmUpsert(m).then(function(){
+        if (map[String(s['ID'])] !== id){ map[String(s['ID'])] = id; bmIdMapSave(map); bmIdMapPush(String(s['ID']), id); }
+        return m;
+      });
+    });
+  });
+}
+/* 요약본이 새로 만들어진 직후 조용히 올린다(실패는 대기열로) */
+function bmPushSermonQuiet(id){
+  if (!tsaMemoCfg()) return;
+  var s = findSermon(id); if (!s) return;
+  bmPushSermon(s).then(function(m){
+    toast('성경앱 [설교] 노트에도 반영했습니다 — ' + m.ref);
+  }).catch(function(e){ toast('성경앱 노트 반영 보류: ' + (e && e.message || e)); });
+}
+/* 요약본이 있는 모든 설교를 성경앱으로 일괄 업서트 */
+function bmPushAllSermons(){
+  if (!tsaMemoCfg()){ toast('설정에 성경앱 설교메모 URL·키를 먼저 입력해 주세요.'); return; }
+  var rows = (state.data.sermons || []).filter(function(s){
+    return String(s['요약본'] || '').trim() && String(s['본문'] || '').trim();
+  });
+  if (!rows.length){ toast('요약본이 있는 설교가 없습니다. (요약본은 필요할 때 시트에서 불러옵니다)'); return; }
+  if (!confirm('요약본이 있는 설교 ' + rows.length + '건을 성경앱 [설교] 노트로 올립니다.\n같은 id는 덮어쓰므로 중복은 생기지 않습니다. 진행할까요?')) return;
+  showWaitOverlay('성경앱으로 올리고 있어요', '설교 요약본 ' + rows.length + '건을 정리하는 중입니다.');
+  var map = bmIdMap(), okN = 0, skip = [];
+  tsaMemoLoad().catch(function(){ return []; }).then(function(all){
+    return rows.reduce(function(p, s){
+      return p.then(function(){
+        return bmCoords(String(s['본문'] || '').trim()).then(function(c){
+          if (!c){ skip.push(s['제목'] || s['ID']); return null; }
+          var id = bmResolveSermonId(bmSermonBaseId(s, c), s, all, map);
+          var prev = (all || []).filter(function(x){ return String(x.id) === id; })[0];
+          map[String(s['ID'])] = id;
+          okN++;
+          return {
+            id: id, kind: '설교', ref: bmRefShort(c), title: bmSermonTitle(s),
+            memo: String(s['요약본']).trim(), color: '', tags: bmSermonTags(s),
+            bookIdx: c.bookIdx, startChap: c.startChap, startVerse: c.startVerse,
+            endChap: c.endChap, endVerse: c.endVerse,
+            createdAt: (prev && prev.createdAt) || new Date().toISOString(),
+            updatedAt: new Date().toISOString(), deleted: ''
+          };
+        }).then(function(m){ if (m) bmPushAllSermons._buf.push(m); });
+      });
+    }, Promise.resolve((bmPushAllSermons._buf = [])));
+  }).then(function(){
+    var buf = bmPushAllSermons._buf || [], chunks = [], i;
+    for (i = 0; i < buf.length; i += 40) chunks.push(buf.slice(i, i + 40));
+    return chunks.reduce(function(p, ch){
+      return p.then(function(){ return bmPost({ action: 'upsert', memos: ch }); });
+    }, Promise.resolve());
+  }).then(function(){
+    bmIdMapSave(map);
+    var st = state.settings || {};
+    if (st.url && st.token){ try { apiPostOrQueue({ action: 'setPrefs', ns: 'bmSermon', patch: map }).catch(function(){}); } catch (e){} }
+    STUDY._memoP = null;
+    toast('성경앱 [설교] 노트 반영 완료 — ' + okN + '건' + (skip.length ? ' (본문 인식 실패 ' + skip.length + '건)' : ''));
+    if (skip.length) console.warn('본문 좌표 인식 실패:', skip);
+  }).catch(function(e){ toast('일괄 업서트 실패: ' + (e && e.message || e)); })
+    .then(function(){ hideWaitOverlay(); });
+}
+window.bmPushSermon = bmPushSermon; window.bmPushAllSermons = bmPushAllSermons;
 
 function bibleIndex(){
   if (devoState._idx) return Promise.resolve(devoState._idx);
@@ -10973,6 +11130,7 @@ async function aiSummarize(id, s, force){
     aiMarkDone(id, '설교요약', 'Opus API 직결 생성');
     renderSyncState();
     toast('요약본·주제어 완료 — 시트에 기록했습니다.');
+    bmPushSermonQuiet(id);            /* 성경앱 [설교] 노트에도 자동 반영(v472) */
   } catch (e) { renderSyncState(); toast('요약 실패: ' + e.message); }
 }
 
@@ -11026,6 +11184,7 @@ async function aiYouTubeSummarize(id){
     aiMarkDone(id, '설교요약', '유튜브 자동 전사+요약');
     renderSyncState();
     toast('유튜브 → 요약본 완료 — 시트에 기록했습니다.');
+    bmPushSermonQuiet(id);            /* 성경앱 [설교] 노트에도 자동 반영(v472) */
   } catch (e) { hideGenOverlay(); renderSyncState(); toast('유튜브 요약 실패: ' + e.message); }
 }
 window.aiYouTubeSummarize = aiYouTubeSummarize;
