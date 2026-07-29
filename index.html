@@ -1763,43 +1763,62 @@ body.uiDlgOpen{overflow:hidden}
           <span class="cnt" style="margin:0">에이전트 브라우저(Aside 등)에서 API 키 없이 사용</span>
         </div>
         <div class="cnt" style="margin-top:6px">켜면 <b>설교 대화·예화 이미지 인식(비전)을 포함한 모든 AI 기능</b>이 <b>요청 패널</b>을 통해 클로드 구독(브라우저 AI)으로 처리됩니다 — API 키가 있어도 과금되지 않으며, 키는 모드가 꺼져 있을 때만 쓰입니다(이미지는 패널에 표시되어 에이전트가 직접 봅니다). 에이전트 브라우저가 자동 인식되면 토글 없이도 저절로 켜지며, 켜져 있는 동안 화면 우하단에 <b>🤖 에이전트 생성</b> 칩이 항상 표시됩니다(칩을 눌러 끌 수 있음). 주소 뒤에 <b>?agent=1</b>을 붙여 열거나 에이전트가 <b>window.TSA_BRIDGE.enable()</b>을 호출해도 켜집니다. 이 설정은 브라우저마다 따로 저장됩니다.</div>
-        <label style="margin-top:14px">리더스앱 업로드 URL (통합시트 Apps Script /exec — 선택)</label>
+        </details>
+
+        <details class="setGrp">
+          <summary>성경앱 연동 <span class="sgSub">메모·묵상노트·요약본</span><span class="setBadge" data-badge="memo"></span></summary>
+        <label>성경앱 설교메모 URL</label>
+        <input type="url" id="setMemoUrl" placeholder="성경앱 메모 시트 웹앱 주소 (…/exec)">
+        <label>성경앱 설교메모 키</label>
+        <input type="password" autocomplete="off" id="setMemoKey" placeholder="memo_sheet.gs 의 SECRET 값">
+        <div class="cnt" style="margin-top:6px">넣으면 본문연구 <b>📝 내 메모</b> 탭에 그 구간의 <b>내 설교 메모·묵상 노트</b>가 뜨고, <b>이달의 묵상</b> 노트가 성경앱 <b>[노트]</b>와 양방향으로 오갑니다. 새 요약본은 성경앱 <b>[설교]</b> 노트에 자동 반영됩니다.</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sub" id="btnDevoMigrate">기존 묵상 노트 이관</button>
+          <button class="btn sub" id="btnSermonPushAll">요약본 일괄 반영</button>
+        </div>
+        <div class="cnt" style="margin-top:6px">각각 <b>1회만</b> 누르면 됩니다. 묵상 노트는 성경앱 쪽이 더 최근이면 건너뛰고, 요약본은 기존 수동 업로드분과 같은 id 규칙이라 덮어쓰기만 됩니다.</div>
+        </details>
+
+        <details class="setGrp">
+          <summary>이미지·영상 만들기 <span class="sgSub">프록시 워커</span><span class="setBadge" data-badge="proxy"></span></summary>
+        <label>설교 이미지 프록시 URL (Cloudflare Worker)</label>
+        <input type="url" id="setProxyUrl" placeholder="https://sermon-image-proxy.계정.workers.dev">
+        <label>이미지 프록시 토큰 (APP_TOKEN)</label>
+        <input type="password" autocomplete="off" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
+        <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
+        <label style="margin-top:14px">유튜브 영상분석 프록시 URL (비우면 위 주소 사용)</label>
+        <input type="url" id="setVidProxyUrl" placeholder="비워두면 위 이미지 프록시 URL을 그대로 사용">
+        <div class="cnt" style="margin-top:6px">설교 <b>유튜브 링크</b>만 넣으면 설교 부분을 찾아 전사하고 <b>요약본</b>까지 만듭니다(전사=Gemini, 요약=Claude). 권장은 <b>기존 이미지 프록시 워커에 /youtube 라우트만 추가</b>하는 것 — 이때 이 칸은 비워 둡니다. <b>Gemini 키는 유료(결제 연결) 키</b>여야 지역 차단이 없습니다.</div>
+        </details>
+
+        <details class="setGrp">
+          <summary>리더스앱 업로드 <span class="sgSub">LTC 교재</span><span class="setBadge" data-badge="la"></span></summary>
+        <label>리더스앱 업로드 URL (통합시트 Apps Script /exec)</label>
         <input type="url" id="setLaUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <label>리더스앱 업로드 토큰</label>
         <input type="password" autocomplete="off" id="setLaToken" placeholder="리더스앱 시트 setup 실행 시 로그의 토큰">
         <div class="cnt" style="margin-top:6px">리더스앱 통합시트에 배포한 업로드 웹앱 주소·토큰을 넣으면, [LTC 교재 / 리더스앱 업로드] 버튼이 파일을 받는 대신 <b>시트에 바로 한 줄 추가</b>합니다. 비워두면 기존처럼 TSV 파일을 내려받습니다.</div>
-        <label style="margin-top:14px">설교 이미지 프록시 URL (Cloudflare Worker — 선택)</label>
-        <input type="url" id="setProxyUrl" placeholder="https://sermon-image-proxy.계정.workers.dev">
-        <label>이미지 프록시 토큰 (APP_TOKEN)</label>
-        <input type="password" autocomplete="off" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
-        <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>(Flux / Gemini / Krea)에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
-        <label style="margin-top:14px">유튜브 영상분석 프록시 URL (선택 — 비우면 위 이미지 프록시 주소 사용)</label>
-        <input type="url" id="setVidProxyUrl" placeholder="비워두면 위 이미지 프록시 URL을 그대로 사용">
-        <div class="cnt" style="margin-top:6px">설교 <b>유튜브 링크</b>만 넣으면 영상에서 설교 부분을 찾아 전사하고 <b>요약본</b>까지 자동 생성합니다(전사=Gemini, 요약=Claude). 권장 구성은 <b>기존 이미지 프록시 워커에 /youtube 라우트만 추가</b>하는 것입니다 — 이때 이 칸은 비워두면 됩니다(토큰·주소 공용). 별도 워커를 쓸 때만 주소를 입력하세요. <b>Gemini 키는 결제 계정이 연결된(유료) 키여야</b> 지역 차단 없이 작동합니다.</div>
-        <label style="margin-top:14px">성경앱 설교메모 URL (선택 — 본문연구에 내 메모 표시)</label>
-        <input type="url" id="setMemoUrl" placeholder="성경앱 메모 시트 웹앱 주소 (…/exec)">
-        <label>성경앱 설교메모 키</label>
-        <input type="password" autocomplete="off" id="setMemoKey" placeholder="memo_sheet.gs 의 SECRET 값">
-        <div class="cnt" style="margin-top:6px">성경앱(설교 메모)의 시트 웹앱 주소·키를 넣으면, 본문 연구 모달의 <b>📝 내 메모</b> 탭에 그 본문 구간과 겹치는 <b>내 설교 메모·묵상 노트</b>가 표시됩니다. 또한 <b>이달의 묵상</b>에서 쓴 묵상 노트가 성경앱 <b>[노트]</b>에 그대로 나타나고, 양쪽 어디서 고쳐도 서로 반영됩니다. 비워두면 묵상 노트는 설교앱 안에만 저장됩니다.</div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn sub" id="btnDevoMigrate">기존 묵상 노트를 성경앱으로 이관</button>
-          <button class="btn sub" id="btnSermonPushAll">설교 요약본을 성경앱으로 일괄 반영</button>
-        </div>
-        <div class="cnt" style="margin-top:6px">지금까지 설교앱에만 있던 묵상 노트를 성경앱 <b>[노트]</b>로 한 번에 올립니다(1회만 하면 됩니다). 성경앱에 이미 더 최근에 고친 노트가 있으면 그 날짜는 건너뜁니다.<br>요약본 일괄 반영은 요약본이 있는 설교를 성경앱 <b>[설교]</b> 노트로 올립니다 — 기존 수동 업로드분과 <b>같은 id 규칙</b>이라 덮어쓰기만 되고 중복은 생기지 않습니다. 이후 새 요약본은 생성할 때 자동으로 올라갑니다.</div>
+        </details>
+
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
       <div class="card">
-        <label>🔒 비공개 역본 받기 (새한글 · 공동번역개정)</label>
-        <div class="cnt" style="margin-top:6px">성경앱에서 쓰는 <b>키코드</b>를 넣어 이 기기로 한 번 받아 두면, 본문연구의 <b>번역본 목록</b>에 나타나 개역개정과 나란히 볼 수 있습니다(2분할 비교 포함). 본문과 키코드는 <b>이 기기에만</b> 저장되며 공개 코드에는 들어가지 않습니다.</div>
-        <div id="localTrBox" style="margin-top:10px"></div>
+        <label>🔒 저작권 자료 (새한글 · 공동번역개정 · ESV)</label>
+        <div class="cnt" style="margin-top:6px">세 자료가 <b>같은 키코드</b>를 씁니다 — 키코드는 <b>한 번만</b> 넣고, 자료별로 받거나 지우세요. 본문과 키코드는 <b>이 기기에만</b> 저장되며 공개 코드에는 들어가지 않습니다. 기기마다 한 번씩 받으면 오프라인에서도 보입니다.</div>
+        <div id="gateBox" style="margin-top:10px"></div>
       </div>
       <div class="card">
-        <label>📓 옵시디언 보관함 내보내기</label>
-        <div class="cnt" style="margin-top:6px">모든 설교를 <b>옵시디언 호환 .md</b>(연결·검색용 frontmatter·본문코드·키워드 태그·위키링크 포함) 묶음(zip)으로 내려받습니다. 한 방향 내보내기이며 <b>앱 데이터는 변경되지 않습니다.</b> 받은 zip을 풀어 옵시디언 보관함으로 열면 본문·시리즈·주제별로 자동 연결됩니다.</div>
+        <label>🛠 도구</label>
+        <div class="cnt" style="margin:6px 0 12px">필요할 때만 펼쳐 쓰는 기능들입니다.</div>
+
+        <details class="setGrp">
+          <summary>📓 옵시디언 보관함 내보내기</summary>
+        <div class="cnt">모든 설교를 <b>옵시디언 호환 .md</b>(연결·검색용 frontmatter·본문코드·키워드 태그·위키링크 포함) 묶음(zip)으로 내려받습니다. 한 방향 내보내기이며 <b>앱 데이터는 변경되지 않습니다.</b> 받은 zip을 풀어 옵시디언 보관함으로 열면 본문·시리즈·주제별로 자동 연결됩니다.</div>
         <div style="margin-top:10px"><button class="btn" id="btnObsidianExport">옵시디언 보관함(zip) 내보내기</button></div>
-      </div>
-      <div class="card">
-        <label>🖼️ 설교 이미지 AI 선택</label>
+        </details>
+
+        <details class="setGrp">
+          <summary>🖼️ 설교 이미지 AI 선택 <span class="sgSub">엔진·테스트</span></summary>
         <select id="imgEngineSel">
           <option value="flux">Flux (기본 · 분위기 배경에 최적)</option>
           <option value="gemini">Gemini (Nano Banana · 사실적 디테일)</option>
@@ -1823,6 +1842,18 @@ body.uiDlgOpen{overflow:hidden}
           <button class="btn sub" id="imgProxyGen">생성</button>
         </div>
         <div id="imgProxyOut" style="margin-top:10px"></div>
+        </details>
+
+        <details class="setGrp">
+          <summary>🔁 설정 이전 <span class="sgSub">새 기기·브라우저</span></summary>
+        <div class="cnt">이 기기의 연결 설정(API 주소·토큰·키 <b>전부</b>)을 한 번에 옮깁니다. <b>코드에는 키가 그대로 들어 있으니</b> 나와의 채팅·AirDrop 등 <b>본인에게만</b> 보내세요.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px">
+          <button class="btn sub" id="setXferCopy" type="button">설정 코드 복사</button>
+          <button class="btn sub" id="setXferPaste" type="button">설정 코드 붙여넣기</button>
+        </div>
+        <button class="btn sub" id="setXferLink" type="button" style="margin-top:8px">이전 링크 복사 (데스크톱·안드로이드용)</button>
+        <div class="cnt" style="margin-top:6px">새 기기에서: 이 앱을 연 뒤 [설정 코드 붙여넣기]에 코드를 넣으면 끝. 데스크톱·안드로이드는 이전 링크를 열기만 해도 됩니다(아이폰 홈화면 앱은 저장소가 분리되어 링크 대신 <b>앱 안에서 코드 붙여넣기</b>를 쓰세요).</div>
+        </details>
       </div>
       <div class="card">
         <button class="btn sub" id="syncBtn">지금 동기화</button>
@@ -1837,16 +1868,6 @@ body.uiDlgOpen{overflow:hidden}
         <div class="cnt" id="dataStat" style="margin-top:10px"></div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="cnt" id="queueStat" style="margin:0"></div><button class="linkbtn" id="queueViewBtn" type="button" style="display:none">보기·관리</button></div>
         <div id="queueView"></div>
-      </div>
-      <div class="card">
-        <label style="margin-top:0">🔁 설정 이전 (새 기기·브라우저)</label>
-        <div class="cnt" style="margin-top:6px">이 기기의 연결 설정(API 주소·토큰·키 <b>전부</b>)을 한 번에 옮깁니다. <b>코드에는 키가 그대로 들어 있으니</b> 나와의 채팅·AirDrop 등 <b>본인에게만</b> 보내세요.</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px">
-          <button class="btn sub" id="setXferCopy" type="button">설정 코드 복사</button>
-          <button class="btn sub" id="setXferPaste" type="button">설정 코드 붙여넣기</button>
-        </div>
-        <button class="btn sub" id="setXferLink" type="button" style="margin-top:8px">이전 링크 복사 (데스크톱·안드로이드용)</button>
-        <div class="cnt" style="margin-top:6px">새 기기에서: 이 앱을 연 뒤 [설정 코드 붙여넣기]에 코드를 넣으면 끝. 데스크톱·안드로이드는 이전 링크를 열기만 해도 됩니다(아이폰 홈화면 앱은 저장소가 분리되어 링크 대신 <b>앱 안에서 코드 붙여넣기</b>를 쓰세요).</div>
       </div>
       <div class="card">
         <label style="margin-top:0">📖 성경 오프라인 저장</label>
@@ -10452,6 +10473,31 @@ function gateAfterChange(){
   try { if (STUDY.range) studyRenderText(); } catch (e){}
   try { if (STUDY.tab === 'esvsb') studyRenderPane(); } catch (e){}
 }
+/* 연결 설정 그룹의 상태 배지 — 열지 않고도 무엇이 채워졌는지 보인다 (v478) */
+function renderSetBadges(){
+  var s = state.settings || {};
+  function has(v){ return !!String(v || '').trim(); }
+  var map = {
+    sheet: has(s.url) && has(s.token),
+    ai: has(s.claudeKey) || (typeof bridgeOn === 'function' && bridgeOn()),
+    memo: has(s.memoUrl) && has(s.memoKey),
+    proxy: has(s.proxyUrl) && has(s.proxyToken),
+    la: has(s.laUrl) && has(s.laToken)
+  };
+  Object.keys(map).forEach(function(k){
+    var el = document.querySelector('[data-badge="' + k + '"]');
+    if (!el) return;
+    el.textContent = map[k] ? '설정됨' : '미설정';
+    el.classList.toggle('on', !!map[k]);
+  });
+  /* 시트 연결이 안 돼 있으면 그 그룹만 펼쳐 준다(첫 사용 안내) */
+  var sg = document.getElementById('sgSheet');
+  if (sg && !map.sheet && !sg.getAttribute('data-touched')) sg.open = true;
+}
+(function(){
+  var sg = document.getElementById('sgSheet');
+  if (sg) sg.addEventListener('toggle', function(){ sg.setAttribute('data-touched', '1'); });
+})();
 function renderGateBox(){
   var box = $('#gateBox'); if (!box) return;
   var n = 0; GATED.forEach(function(g){ if (gateHas(g)) n++; });
@@ -17550,6 +17596,7 @@ $('#saveSettings').addEventListener('click', function(){
   STUDY._memoP = null;   /* 메모 설정 변경 → 다음 열람 때 새로 불러오기 */
   save(LS.settings, state.settings);
   toast('설정 저장됨');
+  try { renderSetBadges(); } catch (eSb){}
   if (window.refreshFirstRunBanner) refreshFirstRunBanner();
   api({ action: 'ping' }).then(function(){ toast('연결 성공! 동기화를 시작합니다.'); return sync(); })
     .catch(function(e){ toast(friendlyConnErr(e)); });
@@ -20231,6 +20278,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setMemoUrl')) $('#setMemoUrl').value = state.settings.memoUrl || '';
   if ($('#setMemoKey')) $('#setMemoKey').value = state.settings.memoKey || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
+  try { renderSetBadges(); } catch (eSb){}       /* 연결 설정 그룹 상태 배지 (v478) */
   setTimeout(function(){ try { xferBootFromHash(); } catch (eXf){} }, 800);   /* 이전 링크(#tsa-setup=…) 설정 주입 — uiConfirm(3번째 블록) 파싱 후 실행 */
   try { bibCacheStat(); } catch (eBc){}          /* 성경 오프라인 저장 상태 표시 */
   $('#page-search').classList.add('on');
