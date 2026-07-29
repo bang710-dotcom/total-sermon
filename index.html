@@ -551,7 +551,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .hbSec{margin-bottom:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .hbSec>summary{padding:7px 10px;background:var(--card2);cursor:pointer;font-weight:600;font-size:12.5px;color:var(--accent)}
 .hbBody{padding:9px 11px;font-size:13px;line-height:1.65}
-.hbSub{display:block;margin:8px 0 3px;color:var(--accent2);font-weight:700}
+.hbSub{display:block;margin:8px 0 3px;color:var(--accent2);font-weight:700;scroll-margin-top:8px}
+.hbSub.hbSubHit{border-left:3px solid var(--accent);padding-left:7px}   /* 설교 본문에 해당하는 소제목 표시 */
 .hbFeat{color:var(--accent);border-bottom:1px dotted var(--accent);cursor:pointer;font-weight:600}
 #featOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);padding:18px}
 #featOv.on{display:flex;animation:fade .12s ease}
@@ -4826,6 +4827,24 @@ function studyRenderHolman(d){
     return '<details class="hbSec' + (p.hit ? ' hbHit' : '') + '"' + (open ? ' open' : '') + '><summary>' + esc(p.title) + '</summary><div class="hbBody">' + hbBody(p.body) + '</div></details>';
   }).join('');
 }
+/* 펼쳐진 섹션 안에서 현재 본문과 겹치는 "소제목"(예: 시편 89편)으로 정밀 스크롤.
+   소제목이 없거나 매칭이 없으면 섹션(.hbHit) 머리로 — 기존 동작 폴백. */
+function hbScrollToHit(pane){
+  if (!pane) return;
+  var R = STUDY.range;
+  var target = null;
+  if (R && R.r){
+    var tlo = R.r.c1 * 1000 + R.r.v1, thi = R.r.c2 * 1000 + R.r.v2;
+    var subs = pane.querySelectorAll('.hbSub[data-hb-lo]');
+    for (var i = 0; i < subs.length; i++){
+      var lo = +subs[i].getAttribute('data-hb-lo'), hi = +subs[i].getAttribute('data-hb-hi');
+      if (lo <= thi && tlo <= hi){ target = subs[i]; break; }
+    }
+    if (target) target.classList.add('hbSubHit');
+  }
+  if (!target) target = pane.querySelector('.hbHit');
+  if (target && target.scrollIntoView) target.scrollIntoView({ block: 'start' });
+}
 /* ── 공통: 성경 절 인용 규칙 (설교 생성 프롬프트에 부착) ──
    주해근거·적용·실천·원고·예화 등에서 성경 본문 "텍스트"를 인용해 실을 때는 절 전체를 온전히.
    뜻풀이·특정 단어 언급은 예외. 각 프롬프트 정의 끝에 + VERSE_FULL_RULE 로 붙인다. */
@@ -4878,10 +4897,26 @@ function studyHolmanMatched(){
     var secRange = hbTitleRange;
     var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
     var picked = [];
+    function clean(t){ return String(t || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\s+/g, ' ').trim(); }
     secs.forEach(function(sec){
       var nl = sec.indexOf('\n'); var title = (nl >= 0 ? sec.slice(0, nl) : sec).replace(/^#+\s*/, '').trim();
       var body = nl >= 0 ? sec.slice(nl + 1).trim() : ''; var rg = secRange(title);
-      if (rg && rg.lo <= thi && tlo <= rg.hi) picked.push(title + ' — ' + body.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\s+/g, ' ').trim());
+      if (!(rg && rg.lo <= thi && tlo <= rg.hi)) return;
+      /* 섹션 안에 "### 소제목"(예: 시편 편별)이 있으면, 겹치는 소제목 덩어리만 골라낸다.
+         (시편 제N권처럼 섹션이 매우 큰 경우 3500자 캡에 정작 해당 편이 잘려 나가는 것을 방지) */
+      var subs = ('\n' + body).split(/\n### /).filter(function(s){ return s.trim(); });
+      if (subs.length > 1){
+        var subPicked = [];
+        subs.forEach(function(sb){
+          var snl = sb.indexOf('\n');
+          var stitle = (snl >= 0 ? sb.slice(0, snl) : sb).replace(/^#+\s*/, '').trim();
+          var sbody = snl >= 0 ? sb.slice(snl + 1).trim() : '';
+          var srg = secRange(stitle);
+          if (srg && srg.lo <= thi && tlo <= srg.hi) subPicked.push(stitle + ' — ' + clean(sbody));
+        });
+        if (subPicked.length){ picked.push(title + '\n' + subPicked.join('\n\n')); return; }
+      }
+      picked.push(title + ' — ' + clean(body));
     });
     return picked.join('\n\n').slice(0, 3500);
   }).catch(function(){ return ''; });
@@ -5250,7 +5285,7 @@ function studyRenderPane(){
   }
   if (STUDY.tab === 'holman'){
     pane.innerHTML = '<div class="cnt">Holman 핸드북을 불러오는 중…</div>';
-    studyLoadHolman(R.idx).then(function(d){ if (STUDY.tab === 'holman'){ pane.innerHTML = studyRenderHolman(d); var hit = pane.querySelector('.hbHit'); if (hit && hit.scrollIntoView) hit.scrollIntoView({ block: 'start' }); } })
+    studyLoadHolman(R.idx).then(function(d){ if (STUDY.tab === 'holman'){ pane.innerHTML = studyRenderHolman(d); hbScrollToHit(pane); } })
       .catch(function(e){ if (STUDY.tab === 'holman') pane.innerHTML = '<div class="stWarn">Holman 핸드북을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ') 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
     return;
   }
@@ -18955,7 +18990,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v467';
+var APP_VER = 'v468';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
