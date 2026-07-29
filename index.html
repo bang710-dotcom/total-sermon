@@ -4795,6 +4795,11 @@ function studyRenderHolman(d){
     if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
     m = title.match(/(\d+)\s*장/);
     if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
+    /* 시편: "제N권 (시편 73–89편)"·"89편" 등 '편'(=장 대응) 표기 처리 — '제N권'의 권 번호는 무시하고 편 번호만 매칭 */
+    m = title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*편'));
+    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
+    m = title.match(/(\d+)\s*편/);
+    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
     return null;
   }
   var hbBody = hbRenderBody;
@@ -4866,6 +4871,8 @@ function studyHolmanMatched(){
       var m = title.match(new RegExp('(\\d+)\\s*:\\s*(\\d+)(?:\\s*' + HB_DASH + '\\s*(?:(\\d+)\\s*:\\s*)?(\\d+))?'));
       if (m){ var c1=+m[1], v1=+m[2], c2=m[3]?+m[3]:c1, v2=m[4]?+m[4]:v1; return { lo:c1*1000+v1, hi:c2*1000+v2 }; }
       m = title.match(/(\d+)\s*장/); if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
+      m = title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*편')); if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
+      m = title.match(/(\d+)\s*편/); if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
       return null;
     }
     var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
