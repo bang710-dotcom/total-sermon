@@ -10523,29 +10523,29 @@ function bmPushAllSermons(){
   if (!rows.length){ toast('요약본이 있는 설교가 없습니다. (요약본은 필요할 때 시트에서 불러옵니다)'); return; }
   if (!confirm('요약본이 있는 설교 ' + rows.length + '건을 성경앱 [설교] 노트로 올립니다.\n같은 id는 덮어쓰므로 중복은 생기지 않습니다. 진행할까요?')) return;
   showWaitOverlay('성경앱으로 올리고 있어요', '설교 요약본 ' + rows.length + '건을 정리하는 중입니다.');
-  var map = bmIdMap(), okN = 0, skip = [];
+  var map = bmIdMap(), okN = 0, skip = [], buf = [];
   tsaMemoLoad().catch(function(){ return []; }).then(function(all){
     return rows.reduce(function(p, s){
       return p.then(function(){
         return bmCoords(String(s['본문'] || '').trim()).then(function(c){
-          if (!c){ skip.push(s['제목'] || s['ID']); return null; }
+          if (!c){ skip.push(s['제목'] || s['ID']); return; }
           var id = bmResolveSermonId(bmSermonBaseId(s, c), s, all, map);
           var prev = (all || []).filter(function(x){ return String(x.id) === id; })[0];
           map[String(s['ID'])] = id;
           okN++;
-          return {
+          buf.push({
             id: id, kind: '설교', ref: bmRefShort(c), title: bmSermonTitle(s),
             memo: String(s['요약본']).trim(), color: '', tags: bmSermonTags(s),
             bookIdx: c.bookIdx, startChap: c.startChap, startVerse: c.startVerse,
             endChap: c.endChap, endVerse: c.endVerse,
             createdAt: (prev && prev.createdAt) || new Date().toISOString(),
             updatedAt: new Date().toISOString(), deleted: ''
-          };
-        }).then(function(m){ if (m) bmPushAllSermons._buf.push(m); });
+          });
+        }).catch(function(){ skip.push(s['제목'] || s['ID']); });
       });
-    }, Promise.resolve((bmPushAllSermons._buf = [])));
+    }, Promise.resolve());
   }).then(function(){
-    var buf = bmPushAllSermons._buf || [], chunks = [], i;
+    var chunks = [], i;
     for (i = 0; i < buf.length; i += 40) chunks.push(buf.slice(i, i + 40));
     return chunks.reduce(function(p, ch){
       return p.then(function(){ return bmPost({ action: 'upsert', memos: ch }); });
