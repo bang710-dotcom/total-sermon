@@ -9983,6 +9983,125 @@ window.exportObsidianVault = exportObsidianVault;
 var devoState = { date: todayLocal_(), entry: null, note: {}, bibleCache: {} };
 var DEVO_FIELDS = ['본문개요', '본문주제', '관찰답', '묵상답', '적용답', '묵상메시지', '적용', '기도'];
 
+/* ═══════════ 묵상노트 ↔ 성경앱 노트 연동 (v471) ═══════════
+   정본(단일 원본) = 성경앱 메모 시트의 [노트] 탭. id = 'devo-YYYY-MM-DD', kind='노트'.
+   · 설교앱 8칸 답안 ↔ '## 머리표' 섹션 텍스트로 직렬화/파싱 → 성경앱에서 자유 편집 가능.
+   · 성경앱에서 머리표 밖에 쓴 글(preamble)은 _pre로 보존해 왕복해도 사라지지 않는다.
+   · 설교앱 '묵상노트' 시트는 오프라인 백업 미러로만 유지 — 읽기는 항상 성경앱이 우선.
+   · 전송 실패분은 tsa.bmq 대기열에 durable 보관 후 동기화 때 재전송. */
+var BM_QK = 'tsa.bmq';
+var BM_SEC = [
+  ['본문개요', '본문 개요'], ['본문주제', '본문 주제'],
+  ['관찰답', '관찰 질문'], ['묵상답', '묵상 질문'], ['적용답', '적용 질문'],
+  ['묵상메시지', '오늘 주신 메시지'], ['적용', '적용·실천'], ['기도', '기도']
+];
+var BM_Q = { '관찰답': '관찰질문', '묵상답': '묵상질문', '적용답': '적용질문' };
+function bmDevoId(date){ return 'devo-' + date; }
+
+/* 8칸(+_pre) → 성경앱 노트 본문 텍스트 */
+function bmNoteText(entry, note){
+  var L = [], pre = String((note && note._pre) || '').trim();
+  if (pre) L.push(pre, '');
+  BM_SEC.forEach(function(p){
+    var v = String((note && note[p[0]]) || '').trim();
+    if (!v) return;
+    L.push('## ' + p[1]);
+    var q = entry && BM_Q[p[0]] ? String(entry[BM_Q[p[0]]] || '').trim() : '';
+    if (q) L.push('Q. ' + q);
+    L.push(v, '');
+  });
+  return L.join('\n').trim();
+}
+/* 성경앱 노트 본문 텍스트 → 8칸(+_pre). 머리표가 없거나 깨져도 내용을 잃지 않는다. */
+function bmParseText(txt){
+  var head = {}; BM_SEC.forEach(function(p){ head[p[1]] = p[0]; });
+  var lines = String(txt || '').split(/\r?\n/), cur = null, buf = {}, pre = [], hit = 0;
+  lines.forEach(function(ln){
+    var m = ln.match(/^\s{0,3}#{1,6}\s*(.+?)\s*$/);
+    if (m && head[m[1]]){ cur = head[m[1]]; buf[cur] = buf[cur] || []; hit++; return; }
+    if (!cur){ pre.push(ln); return; }
+    if (/^\s*Q\.\s/.test(ln)) return;      /* 동봉해 둔 질문 줄은 답이 아니다 */
+    buf[cur].push(ln);
+  });
+  var o = { _pre: pre.join('\n').trim() };
+  BM_SEC.forEach(function(p){ o[p[0]] = (buf[p[0]] || []).join('\n').trim(); });
+  o._struct = hit > 0;
+  return o;
+}
+/* 본문범위("요한복음 1:19-34") → 성경앱 좌표. 장 단위면 실제 마지막 절까지 채운다. */
+function bmCoords(refStr){
+  var r = parseRange(String(refStr || '').trim());
+  if (!r) return Promise.resolve(null);
+  var bi = devoBookIdxMap()[r.book];
+  if (bi == null) return Promise.resolve(null);
+  var base = { bookIdx: bi, startChap: r.c1, startVerse: r.v1 || 1, endChap: r.c2 || r.c1 };
+  if (!r.wholeChapter){ base.endVerse = r.v2 || r.v1 || 1; return Promise.resolve(base); }
+  return bibleIndex().then(function(idx){
+    var bk = idx.filter(function(b){ return b.ko === r.book || b.abbr === r.book; })[0];
+    if (!bk) { base.endVerse = 999; return base; }
+    return loadBook(bk.n).then(function(book){
+      var vs = (book.chapters[(r.c2 || r.c1) - 1] || []).length;
+      base.endVerse = vs || 999;
+      return base;
+    });
+  }).catch(function(){ base.endVerse = 999; return base; });
+}
+/* ── 성경앱 메모 웹앱 POST (Apps Script — 프리플라이트 없는 text/plain) ── */
+function bmPost(body){
+  var cfg = tsaMemoCfg();
+  if (!cfg) return Promise.reject(new Error('설정에 성경앱 메모 URL·키가 없습니다.'));
+  return fetch(cfg.url + '?key=' + encodeURIComponent(cfg.key), {
+    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body)
+  }).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(j){ if (!j || j.ok === false) throw new Error((j && j.error) || '성경앱 저장 오류'); return j; });
+}
+function bmQueueGet(){ try { return JSON.parse(localStorage.getItem(BM_QK)) || []; } catch (e){ return []; } }
+function bmQueueSet(a){ try { localStorage.setItem(BM_QK, JSON.stringify(a)); } catch (e){} }
+function bmUpsert(memo){
+  return bmPost({ action: 'upsert', memos: [memo] }).then(function(j){
+    STUDY._memoP = null;                                    /* 읽기 캐시 무효화 */
+    var q = bmQueueGet().filter(function(m){ return String(m.id) !== String(memo.id); });
+    bmQueueSet(q);
+    return j;
+  }).catch(function(e){
+    var q = bmQueueGet().filter(function(m){ return String(m.id) !== String(memo.id); });
+    q.push(memo); bmQueueSet(q);                            /* 다음 동기화 때 재전송 */
+    throw e;
+  });
+}
+/* 대기열 재전송 — 동기화·포커스 복귀 때 조용히 호출 */
+function bmFlush(){
+  var q = bmQueueGet();
+  if (!q.length || !tsaMemoCfg() || !navigator.onLine) return Promise.resolve(0);
+  return bmPost({ action: 'upsert', memos: q }).then(function(){
+    bmQueueSet([]); STUDY._memoP = null; return q.length;
+  }).catch(function(){ return 0; });
+}
+window.bmFlush = bmFlush;
+function bmFindNote(all, date){
+  var id = bmDevoId(date);
+  return (all || []).filter(function(m){ return String(m.id) === id; })[0] || null;
+}
+/* 성경앱 노트(정본)에 이 날짜 묵상을 upsert. 내용이 모두 비면 툼스톤 처리. */
+function devoPushBible(date, data){
+  var e = devoState.entry;
+  var refStr = (e && e['본문범위']) || data['본문범위'] || '';
+  var txt = bmNoteText(e, data);
+  var prev = devoState.bmNote && String(devoState.bmNote.id) === bmDevoId(date) ? devoState.bmNote : null;
+  return bmCoords(refStr).then(function(c){
+    var m = {
+      id: bmDevoId(date), kind: '노트', ref: refStr,
+      title: '묵상 · ' + date + ((e && e['제목']) ? ' ' + e['제목'] : ''),
+      memo: txt, color: '', tags: JSON.stringify(['묵상집']),
+      createdAt: (prev && prev.createdAt) || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deleted: txt ? '' : '1'
+    };
+    if (c) { m.bookIdx = c.bookIdx; m.startChap = c.startChap; m.startVerse = c.startVerse; m.endChap = c.endChap; m.endVerse = c.endVerse; }
+    return bmUpsert(m).then(function(){ devoState.bmNote = m; return m; });
+  });
+}
+
 function bibleIndex(){
   if (devoState._idx) return Promise.resolve(devoState._idx);
   return fetch('bible/index.json').then(function(r){ return r.json(); }).then(function(j){ devoState._idx = j; return j; });
@@ -10123,8 +10242,9 @@ function renderDevo(){
   var saved = note['ID'] ? ' <span class="badge b-state">기록 있음</span>' : '';
   body.className = 'split';
   body.innerHTML =
-    '<div class="card" id="devoScript"><div class="cnt">개역개정' + saved + '</div><div id="devoVerses" class="empty">본문 불러오는 중…</div></div>' +
+    '<div class="card" id="devoScript"><div class="cnt">개역개정<span id="devoSavedBadge">' + saved + '</span></div><div id="devoVerses" class="empty">본문 불러오는 중…</div></div>' +
     '<div>' +
+    '<div id="devoFree"></div>' +
     '<div class="card"><b>관찰하기</b>' +
     '<label>본문 개요</label>' + dta('본문개요', 4, '본문의 흐름을 요약해 보세요', note['본문개요']) +
     '<label>본문 주제</label>' + dta('본문주제', 2, '본문의 중심 주제', note['본문주제']) + '</div>' +
@@ -10140,6 +10260,7 @@ function renderDevo(){
     '<button class="btn" id="devoSave">묵상 저장</button></div>' +
     '</div>';
   $('#devoSave').addEventListener('click', saveDevoNote);
+  devoBibleFill(date);              /* 성경앱 노트(정본)가 있으면 그 내용으로 덮어 채운다 */
   fillDevoIllust(e['본문범위']);
   var range = parseRange(e['본문범위']);
   if (range) {
