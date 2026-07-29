@@ -438,6 +438,11 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stMapCell{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:4px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:var(--fg)}
 .stMapCell img{width:100%;height:66px;object-fit:cover;border-radius:5px;background:#fff}
 .stMapCell span{font-size:11px;line-height:1.3;color:var(--dim)}
+.stHymnRow{margin-bottom:4px}
+.stHymnRow .stHymnBtn{display:block;width:100%;text-align:left}
+.stHymnRow .stHymnBtn.on{border-color:var(--accent);color:var(--accent)}
+.stHymnSheet:not(:empty){margin:6px 0 12px}
+.stHymnSheet img{width:100%;border-radius:8px;background:#fff;display:block}
 .stAiSec h4{margin:0 0 6px;font-size:12.5px;color:var(--accent);font-weight:700}
 .stAiBody{font-size:13px;line-height:1.65;color:var(--text)}
 .stWhy{margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--dim)}
@@ -4805,10 +4810,12 @@ function studyHymnSearch(q){
   if (!hits.length){ box.innerHTML = '<div class="cnt">"' + esc(q) + '"에 해당하는 찬송이 없습니다.</div>'; return; }
   box.innerHTML = (q ? '' : '<div class="cnt" style="margin-bottom:6px">번호나 제목을 넣으면 좁혀집니다 (지금은 앞 24장)</div>')
     + hits.map(function(h){
-        return '<button class="btn sub mini stHymnBtn" type="button" data-hymnno="' + esc(String(h.no)) + '" data-hymnfile="' + esc(COM_BASE + '/' + h.file) + '" style="display:block;width:100%;text-align:left;margin-bottom:4px">'
-          + '<b>' + esc(String(h.no)) + '장</b> ' + esc(h.title || '') + '</button>';
-      }).join('')
-    + '<div id="stHymnSheet" style="margin-top:10px"></div>';
+        return '<div class="stHymnRow">'
+          + '<button class="btn sub mini stHymnBtn" type="button" data-hymnno="' + esc(String(h.no)) + '" data-hymnfile="' + esc(COM_BASE + '/' + h.file) + '">'
+          + '<b>' + esc(String(h.no)) + '장</b> ' + esc(h.title || '') + '</button>'
+          + '<div class="stHymnSheet" data-sheet="' + esc(String(h.no)) + '"></div>'
+          + '</div>';
+      }).join('');
 }
 function studyDictDefault(){
   var hits = studyDictHits((STUDY.dict && STUDY.dict.entries) || []);
@@ -5772,9 +5779,21 @@ function fillConc(code){
     }
     var hb = e.target.closest && e.target.closest('.stHymnBtn');
     if (hb){
-      var sh = document.getElementById('stHymnSheet');
-      if (sh) sh.innerHTML = '<div class="cnt" style="margin-bottom:6px"><b>' + esc(hb.getAttribute('data-hymnno')) + '장</b> 악보</div>'
-        + '<img src="' + esc(hb.getAttribute('data-hymnfile')) + '" alt="찬송가 악보" style="width:100%;border-radius:8px;background:#fff">';
+      var hno = hb.getAttribute('data-hymnno');
+      var row = hb.parentNode;
+      var slot = row && row.querySelector('.stHymnSheet');
+      var wasOpen = !!(slot && slot.innerHTML.trim());
+      /* 아코디언: 다른 악보는 접고, 누른 것만 그 자리에서 펼친다 */
+      Array.prototype.forEach.call(document.querySelectorAll('.stHymnSheet'), function(x){ x.innerHTML = ''; });
+      Array.prototype.forEach.call(document.querySelectorAll('.stHymnBtn'), function(x){ x.classList.remove('on'); });
+      if (wasOpen) return;                       /* 같은 것을 다시 누르면 닫기 */
+      hb.classList.add('on');
+      if (!slot) return;
+      slot.innerHTML = '<img src="' + esc(hb.getAttribute('data-hymnfile')) + '" alt="' + esc(hno) + '장 악보">';
+      var toView = function(){ try { hb.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_){ } };
+      var img = slot.querySelector('img');
+      if (img && !img.complete) img.addEventListener('load', toView, { once: true });
+      toView();                                   /* 이미지 도착 전에도 먼저 위치를 잡아 준다 */
       return;
     }
     var db = e.target.closest && e.target.closest('.swDeepBtn');
@@ -19716,7 +19735,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v472';
+var APP_VER = 'v473';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
