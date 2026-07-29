@@ -4751,6 +4751,23 @@ function studyRenderNotes(list, emptyMsg){
   return list.map(function(o){ return '<div class="stVnote"><span class="stvr">' + esc(o.ref) + '</span>' + stMd(o.text) + '</div>'; }).join('');
 }
 var HB_DASH = '[-~–—‐-―]';  /* 하이픈·물결·엔/엠대시 등 */
+/* Holman 제목 → 절 범위(lo/hi, 장*1000+절). 섹션(## )·소제목(### ) 공용.
+   지원: "3:1-4:2" · "5장-7장" · "5장" · "시편 73–89편"(시편은 '편'=장) · "89편" */
+function hbTitleRange(title){
+  title = String(title || '');
+  var m = title.match(new RegExp('(\\d+)\\s*:\\s*(\\d+)(?:\\s*' + HB_DASH + '\\s*(?:(\\d+)\\s*:\\s*)?(\\d+))?'));
+  if (m){ var c1=+m[1], v1=+m[2], c2=m[3]?+m[3]:c1, v2=m[4]?+m[4]:v1; return { lo:c1*1000+v1, hi:c2*1000+v2 }; }
+  m = title.match(new RegExp('(\\d+)\\s*장\\s*' + HB_DASH + '\\s*(\\d+)\\s*장')) || title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*장'));
+  if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
+  m = title.match(/(\d+)\s*장/);
+  if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
+  /* 시편: "제N권 (시편 73–89편)"·"시편 89편" — '편'이 장에 대응('제N권'의 권 번호는 무시) */
+  m = title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*편'));
+  if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
+  m = title.match(/(\d+)\s*편/);
+  if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
+  return null;
+}
 /* Holman 본문 렌더 — 이미지·성구링크·소제목·굵게 + {{feat:KEY|라벨}} 별항 링크 */
 function hbRenderBody(body){
   var imgs = [];
@@ -4764,7 +4781,11 @@ function hbRenderBody(body){
     var im = imgs[+i] || {};
     return '<div style="margin:8px 0"><img src="' + (im.url || '') + '" alt="' + esc(im.alt || '') + '" style="max-width:100%;border-radius:8px" loading="lazy"></div>';
   });
-  return html.replace(/^###\s+(.+)$/gm, '<b class="hbSub">$1</b>')
+  /* 소제목(예: "시편 89편(Psalm 89) — 공동체 탄원시")에 절 범위를 심어, 그 지점으로 정밀 스크롤 */
+  return html.replace(/^###\s+(.+)$/gm, function(_, t){
+    var rg = hbTitleRange(t);
+    return '<b class="hbSub"' + (rg ? ' data-hb-lo="' + rg.lo + '" data-hb-hi="' + rg.hi + '"' : '') + '>' + t + '</b>';
+  })
     .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
     .replace(/\{\{feat:([a-z0-9-]+)\|([^}]+)\}\}/g, '<a class="hbFeat" data-feat="$1">$2</a>')
     .replace(/\n/g, '<br>');
@@ -4788,20 +4809,7 @@ function studyRenderHolman(d){
   if (!d || !d.chapters || !d.chapters[0] || !d.chapters[0][0]) return '<div class="cnt">이 책의 Holman 핸드북 내용이 없습니다.</div>';
   var R = STUDY.range, tlo = -1, thi = -1;
   if (R && R.r){ tlo = R.r.c1 * 1000 + R.r.v1; thi = R.r.c2 * 1000 + R.r.v2; }
-  function secRange(title){
-    var m = title.match(new RegExp('(\\d+)\\s*:\\s*(\\d+)(?:\\s*' + HB_DASH + '\\s*(?:(\\d+)\\s*:\\s*)?(\\d+))?'));
-    if (m){ var c1=+m[1], v1=+m[2], c2=m[3]?+m[3]:c1, v2=m[4]?+m[4]:v1; return { lo:c1*1000+v1, hi:c2*1000+v2 }; }
-    m = title.match(new RegExp('(\\d+)\\s*장\\s*' + HB_DASH + '\\s*(\\d+)\\s*장')) || title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*장'));
-    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
-    m = title.match(/(\d+)\s*장/);
-    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
-    /* 시편: "제N권 (시편 73–89편)"·"89편" 등 '편'(=장 대응) 표기 처리 — '제N권'의 권 번호는 무시하고 편 번호만 매칭 */
-    m = title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*편'));
-    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
-    m = title.match(/(\d+)\s*편/);
-    if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
-    return null;
-  }
+  var secRange = hbTitleRange;
   var hbBody = hbRenderBody;
   var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
   var parsed = secs.map(function(sec){
@@ -4867,14 +4875,7 @@ function studyHolmanMatched(){
   return studyLoadHolman(STUDY.range.idx).then(function(d){
     if (!d || !d.chapters || !d.chapters[0] || !d.chapters[0][0]) return '';
     var R = STUDY.range, tlo = R.r.c1 * 1000 + R.r.v1, thi = R.r.c2 * 1000 + R.r.v2;
-    function secRange(title){
-      var m = title.match(new RegExp('(\\d+)\\s*:\\s*(\\d+)(?:\\s*' + HB_DASH + '\\s*(?:(\\d+)\\s*:\\s*)?(\\d+))?'));
-      if (m){ var c1=+m[1], v1=+m[2], c2=m[3]?+m[3]:c1, v2=m[4]?+m[4]:v1; return { lo:c1*1000+v1, hi:c2*1000+v2 }; }
-      m = title.match(/(\d+)\s*장/); if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
-      m = title.match(new RegExp('(\\d+)\\s*' + HB_DASH + '\\s*(\\d+)\\s*편')); if (m){ return { lo:(+m[1])*1000+1, hi:(+m[2])*1000+999 }; }
-      m = title.match(/(\d+)\s*편/); if (m){ return { lo:(+m[1])*1000+1, hi:(+m[1])*1000+999 }; }
-      return null;
-    }
+    var secRange = hbTitleRange;
     var secs = ('\n' + d.chapters[0][0]).split(/\n## /).filter(function(s){ return s.trim(); });
     var picked = [];
     secs.forEach(function(sec){
