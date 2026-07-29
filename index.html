@@ -434,6 +434,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stVnote .stvr{color:var(--accent2);font-weight:700;margin-right:5px}
 .stWarn{color:var(--warn);font-size:13px;line-height:1.6}
 .stAiSec{margin-bottom:13px}
+.stMapGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.stMapCell{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:4px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:var(--fg)}
+.stMapCell img{width:100%;height:66px;object-fit:cover;border-radius:5px;background:#fff}
+.stMapCell span{font-size:11px;line-height:1.3;color:var(--dim)}
 .stAiSec h4{margin:0 0 6px;font-size:12.5px;color:var(--accent);font-weight:700}
 .stAiBody{font-size:13px;line-height:1.65;color:var(--text)}
 .stWhy{margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--dim)}
@@ -4699,6 +4703,118 @@ function studyLoadHolman(idx){
   return fetch(COM_BASE + '/commentary/holman_' + ('0' + idx).slice(-2) + '.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(d){ STUDY.holman[idx] = d; return d; });
 }
+/* ── 칼뱅 주석 (v472) — 성경앱 calvin/cal_NN.json. 호크마와 같은 chapters[][] 형식이지만 영문 원문. ──
+   전 48권만 존재(룻기·잠언·전도서·아가·에스라~에스더·요한2·3서·유다서 등 18권 없음). */
+function studyLoadCalvin(idx){
+  STUDY.calvin = STUDY.calvin || {};
+  if (STUDY.calvin[idx] !== undefined) return Promise.resolve(STUDY.calvin[idx]);
+  return fetch(COM_BASE + '/calvin/cal_' + ('0' + idx).slice(-2) + '.json').then(function(r){
+    if (r.status === 404) return null;                 /* 이 책은 칼뱅 주석에 없음 */
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(d){ STUDY.calvin[idx] = d; return d; });
+}
+var P_CALVIN_KO = '당신은 신학 문헌 번역·요약 전문가입니다. 아래는 장 칼뱅(John Calvin)의 성경 주석 영문 원문입니다. 한국 교회 설교자가 바로 읽고 쓸 수 있게 한국어로 정리하세요.\n\n규칙:\n- 절별로 나눕니다. 각 절은 "N절 — " 으로 시작하세요.\n- 칼뱅이 실제로 말한 내용만 옮깁니다. 없는 내용을 보태거나 현대적 적용을 만들어 넣지 마세요.\n- 간결한 평서문으로 씁니다. 설교 문체로 각색하지 마세요.\n- 칼뱅 특유의 강조점(하나님의 주권과 섭리, 성경의 명료성, 우상숭배 비판, 그리스도 중심 해석)이 나오면 그것을 분명히 살리세요.\n- 원문이 다루지 않는 절은 건너뜁니다.\n- 마지막에 "◆ 설교에 쓸 만한 통찰" 항목으로 2~3개를 한 줄씩 덧붙이세요.\n\n출력은 마크다운 없는 평문으로 하세요.';
+function studyCalvinKo(){
+  var R = STUDY.range; if (!R) return;
+  var out = document.getElementById('stCalvinKoOut'); if (!out) return;
+  var d = STUDY.calvin && STUDY.calvin[R.idx];
+  if (!d){ toast('칼뱅 주석을 먼저 불러와야 합니다.'); return; }
+  var list = studyVerseList(d);
+  if (!list.length){ toast('이 구간에는 칼뱅 주석이 없습니다.'); return; }
+  var src = list.map(function(o){ return '[' + o.ref + ']\n' + o.text; }).join('\n\n');
+  if (src.length > 30000) src = src.slice(0, 30000) + '\n…(이하 생략)';
+  out.innerHTML = '<div class="cnt">칼뱅 주석을 한글로 정리하는 중…</div>';
+  callClaude(P_CALVIN_KO, String($('#studyTitle').textContent || '').replace(/ — .*$/, '') + '\n\n' + src,
+    8000, aiTick('칼뱅 주석 한글 정리'))
+    .then(function(t){
+      if (STUDY.tab !== 'calvin') return;
+      out.innerHTML = '<div class="sworddef"><div class="swh"><b>칼뱅 주석 — 한글 정리</b></div><div class="swd" style="white-space:pre-wrap">' + esc(String(t || '').trim()) + '</div></div>';
+    })
+    .catch(function(e){ out.innerHTML = '<div class="stWarn">한글 정리 실패: ' + esc(e && e.message || String(e)) + '</div>'; });
+}
+/* ── 성경지도 · Lexham 성경사전 · 찬송가 (v472) — 모두 성경앱(COM_BASE) 자산 ── */
+function studyLoadMaps(){
+  if (STUDY.mapList) return Promise.resolve(STUDY.mapList);
+  return fetch(COM_BASE + '/maps/index.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.mapList = d.items || []; return STUDY.mapList; });
+}
+function studyLoadHymns(){
+  if (STUDY.hymnList) return Promise.resolve(STUDY.hymnList);
+  return fetch(COM_BASE + '/hymns/index.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){ STUDY.hymnList = d.items || []; return STUDY.hymnList; });
+}
+function studyLoadDict(){
+  if (STUDY.dict) return Promise.resolve(STUDY.dict);
+  if (STUDY._dictP) return STUDY._dictP;
+  STUDY._dictP = fetch(COM_BASE + '/dict/index.json').then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(idx){
+      var parts = idx.parts || [];
+      return Promise.all(parts.map(function(f){
+        return fetch(COM_BASE + '/' + f).then(function(r){ return r.json(); }).catch(function(){ return { entries: [] }; });
+      })).then(function(arr){
+        var all = [];
+        arr.forEach(function(d){ (d.entries || []).forEach(function(e){ all.push(e); }); });
+        all.sort(function(a, b){ return String(a.h || '').localeCompare(String(b.h || ''), 'ko'); });
+        STUDY.dict = { name: idx.name || '성경사전', entries: all };
+        return STUDY.dict;
+      });
+    }).catch(function(e){ STUDY._dictP = null; throw e; });
+  return STUDY._dictP;
+}
+/* 지금 본문 구간을 본문으로 언급하는 사전 항목 찾기 — "눅 15:28" 같은 표기를 항목 본문에서 검사 */
+function studyDictHits(entries){
+  var R = STUDY.range; if (!R) return [];
+  var ab = bmAbbr(R.idx); if (!ab) return [];
+  var r = R.r, lo = r.c1 * 1000 + (r.v1 || 1), hi = (r.c2 || r.c1) * 1000 + (r.v2 || r.v1 || 999);
+  var re = new RegExp(ab + '\\s*(\\d+)\\s*:\\s*(\\d+)', 'g');
+  var out = [];
+  entries.forEach(function(e){
+    var b = String(e.b || ''); if (b.indexOf(ab) < 0) return;
+    re.lastIndex = 0; var m, hit = false;
+    while ((m = re.exec(b))){ var k = (+m[1]) * 1000 + (+m[2]); if (k >= lo && k <= hi){ hit = true; break; } }
+    if (hit) out.push(e);
+  });
+  return out.slice(0, 40);
+}
+function studyDictCard(e){
+  return '<div class="sworddef"><div class="swh"><b>' + esc(e.h || '') + '</b>'
+    + (e.o ? ' <span class="sorig">' + esc(e.o) + '</span>' : '')
+    + (e.r ? ' <span class="strans">' + esc(e.r) + '</span>' : '') + '</div>'
+    + '<div class="swd">' + linkifyRefs(String(e.b || '')) + '</div></div>';
+}
+function studyDictSearch(q){
+  var box = document.getElementById('stDictOut'); if (!box) return;
+  var d = STUDY.dict; if (!d) return;
+  q = String(q || '').trim();
+  if (!q){ box.innerHTML = studyDictDefault(); return; }
+  var hits = d.entries.filter(function(e){ return String(e.h || '').indexOf(q) >= 0; }).slice(0, 40);
+  if (!hits.length) hits = d.entries.filter(function(e){ return String(e.b || '').indexOf(q) >= 0; }).slice(0, 20);
+  box.innerHTML = hits.length
+    ? '<div class="cnt" style="margin-bottom:6px">"' + esc(q) + '" — ' + hits.length + '건</div>' + hits.map(studyDictCard).join('')
+    : '<div class="cnt">"' + esc(q) + '"에 해당하는 항목이 없습니다.</div>';
+}
+function studyHymnSearch(q){
+  var box = document.getElementById('stHymnOut'); if (!box) return;
+  var items = STUDY.hymnList || [];
+  q = String(q || '').trim();
+  var hits;
+  if (!q) hits = items.slice(0, 24);
+  else if (/^\d+$/.test(q)) hits = items.filter(function(h){ return String(h.no) === q || String(h.no).indexOf(q) === 0; }).slice(0, 24);
+  else hits = items.filter(function(h){ return String(h.title || '').indexOf(q) >= 0; }).slice(0, 40);
+  if (!hits.length){ box.innerHTML = '<div class="cnt">"' + esc(q) + '"에 해당하는 찬송이 없습니다.</div>'; return; }
+  box.innerHTML = (q ? '' : '<div class="cnt" style="margin-bottom:6px">번호나 제목을 넣으면 좁혀집니다 (지금은 앞 24장)</div>')
+    + hits.map(function(h){
+        return '<button class="btn sub mini stHymnBtn" type="button" data-hymnno="' + esc(String(h.no)) + '" data-hymnfile="' + esc(COM_BASE + '/' + h.file) + '" style="display:block;width:100%;text-align:left;margin-bottom:4px">'
+          + '<b>' + esc(String(h.no)) + '장</b> ' + esc(h.title || '') + '</button>';
+      }).join('')
+    + '<div id="stHymnSheet" style="margin-top:10px"></div>';
+}
+function studyDictDefault(){
+  var hits = studyDictHits((STUDY.dict && STUDY.dict.entries) || []);
+  if (!hits.length) return '<div class="cnt">이 본문을 직접 언급하는 사전 항목은 없습니다. 위 칸에 낱말을 넣어 찾아보세요.</div>';
+  return '<div class="cnt" style="margin-bottom:6px">이 본문을 언급하는 사전 항목 ' + hits.length + '건</div>' + hits.map(studyDictCard).join('');
+}
 /* ── ESV 스터디바이블(주석) — 성경앱과 동일한 비공개 키코드·워커 방식 ──
    자료는 공개 배포에 없고, 키코드로 워커에서 통째({index,books})로 받아
    이 기기 IndexedDB('esv_com')에만 저장한다. 책별 형식은 호크마와 같은 chapters[][]. */
@@ -5420,6 +5536,72 @@ function studyRenderPane(){
       .catch(function(e){ if (STUDY.tab === 'holman') pane.innerHTML = '<div class="stWarn">Holman 핸드북을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ') 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
     return;
   }
+  if (STUDY.tab === 'calvin'){
+    pane.innerHTML = '<div class="cnt">칼뱅 주석을 불러오는 중…</div>';
+    studyLoadCalvin(R.idx).then(function(d){
+      if (STUDY.tab !== 'calvin') return;
+      if (!d){
+        pane.innerHTML = '<div class="cnt">칼뱅 주석에는 <b>이 책이 없습니다.</b><br>'
+          + '<span style="color:var(--dim)">전 48권만 남아 있습니다 — 룻기·에스라·느헤미야·에스더·역대상하·열왕기·잠언·전도서·아가·요한2·3서·유다서 등은 칼뱅이 주석을 쓰지 않았거나 전해지지 않습니다.</span></div>';
+        return;
+      }
+      var list = studyVerseList(d);
+      pane.innerHTML = '<div class="cnt" style="margin-bottom:8px">Calvin\'s Commentaries — <b>영문 원문</b>입니다. 아래 버튼으로 이 구간을 한글로 정리할 수 있습니다.</div>'
+        + (list.length ? '<div class="toolrow" style="margin-bottom:8px"><button class="btn gold mini" id="stCalvinKo" type="button">✦ 이 구간 한글로 정리</button></div>' : '')
+        + '<div id="stCalvinKoOut"></div>'
+        + studyRenderNotes(list, '이 구간에는 칼뱅 주석이 없습니다.');
+    }).catch(function(e){
+      if (STUDY.tab === 'calvin') pane.innerHTML = '<div class="stWarn">칼뱅 주석을 불러오지 못했습니다.<br><span class="cnt">성경앱(' + esc(COM_BASE.replace(/^https?:\/\//, '')) + ')에 <b>calvin/</b> 폴더가 배포되어 있고 CORS가 허용돼야 합니다. (' + esc(e.message) + ')</span></div>';
+    });
+    return;
+  }
+  if (STUDY.tab === 'map'){
+    pane.innerHTML = '<div class="cnt">성경지도를 불러오는 중…</div>';
+    studyLoadMaps().then(function(items){
+      if (STUDY.tab !== 'map') return;
+      if (!items.length){ pane.innerHTML = '<div class="cnt">지도 목록이 비어 있습니다.</div>'; return; }
+      var groups = {}, order = [];
+      items.forEach(function(it){ var g = it.group || '지도'; if (!groups[g]){ groups[g] = []; order.push(g); } groups[g].push(it); });
+      pane.innerHTML = '<div class="cnt" style="margin-bottom:8px">NET Bible 지도 ' + items.length + '장 (성경앱 자료). 누르면 크게 봅니다 — 설교 배경 자료로도 쓸 수 있습니다.</div>'
+        + order.map(function(g){
+            return '<div class="stAiSec"><h4>' + esc(g) + '</h4><div class="stMapGrid">'
+              + groups[g].map(function(it){
+                  return '<button class="stMapCell" type="button" data-mapimg="' + esc(COM_BASE + '/' + it.file) + '" data-maplbl="' + esc(it.label || '') + '">'
+                    + '<img loading="lazy" src="' + esc(COM_BASE + '/' + it.file) + '" alt="' + esc(it.label || '') + '">'
+                    + '<span>' + esc(it.label || '') + '</span></button>';
+                }).join('')
+              + '</div></div>';
+          }).join('');
+    }).catch(function(e){
+      if (STUDY.tab === 'map') pane.innerHTML = '<div class="stWarn">지도를 불러오지 못했습니다: ' + esc(e.message) + '</div>';
+    });
+    return;
+  }
+  if (STUDY.tab === 'hymn'){
+    pane.innerHTML = '<div class="cnt">찬송가 목록을 불러오는 중…</div>';
+    studyLoadHymns().then(function(items){
+      if (STUDY.tab !== 'hymn') return;
+      pane.innerHTML = '<div class="cnt" style="margin-bottom:8px">찬송가 ' + items.length + '장 (성경앱 자료). 번호나 제목으로 찾으세요 — 결단 찬양·새벽설교 찬송 고를 때 씁니다.</div>'
+        + '<input type="search" id="stHymnQ" placeholder="예) 310  또는  아 하나님의 은혜로" style="width:100%;margin-bottom:8px">'
+        + '<div id="stHymnOut"></div>';
+      studyHymnSearch('');
+    }).catch(function(e){
+      if (STUDY.tab === 'hymn') pane.innerHTML = '<div class="stWarn">찬송가 목록을 불러오지 못했습니다: ' + esc(e.message) + '</div>';
+    });
+    return;
+  }
+  if (STUDY.tab === 'dict'){
+    if (STUDY.dict){
+      pane.innerHTML = '<div class="cnt" style="margin-bottom:8px">' + esc(STUDY.dict.name) + ' — 표제어 ' + STUDY.dict.entries.length + '항목 (성경앱 자료)</div>'
+        + '<input type="search" id="stDictQ" placeholder="낱말로 찾기 (예: 나실인, 유월절, 회당)" style="width:100%;margin-bottom:8px">'
+        + '<div id="stDictOut">' + studyDictDefault() + '</div>';
+      return;
+    }
+    pane.innerHTML = '<div class="cnt">성경사전을 불러오는 중… <span style="color:var(--dim)">(처음 한 번만 약 14MB를 받습니다)</span></div>';
+    studyLoadDict().then(function(){ if (STUDY.tab === 'dict') studyRenderPane(); })
+      .catch(function(e){ if (STUDY.tab === 'dict') pane.innerHTML = '<div class="stWarn">성경사전을 불러오지 못했습니다: ' + esc(e.message) + '</div>'; });
+    return;
+  }
   if (STUDY.tab === 'esvsb'){
     pane.innerHTML = '<div class="cnt">ESV 스터디바이블을 여는 중…</div>';
     esvLoad().then(function(d){
@@ -5571,6 +5753,30 @@ function fillConc(code){
     var pc = e.target.closest && e.target.closest('.stPipeCompose'); if (pc){ studyToCompose(); return; }
     var py = e.target.closest && e.target.closest('.stPipeCopy'); if (py){ studyCopyNote(); return; }
     var pb = e.target.closest && e.target.closest('.stPipeBible'); if (pb){ studyToBible(); return; }
+    var ck = e.target.closest && e.target.closest('#stCalvinKo'); if (ck){ studyCalvinKo(); return; }
+    var mc = e.target.closest && e.target.closest('.stMapCell');
+    if (mc){
+      var src = mc.getAttribute('data-mapimg'), lbl = mc.getAttribute('data-maplbl') || '';
+      var host = document.getElementById('stPane');
+      if (host){
+        var old = document.getElementById('stMapBig'); if (old) old.remove();
+        var box = document.createElement('div');
+        box.id = 'stMapBig'; box.className = 'card';
+        box.innerHTML = '<div class="cnt" style="margin-bottom:6px"><b>' + esc(lbl) + '</b> · 다시 누르면 닫힙니다</div>'
+          + '<img src="' + esc(src) + '" alt="' + esc(lbl) + '" style="width:100%;border-radius:8px">';
+        box.addEventListener('click', function(){ box.remove(); });
+        host.insertBefore(box, host.firstChild);
+        host.scrollTop = 0;
+      }
+      return;
+    }
+    var hb = e.target.closest && e.target.closest('.stHymnBtn');
+    if (hb){
+      var sh = document.getElementById('stHymnSheet');
+      if (sh) sh.innerHTML = '<div class="cnt" style="margin-bottom:6px"><b>' + esc(hb.getAttribute('data-hymnno')) + '장</b> 악보</div>'
+        + '<img src="' + esc(hb.getAttribute('data-hymnfile')) + '" alt="찬송가 악보" style="width:100%;border-radius:8px;background:#fff">';
+      return;
+    }
     var db = e.target.closest && e.target.closest('.swDeepBtn');
     if (db){ var dcode2 = db.getAttribute('data-deep'), dword = db.getAttribute('data-deepw'), dbox = $('#swdeep-' + dcode2);
       if (dbox && dbox.style.display !== 'none' && dbox.getAttribute('data-open')){ dbox.style.display = 'none'; dbox.removeAttribute('data-open'); }
@@ -5586,6 +5792,18 @@ function fillConc(code){
       else STUDY.concFilter = { code: dcode, stem: dstem };
       fillConc(dcode); return; }
     var cc = e.target.closest && e.target.closest('.sconc'); if (cc){ renderConc(cc.getAttribute('data-conc')); return; }
+  });
+  /* 찬송가·성경사전 탭의 검색칸 (v472) */
+  var _stq = null;
+  document.addEventListener('input', function(e){
+    var t = e.target; if (!t || !t.id) return;
+    if (t.id !== 'stHymnQ' && t.id !== 'stDictQ') return;
+    clearTimeout(_stq);
+    var id = t.id, v = t.value;
+    _stq = setTimeout(function(){
+      if (id === 'stHymnQ') studyHymnSearch(v);
+      else studyDictSearch(v);
+    }, 220);
   });
   if (ov) ov.addEventListener('change', function(e){
     var s = e.target.closest && e.target.closest('.stVerSel'); if (!s) return;
@@ -19498,7 +19716,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v471';
+var APP_VER = 'v472';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
