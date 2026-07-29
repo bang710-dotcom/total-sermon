@@ -4639,6 +4639,7 @@ function gateKeyGet(){
 }
 function gateKeySet(k){ try { if (String(k || '').trim()) localStorage.setItem(GATE_KEY_LS, String(k).trim()); } catch (e){} }
 function localTrReady(t){ try { return localStorage.getItem(t.readyLs) === '1'; } catch (e){ return false; } }
+/* (구버전 호환) 자료별로 따로 넣어 둔 키 — 공용 키코드(gateKeyGet) 승계용으로만 남겨 둔다 */
 function localTrKey(t){ try { return localStorage.getItem(t.keyLs) || ''; } catch (e){ return ''; } }
 /* 받아 둔 비공개 역본을 번역본 레지스트리에 끼워 넣는다(개역개정 계열 뒤 알맞은 자리) */
 function localTrRegister(){
@@ -10522,6 +10523,17 @@ function renderGateBox(){
       }).join('')
     + '<div class="cnt" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)"><b>받기가 실패하면</b> — 그 자료의 워커가 이 앱 주소를 아직 허용하지 않은 것입니다.<br>① <b>성경앱</b> → 설정 → 저작권 자료에서 <b>[파일]</b>로 저장한 뒤 위 <b>[파일에서 가져오기]</b>로 넣기 (워커 손댈 필요 없음).<br>② Cloudflare에서 그 워커의 허용 주소에 이 앱을 추가해 재배포하기.</div>';
 }
+/* v477 이전에 ESV를 받아 둔 기기: 준비 플래그가 없어 '아직 없음'으로 보이므로 한 번 승계한다 */
+(function(){
+  var already = false;
+  try { already = localStorage.getItem('tsa.esvReady') === '1'; } catch (e){ return; }
+  if (already) return;
+  idbGet('esv_com').then(function(d){
+    if (!d || !d.books) return;
+    try { localStorage.setItem('tsa.esvReady', '1'); } catch (e){}
+    try { renderGateBox(); } catch (e){}
+  }).catch(function(){});
+})();
 (function(){
   var box = $('#gateBox'); if (!box) return;
   renderGateBox();
@@ -20235,7 +20247,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v477';
+var APP_VER = 'v478';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -20279,6 +20291,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setMemoKey')) $('#setMemoKey').value = state.settings.memoKey || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
   try { renderSetBadges(); } catch (eSb){}       /* 연결 설정 그룹 상태 배지 (v478) */
+  try { renderGateBox(); } catch (eGb){}         /* 저작권 자료 상태 갱신 */
   setTimeout(function(){ try { xferBootFromHash(); } catch (eXf){} }, 800);   /* 이전 링크(#tsa-setup=…) 설정 주입 — uiConfirm(3번째 블록) 파싱 후 실행 */
   try { bibCacheStat(); } catch (eBc){}          /* 성경 오프라인 저장 상태 표시 */
   $('#page-search').classList.add('on');
