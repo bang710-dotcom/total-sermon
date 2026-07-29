@@ -19064,8 +19064,136 @@ document.addEventListener('click', function(e){
     if (typeof renderIllLib === 'function') renderIllLib();
   } catch (err){}
 }, true);
+/* ═══════════ 🏷 주제 통합 보기 (v475) ═══════════
+   설교 키워드 · 예화 주제(표준주제+카테고리+사용자 추가) · 아이디어 키워드 · 성경앱 노트 태그를
+   한 색인으로 모은다. 어휘를 자동으로 바꿔치기하지 않고(데이터 보존), 표기가 갈린 것은
+   '비슷한 주제'로 묶어 보여 준다. */
+var TOPIC_HUB = { idx: null, sel: null, memoAt: 0 };
+function topicNorm(t){ return String(t || '').trim().replace(/\s+/g, ' '); }
+function topicIndexBuild(){
+  var idx = {};
+  function add(term, kind, label, meta){
+    term = topicNorm(term); if (!term || term.length > 30) return;
+    var e = idx[term] || (idx[term] = { term: term, sermons: [], ills: [], ideas: [], notes: [] });
+    e[kind].push({ label: label, meta: meta || '' });
+  }
+  (state.data.sermons || []).forEach(function(s){
+    if (typeof isLiveSermon === 'function' && !isLiveSermon(s)) return;
+    String(s['키워드'] || '').split(/[,;]/).forEach(function(k){
+      add(k, 'sermons', s['제목'] || '(제목 없음)', String(s['날짜'] || '').slice(0, 10) + (s['본문'] ? ' · ' + s['본문'] : ''));
+    });
+  });
+  if (ILLUST && ILLUST.items){
+    ILLUST.items.forEach(function(it){
+      var seen = {};
+      var terms = [];
+      try { (illThemesOf(it) || []).forEach(function(t){ terms.push(t); }); } catch (e){}
+      if (it.category) terms.push(it.category);
+      terms.forEach(function(t){ t = topicNorm(t); if (!t || seen[t]) return; seen[t] = 1;
+        add(t, 'ills', it.title || '(제목 없음)', (it.bibleRefs && it.bibleRefs.length) ? it.bibleRefs[0] : ''); });
+    });
+  }
+  (state.data.ideas || []).forEach(function(d){
+    String(d['키워드'] || '').split(/[,;]/).forEach(function(k){
+      add(k, 'ideas', d['제목'] || illFirstLine(d['내용'] || ''), d['유형'] || '');
+    });
+  });
+  (TOPIC_HUB.memo || []).forEach(function(m){
+    var tags = [];
+    try { tags = (typeof m.tags === 'string') ? (JSON.parse(m.tags || '[]') || []) : (m.tags || []); } catch (e){ tags = []; }
+    (tags || []).forEach(function(t){ add(t, 'notes', m.title || m.ref || '', m.ref || ''); });
+  });
+  TOPIC_HUB.idx = idx;
+  return idx;
+}
+function topicTotal(e){ return e.sermons.length + e.ills.length + e.ideas.length + e.notes.length; }
+/* 표기가 갈린 주제 묶기 — 한쪽이 다른 쪽을 포함하면 후보로 본다(자동 병합은 하지 않는다) */
+function topicSimilar(term, idx){
+  var t = topicNorm(term).replace(/\s/g, '');
+  if (t.length < 2) return [];
+  return Object.keys(idx).filter(function(k){
+    if (k === term) return false;
+    var s = k.replace(/\s/g, '');
+    return s.indexOf(t) >= 0 || t.indexOf(s) >= 0;
+  }).slice(0, 8);
+}
+function topicRowsHtml(label, arr, icon){
+  if (!arr.length) return '';
+  return '<div class="stAiSec"><h4>' + icon + ' ' + label + ' ' + arr.length + '</h4>'
+    + arr.slice(0, 30).map(function(x){
+        return '<div class="stXrefRow"><b>' + esc(x.label) + '</b>' + (x.meta ? ' <span class="cnt" style="margin:0">' + esc(x.meta) + '</span>' : '') + '</div>';
+      }).join('')
+    + (arr.length > 30 ? '<div class="cnt">…외 ' + (arr.length - 30) + '건</div>' : '')
+    + '</div>';
+}
+function renderTopicHub(q){
+  var box = $('#topicHubBox'); if (!box) return;
+  var idx = TOPIC_HUB.idx || topicIndexBuild();
+  var keys = Object.keys(idx);
+  if (!keys.length){ box.innerHTML = '<div class="cnt">아직 모을 주제가 없습니다. 설교 키워드나 예화 주제가 쌓이면 여기 나타납니다.</div>'; return; }
+  /* 상세 보기 */
+  if (TOPIC_HUB.sel && idx[TOPIC_HUB.sel]){
+    var e = idx[TOPIC_HUB.sel];
+    var sim = topicSimilar(TOPIC_HUB.sel, idx);
+    box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      + '<button class="btn sub mini" type="button" id="topicHubBack">← 주제 목록</button>'
+      + '<b style="font-size:15px">' + esc(e.term) + '</b><span class="cnt" style="margin:0">모두 ' + topicTotal(e) + '건</span></div>'
+      + (sim.length ? '<div class="cnt" style="margin-bottom:8px">비슷한 주제: ' + sim.map(function(k){
+          return '<button class="btn sub mini topicHubPick" type="button" data-topic="' + esc(k) + '">' + esc(k) + ' ' + topicTotal(idx[k]) + '</button>';
+        }).join(' ') + '</div>' : '')
+      + (topicRowsHtml('설교', e.sermons, '📜')
+        + topicRowsHtml('예화', e.ills, '💡')
+        + topicRowsHtml('아이디어', e.ideas, '📥')
+        + topicRowsHtml('성경앱 노트', e.notes, '📖')
+        || '<div class="cnt">이 주제로 묶인 자료가 없습니다.</div>');
+    return;
+  }
+  /* 목록 */
+  q = topicNorm(q).replace(/\s/g, '');
+  var list = keys.filter(function(k){ return !q || k.replace(/\s/g, '').indexOf(q) >= 0; })
+    .sort(function(a, b){ var d = topicTotal(idx[b]) - topicTotal(idx[a]); return d || a.localeCompare(b, 'ko'); });
+  if (!list.length){ box.innerHTML = '<div class="cnt">"' + esc(q) + '"에 해당하는 주제가 없습니다.</div>'; return; }
+  var shown = list.slice(0, q ? 60 : 40);
+  box.innerHTML = '<div class="cnt" style="margin-bottom:8px">주제 ' + list.length + '개' + (list.length > shown.length ? ' (많이 쓴 ' + shown.length + '개 표시)' : '') + '</div>'
+    + '<div style="display:flex;gap:5px;flex-wrap:wrap">'
+    + shown.map(function(k){
+        var e2 = idx[k];
+        return '<button class="btn sub mini topicHubPick" type="button" data-topic="' + esc(k) + '">'
+          + esc(k) + ' <span style="opacity:.6">' + topicTotal(e2) + '</span></button>';
+      }).join('')
+    + '</div>';
+}
+/* 성경앱 노트 태그까지 합치기 — 설정돼 있으면 한 번 받아 색인에 넣는다 */
+function topicHubLoadMemo(){
+  if (!tsaMemoCfg() || TOPIC_HUB.memoAt) return;
+  TOPIC_HUB.memoAt = Date.now();
+  tsaMemoLoad().then(function(all){
+    TOPIC_HUB.memo = all || [];
+    TOPIC_HUB.idx = null;
+    if (document.getElementById('page-analytics') && document.getElementById('page-analytics').classList.contains('on')){
+      renderTopicHub(($('#topicHubQ') && $('#topicHubQ').value) || '');
+    }
+  }).catch(function(){});
+}
+(function(){
+  document.addEventListener('click', function(e){
+    var p = e.target.closest && e.target.closest('.topicHubPick');
+    if (p){ TOPIC_HUB.sel = p.getAttribute('data-topic'); renderTopicHub(''); return; }
+    var b = e.target.closest && e.target.closest('#topicHubBack');
+    if (b){ TOPIC_HUB.sel = null; renderTopicHub(($('#topicHubQ') && $('#topicHubQ').value) || ''); return; }
+  });
+  var tq = null;
+  document.addEventListener('input', function(e){
+    if (!e.target || e.target.id !== 'topicHubQ') return;
+    var v = e.target.value;
+    clearTimeout(tq); tq = setTimeout(function(){ TOPIC_HUB.sel = null; renderTopicHub(v); }, 200);
+  });
+})();
 function renderAnalytics(){
   var box = $('#anResults'); if (!box) return;
+  TOPIC_HUB.idx = null;                 /* 데이터가 바뀔 수 있으니 색인을 새로 만든다 */
+  try { topicHubLoadMemo(); } catch (e){}
+  try { renderTopicHub(($('#topicHubQ') && $('#topicHubQ').value) || ''); } catch (e){}
   var A = ANALYTICS;
   var all = (state.data.sermons || []).filter(function(s){ return isLiveSermon(s); });
   if (!all.length){
@@ -19887,7 +20015,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v474';
+var APP_VER = 'v475';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
