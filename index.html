@@ -10071,8 +10071,8 @@ function bmParseText(txt){
     var m = ln.match(/^\s{0,3}#{1,6}\s*(.+?)\s*$/);
     if (m && head[m[1]]){ cur = head[m[1]]; buf[cur] = buf[cur] || []; hit++; justHead = true; return; }
     if (!cur){ pre.push(ln); return; }
-    /* 동봉해 둔 질문 줄은 답이 아니다 — 단, 머리표 바로 다음 줄일 때만(본문 중 'Q.'는 보존) */
-    if (justHead && /^\s*Q\.\s/.test(ln)){ return; }
+    /* 동봉해 둔 질문 줄은 답이 아니다 — 질문이 붙는 칸의 머리표 바로 다음 한 줄만(그 밖의 'Q.'는 보존) */
+    if (justHead && BM_Q[cur] && /^\s*Q\.\s/.test(ln)){ justHead = false; return; }
     if (String(ln).trim()) justHead = false;
     buf[cur].push(ln);
   });
