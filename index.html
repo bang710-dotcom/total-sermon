@@ -4613,6 +4613,26 @@ async function localTrFetch(t, key){
   localTrRegister();
   return data;
 }
+/* 성경앱에서 [파일]로 저장한 원본을 그대로 넣는다 — 워커 CORS와 무관한 경로 (v476) */
+function localTrImport(t, file){
+  return new Promise(function(res, rej){
+    var fr = new FileReader();
+    fr.onload = function(){
+      var data;
+      try { data = JSON.parse(String(fr.result || '')); }
+      catch (e){ rej(new Error('JSON 파일이 아닙니다.')); return; }
+      if (!data || !data.books || !data.books.length){ rej(new Error(t.name + ' 본문 파일이 아닙니다(books 없음).')); return; }
+      idbSet(t.dbkey, data).then(function(){
+        try { localStorage.setItem(t.readyLs, '1'); } catch (e){}
+        STUDY.tr[t.id] = data;
+        localTrRegister();
+        res(data);
+      }).catch(rej);
+    };
+    fr.onerror = function(){ rej(new Error('파일을 읽지 못했습니다.')); };
+    fr.readAsText(file);
+  });
+}
 function localTrDelete(t){
   return idbSet(t.dbkey, null).catch(function(){}).then(function(){
     try { localStorage.removeItem(t.readyLs); } catch (e){}
@@ -4924,8 +4944,24 @@ function esvCoverage(){
 function esvGateHtml(){
   return '<div class="cnt" style="margin-bottom:8px"><b>ESV 스터디바이블(주석)</b> — 비공개 개인 자료입니다. 성경앱에서 쓰는 <b>키코드</b>를 입력해 이 기기로 한 번 받아 두면, 본문 구간의 주석이 여기 절별로 표시됩니다(오프라인에서도 보임).</div>'
     + '<div style="display:flex;gap:6px;align-items:center"><input type="password" id="esvKeyIn" placeholder="키코드" value="' + esc(esvKeyGet()) + '" style="flex:1;min-width:120px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px">'
-    + '<button class="btn gold mini" id="esvGet" type="button" style="flex:0 0 auto">받기</button></div>'
-    + '<div class="cnt" style="margin-top:6px">키코드와 자료는 이 기기에만 저장되며 공개 코드에 포함되지 않습니다.</div>';
+    + '<button class="btn gold mini" id="esvGet" type="button" style="flex:0 0 auto">받기</button>'
+    + '<label class="btn sub mini" style="cursor:pointer;margin:0;flex:0 0 auto">파일에서 가져오기<input type="file" accept="application/json,.json" id="esvFileIn" style="display:none"></label></div>'
+    + '<div class="cnt" style="margin-top:6px">키코드와 자료는 이 기기에만 저장되며 공개 코드에 포함되지 않습니다.<br>받기가 막히면 <b>성경앱</b> 설정 → 저작권 자료에서 <b>[파일]</b> 버튼으로 저장한 뒤 여기 <b>[파일에서 가져오기]</b>로 넣으세요.</div>';
+}
+/* 성경앱에서 저장한 ESV 주석 파일을 그대로 넣는다 (v476) */
+function esvImport(file){
+  return new Promise(function(res, rej){
+    var fr = new FileReader();
+    fr.onload = function(){
+      var data;
+      try { data = JSON.parse(String(fr.result || '')); }
+      catch (e){ rej(new Error('JSON 파일이 아닙니다.')); return; }
+      if (!data || !data.index || !data.books){ rej(new Error('ESV 주석 파일이 아닙니다(index·books 없음).')); return; }
+      idbSet('esv_com', data).then(function(){ ESVSB.data = data; ESVSB.err = ''; res(data); }).catch(rej);
+    };
+    fr.onerror = function(){ rej(new Error('파일을 읽지 못했습니다.')); };
+    fr.readAsText(file);
+  });
 }
 function esvManageHtml(){
   return '<div style="display:flex;gap:6px;margin-top:12px;padding-top:8px;border-top:1px dashed var(--line)"><button class="btn sub mini" id="esvGet" type="button">↻ 다시 받기</button><button class="btn sub mini" id="esvDel" type="button">이 기기에서 삭제</button></div>';
@@ -5871,6 +5907,19 @@ function fillConc(code){
       else STUDY.concFilter = { code: dcode, stem: dstem };
       fillConc(dcode); return; }
     var cc = e.target.closest && e.target.closest('.sconc'); if (cc){ renderConc(cc.getAttribute('data-conc')); return; }
+  });
+  /* ESV 주석 파일 가져오기 (v476) */
+  document.addEventListener('change', function(e){
+    if (!e.target || e.target.id !== 'esvFileIn') return;
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    var inp = e.target;
+    showWaitOverlay('ESV 주석 파일을 읽고 있어요', '이 기기에만 저장됩니다.');
+    esvImport(f).then(function(){
+      toast('ESV 스터디바이블을 가져왔습니다.');
+      if (STUDY.tab === 'esvsb') studyRenderPane();
+    }).catch(function(err){
+      toast('ESV 가져오기 실패: ' + ((err && err.message) || err));
+    }).then(function(){ hideWaitOverlay(); try { inp.value = ''; } catch (_){} });
   });
   /* 시리즈 계획의 찬송가 칸 — 입력을 끝내면 성경앱 목록으로 번호·제목을 맞춘다 (v475) */
   document.addEventListener('change', function(e){
@@ -10343,9 +10392,11 @@ function renderLocalTrBox(){
       + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
       + '<input type="password" autocomplete="off" data-ltrkey="' + t.id + '" placeholder="키코드" value="' + esc(localTrKey(t)) + '" style="flex:1;min-width:130px">'
       + '<button class="btn gold mini" type="button" data-ltrget="' + t.id + '">' + (on ? '↻ 다시 받기' : '받기') + '</button>'
+      + '<label class="btn sub mini" style="cursor:pointer;margin:0">파일에서 가져오기<input type="file" accept="application/json,.json" data-ltrfile="' + t.id + '" style="display:none"></label>'
       + (on ? '<button class="btn sub mini" type="button" data-ltrdel="' + t.id + '">삭제</button>' : '')
       + '</div></div>';
-  }).join('');
+  }).join('')
+  + '<div class="cnt" style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)"><b>키코드 받기가 실패하면</b> — 저작권 워커가 <b>성경앱 주소만</b> 허용하도록 배포되어 있으면 이 앱에서는 막힙니다. 두 가지 길이 있습니다.<br>① <b>성경앱</b> → 설정 → 저작권 자료에서 <b>[파일]</b> 버튼으로 저장한 뒤, 위 <b>[파일에서 가져오기]</b>로 넣기 (워커 손댈 필요 없음).<br>② Cloudflare에서 해당 워커(nkt-private · ctbr-private)를 <b>이 앱 주소도 허용</b>하도록 재배포하기.</div>';
 }
 (function(){
   var box = $('#localTrBox'); if (!box) return;
@@ -10365,7 +10416,9 @@ function renderLocalTrBox(){
         try { if (STUDY.range) studyRenderText(); } catch (_){}
       }).catch(function(err){
         var m = (err && err.message) || String(err);
-        toast(t.name + ' 받기 실패: ' + (m === 'CORS' ? '워커에 연결하지 못했습니다(네트워크·CORS)' : m));
+        toast(m === 'CORS'
+          ? (t.name + ' 워커에 연결하지 못했습니다 — 이 앱 주소의 접근이 아직 허용되지 않은 것으로 보입니다(성경앱에서는 정상 동작). 성경앱 설정에서 [파일] 버튼으로 저장한 뒤 [파일에서 가져오기]로 넣으시면 됩니다.')
+          : (t.name + ' 받기 실패: ' + m));
         g.disabled = false;
       }).then(function(){ hideWaitOverlay(); });
       return;
@@ -10381,6 +10434,22 @@ function renderLocalTrBox(){
       });
       return;
     }
+  });
+  /* 성경앱에서 저장한 파일로 넣기 (v476) */
+  box.addEventListener('change', function(e){
+    var inp = e.target;
+    if (!inp || !inp.getAttribute || !inp.getAttribute('data-ltrfile')) return;
+    var t = localTrDef(inp.getAttribute('data-ltrfile'));
+    var f = inp.files && inp.files[0];
+    if (!t || !f) return;
+    showWaitOverlay(t.name + ' 파일을 읽고 있어요', '이 기기에만 저장됩니다.');
+    localTrImport(t, f).then(function(){
+      toast(t.name + '을 가져왔습니다 — 본문연구 번역본 목록에서 고를 수 있습니다.');
+      renderLocalTrBox();
+      try { if (STUDY.range) studyRenderText(); } catch (_){}
+    }).catch(function(err){
+      toast(t.name + ' 가져오기 실패: ' + ((err && err.message) || err));
+    }).then(function(){ hideWaitOverlay(); try { inp.value = ''; } catch (_){} });
   });
 })();
 /* 설교앱에만 있던 묵상노트를 성경앱 [노트] 시트로 1회 이관. 성경앱 쪽이 더 최신이면 건너뛴다. */
