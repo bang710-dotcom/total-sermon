@@ -1941,7 +1941,11 @@ body.uiDlgOpen{overflow:hidden}
           <button type="button" data-sttab="net">NET 노트</button>
           <button type="button" data-sttab="com">호크마 주석</button>
           <button type="button" data-sttab="holman">Holman 핸드북</button>
+          <button type="button" data-sttab="calvin">칼뱅 주석(영문)</button>
           <button type="button" data-sttab="esvsb">ESV 스터디</button>
+          <button type="button" data-sttab="map">🗺 지도</button>
+          <button type="button" data-sttab="dict">📚 성경사전</button>
+          <button type="button" data-sttab="hymn">🎵 찬송가</button>
           <button type="button" data-sttab="memo">📝 내 메모</button>
           <button type="button" data-sttab="ai">✦ AI 정리</button>
         </div>
@@ -5157,6 +5161,33 @@ function studyCopyNote(){
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast('연구노트를 복사했습니다 — 원고·옵시디언에 붙여넣으세요.'); }).catch(function(){ toast('복사에 실패했습니다.'); });
   else toast('이 브라우저는 클립보드 복사를 지원하지 않습니다.');
 }
+/* 본문연구 AI 정리 → 성경앱 [노트]. 강단·심방 중 휴대폰 성경앱에서 그 본문을 열면 바로 보인다. */
+function studyToBible(){
+  var j = studyAiGet(studyRangeKey());
+  if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  if (!tsaMemoCfg()){ toast('설정에 성경앱 설교메모 URL·키를 먼저 입력해 주세요.'); return; }
+  var R = STUDY.range; if (!R || !R.r){ toast('본문 범위를 알 수 없습니다.'); return; }
+  var r = R.r;
+  var c = { bookIdx: R.idx, startChap: r.c1, startVerse: r.v1 || 1,
+            endChap: r.c2 || r.c1, endVerse: (r.wholeChapter ? 999 : (r.v2 || r.v1 || 1)) };
+  var refShort = bmRefShort(c);
+  var txt = studyResearchText(j, String($('#studyTitle').textContent || '').replace(/ — .*$/, ''));
+  var id = 'study-' + (BM_USFM[R.idx] || 'unk') + bmPad2(c.startChap) + bmPad2(c.startVerse)
+         + '-' + bmPad2(c.endChap) + bmPad2(c.endVerse);
+  var themes = (j.신학주제 && j.신학주제.length) ? j.신학주제.slice(0, 5) : [];
+  tsaMemoLoad().catch(function(){ return []; }).then(function(all){
+    var prev = (all || []).filter(function(x){ return String(x.id) === id; })[0];
+    return bmUpsert({
+      id: id, kind: '노트', ref: refShort, title: '본문연구 · ' + refShort,
+      memo: txt, color: '', tags: JSON.stringify(['본문연구'].concat(themes)),
+      bookIdx: c.bookIdx, startChap: c.startChap, startVerse: c.startVerse,
+      endChap: c.endChap, endVerse: c.endVerse,
+      createdAt: (prev && prev.createdAt) || new Date().toISOString(),
+      updatedAt: new Date().toISOString(), deleted: ''
+    });
+  }).then(function(){ toast('성경앱 [노트]로 보냈습니다 — ' + refShort); })
+    .catch(function(e){ toast('성경앱 전송 실패(대기열에 보관): ' + (e && e.message || e)); });
+}
 function studyToCompose(){
   var j = studyAiGet(studyRangeKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
   try {
@@ -5428,7 +5459,7 @@ function studyRenderPane(){
   }
   if (STUDY.tab === 'ai'){
     var j = studyAiGet(studyRangeKey());
-    if (j){ pane.innerHTML = renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
+    if (j){ pane.innerHTML = renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button">📖 성경앱 노트로</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
     pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
       + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
     return;
@@ -5539,6 +5570,7 @@ function fillConc(code){
     }
     var pc = e.target.closest && e.target.closest('.stPipeCompose'); if (pc){ studyToCompose(); return; }
     var py = e.target.closest && e.target.closest('.stPipeCopy'); if (py){ studyCopyNote(); return; }
+    var pb = e.target.closest && e.target.closest('.stPipeBible'); if (pb){ studyToBible(); return; }
     var db = e.target.closest && e.target.closest('.swDeepBtn');
     if (db){ var dcode2 = db.getAttribute('data-deep'), dword = db.getAttribute('data-deepw'), dbox = $('#swdeep-' + dcode2);
       if (dbox && dbox.style.display !== 'none' && dbox.getAttribute('data-open')){ dbox.style.display = 'none'; dbox.removeAttribute('data-open'); }
