@@ -5339,13 +5339,22 @@ function studyAiSet(key, j){
 async function saiProbe(){
   var key = studyRangeKey(); if (!key) return;
   if (SAI[key]){ STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = SAI[key].j; if (STUDY.tab === 'ai') studyRenderPane(); }
+  /* 로컬에 없고 시트가 설정돼 있으면, 저장본을 확인하는 동안 "생성" 버튼 대신 안내를 보여 준다
+     (확인 전에 눌러 불필요하게 재생성되는 것을 막는다) */
+  var _s = state.settings;
+  var probing = !(SAI[key] && SAI[key].j) && !!(_s && _s.url && _s.token);
+  if (probing){ STUDY._aiProbing = key; if (STUDY.tab === 'ai') studyRenderPane(); }
   var rec = await studyNotePull('ai:', key, SAI, SAI_LS);
+  if (STUDY._aiProbing === key) STUDY._aiProbing = null;
   if (rec && rec.j && studyRangeKey() === key){
     STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = rec.j;
     /* 다른 기기에서 만든 정리가 창을 연 직후 도착한 경우 — 사용자가 아직 탭을 만지지 않았으면 바로 보여 준다 */
     if (!STUDY._userTab && STUDY.tab === 'orig') studySetTab('ai');
     else if (STUDY.tab === 'ai') studyRenderPane();
-  } else if (!rec && SAI[key]) studyNotePush('ai:', key, SAI[key]);   /* 시트에 없으면 올려 둔다 */
+  } else {
+    if (!rec && SAI[key]) studyNotePush('ai:', key, SAI[key]);   /* 시트에 없으면 올려 둔다 */
+    if (probing && STUDY.tab === 'ai') studyRenderPane();        /* 저장본 없음 확인 → 생성 버튼 표시 */
+  }
 }
 async function studyAiSynth(){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 AI 정리를 쓸 수 있습니다.'); return; }
@@ -5942,6 +5951,10 @@ function studyRenderPane(){
     var j = studyAiGet(studyRangeKey());
     var _sst = saiStamp(studyRangeKey());
     if (j){ pane.innerHTML = (_sst ? '<div class="stSaved">\ud83d\udcbe 저장본 \u00b7 ' + esc(_sst) + ' 생성 \u2014 다시 열 때 그대로 표시됩니다</div>' : '') + renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button">📖 성경앱 노트로</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
+    if (STUDY._aiProbing === studyRangeKey()){   /* 저장본 확인 중 — 생성 버튼 대신 안내 */
+      pane.innerHTML = '<div class="cnt">\ud83d\udcbe 저장된 본문연구 정리를 불러오는 중\u2026</div>';
+      return;
+    }
     pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
       + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
     return;
@@ -6204,7 +6217,7 @@ function svzSave(key){
   svzPushSoon(key || studyRangeKey());
 }
 /* ── 구조 시각화 다기기 동기화 — 연구노트 백엔드(noteGet/noteSet) 재사용, 키 접두어 'svz:' ── */
-var SVZ_TPUSH = {}, SVZ_REMOTE = {};
+var SVZ_TPUSH = {}, SVZ_REMOTE = {}, SVZ_PROBING = null;
 function svzPushSoon(key){
   if (!key || !SVZ[key]) return;
   var s = state.settings; if (!s.url || !s.token) return;
@@ -6225,6 +6238,9 @@ async function svzPushSheet(key){
 async function svzProbe(){
   var key = studyRangeKey(); if (!key) return;
   var s = state.settings; if (!s.url || !s.token) return;
+  /* 로컬에 구조 분석이 없으면 "확인 중" 상태로 — 시트 저장본을 받아보기 전에 재분석 버튼을 노출하지 않는다 */
+  var probing = !(SVZ[key] && SVZ[key].ai);
+  if (probing){ SVZ_PROBING = key; if (STUDY.structOn) svzPaintBanner(); }
   try {
     var rm = await api({ action: 'noteGet', key: 'svz:' + key });
     if (studyRangeKey() !== key || !rm) return;
@@ -6239,6 +6255,9 @@ async function svzProbe(){
     } else if (rm.json){ SVZ_REMOTE[key] = '☁'; if (STUDY.structOn) svzPaintBanner(); }
     else if (localT){ svzPushSoon(key); }   /* 시트엔 없고 로컬만 있으면 올림 */
   } catch (e){ /* 시트 미설정·백엔드 구버전 — 로컬만으로 동작 */ }
+  finally {
+    if (SVZ_PROBING === key){ SVZ_PROBING = null; if (STUDY.structOn) svzPaintBanner(); }
+  }
 }
 function svzEnsure(){
   var key = studyRangeKey();
@@ -6319,6 +6338,9 @@ function svzRowsHtml(rows){
 function svzBannerHtml(){
   var d = SVZ[studyRangeKey()];
   if (SVZ_BUSY) return '<div class="svzBan"><span class="svzTag">분석</span>본문 구조 분석 중…</div>';
+  /* 저장본(다른 기기) 확인 중에는 "구조 분석" 버튼 대신 안내 — 확인 전 재분석 방지 */
+  if ((!d || !d.ai) && SVZ_PROBING === studyRangeKey())
+    return '<div class="svzBan"><span class="svzTag">확인</span>💾 저장된 구조 분석을 불러오는 중…</div>';
   if (!d || !d.ai){
     return '<div class="svzBan"><b>▦ 구조 보기</b> — AI가 단락과 주제절(★ 금색 강조)을 분석하고, 이 구간 설정이 장의 핵심 논지와 맞물리는지 진단합니다. 절 앞 ★로 주제절을 직접 지정하고, ✂로 단락을 나눌 수 있습니다.'
       + '<div class="svzBanRow"><button class="btn gold mini svzGenBtn" type="button">구조 분석</button></div>'
