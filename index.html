@@ -5808,6 +5808,7 @@ function openStudy(ref){
      · 구조 분석 저장본 → 왼쪽 본문에 구조 표시를 켠 상태로 열기(저장본이 없으면 꺼둠 — 자동 생성은 하지 않는다) */
   var _k0 = studyRangeKey();
   STUDY._userTab = false; STUDY._userStruct = false;
+  SVZ_AI_SHOW = '';       /* 새 구간 — AI 분석은 감춘 채(내 구조부터) 시작 */
   STUDY.structOn = !!(SVZ[_k0] && (SVZ[_k0].ai || SVZ[_k0].user));
   studySetTab((SAI[_k0] && SAI[_k0].j) ? 'ai' : 'orig');
   studyRenderText();
@@ -6141,7 +6142,8 @@ function fillConc(code){
     var sd = e.target.closest && e.target.closest('#studySideBtn'); if (sd){ var bd = ov.querySelector('.studyBody'); if (bd) studySetSide(!bd.classList.contains('noSide')); return; }
     var nt = e.target.closest && e.target.closest('.snTBtn'); if (nt){ snToggle(); return; }
     var zt = e.target.closest && e.target.closest('.svzTBtn'); if (zt){ svzToggle(); return; }
-    var zg = e.target.closest && e.target.closest('.svzGenBtn'); if (zg){ svzGen(); return; }
+    var zg = e.target.closest && e.target.closest('.svzGenBtn'); if (zg){ if (zg.getAttribute('data-regen')) svzGen(); else svzShowAi(); return; }
+    var zh = e.target.closest && e.target.closest('.svzHideAi'); if (zh){ svzHideAi(); return; }
     var zv = e.target.closest && e.target.closest('.svzVerify'); if (zv){ svzVerify(); return; }
     var zR = e.target.closest && e.target.closest('.svzReset'); if (zR){ svzReset(); return; }
     var zs = e.target.closest && e.target.closest('.svzStar'); if (zs){ svzSetTheme(+zs.getAttribute('data-cv')); return; }
@@ -6425,7 +6427,7 @@ function svzRanges(cvs, breaks){
 }
 /* 본문 절 행들을 단락 블록으로 감싼 HTML (studyFillCol에서 구조 모드일 때 호출) */
 function svzRowsHtml(rows){
-  var d = SVZ[studyRangeKey()];
+  var d = svzView(SVZ[studyRangeKey()]);   /* AI를 펼치지 않았으면 내 구조만으로 그린다 */
   var bset = {}; svzBreaks(d).forEach(function(cv){ bset[cv] = 1; });
   var themeCv = svzThemeCv(d);
   var aiGist = {};
@@ -6472,13 +6474,16 @@ function svzBannerHtml(){
       if (v0.주제절평가 && (v0.주제절평가.등급 || v0.주제절평가.이유)) h0 += '<br>★ 주제절 평가: <b>' + esc(v0.주제절평가.등급 || '') + '</b> — ' + esc(v0.주제절평가.이유 || '');
       h0 += '</div>';
     }
+    var hasAi = !!(dRaw && dRaw.ai);      /* 저장된 AI 분석 — 눌러야만 펼친다(생성 아님) */
     h0 += '<div class="svzBanRow">';
     if (mine && aiKey()) h0 += '<button class="btn gold mini svzVerify" type="button">✓ 내 구조 검증</button>';
     if (mine) h0 += '<button class="btn sub mini svzReset" type="button">↺ 내 구조 지우기</button>';
-    h0 += '<button class="btn sub mini svzGenBtn" type="button">🤖 구조화 도움받기</button></div>';
+    h0 += '<button class="btn ' + (hasAi ? 'gold' : 'sub') + ' mini svzGenBtn" type="button">'
+      + (hasAi ? '🤖 AI 분석 보기' : '🤖 구조화 도움받기') + '</button></div>';
     return h0
-      + (aiKey() ? '<div class="cnt" style="margin-top:6px">도움을 받으면 AI가 단락·주제절과 구간 진단을 제시합니다. 내가 나눈 것은 지워지지 않습니다.</div>'
-                 : '<div class="cnt" style="margin-top:6px">AI 도움에는 설정의 Claude API 키 또는 브라우저 에이전트 모드가 필요합니다. (도움 없이도 ✂·★로 얼마든지 구조화할 수 있습니다)</div>')
+      + (hasAi ? '<div class="cnt" style="margin-top:6px">이 구간에는 저장된 AI 구조 분석이 있습니다 — 내가 먼저 나눠 본 뒤 눌러서 비교해 보세요.</div>'
+        : aiKey() ? '<div class="cnt" style="margin-top:6px">도움을 받으면 AI가 단락·주제절과 구간 진단을 제시합니다. 내가 나눈 것은 지워지지 않습니다.</div>'
+                  : '<div class="cnt" style="margin-top:6px">AI 도움에는 설정의 Claude API 키 또는 브라우저 에이전트 모드가 필요합니다. (도움 없이도 ✂·★로 얼마든지 구조화할 수 있습니다)</div>')
       + '</div>';
   }
   var g = d.ai.구간진단 || {};
@@ -6497,7 +6502,8 @@ function svzBannerHtml(){
   if (d.user && d.dirty && aiKey()) h += '<button class="btn gold mini svzVerify" type="button">✓ 내 구조 검증</button>';
   if (d.user) h += '<button class="btn sub mini svzReset" type="button">↺ AI 구조로 되돌리기</button>';
   if (g.제안구간) h += '<button class="btn sub mini svzUseSuggest" type="button" data-ref="' + esc(g.제안구간) + '">제안 구간으로 열기 · ' + esc(g.제안구간) + '</button>';
-  h += '<button class="btn sub mini svzGenBtn" type="button">↻ 재분석</button>';
+  h += '<button class="btn sub mini svzHideAi" type="button">↩ 내 구조만 보기</button>';
+  h += '<button class="btn sub mini svzGenBtn" type="button" data-regen="1">↻ 재분석</button>';
   var rm = SVZ_REMOTE[studyRangeKey()];
   h += '<span class="svzTheme0" style="align-self:center;font-size:11px">' + (rm === '☁' ? '☁ 시트 동기화됨' : rm === '구버전' ? '⚠ 시트 동기화엔 Code.gs 갱신 필요' : rm === '대기' ? '⏳ 동기화 대기' : '') + '</span>';
   h += '</div></div>';
@@ -6550,6 +6556,7 @@ async function svzGen(){
     var j = aiJson(out);
     var prev = SVZ[key] || {};
     SVZ[key] = { ai: j, user: prev.user || null, verdict: null, dirty: !!prev.user, _t: Date.now() };
+    SVZ_AI_SHOW = key;          /* 내가 직접 요청해 만든 분석이니 바로 펼쳐 보여 준다 */
     svzSave(key);
   } catch (e){ toast('구조 분석 실패: ' + e.message); }
   SVZ_BUSY = false;
@@ -11479,7 +11486,8 @@ function devoStudyMount(refStr){
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null; STUDY.split = false;
   var k = studyRangeKey();
   STUDY._userTab = false; STUDY._userStruct = false;
-  STUDY.structOn = !!(SVZ[k] && (SVZ[k].ai || SVZ[k].user));   /* 저장된 구조 분석이 있으면 켠 채로 */
+  SVZ_AI_SHOW = '';       /* 새 구간 — AI 분석은 감춘 채(내 구조부터) 시작 */
+  STUDY.structOn = !!(SVZ[k] && (SVZ[k].ai || SVZ[k].user));   /* 저장된 구조가 있으면 표시는 켠 채로 */
   studySetTab((SAI[k] && SAI[k].j) ? 'ai' : 'orig');           /* 숨은 자료 패널도 이 본문 기준으로 맞춰 둔다 */
   studyRenderText();
   snProbe();                        /* 저장된 연구노트가 있으면 자동으로 노트 모드 */
@@ -20626,7 +20634,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v489';
+var APP_VER = 'v490';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
