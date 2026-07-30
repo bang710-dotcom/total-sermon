@@ -5287,10 +5287,24 @@ async function studyNotePull(prefix, key, store, lsName){
   } catch (e){ return null; }
 }
 function studyAiGet(key){ var r = SAI[key]; return r ? r.j : (STUDY.ai && STUDY.ai[key]) || null; }
+function saiStamp(key){
+  var r = SAI[key]; if (!r || !r._t) return '';
+  var d = new Date(r._t), p = function(n){ return ('0' + n).slice(-2); };
+  return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
 function studyAiSet(key, j){
   if (!key || !j) return;
   SAI[key] = { j: j, _t: Date.now() };
   _pruneKeep(SAI, 40); save(SAI_LS, SAI);
+  /* 저장 검증 — localStorage 용량 초과로 조용히 실패했으면 보관 수를 줄여 다시 시도 */
+  try {
+    var chk = load(SAI_LS);
+    if (!chk || !chk[key]){
+      _pruneKeep(SAI, 8); save(SAI_LS, SAI);
+      chk = load(SAI_LS);
+      if (!chk || !chk[key]) toast('AI 정리를 기기에 저장하지 못했습니다(저장공간 부족) — 시트 동기화만 사용됩니다.');
+    }
+  } catch (e){}
   STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = j;      /* 기존 읽기 경로 호환 */
   studyNotePush('ai:', key, SAI[key]);
 }
