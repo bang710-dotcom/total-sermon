@@ -5296,6 +5296,24 @@ async function studyNotePull(prefix, key, store, lsName){
   } catch (e){ return null; }
 }
 function studyAiGet(key){ var r = SAI[key]; return r ? r.j : (STUDY.ai && STUDY.ai[key]) || null; }
+/* ── 원어 심층연구: 본문(구간)별 저장 ──────────────────────────────────
+   SAI[구간키] = { j: AI정리, deep: { H2617: {...}, H530: {...} }, _t }
+   → 심층연구가 AI 정리와 한 레코드에 담기므로 본문별로 보관되고, 시트 동기화도 'ai:'+구간키 하나로 끝난다.
+   (예전 방식인 코드별 SWS는 이미 만들어 둔 것을 살리기 위해 읽기 폴백으로만 남긴다.) */
+function studyDeepGet(key, code){
+  var r = SAI[key];
+  if (r && r.deep && r.deep[code]) return r.deep[code];
+  return (SWS[code] && SWS[code].j) || null;        /* 레거시 폴백 */
+}
+function studyDeepSet(key, code, dj){
+  if (!key || !code || !dj) return;
+  var rec = SAI[key] || { j: (STUDY.ai && STUDY.ai[key]) || null, _t: Date.now() };
+  rec.deep = rec.deep || {};
+  rec.deep[code] = dj; rec._t = Date.now();
+  SAI[key] = rec;
+  _pruneKeep(SAI, 40); save(SAI_LS, SAI);
+  studyNotePush('ai:', key, rec);                    /* 다기기 동기화 */
+}
 function saiStamp(key){
   var r = SAI[key]; if (!r || !r._t) return '';
   var d = new Date(r._t), p = function(n){ return ('0' + n).slice(-2); };
@@ -5349,8 +5367,11 @@ async function studyAiSynth(){
       Holman발췌: holman || ''
     };
     var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 9000, aiTick('본문연구 정리'));
-    studyAiSet(key, aiJson(out));    /* 로컬 저장 + 시트 동기화(다기기) */
+    var _j = aiJson(out);
+    studyAiSet(key, _j);             /* 로컬 저장 + 시트 동기화(다기기) */
     if (STUDY.tab === 'ai') studyRenderPane();
+    await studyDeepAll(key, _j);     /* 핵심 원어 심층연구까지 이어서 일괄 생성·저장 */
+    if (STUDY.tab === 'ai' && studyRangeKey() === key) studyRenderPane();
   } catch (e){ toast('본문연구 정리 실패: ' + e.message); }
 }
 /* "장:절" 또는 "책 장:절"에서 c*1000+v 정수 추출(첫 매치) */
@@ -5383,7 +5404,12 @@ function renderStudyAi(j){
       return '<div class="sworddef"><div class="swh"><span class="sorig">' + esc(w.원어 || '') + '</span> <span class="strans">' + esc(w.발음 || '') + '</span> <span class="scode">' + esc(w.스트롱 || '') + '</span></div>'
         + '<div class="swd"><b>' + esc(w.단어 || '') + '</b> — ' + esc(w.뜻 || '') + '</div>'
         + (w.왜 ? '<div class="stWhy">' + esc(w.왜) + '</div>' : '')
-        + (w.스트롱 ? '<button class="btn sub mini swDeepBtn" type="button" data-deep="' + esc(w.스트롱) + '" data-deepw="' + esc(w.단어 || '') + '">🔎 이 단어 깊이 파기</button><div class="swDeepBox" id="swdeep-' + esc(w.스트롱) + '" style="display:none"></div>' : '') + '</div>';
+        + (w.스트롱 ? (function(){
+            var _c = String(w.스트롱), _dj = studyDeepGet(studyRangeKey(), _c);   /* 저장된 심층연구가 있으면 펼친 채로 */
+            return '<button class="btn sub mini swDeepBtn" type="button" data-deep="' + esc(_c) + '" data-deepw="' + esc(w.단어 || '') + '"' + (_dj ? ' data-again="1"' : '') + '>'
+              + (_dj ? '\u21bb 이 단어 다시 파기' : '\ud83d\udd0e 이 단어 깊이 파기') + '</button>'
+              + '<div class="swDeepBox" id="swdeep-' + esc(_c) + '"' + (_dj ? ' data-open="1"' : ' style="display:none"') + '>' + (_dj ? renderWordStudy(_dj) : '') + '</div>';
+          })() : '') + '</div>';
     }).join('') + '</div>';
   }
   if (j.정황) h += '<div class="stAiSec"><h4>1차 독자 정황</h4><div class="stAiBody">' + stMd(j.정황) + '</div></div>';
@@ -5407,38 +5433,56 @@ var P_WORDSTUDY = [
 '{"표제":{"원어":"","음역":"","품사":"명사/동사/형용사 등","기본형":"사전 표제형"},"어원":"어원·구성·문자적 그림 2~3문장","의미범위":["이 단어가 갖는 뉘앙스/의미 3~5개(짧게)"],"성경용례":"구약/70인역/신약에서 이 단어가 어떻게 쓰이는지, 입력 용례를 근거로 2~3문장","문법단서":"이 본문에서 이 단어의 문법적 특징(가능하면 원문발췌에서 확인되는 범위)이 의미에 주는 무게 1~2문장","신학적무게":"이 본문에서 이 단어가 지닌 신학적·설교적 무게 2~3문장","설교포인트":"이 단어로 열 수 있는 설교적 통찰 한 문장"}',
 '근거는 입력의 사전뜻·용례·원문에서만. 확실하지 않은 문법·어원은 단정하지 말고 "…로 보인다"처럼 표시한다. 없는 사실을 지어내지 않는다. 한국어로 간결하게.'].join('\n');
 var WSTUDY = {};
-async function studyWordStudy(code, word){
-  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 원어 심층 연구를 쓸 수 있습니다.'); return; }
+/* 심층연구 "생성부"만 분리 — DOM과 무관하게 결과 JSON을 돌려준다(일괄 생성에서 재사용). */
+async function studyWordStudyGen(code, word){
+  await studyLoad();
+  var L = (STUDY.lex && STUDY.lex[code]) || {};
+  var orig = await studyOrigVerses();
+  var dist = (typeof studyTransDist === 'function') ? studyTransDist(code) : { verses: [] };
+  var uses = (dist.verses || []).slice(0, 8).map(function(v){ return (v.ref || '') + ' ' + String(v.text || '').replace(/\s+/g, ' ').slice(0, 80); });
+  var ctx = studyGatherContext();
+  var input = {
+    단어: word || L.w || '', 원어: L.w || '', 발음: L.t || '', 스트롱: code, 사전뜻: String(L.d || ''),
+    본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''),
+    본문절: ctx.절, 원문발췌: orig, 용례: uses
+  };
+  var out = await callClaude(P_WORDSTUDY, JSON.stringify(input), 4000, aiTick('원어 심층 연구'));
+  return aiJson(out);
+}
+/* 버튼 클릭 경로 — 저장본이 있으면 즉시 표시(재생성 안 함), force면 새로 생성해 덮어쓴다. */
+async function studyWordStudy(code, word, force){
   var box = $('#swdeep-' + code); if (!box) return;
-  if (WSTUDY[code]){ box.innerHTML = renderWordStudy(WSTUDY[code]); return; }
-  /* 저장해 둔 결과 우선 — 로컬(이 기기) → 시트(다른 기기). 있으면 재생성하지 않는다. */
-  if (SWS[code] && SWS[code].j){ WSTUDY[code] = SWS[code].j; box.innerHTML = renderWordStudy(WSTUDY[code]); return; }
-  box.innerHTML = '<div class="cnt">저장된 원어 심층 연구를 찾는 중…</div>';
-  try {
-    var rec0 = await studyNotePull('ws:', code, SWS, SWS_LS);
-    if (rec0 && rec0.j){ WSTUDY[code] = rec0.j; box.innerHTML = renderWordStudy(WSTUDY[code]); return; }
-  } catch (e0){}
+  var key = studyRangeKey();
+  if (!force){
+    var cached = WSTUDY[code] || studyDeepGet(key, code);
+    if (cached){ WSTUDY[code] = cached; box.innerHTML = renderWordStudy(cached); return; }
+  }
+  if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 원어 심층 연구를 쓸 수 있습니다.'); return; }
   box.innerHTML = '<div class="cnt">원어 심층 연구 생성 중…</div>';
   try {
-    await studyLoad();
-    var L = (STUDY.lex && STUDY.lex[code]) || {};
-    var orig = await studyOrigVerses();
-    var dist = (typeof studyTransDist === 'function') ? studyTransDist(code) : { verses: [] };
-    var uses = (dist.verses || []).slice(0, 8).map(function(v){ return (v.ref || '') + ' ' + String(v.text || '').replace(/\s+/g, ' ').slice(0, 80); });
-    var ctx = studyGatherContext();
-    var input = {
-      단어: word || L.w || '', 원어: L.w || '', 발음: L.t || '', 스트롱: code, 사전뜻: String(L.d || ''),
-      본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''),
-      본문절: ctx.절, 원문발췌: orig, 용례: uses
-    };
-    var out = await callClaude(P_WORDSTUDY, JSON.stringify(input), 4000, aiTick('원어 심층 연구'));
-    WSTUDY[code] = aiJson(out);
-    SWS[code] = { j: WSTUDY[code], _t: Date.now() };          /* 영구 저장(이 기기) */
-    _pruneKeep(SWS, 120); save(SWS_LS, SWS);
-    studyNotePush('ws:', code, SWS[code]);                     /* 시트 동기화(다기기) */
-    box.innerHTML = renderWordStudy(WSTUDY[code]);
+    var j = await studyWordStudyGen(code, word);
+    WSTUDY[code] = j;
+    studyDeepSet(key, code, j);        /* 본문별 저장 + 시트 동기화 */
+    box.innerHTML = renderWordStudy(j);
   } catch (e){ box.innerHTML = '<div class="stWarn">원어 심층 연구 실패: ' + esc(e.message) + '</div>'; }
 }
+/* AI 정리 생성 직후 — 핵심 원어 전부의 심층연구를 이어서 한 번에 만든다. */
+async function studyDeepAll(key, j){
+  var ws = (j && j.핵심원어) || [];
+  var todo = ws.filter(function(w){ return w && String(w.스트롱 || '').trim(); });
+  if (!todo.length) return;
+  for (var i = 0; i < todo.length; i++){
+    var code = String(todo[i].스트롱).trim();
+    if (studyDeepGet(key, code)) continue;
+    try {
+      toast('원어 심층 연구 생성 중… (' + (i + 1) + '/' + todo.length + ') ' + (todo[i].단어 || code));
+      var dj = await studyWordStudyGen(code, todo[i].단어 || '');
+      if (dj){ WSTUDY[code] = dj; studyDeepSet(key, code, dj); }
+      if (STUDY.tab === 'ai' && studyRangeKey() === key) studyRenderPane();
+    } catch (e){ /* 한 단어 실패는 건너뛰고 계속 — 정리 본체는 이미 저장됨 */ }
+  }
+}
+
 function renderWordStudy(j){
   if (!j) return '<div class="cnt">결과가 비었습니다.</div>';
   var t = j.표제 || {};
@@ -6041,7 +6085,12 @@ function fillConc(code){
     }
     var db = e.target.closest && e.target.closest('.swDeepBtn');
     if (db){ var dcode2 = db.getAttribute('data-deep'), dword = db.getAttribute('data-deepw'), dbox = $('#swdeep-' + dcode2);
-      if (dbox && dbox.style.display !== 'none' && dbox.getAttribute('data-open')){ dbox.style.display = 'none'; dbox.removeAttribute('data-open'); }
+      var dagain = db.getAttribute('data-again');
+      if (dagain){ /* 저장본이 이미 펼쳐진 상태 → 이 버튼은 "다시 파기"(강제 재생성) */
+        if (dbox){ dbox.style.display = ''; dbox.setAttribute('data-open', '1'); }
+        studyWordStudy(dcode2, dword, true);
+      }
+      else if (dbox && dbox.style.display !== 'none' && dbox.getAttribute('data-open')){ dbox.style.display = 'none'; dbox.removeAttribute('data-open'); }
       else { if (dbox){ dbox.style.display = ''; dbox.setAttribute('data-open', '1'); } studyWordStudy(dcode2, dword); }
       return; }
     var nn = e.target.closest && e.target.closest('.net-n'); if (nn){ studyOpenNetNote(+nn.getAttribute('data-c'), +nn.getAttribute('data-n'), +nn.getAttribute('data-v')); return; }
