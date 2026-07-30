@@ -1803,9 +1803,14 @@ body.uiDlgOpen{overflow:hidden}
         <div style="margin-top:14px"><button class="btn" id="saveSettings">설정 저장</button></div>
       </div>
       <div class="card">
-        <label>🔒 저작권 자료 (새한글 · 공동번역개정 · ESV)</label>
+        <label>🔒 저작권 자료</label>
+        <div class="cnt" style="margin:6px 0 12px">키코드로 받는 자료입니다. 필요할 때만 펼쳐 쓰세요.</div>
+
+        <details class="setGrp" id="sgGate">
+          <summary>새한글 · 공동번역개정 · ESV <span class="sgSub">키코드 공용</span><span class="setBadge" data-badge="gate"></span></summary>
         <div class="cnt" style="margin-top:6px">세 자료가 <b>같은 키코드</b>를 씁니다 — 키코드는 <b>한 번만</b> 넣고, 자료별로 받거나 지우세요. 본문과 키코드는 <b>이 기기에만</b> 저장되며 공개 코드에는 들어가지 않습니다. 기기마다 한 번씩 받으면 오프라인에서도 보입니다.</div>
         <div id="gateBox" style="margin-top:10px"></div>
+        </details>
       </div>
       <div class="card">
         <label>🛠 도구</label>
@@ -10502,6 +10507,11 @@ function renderSetBadges(){
 function renderGateBox(){
   var box = $('#gateBox'); if (!box) return;
   var n = 0; GATED.forEach(function(g){ if (gateHas(g)) n++; });
+  /* 접힌 상태에서도 몇 개 받았는지 보이도록 요약 배지 갱신 (v479) */
+  try {
+    var gb = document.querySelector('[data-badge="gate"]');
+    if (gb){ gb.textContent = n + '/' + GATED.length + ' 받음'; gb.classList.toggle('on', n >= GATED.length); }
+  } catch (eGb2){}
   box.innerHTML =
     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
     + '<input type="password" autocomplete="off" id="gateKeyIn" placeholder="키코드 (세 자료 공용)" value="' + esc(gateKeyGet()) + '" style="flex:1;min-width:150px">'
@@ -20247,7 +20257,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v478';
+var APP_VER = 'v479';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
