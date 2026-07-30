@@ -6585,7 +6585,7 @@ function snReset(){
   SNS.on = false; SNS.selNote = null; SNS.draw = null; SNS.dragNote = null; SNS.anchorDrag = null; SNS.erasing = false;
   SND = null; SN_REMOTE = '';
   snApplyToolClass(); snHideApply();
-  studySetSide(false);
+  /* 오른쪽 자료창 접힘 상태는 노트 모드와 무관 — 사용자가 ⇔ 로 정한 상태를 그대로 둔다 */
 }
 /* 열 때: 로컬 → (설정 시) 시트 순으로 저장본을 찾아 있으면 자동으로 노트 모드 켬 */
 async function snProbe(){
@@ -6618,7 +6618,6 @@ function snToggle(){
     snFlush();
     SNS.on = false; SNS.selNote = null; SNS.draw = null;
     snApplyToolClass(); snHideApply();
-    studySetSide(false);          /* 노트를 켤 때 접었던 오른쪽 자료 패널을 되돌린다 */
     studyRenderText();
     return;
   }
@@ -6630,7 +6629,7 @@ function snEnable(){
   if (!SND) SND = snNewDoc();
   if (SND.ver && STUDY.versions[0] !== SND.ver) STUDY.versions[0] = SND.ver;
   STUDY.split = false;
-  studySetSide(true);
+  /* 오른쪽 자료창은 건드리지 않는다 — ⇔ 버튼과 [노트] 버튼은 서로 독립 동작 */
   snFitZoom();
   studyRenderText();
 }
@@ -20502,7 +20501,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v485';
+var APP_VER = 'v486';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
