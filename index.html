@@ -439,6 +439,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .stCols.split .stCol{flex:1 1 50%;min-width:0}
 .stCols.split .stCol:first-child{border-right:1px dashed var(--line);padding-right:14px}
 .studyDetail{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+/* 좌우 넓이 조절 핸들 — 드래그로 본문/자료 영역 비율 변경, 더블클릭으로 기본값 복귀 */
+.stDrag{flex:0 0 7px;position:relative;cursor:col-resize;background:var(--line);opacity:.55;transition:opacity .15s,background .15s;touch-action:none;-webkit-user-select:none;user-select:none}
+.stDrag::before{content:'';position:absolute;top:0;bottom:0;left:-5px;right:-5px}   /* 잡기 쉬운 여유 영역 */
+.stDrag::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:34px;border-radius:2px;background:var(--card)}
+.stDrag:hover,.stDrag.on{opacity:1;background:var(--accent)}
+.studyBody.noSide .stDrag{display:none}
+.stSaved{margin:-2px 0 10px;padding:6px 9px;border-left:3px solid var(--accent);background:var(--card2);border-radius:6px;font-size:12px;color:var(--dim)}
 .stTabs{display:flex;gap:4px;padding:10px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .stTabs::-webkit-scrollbar{display:none}
 .stTabs button{flex:0 0 auto;white-space:nowrap;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:inherit;font-size:13px;padding:6px 9px 8px;cursor:pointer}
@@ -586,6 +593,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 @media (max-width:720px){
   .studyBody{flex-direction:column;overflow-y:auto}
   .studyText{flex:0 0 auto;border-right:none;border-bottom:1px solid var(--line);max-height:42vh}
+  .stDrag{display:none}   /* 모바일: 세로로 쌓이므로 좌우 핸들 숨김 */
   .studyDetail{flex:1 1 auto}
   .stPane{overflow:visible}
 }
@@ -2006,6 +2014,7 @@ body.uiDlgOpen{overflow:hidden}
     <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x" id="studySideBtn" type="button" aria-label="오른쪽 패널 접기/펴기" title="오른쪽 패널 접기/펴기">⇔</button><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
     <div class="studyBody">
       <div id="studyText" class="studyText"></div>
+      <div id="stDrag" class="stDrag" role="separator" aria-orientation="vertical" title="드래그해서 좌우 넓이 조절 · 더블클릭하면 기본 비율로"></div>
       <div id="studyDetail" class="studyDetail">
         <div class="stTabs" id="stTabs">
           <button type="button" data-sttab="orig" class="on">원어</button>
@@ -5692,10 +5701,61 @@ function openStudy(ref){
   $('#studyTitle').textContent = ref + ' — 본문연구';
   studySetTab('orig');
   studyRenderText();
+  stSplitRestore();   /* 저장된 좌우 넓이 비율 복원 */
   snProbe();
   svzProbe();
   saiProbe();      /* 저장해 둔 AI 정리 복원 + 다기기 동기화 */
 }
+/* ── 본문연구 좌우 넓이 조절(스플리터) ──────────────────────────────────
+   본문(왼쪽)과 자료(오른쪽) 경계를 드래그해 비율을 바꾼다. 비율은 기기에 저장돼 다음에도 유지.
+   더블클릭 = 기본값(58%) 복귀. 모바일(≤720px, 세로로 쌓임)·오른쪽 패널 접힘 상태에선 동작하지 않는다. */
+var ST_SPLIT_LS = 'tsa.studySplit', ST_SPLIT_DEF = 58;
+function stSplitEnabled(){ return window.innerWidth > 720; }
+function stSplitApply(pct){
+  var L = $('#studyText'), Rt = $('#studyDetail'); if (!L || !Rt) return;
+  if (!stSplitEnabled()){ L.style.flex = ''; Rt.style.flex = ''; return; }   /* 모바일: 인라인 해제 → CSS 세로 배치 유지 */
+  pct = Math.max(25, Math.min(80, +pct || ST_SPLIT_DEF));
+  L.style.flex = '0 0 ' + pct + '%';
+  Rt.style.flex = '1 1 auto';
+}
+function stSplitRestore(){ stSplitApply(load(ST_SPLIT_LS) || ST_SPLIT_DEF); }
+(function stSplitInit(){
+  var h = $('#stDrag'); if (!h) return;
+  var body = function(){ return $('#studyText') && $('#studyText').parentNode; };
+  var dragging = false;
+  function pctFromX(x){
+    var b = body(); if (!b) return null;
+    var r = b.getBoundingClientRect(); if (!r.width) return null;
+    return ((x - r.left) / r.width) * 100;
+  }
+  function down(e){
+    if (!stSplitEnabled()) return;
+    dragging = true; h.classList.add('on');
+    document.body.style.userSelect = 'none'; document.body.style.cursor = 'col-resize';
+    try { h.setPointerCapture(e.pointerId); } catch (err){}
+    e.preventDefault();
+  }
+  function move(e){
+    if (!dragging) return;
+    var p = pctFromX(e.clientX); if (p == null) return;
+    stSplitApply(p);
+    e.preventDefault();
+  }
+  function up(){
+    if (!dragging) return;
+    dragging = false; h.classList.remove('on');
+    document.body.style.userSelect = ''; document.body.style.cursor = '';
+    var L = $('#studyText');
+    var m = L && /([\d.]+)%/.exec(L.style.flex || '');
+    if (m) save(ST_SPLIT_LS, Math.round(+m[1]));
+  }
+  h.addEventListener('pointerdown', down);
+  h.addEventListener('pointermove', move);
+  h.addEventListener('pointerup', up);
+  h.addEventListener('pointercancel', up);
+  h.addEventListener('dblclick', function(){ save(ST_SPLIT_LS, ST_SPLIT_DEF); stSplitApply(ST_SPLIT_DEF); });
+  window.addEventListener('resize', function(){ stSplitApply(load(ST_SPLIT_LS) || ST_SPLIT_DEF); });
+})();
 function studySetTab(tab){
   STUDY.tab = tab;
   var tabs = $('#stTabs');
@@ -5828,7 +5888,8 @@ function studyRenderPane(){
   }
   if (STUDY.tab === 'ai'){
     var j = studyAiGet(studyRangeKey());
-    if (j){ pane.innerHTML = renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button">📖 성경앱 노트로</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
+    var _sst = saiStamp(studyRangeKey());
+    if (j){ pane.innerHTML = (_sst ? '<div class="stSaved">\ud83d\udcbe 저장본 \u00b7 ' + esc(_sst) + ' 생성 \u2014 다시 열 때 그대로 표시됩니다</div>' : '') + renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button">📖 성경앱 노트로</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
     pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
       + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
     return;
