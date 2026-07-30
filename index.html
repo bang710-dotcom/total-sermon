@@ -5338,7 +5338,7 @@ function studyAiSet(key, j){
 /* 본문연구를 열 때: 다른 기기에서 만든 AI 정리가 있으면 받아와 반영 */
 async function saiProbe(){
   var key = studyRangeKey(); if (!key) return;
-  if (SAI[key]){ STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = SAI[key].j; if (STUDY.tab === 'ai') studyRenderPane(); }
+  if (SAI[key]){ STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = SAI[key].j; if (STUDY.tab === 'ai') studyRenderPane(); studyDeepBackfill(key, SAI[key].j); }
   /* 로컬에 없고 시트가 설정돼 있으면, 저장본을 확인하는 동안 "생성" 버튼 대신 안내를 보여 준다
      (확인 전에 눌러 불필요하게 재생성되는 것을 막는다) */
   var _s = state.settings;
@@ -5351,6 +5351,7 @@ async function saiProbe(){
     /* 다른 기기에서 만든 정리가 창을 연 직후 도착한 경우 — 사용자가 아직 탭을 만지지 않았으면 바로 보여 준다 */
     if (!STUDY._userTab && STUDY.tab === 'orig') studySetTab('ai');
     else if (STUDY.tab === 'ai') studyRenderPane();
+    studyDeepBackfill(key, rec.j);        /* 예전 방식으로 저장된 심층연구도 끌어와 함께 표시 */
   } else {
     if (!rec && SAI[key]) studyNotePush('ai:', key, SAI[key]);   /* 시트에 없으면 올려 둔다 */
     if (probing && STUDY.tab === 'ai') studyRenderPane();        /* 저장본 없음 확인 → 생성 버튼 표시 */
@@ -5466,7 +5467,23 @@ async function studyWordStudy(code, word, force){
   var key = studyRangeKey();
   if (!force){
     var cached = WSTUDY[code] || studyDeepGet(key, code);
-    if (cached){ WSTUDY[code] = cached; box.innerHTML = renderWordStudy(cached); return; }
+    if (cached){
+      WSTUDY[code] = cached; box.innerHTML = renderWordStudy(cached);
+      /* 예전(단어별) 저장분이면 본문 레코드로 옮겨 둔다 — 다음부터 다른 기기에서도 함께 열린다 */
+      if (!(SAI[key] && SAI[key].deep && SAI[key].deep[code])) studyDeepSet(key, code, cached);
+      return;
+    }
+    /* 이 기기엔 없지만 시트에 예전 방식('ws:'+코드)으로 저장된 것이 있을 수 있다 — 확인 후 이관 */
+    if (state.settings && state.settings.url && state.settings.token){
+      box.innerHTML = '<div class="cnt">💾 저장된 원어 심층 연구를 찾는 중…</div>';
+      try {
+        var old = await studyNotePull('ws:', code, SWS, SWS_LS);
+        if (old && old.j){
+          WSTUDY[code] = old.j; studyDeepSet(key, code, old.j);
+          box.innerHTML = renderWordStudy(old.j); return;
+        }
+      } catch (e1){}
+    }
   }
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 원어 심층 연구를 쓸 수 있습니다.'); return; }
   box.innerHTML = '<div class="cnt">원어 심층 연구 생성 중…</div>';
@@ -5476,6 +5493,23 @@ async function studyWordStudy(code, word, force){
     studyDeepSet(key, code, j);        /* 본문별 저장 + 시트 동기화 */
     box.innerHTML = renderWordStudy(j);
   } catch (e){ box.innerHTML = '<div class="stWarn">원어 심층 연구 실패: ' + esc(e.message) + '</div>'; }
+}
+/* 예전 방식(단어별 'ws:' 키)으로 저장해 둔 심층연구를 본문 레코드(deep)로 끌어와 채운다.
+   → 다른 기기에서 창을 열었을 때 버튼을 누르지 않아도 함께 펼쳐진다. 없으면 조용히 넘어간다(생성하지 않음). */
+async function studyDeepBackfill(key, j){
+  var ws = (j && j.핵심원어) || []; if (!ws.length) return;
+  var changed = false, hasSheet = !!(state.settings && state.settings.url && state.settings.token);
+  for (var i = 0; i < ws.length; i++){
+    var c = String((ws[i] && ws[i].스트롱) || '').trim(); if (!c) continue;
+    if (SAI[key] && SAI[key].deep && SAI[key].deep[c]) continue;      /* 이미 본문 레코드에 있음 */
+    if (SWS[c] && SWS[c].j){ studyDeepSet(key, c, SWS[c].j); changed = true; continue; }   /* 이 기기의 예전 저장분 */
+    if (!hasSheet) continue;
+    try {
+      var old = await studyNotePull('ws:', c, SWS, SWS_LS);           /* 시트의 예전 저장분 */
+      if (old && old.j){ studyDeepSet(key, c, old.j); changed = true; }
+    } catch (e){}
+  }
+  if (changed && STUDY.tab === 'ai' && studyRangeKey() === key) studyRenderPane();
 }
 /* AI 정리 생성 직후 — 핵심 원어 전부의 심층연구를 이어서 한 번에 만든다. */
 async function studyDeepAll(key, j){
@@ -20422,7 +20456,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v483';
+var APP_VER = 'v484';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
