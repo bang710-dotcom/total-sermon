@@ -5853,6 +5853,12 @@ function devoStudyRemount(){
   var e = (typeof devoState !== 'undefined') && devoState.entry;
   if (e && e['본문범위']) devoStudyMount(e['본문범위']);
 }
+/* 지금 다루는 본문 표기 — 묵상 화면 임베드 상태에선 창 제목(#studyTitle)이 없으므로 그날 본문범위를 쓴다 */
+function stRefLabel(){
+  if (stEmbedded() && ST_EMBED_REF) return ST_EMBED_REF;
+  var t = $('#studyTitle');
+  return String((t && t.textContent) || '').replace(/ — .*$/, '');
+}
 /* 임베드 상태에서 연구노트를 켜면 본문 칸을 화면 전체 폭으로 넓힌다(끄면 원래 2단으로) */
 function stEmbedSync(){
   var db = $('#devoBody'); if (!db) return;
@@ -6509,7 +6515,7 @@ async function svzGen(){
         if ((c > r.c1 || vi >= r.v1) && (c < r.c2 || vi <= r.v2)) sel.push(line);
       }
     }
-    var input = { 본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''), 선택구간절: sel, 장전체절: chap };
+    var input = { 본문: stRefLabel(), 선택구간절: sel, 장전체절: chap };
     var out = await callClaude(P_SVZ, JSON.stringify(input), 4000, aiTick('본문 구조 분석'));
     var j = aiJson(out);
     var prev = SVZ[key] || {};
@@ -6529,7 +6535,7 @@ async function svzVerify(){
     var ranges = svzRanges(svzCvList(), svzBreaks(d));
     var themeCv = svzThemeCv(d);
     var ctx = studyGatherContext();
-    var input = { 본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''), 절: ctx.절,
+    var input = { 본문: stRefLabel(), 절: ctx.절,
       장핵심주제: (d.ai && d.ai.장핵심주제) || '', AI단락: (d.ai && d.ai.단락) || [],
       내단락: ranges, 내주제절: themeCv > 0 ? svzCvLabel(themeCv) : '' };
     var out = await callClaude(P_SVZCHECK, JSON.stringify(input), 3500, aiTick('구조 검증'));
@@ -20590,7 +20596,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v487';
+var APP_VER = 'v488';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
