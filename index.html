@@ -783,6 +783,16 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #page-settings{max-width:680px}
   #page-inbox{max-width:860px}
 }
+/* ── 이달의 묵상: 본문연구 본문 패널 임베드 (v487) ──────────────────────────
+   #studyText(본문연구 왼쪽 패널)를 그대로 옮겨 끼우므로 역본 선택·구조 나누기·연구노트가 동일하게 동작한다. */
+.studyText.embed{flex:none !important;border-right:none;overflow:visible;max-height:none;padding:0}
+.studyText.embed .stVerBar{position:static;top:auto;margin:0 0 8px;padding:0 0 8px;max-width:none}
+.studyText.embed .snBar{position:static;top:auto;max-width:none}
+.studyText.embed .stCol{font-size:13.8px}
+#devoScript .devoScHd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+/* 연구노트를 켜면 본문 칸이 화면 전체 폭을 쓰도록 2단 배치를 잠시 해제 (노트 페이지는 넓어야 쓸 만하다) */
+#devoBody.noteWide{display:block}
+#devoBody.noteWide #devoScript{position:static;max-height:none;overflow:visible;margin-bottom:18px}
 @media (max-width: 899px), (hover: none){
   body{overflow:hidden} /* 이중 스크롤·고무줄 현상 방지 (앱 내부 #main만 스크롤) */
   .desktop-only{display:none !important}
@@ -4789,6 +4799,7 @@ function studyRenderText(){
   studyFillCol(host.querySelector('.stCol[data-vi="0"]'), STUDY.versions[0]);
   if (STUDY.split) studyFillCol(host.querySelector('.stCol[data-vi="1"]'), STUDY.versions[1] || 'RNKSV');
   snApplyToolClass();
+  stEmbedSync();
 }
 var COM_BASE = 'https://bible-7fi.pages.dev';   /* 호크마 주석 배포본 출처(성경앱) */
 var STUDY_HINT = '<div class="studyHint">왼쪽 본문에서 <b>한글 단어</b>를 누르면 여기에 원어·발음·뜻과 그 원어가 쓰인 다른 본문(용례)이 나옵니다.</div>';
@@ -5787,6 +5798,7 @@ function openStudy(ref){
   var idx = devoBookIdxMap()[r.book];
   if (idx == null){ toast('성경 책을 인식하지 못했습니다: ' + r.book); return; }
   var ov = $('#studyOv'); if (!ov) return;
+  studyPaneReturn();          /* 묵상 화면에 빌려준 상태면 먼저 제자리로 돌려놓는다 */
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
   snReset();
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null;
@@ -5804,6 +5816,32 @@ function openStudy(ref){
   snProbe();
   svzProbe();
   saiProbe();      /* 저장해 둔 AI 정리 복원 + 다기기 동기화 */
+}
+/* ── 본문연구 본문 패널 '빌려오기' — 이달의 묵상 화면에 그대로 끼워 넣기 (v487) ────────
+   #studyText 요소 자체를 옮겨 쓴다. 같은 DOM·같은 상태를 쓰므로 역본 선택·구조 나누기·연구노트가
+   본문연구 창과 완전히 똑같이 동작하고, 노트는 구간 키(studyRangeKey)가 같아 한 문서를 공유한다.
+   단, 동시에 두 곳에 있을 수는 없다 → 본문연구 창을 열거나 묵상 화면을 떠나면 제자리로 돌려놓는다. */
+var ST_EMBED_REF = '';
+function stEmbedded(){ var st = $('#studyText'); return !!(st && st.closest && !st.closest('#studyOv')); }
+function studyPaneBorrow(host){
+  var st = $('#studyText'); if (!st || !host) return false;
+  if (st.parentNode !== host){ snFlush(); host.appendChild(st); }
+  st.classList.add('embed'); st.style.flex = '';
+  return true;
+}
+function studyPaneReturn(){
+  var st = $('#studyText'); if (!st || !stEmbedded()) return;
+  snFlush();
+  var bd = document.querySelector('#studyOv .studyBody');
+  if (bd) bd.insertBefore(st, $('#stDrag') || bd.firstChild);
+  st.classList.remove('embed'); st.style.flex = '';
+  ST_EMBED_REF = '';
+  var db = $('#devoBody'); if (db) db.classList.remove('noteWide');
+}
+/* 임베드 상태에서 연구노트를 켜면 본문 칸을 화면 전체 폭으로 넓힌다(끄면 원래 2단으로) */
+function stEmbedSync(){
+  var db = $('#devoBody'); if (!db) return;
+  db.classList.toggle('noteWide', stEmbedded() && SNS.on);
 }
 /* ── 본문연구 좌우 넓이 조절(스플리터) ──────────────────────────────────
    본문(왼쪽)과 자료(오른쪽) 경계를 드래그해 비율을 바꾼다. 비율은 기기에 저장돼 다음에도 유지.
@@ -6014,6 +6052,8 @@ function studyRenderPane(){
   else pane.innerHTML = STUDY_HINT;
 }
 function studyWordDetail(codesStr){
+  /* 묵상 화면에 임베드된 상태에서는 원어 패널이 없다 → 그 본문으로 본문연구 창을 열어 이어서 보여 준다 */
+  if (stEmbedded() && ST_EMBED_REF){ openStudy(ST_EMBED_REF); }
   STUDY.lastCodes = codesStr;
   studySetTab('orig');
   if (window.matchMedia && window.matchMedia('(max-width:720px)').matches){ try { $('#studyDetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
@@ -6073,8 +6113,9 @@ function fillConc(code){
   var sb = $('#c_study');
   if (sb) sb.addEventListener('click', function(){ var ref = ($('#c_ref').value || '').trim(); if (!ref){ toast('먼저 본문을 입력해 주세요.'); return; } openStudy(ref); });
   var ov = $('#studyOv');
-  if (ov) ov.addEventListener('click', function(e){
-    if (e.target === ov || (e.target.closest && e.target.closest('#studyClose'))){ snFlush(); ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
+  /* 이 위임 핸들러는 본문연구 창(#studyOv)과, 본문 패널을 빌려간 이달의 묵상(#devoBody) 양쪽에 붙는다 */
+  function studyDelegClick(e){
+    if (ov && (e.target === ov || (e.target.closest && e.target.closest('#studyClose')))){ snFlush(); ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
     var sd = e.target.closest && e.target.closest('#studySideBtn'); if (sd){ var bd = ov.querySelector('.studyBody'); if (bd) studySetSide(!bd.classList.contains('noSide')); return; }
     var nt = e.target.closest && e.target.closest('.snTBtn'); if (nt){ snToggle(); return; }
     var zt = e.target.closest && e.target.closest('.svzTBtn'); if (zt){ svzToggle(); return; }
@@ -6175,7 +6216,9 @@ function fillConc(code){
       else STUDY.concFilter = { code: dcode, stem: dstem };
       fillConc(dcode); return; }
     var cc = e.target.closest && e.target.closest('.sconc'); if (cc){ renderConc(cc.getAttribute('data-conc')); return; }
-  });
+  }
+  if (ov) ov.addEventListener('click', studyDelegClick);
+  var _dvb = $('#devoBody'); if (_dvb) _dvb.addEventListener('click', studyDelegClick);
   /* ESV 주석 파일 가져오기 (v476) */
   document.addEventListener('change', function(e){
     if (!e.target || e.target.id !== 'esvFileIn') return;
@@ -6216,7 +6259,7 @@ function fillConc(code){
       else studyDictSearch(v);
     }, 220);
   });
-  if (ov) ov.addEventListener('change', function(e){
+  function studyDelegChange(e){
     var s = e.target.closest && e.target.closest('.stVerSel'); if (!s) return;
     var vi = +s.getAttribute('data-vi');
     if (SNS.on && vi === 0 && SND && s.value !== SND.ver){
@@ -6226,7 +6269,9 @@ function fillConc(code){
     }
     STUDY.versions[vi] = s.value;
     studyFillCol($('#studyText').querySelector('.stCol[data-vi="' + vi + '"]'), s.value);
-  });
+  }
+  if (ov) ov.addEventListener('change', studyDelegChange);
+  if (_dvb) _dvb.addEventListener('change', studyDelegChange);
   var fov = $('#featOv');
   if (fov) fov.addEventListener('click', function(e){
     if (e.target === fov || (e.target.closest && e.target.closest('#featClose'))){ fov.classList.remove('on'); fov.setAttribute('aria-hidden', 'true'); return; }
@@ -11315,6 +11360,7 @@ function dta(key, rows, ph, val){
 }
 function renderDevo(){
   var date = devoState.date;
+  studyPaneReturn();                /* #devoBody를 다시 그리기 전에 빌려온 본문 패널을 돌려놓는다(삭제 방지) */
   devoState.bmNote = null;          /* 날짜가 바뀌면 성경앱 노트 캐시도 초기화 */
   $('#devoDate').value = date;
   var e = devoEntryFor(date);
@@ -11333,7 +11379,10 @@ function renderDevo(){
   var saved = note['ID'] ? ' <span class="badge b-state">기록 있음</span>' : '';
   body.className = 'split';
   body.innerHTML =
-    '<div class="card" id="devoScript"><div class="cnt">개역개정<span id="devoSavedBadge">' + saved + '</span></div><div id="devoVerses" class="empty">본문 불러오는 중…</div></div>' +
+    '<div class="card" id="devoScript"><div class="cnt devoScHd"><span>📖 ' + esc(e['본문범위'] || '') + '</span>'
+      + '<button class="linkbtn" id="devoOpenStudy" type="button" style="font-size:12.5px;margin-left:auto">본문연구 창으로 ↗</button>'
+      + '<span id="devoSavedBadge">' + saved + '</span></div>'
+      + '<div id="devoStudyPane"></div></div>' +
     '<div>' +
     '<div id="devoFree"></div>' +
     '<div class="card"><b>관찰하기</b>' +
@@ -11351,15 +11400,29 @@ function renderDevo(){
     '<button class="btn" id="devoSave">묵상 저장</button></div>' +
     '</div>';
   $('#devoSave').addEventListener('click', saveDevoNote);
+  var _os = $('#devoOpenStudy');
+  if (_os) _os.addEventListener('click', function(){ openStudy(e['본문범위']); });
   devoBibleFill(date);              /* 성경앱 노트(정본)가 있으면 그 내용으로 덮어 채운다 */
   fillDevoIllust(e['본문범위']);
-  var range = parseRange(e['본문범위']);
-  if (range) {
-    renderScripture(range).then(function(html){ $('#devoVerses').className = ''; $('#devoVerses').innerHTML = html; })
-      .catch(function(err){ $('#devoVerses').textContent = '본문을 불러오지 못했습니다: ' + err.message; });
-  } else {
-    $('#devoVerses').textContent = '본문 범위를 해석하지 못했습니다: ' + e['본문범위'];
-  }
+  devoStudyMount(e['본문범위']);     /* 왼쪽 본문칸 = 본문연구 본문 패널(역본·구조·연구노트 그대로) */
+}
+/* 이달의 묵상 왼쪽 칸에 본문연구 본문 패널을 끼워 넣고 그날 본문으로 맞춘다 */
+function devoStudyMount(refStr){
+  var host = $('#devoStudyPane'); if (!host) return;
+  var ref = String(refStr || '').trim();
+  var r = parseRange(ref);
+  var idx = r ? devoBookIdxMap()[r.book] : null;
+  if (!r || idx == null){ host.innerHTML = '<div class="empty">본문 범위를 해석하지 못했습니다: ' + esc(ref) + '</div>'; return; }
+  if (!studyPaneBorrow(host)) return;
+  ST_EMBED_REF = ref;
+  snReset();
+  STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null; STUDY.split = false;
+  var k = studyRangeKey();
+  STUDY._userStruct = false;
+  STUDY.structOn = !!(SVZ[k] && (SVZ[k].ai || SVZ[k].user));   /* 저장된 구조 분석이 있으면 켠 채로 */
+  studyRenderText();
+  snProbe();                        /* 저장된 연구노트가 있으면 자동으로 노트 모드 */
+  svzProbe();
 }
 /* B3(2026-07-12): 묵상 화면에 그날 본문과 겹치는 서랍 예화 1편을 조용히 노출.
    전체 재렌더 없이 #devoIllust 슬롯을 비동기로 채운다(본문 겹침 우선, 없으면 같은 책). 무AI. */
@@ -19002,6 +19065,7 @@ function showPage(name){
     if (name === 'search') $('#q').focus();
     if (name === 'input') $('#ideaContent').focus();
   }
+  if (name !== 'devo') studyPaneReturn();   /* 묵상 화면을 떠나면 빌려준 본문 패널을 돌려놓는다 */
   if (name === 'search') { try { renderDailyIll(); } catch (eD){} }
   if (name === 'outputs') renderOutputs();
   if (name === 'devo') renderDevo();
