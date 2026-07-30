@@ -5342,7 +5342,9 @@ async function saiProbe(){
   var rec = await studyNotePull('ai:', key, SAI, SAI_LS);
   if (rec && rec.j && studyRangeKey() === key){
     STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = rec.j;
-    if (STUDY.tab === 'ai') studyRenderPane();
+    /* 다른 기기에서 만든 정리가 창을 연 직후 도착한 경우 — 사용자가 아직 탭을 만지지 않았으면 바로 보여 준다 */
+    if (!STUDY._userTab && STUDY.tab === 'orig') studySetTab('ai');
+    else if (STUDY.tab === 'ai') studyRenderPane();
   } else if (!rec && SAI[key]) studyNotePush('ai:', key, SAI[key]);   /* 시트에 없으면 올려 둔다 */
 }
 async function studyAiSynth(){
@@ -5743,7 +5745,13 @@ function openStudy(ref){
   snReset();
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null;
   $('#studyTitle').textContent = ref + ' — 본문연구';
-  studySetTab('orig');
+  /* ★저장된 생성물이 있으면 창을 열 때 바로 함께 보여 준다.
+     · AI 정리 저장본 → [AI 정리] 탭으로 열기(없으면 기존대로 [원어])
+     · 구조 분석 저장본 → 왼쪽 본문에 구조 표시를 켠 상태로 열기(저장본이 없으면 꺼둠 — 자동 생성은 하지 않는다) */
+  var _k0 = studyRangeKey();
+  STUDY._userTab = false; STUDY._userStruct = false;
+  STUDY.structOn = !!(SVZ[_k0] && (SVZ[_k0].ai || SVZ[_k0].user));
+  studySetTab((SAI[_k0] && SAI[_k0].j) ? 'ai' : 'orig');
   studyRenderText();
   stSplitRestore();   /* 저장된 좌우 넓이 비율 복원 */
   snProbe();
@@ -6015,7 +6023,7 @@ function fillConc(code){
     var zu = e.target.closest && e.target.closest('.svzUseSuggest'); if (zu){ openStudy(zu.getAttribute('data-ref')); return; }
     var sp = e.target.closest && e.target.closest('.stSplitBtn'); if (sp){ if (SNS.on){ toast('연구노트 모드에서는 2분할을 쓸 수 없습니다 — 노트를 먼저 꺼 주세요.'); return; } STUDY.split = !STUDY.split; if (STUDY.split && !STUDY.versions[1]) STUDY.versions[1] = (STUDY.versions[0] === 'RNKSV' ? 'NKRV' : 'RNKSV'); studyRenderText(); return; }
     var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }
-    var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ studySetTab(tb.getAttribute('data-sttab')); return; }
+    var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ STUDY._userTab = true; studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
     var eg = e.target.closest && e.target.closest('#esvGet');
     if (eg){
@@ -6225,6 +6233,8 @@ async function svzProbe(){
     if (rm.json && remoteT > localT){
       SVZ[key] = JSON.parse(rm.json); SVZ_REMOTE[key] = '☁';
       save(SVZ_LS, SVZ);
+      /* 다른 기기의 구조 분석이 도착 — 사용자가 직접 끄지 않았다면 구조 표시를 켜서 함께 보여 준다 */
+      if (!STUDY.structOn && !STUDY._userStruct && (SVZ[key].ai || SVZ[key].user)) STUDY.structOn = true;
       if (STUDY.structOn) studyRenderText();
     } else if (rm.json){ SVZ_REMOTE[key] = '☁'; if (STUDY.structOn) svzPaintBanner(); }
     else if (localT){ svzPushSoon(key); }   /* 시트엔 없고 로컬만 있으면 올림 */
@@ -6339,6 +6349,7 @@ function svzBannerHtml(){
 }
 function svzPaintBanner(){ var el = $('#svzBanner'); if (el) el.innerHTML = svzBannerHtml(); }
 function svzToggle(){
+  STUDY._userStruct = true;      /* 사용자가 직접 켜고 끔 — 동기화가 임의로 뒤집지 않게 */
   STUDY.structOn = !STUDY.structOn;
   studyRenderText();
   if (STUDY.structOn){
