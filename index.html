@@ -62,6 +62,12 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn.sub.saveAsWarn{border-color:var(--warn);color:var(--warn)}
 .btn.gold{background:var(--accent2)}
 .btn:disabled{opacity:.45;cursor:default}
+/* ── 본문 칸에 붙은 [본문 연구] — 회색 미니버튼은 눈에 안 띄어 강조색 버튼으로 본문 입력칸 옆에 고정 (v480) ── */
+.refRow{display:flex;gap:8px;align-items:stretch}
+.refRow input{flex:1 1 auto;min-width:0}
+.btn.refStudy{width:auto;flex:0 0 auto;display:flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:0 15px;font-size:14px;font-weight:800;letter-spacing:-.01em;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+@media (max-width:360px){ .btn.refStudy{padding:0 11px;font-size:13px} }
 /* ── 클릭 피드백: 모든 버튼류에 눌리는 느낌 ── */
 .btn,.chip,.linkbtn,.tabbar button,.sidebar button.nav,.inbtn{
   -webkit-tap-highlight-color:transparent;
@@ -1429,8 +1435,8 @@ body.uiDlgOpen{overflow:hidden}
           <div><label>예배구분</label><input type="text" id="c_service" placeholder="대학부"></div>
         </div>
         <label>제목 *</label><input type="text" id="c_title">
-        <label>본문</label><input type="text" id="c_ref" placeholder="로마서 5:1-11">
-        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="c_study" type="button" style="flex:0 0 auto">📖 본문 연구</button></div>
+        <label>본문</label>
+        <div class="refRow"><input type="text" id="c_ref" placeholder="로마서 5:1-11"><button class="btn refStudy" id="c_study" type="button">📖 본문 연구</button></div>
         <div id="c_refPast"></div>
         <div id="c_illust"></div>
         <div class="row2">
@@ -20257,7 +20263,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v479';
+var APP_VER = 'v480';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
