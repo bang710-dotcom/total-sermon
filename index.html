@@ -787,7 +787,7 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
    #studyText(본문연구 왼쪽 패널)를 그대로 옮겨 끼우므로 역본 선택·구조 나누기·연구노트가 동일하게 동작한다. */
 .studyText.embed{flex:none !important;border-right:none;overflow:visible;max-height:none;padding:0}
 .studyText.embed .stVerBar{position:static;top:auto;margin:0 0 8px;padding:0 0 8px;max-width:none}
-.studyText.embed .snBar{position:static;top:auto;max-width:none}
+.studyText.embed .snBar{top:0;max-width:none;background:var(--card);z-index:4}
 .studyText.embed .stCol{font-size:13.8px}
 #devoScript .devoScHd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 /* 연구노트를 켜면 본문 칸이 화면 전체 폭을 쓰도록 2단 배치를 잠시 해제 (노트 페이지는 넓어야 쓸 만하다) */
@@ -5794,10 +5794,10 @@ function tsaMemoOverlap(m, idx, lo, hi){
 }
 function openStudy(ref){
   var r = parseRange(String(ref || '').trim());
-  if (!r){ toast('본문 형식을 인식하지 못했습니다 (예: 로마서 5:1-11)'); return; }
+  if (!r){ toast('본문 형식을 인식하지 못했습니다 (예: 로마서 5:1-11)'); return false; }
   var idx = devoBookIdxMap()[r.book];
-  if (idx == null){ toast('성경 책을 인식하지 못했습니다: ' + r.book); return; }
-  var ov = $('#studyOv'); if (!ov) return;
+  if (idx == null){ toast('성경 책을 인식하지 못했습니다: ' + r.book); return false; }
+  var ov = $('#studyOv'); if (!ov) return false;
   studyPaneReturn();          /* 묵상 화면에 빌려준 상태면 먼저 제자리로 돌려놓는다 */
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
   snReset();
@@ -5816,6 +5816,7 @@ function openStudy(ref){
   snProbe();
   svzProbe();
   saiProbe();      /* 저장해 둔 AI 정리 복원 + 다기기 동기화 */
+  return true;
 }
 /* ── 본문연구 본문 패널 '빌려오기' — 이달의 묵상 화면에 그대로 끼워 넣기 (v487) ────────
    #studyText 요소 자체를 옮겨 쓴다. 같은 DOM·같은 상태를 쓰므로 역본 선택·구조 나누기·연구노트가
@@ -5831,12 +5832,26 @@ function studyPaneBorrow(host){
 }
 function studyPaneReturn(){
   var st = $('#studyText'); if (!st || !stEmbedded()) return;
+  var bd = document.querySelector('#studyOv .studyBody'); if (!bd) return;   /* 옮길 곳이 없으면 상태도 건드리지 않는다 */
   snFlush();
-  var bd = document.querySelector('#studyOv .studyBody');
-  if (bd) bd.insertBefore(st, $('#stDrag') || bd.firstChild);
+  bd.insertBefore(st, $('#stDrag') || bd.firstChild);
   st.classList.remove('embed'); st.style.flex = '';
   ST_EMBED_REF = '';
   var db = $('#devoBody'); if (db) db.classList.remove('noteWide');
+}
+/* 본문연구 창 닫기 — 묵상 화면에서 빌려 갔던 것이면 본문 패널을 그쪽으로 되돌려 준다 */
+function studyCloseOv(){
+  var ov = $('#studyOv'); if (!ov) return;
+  snFlush();
+  ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true');
+  devoStudyRemount();
+}
+function devoStudyRemount(){
+  var pg = document.getElementById('page-devo');
+  if (!pg || !pg.classList.contains('on')) return;
+  if (!$('#devoStudyPane')) return;
+  var e = (typeof devoState !== 'undefined') && devoState.entry;
+  if (e && e['본문범위']) devoStudyMount(e['본문범위']);
 }
 /* 임베드 상태에서 연구노트를 켜면 본문 칸을 화면 전체 폭으로 넓힌다(끄면 원래 2단으로) */
 function stEmbedSync(){
@@ -6054,7 +6069,7 @@ function studyRenderPane(){
 }
 function studyWordDetail(codesStr){
   /* 묵상 화면에 임베드된 상태에서는 원어 패널이 없다 → 그 본문으로 본문연구 창을 열어 이어서 보여 준다 */
-  if (stEmbedded() && ST_EMBED_REF){ openStudy(ST_EMBED_REF); }
+  if (stEmbedded()){ if (!ST_EMBED_REF || !openStudy(ST_EMBED_REF)) return; }
   STUDY.lastCodes = codesStr;
   studySetTab('orig');
   if (window.matchMedia && window.matchMedia('(max-width:720px)').matches){ try { $('#studyDetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
@@ -6116,7 +6131,7 @@ function fillConc(code){
   var ov = $('#studyOv');
   /* 이 위임 핸들러는 본문연구 창(#studyOv)과, 본문 패널을 빌려간 이달의 묵상(#devoBody) 양쪽에 붙는다 */
   function studyDelegClick(e){
-    if (ov && (e.target === ov || (e.target.closest && e.target.closest('#studyClose')))){ snFlush(); ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); return; }
+    if (ov && (e.target === ov || (e.target.closest && e.target.closest('#studyClose')))){ studyCloseOv(); return; }
     var sd = e.target.closest && e.target.closest('#studySideBtn'); if (sd){ var bd = ov.querySelector('.studyBody'); if (bd) studySetSide(!bd.classList.contains('noSide')); return; }
     var nt = e.target.closest && e.target.closest('.snTBtn'); if (nt){ snToggle(); return; }
     var zt = e.target.closest && e.target.closest('.svzTBtn'); if (zt){ svzToggle(); return; }
@@ -6676,6 +6691,7 @@ function snEnable(){
   if (SND.ver && STUDY.versions[0] !== SND.ver) STUDY.versions[0] = SND.ver;
   STUDY.split = false;
   /* 오른쪽 자료창은 건드리지 않는다 — ⇔ 버튼과 [노트] 버튼은 서로 독립 동작 */
+  stEmbedSync();     /* 묵상 화면이면 먼저 전체 폭으로 넓힌 뒤에 배율을 잡는다 */
   snFitZoom();
   studyRenderText();
 }
@@ -6685,6 +6701,7 @@ function snEnable(){
 function snFitZoom(){
   var host = $('#studyText');
   var w = host ? host.clientWidth - 34 : SN.pageW;
+  if (w <= 0) return;      /* 숨겨진 상태(폭 0) — 배율을 건드리면 0.4로 무너진다 */
   SNS.zoom = Math.max(0.4, Math.min(2.4, Math.round(w / SN.pageW * 1000) / 1000));
 }
 /* 노트 본문 글자 크기 — 페이지 크기와 무관하게 글자만 키우고 줄인다(기기에 저장) */
@@ -6703,6 +6720,7 @@ function snFont(dir){
 /* 왼쪽 창 폭이 바뀌면(스플리터 드래그·오른쪽 패널 접기·창 크기 변경) 페이지 배율을 다시 맞춘다 */
 function snRefit(){
   if (!SNS.on || !SND) return;
+  var _h = $('#studyText'); if (!_h || _h.clientWidth <= 0) return;   /* 숨겨진 컨테이너면 그대로 둔다 */
   var prev = SNS.zoom;
   snFitZoom();
   /* 스크롤바 출현 같은 미세 변화로 배율이 떨리지 않도록 아주 작은 차이는 무시 */
@@ -11413,14 +11431,19 @@ function devoStudyMount(refStr){
   var ref = String(refStr || '').trim();
   var r = parseRange(ref);
   var idx = r ? devoBookIdxMap()[r.book] : null;
-  if (!r || idx == null){ host.innerHTML = '<div class="empty">본문 범위를 해석하지 못했습니다: ' + esc(ref) + '</div>'; return; }
-  if (!studyPaneBorrow(host)) return;
+  if (!r || idx == null){
+    studyPaneReturn();                 /* 본문 패널을 먼저 빼낸 뒤에만 host를 덮어쓴다(패널 파괴 방지) */
+    host.innerHTML = '<div class="empty">본문 범위를 해석하지 못했습니다: ' + esc(ref) + '</div>';
+    return;
+  }
   ST_EMBED_REF = ref;
+  if (!studyPaneBorrow(host)) return;
   snReset();
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null; STUDY.split = false;
   var k = studyRangeKey();
-  STUDY._userStruct = false;
+  STUDY._userTab = false; STUDY._userStruct = false;
   STUDY.structOn = !!(SVZ[k] && (SVZ[k].ai || SVZ[k].user));   /* 저장된 구조 분석이 있으면 켠 채로 */
+  studySetTab((SAI[k] && SAI[k].j) ? 'ai' : 'orig');           /* 숨은 자료 패널도 이 본문 기준으로 맞춰 둔다 */
   studyRenderText();
   snProbe();                        /* 저장된 연구노트가 있으면 자동으로 노트 모드 */
   svzProbe();
