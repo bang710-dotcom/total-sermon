@@ -6583,7 +6583,7 @@ var SN_FS_LS = 'tsa.snFont', SN_FS_DEF = 15;
 var SNS = { on: false, tool: 'sel', color: '#facc15', colMark: '#facc15', colPen: '#111827', prevTool: 'pen', penW: 3, zoom: 1, font: (+load(SN_FS_LS) || SN_FS_DEF), selNote: null,
   draw: null, dragNote: null, anchorDrag: null, erasing: false, dragSquelch: 0, _selT: null };
 var SND = null;                                   /* 현재 문서 */
-var SN_DIRTY = false, SN_NEEDPUSH = false, SN_TSAVE = null, SN_TPUSH = null, SN_REMOTE = '';
+var SN_DIRTY = false, SN_NEEDPUSH = false, SN_TSAVE = null, SN_TPUSH = null, SN_REMOTE = '', SN_GEN = 0;
 function snUid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function snNewDoc(){ return { key: studyRangeKey(), ver: STUDY.versions[0] || 'NKRV', updatedAt: new Date().toISOString(), marks: [], notes: [], ink: [] }; }
 function snEmpty(d){ return !d || (!(d.marks || []).length && !(d.notes || []).length && !(d.ink || []).length); }
@@ -6642,7 +6642,7 @@ function snFlush(){
   if (SND && SN_NEEDPUSH) snPushSheet();
 }
 function snReset(){
-  snFlush();
+  snFlush(); SN_GEN++;      /* 진행 중이던 노트 조회 무효화 */
   SNS.on = false; SNS.selNote = null; SNS.draw = null; SNS.dragNote = null; SNS.anchorDrag = null; SNS.erasing = false;
   SND = null; SN_REMOTE = '';
   snApplyToolClass(); snHideApply();
@@ -6651,15 +6651,16 @@ function snReset(){
 /* 열 때: 로컬 → (설정 시) 시트 순으로 저장본을 찾아 있으면 자동으로 노트 모드 켬 */
 async function snProbe(){
   var key = studyRangeKey(); if (!key) return;
+  var gen = ++SN_GEN;      /* 같은 본문을 묵상·본문연구 두 화면에서 오갈 때 지난 조회가 뒤늦게 반영되는 것 방지 */
   var local = null;
   try { local = await idbGet('snote:' + key); } catch (e){}
-  if (studyRangeKey() !== key) return;
+  if (SN_GEN !== gen || studyRangeKey() !== key) return;
   if (local && !snEmpty(local) && !SNS.on){ SND = local; snEnable(); }
   else if (local) SND = local;
   try {
     var s = state.settings; if (!s.url || !s.token) return;
     var rm = await api({ action: 'noteGet', key: key });
-    if (studyRangeKey() !== key || !rm) return;
+    if (SN_GEN !== gen || studyRangeKey() !== key || !rm) return;
     if (rm.json){
       var doc = JSON.parse(rm.json);
       if (!local || String(doc.updatedAt || '') > String(local.updatedAt || '')){
