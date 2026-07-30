@@ -6501,7 +6501,8 @@ var SN = { textW: 760, mL: 230, mR: 230, mT: 70, mB: 240, pageW: 1220 };
 /* 앞 6개 = 형광 계열, 뒤 6개 = 펜용 진한 계열 */
 var SN_COLORS = ['#facc15', '#4ade80', '#60a5fa', '#fb923c', '#f472b6', '#a78bfa',
   '#111827', '#b91c1c', '#1d4ed8', '#15803d', '#6d28d9', '#78350f'];
-var SNS = { on: false, tool: 'sel', color: '#facc15', colMark: '#facc15', colPen: '#111827', prevTool: 'pen', penW: 3, zoom: 1, selNote: null,
+var SN_FS_LS = 'tsa.snFont', SN_FS_DEF = 15;
+var SNS = { on: false, tool: 'sel', color: '#facc15', colMark: '#facc15', colPen: '#111827', prevTool: 'pen', penW: 3, zoom: 1, font: (+load(SN_FS_LS) || SN_FS_DEF), selNote: null,
   draw: null, dragNote: null, anchorDrag: null, erasing: false, dragSquelch: 0, _selT: null };
 var SND = null;                                   /* 현재 문서 */
 var SN_DIRTY = false, SN_NEEDPUSH = false, SN_TSAVE = null, SN_TPUSH = null, SN_REMOTE = '';
@@ -6615,17 +6616,40 @@ function snEnable(){
   snFitZoom();
   studyRenderText();
 }
+/* 노트 페이지는 좌표 안정성을 위해 항상 SN.pageW(1220px) 논리폭을 쓰고,
+   보이는 크기(배율)는 오직 "왼쪽 창 실측폭"에만 연동된다 — 창을 넓히면 그만큼 커지고 좁히면 작아진다.
+   넓은 창에서는 1배를 넘겨 확대해 남는 여백 없이 꽉 채운다. (툴바 −/＋ 는 배율이 아니라 본문 글자 크기) */
 function snFitZoom(){
   var host = $('#studyText');
   var w = host ? host.clientWidth - 34 : SN.pageW;
-  SNS.zoom = Math.max(0.4, Math.min(1, Math.round(w / SN.pageW * 100) / 100));
+  SNS.zoom = Math.max(0.4, Math.min(2.4, Math.round(w / SN.pageW * 1000) / 1000));
 }
-function snZoom(dir){
-  if (dir === 0) snFitZoom();
-  else SNS.zoom = Math.max(0.4, Math.min(1.6, Math.round((SNS.zoom + dir * 0.1) * 10) / 10));
+/* 노트 본문 글자 크기 — 페이지 크기와 무관하게 글자만 키우고 줄인다(기기에 저장) */
+function snFontSet(px){
+  SNS.font = Math.max(11, Math.min(30, Math.round((+px || SN_FS_DEF) * 2) / 2));
+  save(SN_FS_LS, SNS.font);
+  var pg = $('#snPage'); if (pg) pg.style.setProperty('--snFs', SNS.font + 'px');
+}
+function snFont(dir){
+  snFontSet(dir === 0 ? SN_FS_DEF : SNS.font + dir * 1);
+  snBarRepaint();
+  /* 글자 크기가 바뀌면 줄이 다시 흐르므로 강조 표시·연결선·페이지 높이를 다시 잡는다 */
+  requestAnimationFrame(function(){ snApplyMarks(); snRenderNotes(); snLayout(); });
+}
+/* 왼쪽 창 폭이 바뀌면(스플리터 드래그·오른쪽 패널 접기·창 크기 변경) 페이지 배율을 다시 맞춘다 */
+function snRefit(){
+  if (!SNS.on || !SND) return;
+  snFitZoom();
   var pg = $('#snPage'); if (pg) pg.style.transform = 'scale(' + SNS.zoom + ')';
-  snBarRepaint(); snLayout();
+  snLayout(); snDrawLines();
 }
+(function snRefitInit(){
+  var t = null;
+  function ping(){ if (t) return; t = requestAnimationFrame(function(){ t = null; snRefit(); }); }
+  window.addEventListener('resize', ping);
+  var host = $('#studyText');
+  if (host && window.ResizeObserver){ try { new ResizeObserver(ping).observe(host); } catch (e){} }
+})();
 function snApplyToolClass(){
   var st = $('#studyText'); if (!st) return;
   st.classList.toggle('snPen', SNS.on && SNS.tool === 'pen');
@@ -6668,9 +6692,9 @@ function snBarHtml(){
     + tb('erase', '◌ 지우개', '획·형광·박스·원을 탭해 지우기')
     + '<span class="snSep"></span>' + cols + ws
     + '<span class="snSep"></span>'
-    + '<button type="button" data-snzoom="-1" title="축소">−</button>'
-    + '<button type="button" data-snzoom="0" title="화면 맞춤">' + Math.round(SNS.zoom * 100) + '%</button>'
-    + '<button type="button" data-snzoom="1" title="확대">＋</button>'
+    + '<button type="button" data-snfs="-1" title="본문 글자 작게">－ 글자</button>'
+    + '<button type="button" data-snfs="0" title="기본 글자 크기로">' + snR1(SNS.font) + 'px</button>'
+    + '<button type="button" data-snfs="1" title="본문 글자 크게">＋ 글자</button>'
     + '<span class="snStatus" id="snStatus">' + snStatusText() + '</span></div>';
 }
 function snBarRepaint(){ var bar = document.querySelector('#studyText .snBar'); if (bar) bar.outerHTML = snBarHtml(); }
@@ -7159,8 +7183,8 @@ function snClick(e){
   }
   var wd = t.closest && t.closest('[data-snw]');
   if (wd){ SNS.penW = +wd.getAttribute('data-snw'); snBarRepaint(); e.stopPropagation(); return; }
-  var zm = t.closest && t.closest('[data-snzoom]');
-  if (zm){ snZoom(+zm.getAttribute('data-snzoom')); e.stopPropagation(); return; }
+  var zm = t.closest && t.closest('[data-snfs]');
+  if (zm){ snFont(+zm.getAttribute('data-snfs')); e.stopPropagation(); return; }
   var noteEl = t.closest && t.closest('.snNote');
   if (noteEl){
     if (Date.now() - (SNS.dragSquelch || 0) < 300){ e.stopPropagation(); return; }
