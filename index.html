@@ -6454,7 +6454,7 @@ function svzRowsHtml(rows){
   }).join('');
 }
 function svzBannerHtml(){
-  var d = SVZ[studyRangeKey()];
+  var dRaw = SVZ[studyRangeKey()], d = svzView(dRaw);
   if (SVZ_BUSY) return '<div class="svzBan"><span class="svzTag">분석</span>본문 구조 분석 중…</div>';
   /* 저장본(다른 기기) 확인 중에는 "구조 분석" 버튼 대신 안내 — 확인 전 재분석 방지 */
   if ((!d || !d.ai) && SVZ_PROBING === studyRangeKey())
@@ -6507,10 +6507,26 @@ function svzPaintBanner(){ var el = $('#svzBanner'); if (el) el.innerHTML = svzB
 function svzToggle(){
   STUDY._userStruct = true;      /* 사용자가 직접 켜고 끔 — 동기화가 임의로 뒤집지 않게 */
   STUDY.structOn = !STUDY.structOn;
+  SVZ_AI_SHOW = '';              /* 켤 때는 언제나 '내 구조'부터 — AI 분석은 저장본이 있어도 감춘다 */
   studyRenderText();
-  /* ★ AI를 먼저 돌리지 않는다 — 본문을 읽고 내가 직접 나누는 것이 연구·묵상의 1단계다.
-     AI 도움은 배너의 [🤖 구조화 도움받기]를 눌렀을 때만 시작한다(svzGen). */
+  /* ★ 구조 켜기만으로는 어떤 AI 생성도 일어나지 않는다. 본문을 읽고 내가 직접 나누는 것이 1단계.
+     AI는 배너의 [🤖 …] 버튼을 눌렀을 때만 — 저장본이 있으면 펼치기만(svzShowAi), 없으면 생성(svzGen). */
 }
+/* ── AI 분석 표시 단계 분리 ──────────────────────────────────────────────
+   SVZ_AI_SHOW = AI 분석을 펼쳐 둔 구간 키. 그 외에는 저장된 AI 분석이 있어도 화면에는
+   '내 구조'(내가 ✂·★로 나눈 것)만 보인다. 구간이 바뀌거나 구조를 껐다 켜면 다시 감춘다. */
+var SVZ_AI_SHOW = '';
+function svzAiOn(){ return !!SVZ_AI_SHOW && SVZ_AI_SHOW === studyRangeKey(); }
+function svzView(d){
+  if (!d || svzAiOn()) return d;
+  return { ai: null, user: d.user, verdict: d.verdict, dirty: d.dirty, _t: d._t };
+}
+function svzShowAi(){
+  var key = studyRangeKey(), d = SVZ[key];
+  if (!d || !d.ai){ svzGen(); return; }      /* 저장본이 없을 때만 실제로 AI를 돌린다 */
+  SVZ_AI_SHOW = key; studyRenderText();
+}
+function svzHideAi(){ SVZ_AI_SHOW = ''; studyRenderText(); }
 async function svzGen(){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 구조 분석을 쓸 수 있습니다.'); return; }
   var R = STUDY.range; if (!R || SVZ_BUSY) return;
