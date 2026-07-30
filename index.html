@@ -5850,6 +5850,7 @@ var ST_SPLIT_LS = 'tsa.studySplit', ST_SPLIT_DEF = 58;
 function stSplitEnabled(){ return window.innerWidth > 720; }
 function stSplitApply(pct){
   var L = $('#studyText'), Rt = $('#studyDetail'); if (!L || !Rt) return;
+  if (stEmbedded()) return;          /* 묵상 화면에 빌려간 상태 — 좌우 비율 개념이 없다 */
   var bd = L.parentNode;
   /* 오른쪽 패널을 접었으면 인라인 비율을 지워 왼쪽이 화면 전체를 쓰게 한다(인라인이 CSS보다 우선하므로 필수) */
   if (bd && bd.classList && bd.classList.contains('noSide')){ L.style.flex = ''; Rt.style.flex = ''; return; }
@@ -11380,8 +11381,8 @@ function renderDevo(){
   body.className = 'split';
   body.innerHTML =
     '<div class="card" id="devoScript"><div class="cnt devoScHd"><span>📖 ' + esc(e['본문범위'] || '') + '</span>'
-      + '<button class="linkbtn" id="devoOpenStudy" type="button" style="font-size:12.5px;margin-left:auto">본문연구 창으로 ↗</button>'
-      + '<span id="devoSavedBadge">' + saved + '</span></div>'
+      + '<span id="devoSavedBadge">' + saved + '</span>'
+      + '<button class="linkbtn" id="devoOpenStudy" type="button" style="font-size:12.5px;margin-left:auto">본문연구 창으로 ↗</button></div>'
       + '<div id="devoStudyPane"></div></div>' +
     '<div>' +
     '<div id="devoFree"></div>' +
@@ -20565,7 +20566,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v486';
+var APP_VER = 'v487';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
