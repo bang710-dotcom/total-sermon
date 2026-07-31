@@ -10206,6 +10206,239 @@ $('#pickLtc2').addEventListener('click', pickLtc);
 function ensureDocxLib(){
   return loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js').then(function(){ return window.docx; });
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HWPX(한글) 생성 — 목사님 실제 원고에서 뽑은 "빈 껍데기"(hwpx/templates/*.hwpx)를
+   그대로 재사용한다. 용지·여백·글꼴·색·표 서식은 껍데기의 header.xml 에
+   charPr/paraPr/borderFill 로 이미 확정돼 있고, 여기서는 역할(role)에 맞는
+   ID로 본문 문단만 찍는다 → 서식이 원본과 100% 동일.
+   ※ 같은 껍데기·같은 역할지도를 Cowork 스킬 hwpx-sermon-docs 도 쓴다.
+      한쪽을 고치면 반드시 양쪽을 함께 고칠 것. (v493)
+   ═══════════════════════════════════════════════════════════════════════ */
+var HWPX_TYPES = {
+  manuscript: {
+    styles: { normal: 5, bold: 7, red: 8, blue: 11, heading: 15, title: 7 },
+    roles: { ref: { para: 13, style: 'bold' }, normal: { para: 13, style: 'normal' }, bold: { para: 13, style: 'bold' },
+      heading: { para: 13, style: 'heading' }, scripture: { para: 13, style: 'red' },
+      illustration: { para: 13, style: 'blue' }, blank: { para: 13, style: 'normal' } }
+  },
+  card: {
+    styles: { normal: 0, bold: 10, title: 11, red: 12, bar: 13, blue: 16, big: 19, bigplain: 20 },
+    roles: { ref: { para: 11, style: 'red' }, line: { para: 10, style: 'normal' }, bold: { para: 10, style: 'bold' },
+      scripture: { para: 10, style: 'red' }, illustration: { para: 10, style: 'blue' }, blank: { para: 10, style: 'normal' } },
+    bar: { para: 8, style: 'bar', tblFill: 2, cellFill: 3, width: 82205, height: 4610, cellHeight: 1800,
+      repeatHeader: '1', treatAsChar: '0', hasMargin: '1', vertAlign: 'TOP', tailRun: 0,
+      outMargin: 'left="0" right="0" top="0" bottom="0"',
+      inMargin: 'left="50" right="50" top="0" bottom="0"',
+      cellMargin: 'left="600" right="600" top="200" bottom="200"' }
+  },
+  ltc: {
+    styles: { h1: 11, sep: 12, h2: 13, reftop: 14, title: 15, read: 16, readref: 17, num: 18, pname: 19, dash: 20,
+      pref: 21, body: 22, boxh: 23, boxheb: 24, bullet: 25, boxtext: 26, sharemark: 27, sharelabel: 28,
+      sharetext: 29, emdash: 30, sechead: 31, notemark: 32, notetext: 33, gnum: 34, plain: 0 },
+    roles: { reftop: { para: 3, style: 'reftop' }, title: { para: 14, style: 'title' }, read: { para: 15, style: 'read' },
+      point: { para: 4, style: 'pname' }, body: { para: 13, style: 'body' }, boxhead: { para: 5, style: 'boxh' },
+      boxitem: { para: 6, style: 'boxtext' }, boxitem_end: { para: 7, style: 'boxtext' }, share: { para: 17, style: 'sharetext' },
+      gbshead: { para: 8, style: 'sechead' }, gbsnote: { para: 9, style: 'notetext' }, gbsq: { para: 10, style: 'body' },
+      blank: { para: 11, style: 'plain' }, noticehead: { para: 12, style: 'sechead' }, notice: { para: 20, style: 'plain' } }
+  },
+  plan: {
+    styles: { data: 0, head: 7, title: 8 },
+    roles: { blank: { para: 1, style: 'data' }, line: { para: 19, style: 'data' } },
+    table: { cellPara: 18, cols: [3646, 6760, 9274, 26019, 3797, 3797],
+      headFill: [9, 10, 11, 9, 9, 9], firstFill: [6, 7, 8, 6, 6, 6], rowFill: [3, 5, 4, 3, 3, 3], tblFill: 3,
+      headHeight: 3546, rowHeight: 4395, headStyle: 'head', dataStyle: 'data',
+      repeatHeader: '1', treatAsChar: '0', hasMargin: '0', vertAlign: 'CENTER',
+      outMargin: 'left="283" right="283" top="283" bottom="283"',
+      inMargin: 'left="510" right="510" top="141" bottom="141"',
+      cellMargin: 'left="510" right="510" top="141" bottom="141"' }
+  }
+};
+var _hwpxTpl = {};
+function hwpxShell(type){
+  if (_hwpxTpl[type]) return Promise.resolve(_hwpxTpl[type]);
+  return fetch('hwpx/templates/' + type + '.hwpx').then(function(r){
+    if (!r.ok) throw new Error('hwpx 서식 파일을 불러오지 못했습니다 (' + type + ')');
+    return r.arrayBuffer();
+  }).then(function(b){ _hwpxTpl[type] = b; return b; });
+}
+function hwpxEsc(s){
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+}
+function hwpxRun(cid, t){ return '<hp:run charPrIDRef="' + cid + '"><hp:t>' + hwpxEsc(t) + '</hp:t></hp:run>'; }
+function hwpxP(pid, inner){
+  return '<hp:p id="0" paraPrIDRef="' + pid + '" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">' + inner + '</hp:p>';
+}
+function hwpxTblId(){ return 1000000000 + Math.floor(Math.random() * 1000000000); }
+function hwpxBar(spec, text){
+  var bar = spec.bar, st = spec.styles;
+  var cellP = hwpxP(bar.para, hwpxRun(st[bar.style], text) + '<hp:run charPrIDRef="' + bar.tailRun + '"/>');
+  var tc = '<hp:tc name="" header="0" hasMargin="' + bar.hasMargin + '" protect="0" editable="0" dirty="0" borderFillIDRef="' + bar.cellFill + '">'
+    + '<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="' + bar.vertAlign + '" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
+    + cellP + '</hp:subList><hp:cellAddr colAddr="0" rowAddr="0"/><hp:cellSpan colSpan="1" rowSpan="1"/>'
+    + '<hp:cellSz width="' + bar.width + '" height="' + bar.cellHeight + '"/><hp:cellMargin ' + bar.cellMargin + '/></hp:tc>';
+  var tbl = '<hp:tbl id="' + hwpxTblId() + '" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="' + bar.repeatHeader + '" rowCnt="1" colCnt="1" cellSpacing="0" borderFillIDRef="' + bar.tblFill + '" noAdjust="0">'
+    + '<hp:sz width="' + bar.width + '" widthRelTo="ABSOLUTE" height="' + bar.height + '" heightRelTo="ABSOLUTE" protect="0"/>'
+    + '<hp:pos treatAsChar="' + bar.treatAsChar + '" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+    + '<hp:outMargin ' + bar.outMargin + '/><hp:inMargin ' + bar.inMargin + '/><hp:tr>' + tc + '</hp:tr></hp:tbl>';
+  return hwpxP(spec.roles.line.para, '<hp:run charPrIDRef="' + st.normal + '">' + tbl + '</hp:run>');
+}
+function hwpxTable(spec, rows){
+  var T = spec.table, st = spec.styles, cols = T.cols, body = '';
+  rows.forEach(function(row, ri){
+    var fills = ri === 0 ? T.headFill : (ri === 1 ? T.firstFill : T.rowFill);
+    var cid = st[ri === 0 ? T.headStyle : T.dataStyle];
+    var h = ri === 0 ? T.headHeight : T.rowHeight, cells = '';
+    for (var ci = 0; ci < cols.length; ci++){
+      var cell = row[ci], lines = Array.isArray(cell) ? cell : [cell];
+      var ps = lines.map(function(t){
+        return hwpxP(T.cellPara, String(t == null ? '' : t) ? hwpxRun(cid, t) : '<hp:run charPrIDRef="' + cid + '"/>');
+      }).join('');
+      cells += '<hp:tc name="" header="0" hasMargin="' + T.hasMargin + '" protect="0" editable="0" dirty="0" borderFillIDRef="' + fills[ci] + '">'
+        + '<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="' + T.vertAlign + '" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
+        + ps + '</hp:subList><hp:cellAddr colAddr="' + ci + '" rowAddr="' + ri + '"/><hp:cellSpan colSpan="1" rowSpan="1"/>'
+        + '<hp:cellSz width="' + cols[ci] + '" height="' + h + '"/><hp:cellMargin ' + T.cellMargin + '/></hp:tc>';
+    }
+    body += '<hp:tr>' + cells + '</hp:tr>';
+  });
+  var tw = cols.reduce(function(a, b){ return a + b; }, 0);
+  var th = T.headHeight + T.rowHeight * Math.max(0, rows.length - 1);
+  var tbl = '<hp:tbl id="' + hwpxTblId() + '" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="' + T.repeatHeader + '" rowCnt="' + rows.length + '" colCnt="' + cols.length + '" cellSpacing="0" borderFillIDRef="' + T.tblFill + '" noAdjust="0">'
+    + '<hp:sz width="' + tw + '" widthRelTo="ABSOLUTE" height="' + th + '" heightRelTo="ABSOLUTE" protect="0"/>'
+    + '<hp:pos treatAsChar="' + T.treatAsChar + '" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+    + '<hp:outMargin ' + T.outMargin + '/><hp:inMargin ' + T.inMargin + '/>' + body + '</hp:tbl>';
+  return hwpxP(T.cellPara, '<hp:run charPrIDRef="' + st[T.dataStyle] + '">' + tbl + '</hp:run>');
+}
+function hwpxBlocks(spec, blocks){
+  var st = spec.styles, roles = spec.roles;
+  return (blocks || []).map(function(b){
+    var role = b.role || 'body';
+    if (role === 'bar' && spec.bar) return hwpxBar(spec, b.text || '');
+    if (role === 'table' && spec.table) return hwpxTable(spec, b.rows || []);
+    var r = roles[role] || roles.body || roles.normal || roles.line;
+    var inner;
+    if (b.runs && b.runs.length){
+      inner = b.runs.map(function(x){ return hwpxRun(st[x[0]] != null ? st[x[0]] : st[r.style], x[1]); }).join('');
+    } else if (b.text){
+      inner = hwpxRun(st[r.style], b.text);
+    } else {
+      inner = '<hp:run charPrIDRef="' + st[r.style] + '"/>';
+    }
+    return hwpxP(r.para, inner);
+  }).join('');
+}
+/* 첫 문단(제목줄·머리띠)의 빈 <hp:t></hp:t> 자리를 순서대로 채운다. null = 건너뜀(쪽번호 꼬리말 등) */
+function hwpxFillSlots(sec, texts){
+  var head = sec.indexOf('</hp:secPr>');
+  if (head < 0) return sec;
+  var pat = '<hp:t></hp:t>', out = sec.slice(0, head), rest = sec.slice(head), i = 0;
+  while (i < texts.length){
+    var k = rest.indexOf(pat); if (k < 0) break;
+    out += rest.slice(0, k) + (texts[i] != null ? '<hp:t>' + hwpxEsc(texts[i]) + '</hp:t>' : pat);
+    rest = rest.slice(k + pat.length); i++;
+  }
+  return out + rest;
+}
+async function hwpxBuild(content){
+  var spec = HWPX_TYPES[content.type];
+  if (!spec) throw new Error('알 수 없는 hwpx 유형: ' + content.type);
+  if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  var buf = await hwpxShell(content.type);
+  var zip = await window.JSZip.loadAsync(buf);
+  var sec = await zip.file('Contents/section0.xml').async('string');
+  sec = hwpxFillSlots(sec, content.slots || []);
+  sec = sec.replace('</hs:sec>', hwpxBlocks(spec, content.blocks) + '</hs:sec>');
+  var out = new window.JSZip();
+  out.file('mimetype', await zip.file('mimetype').async('string'), { compression: 'STORE' });
+  var names = Object.keys(zip.files).filter(function(n){ return n !== 'mimetype' && !zip.files[n].dir; });
+  for (var i = 0; i < names.length; i++){
+    var n = names[i];
+    var data = (n === 'Contents/section0.xml') ? sec : await zip.file(n).async('uint8array');
+    out.file(n, data, { compression: 'DEFLATE' });
+  }
+  return out.generateAsync({ type: 'blob', mimeType: 'application/hwp+zip' });
+}
+/* hwpx → 순수 텍스트(문단 줄바꿈) — 저장해 둔 원고를 앱이 다시 읽을 때 */
+function hwpxXmlToText(xml){
+  var paras = [], re = /<hp:p[ >][\s\S]*?<\/hp:p>/g, m;
+  while ((m = re.exec(xml))){
+    var t = (m[0].match(/<hp:t>[\s\S]*?<\/hp:t>/g) || []).map(function(x){
+      return x.replace(/^<hp:t>/, '').replace(/<\/hp:t>$/, '')
+        .replace(/<hp:lineBreak\/>/g, '\n').replace(/<[^>]+>/g, '');
+    }).join('');
+    paras.push(t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&'));
+  }
+  return paras.join('\n');
+}
+/* ── 산출물 파일 형식: 기본 HWPX(한글), 설정에서 DOCX로 되돌릴 수 있음 ── */
+function outFmt(){ return ((state.settings || {}).fileFmt === 'docx') ? 'docx' : 'hwpx'; }
+function outExt(){ return '.' + outFmt(); }
+function isDocOut(name){ return /\.(docx|hwpx)$/i.test(String(name || '')); }
+
+/* ── DOCX 문단 모델({text,bold,color,size,bar}) → hwpx 블록 ── */
+function hwpxParasToBlocks(paras){
+  return (paras || []).map(function(p){
+    var t = String(p.text == null ? '' : p.text);
+    if (!t.trim()) return { role: 'blank' };
+    if (p.bar) return { role: 'scripture', text: t };
+    var c = String(p.color || '').toUpperCase();
+    if (c === REF_RED) return { role: 'scripture', text: t };
+    if (c === EX_BLUE || c === '215E99') return { role: 'illustration', text: t };
+    if (p.bold) return { role: (p.size && p.size >= 30) ? 'heading' : 'bold', text: t };
+    return { role: 'normal', text: t };
+  });
+}
+function hwpxManuscript(paras){
+  var ps = (paras || []).slice();
+  var title = ps.length ? String(ps.shift().text || '') : '';
+  return { type: 'manuscript', slots: [title], blocks: hwpxParasToBlocks(ps) };
+}
+/* 카드원고 items([{t:'trans'|'quote'|'ex'|'p', x}]) → hwpx */
+function hwpxCard(meta, items){
+  var series = meta['예배구분'] || '';
+  var title = (series ? series + ' - ' : '') + '「' + (meta['제목'] || '') + '」 ' + (meta['본문'] || '');
+  var blocks = (items || []).map(function(it){
+    var x = String(it.x || '');
+    if (it.t === 'trans') return { role: 'bar', text: x };
+    if (it.t === 'quote') return { role: 'scripture', text: toLeadRefQuote(x) };
+    if (it.t === 'ex') return { role: 'illustration', text: x };
+    if (it.t === 'p') return { role: 'line', text: x };
+    return { role: 'bold', text: x };
+  });
+  return { type: 'card', slots: [null, title], blocks: blocks };
+}
+/* LTC 데이터 → hwpx */
+function hwpxLtc(meta, data, dateB, seriesLabel){
+  var b = [];
+  b.push({ role: 'reftop', text: '- ' + (meta['본문'] || '') + ' -' });
+  b.push({ role: 'title', text: '"' + (meta['제목'] || '') + '"' });
+  b.push({ role: 'read', runs: [['read', '오늘 본문을 함께 읽어봅시다. (개역개정)  '], ['readref', '- ' + (meta['본문'] || '') + ' -']] });
+  (data.sections || []).forEach(function(sec, i){
+    b.push({ role: 'point', runs: [['num', (i + 1) + '. '], ['pname', String(sec.blankTitle || sec.title || '')]] });
+    (sec.paras || []).forEach(function(t){ b.push({ role: 'body', text: t }); });
+    (sec.boxes || []).forEach(function(bx){
+      b.push({ role: 'boxhead', text: '[ ' + (bx.title || '') + ' ]' });
+      (bx.lines || []).forEach(function(l, k){
+        b.push({ role: (k === (bx.lines.length - 1)) ? 'boxitem_end' : 'boxitem', runs: [['bullet', '•'], ['boxtext', ' ' + l]] });
+      });
+    });
+    if (sec.summary) b.push({ role: 'body', text: sec.summary });
+    if (sec.sharing) b.push({ role: 'share', runs: [['sharemark', '✦'], ['sharelabel', ' 나눔: '], ['sharetext', sec.sharing]] });
+  });
+  b.push({ role: 'gbshead', runs: [['num', '●'], ['sechead', ' 함께 생각해보기 (GBS 질문)']] });
+  b.push({ role: 'gbsnote', runs: [['notemark', '※'], ['notetext', ' 아래 질문으로 리더들이 소그룹을 이루어 직접 소그룹 인도를 체험해 봅시다.']] });
+  (data.gbs || []).forEach(function(q, i){
+    b.push({ role: 'gbsq', runs: [['gnum', (i + 1) + '. '], ['readref', '[' + (q.category || '') + '] '], ['body', String(q.text || '')]] });
+    b.push({ role: 'blank' });
+  });
+  b.push({ role: 'noticehead', runs: [['num', '●'], ['sechead', ' 공지사항']] });
+  var nts = (data.notices && data.notices.length) ? data.notices : ['공지사항을 입력해 주세요.'];
+  nts.forEach(function(n, i){ b.push({ role: 'notice', text: (i + 1) + '. ' + n }); });
+  return { type: 'ltc',
+    slots: ['  영락대학부 LTC', '   |   ', String(dateB || ''), '   |   ', String(seriesLabel || '')],
+    blocks: b };
+}
 /* 원고 스타일별 DOCX 서식 — 전체 폰트 함초롬바탕
    기본·자유원고: 아이패드 13" 화면용 216×290mm, 여백 10mm, 13pt, 줄간격 1.5
    카드원고: 아이패드 미니 가로화면용 210×310mm, 위·좌우 10mm 아래 12.5mm, 14pt, 줄간격 1.5 */
