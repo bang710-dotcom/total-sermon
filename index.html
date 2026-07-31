@@ -1503,21 +1503,21 @@ body.uiDlgOpen{overflow:hidden}
           <button class="btn sub mini" data-req="리더스앱업로드"><span>LTC 교재<br>리더스앱 업로드</span></button>
         </div>
         <label style="display:block;margin-top:12px">📦 설교 산출물 — 누르면 그 산출물을 생성(이전 단계 결과물은 있으면 재사용·없으면 생성). 이미 있는 걸 다시 누르면 그것만 새로. Total Sermon은 전체를 새로 생성</label>
-        <button class="btn gold" data-casc="docx" style="width:100%;margin-top:4px"><span class="blab">DOCX 원고 내보내기</span><small class="bpath">01 Sermons / 연도 폴더</small></button>
+        <button class="btn gold" data-casc="docx" style="width:100%;margin-top:4px"><span class="blab"><span class="fmtLbl">HWPX</span> 원고 내보내기</span><small class="bpath">01 Sermons / 연도 폴더</small></button>
         <div class="desktop-only">
           <button class="linkbtn" id="cascToggle" style="margin:6px 0">▾ 중간 단계 펼치기</button>
           <div id="cascMid" style="display:none">
             <div style="display:flex;gap:8px">
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">카드 가지</div>
-                <div class="cascitem"><button class="btn sub" data-casc="card" style="width:100%"><span class="blab">카드 원고 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="card" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="card" style="width:100%"><span class="blab">카드 원고 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="card" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="cardpdf" style="width:100%"><span class="blab">카드 디자인 PDF</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="cardpdf" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (카드 원고 자동 포함)"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="cardpptx" style="width:100%"><span class="blab">카드 디자인 PPTX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="cardpptx" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (카드 원고 자동 포함)"></span></div>
               </div>
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">이미지 가지</div>
-                <div class="cascitem"><button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="trans" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
-                <div class="cascitem"><button class="btn sub" data-casc="imgdata" style="width:100%"><span class="blab">프롬프트 DOCX</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="imgdata" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="trans" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="imgdata" style="width:100%"><span class="blab">프롬프트 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="imgdata" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="bgimg" style="width:100%"><span class="blab">배경 이미지 생성</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="bgimg" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
               </div>
             </div>
@@ -1525,7 +1525,7 @@ body.uiDlgOpen{overflow:hidden}
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
         </div>
         <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab">📮 주보 내용 카톡 보내기</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 내 카톡(나와의 채팅)</small></button>
-        <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(원고 DOCX는 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
+        <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(설교 원고 파일은 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">설교 기본원고 저장 폴더 지정</button>
         <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
@@ -2069,7 +2069,7 @@ body.uiDlgOpen{overflow:hidden}
   <div class="dropMsg">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     <h3>파일을 여기에 놓으세요</h3>
-    <p>예화 <b style="color:var(--accent)">이미지</b> → 글로 정리해 인박스 등록<br>설교 원고 <b style="color:var(--accent2)">DOCX</b> → 가져오기에서 시트 등록<br>여러 개를 한 번에 놓아도 알아서 분류됩니다</p>
+    <p>예화 <b style="color:var(--accent)">이미지</b> → 글로 정리해 인박스 등록<br>설교 원고 <b style="color:var(--accent2)">HWPX·DOCX</b> → 가져오기에서 시트 등록<br>여러 개를 한 번에 놓아도 알아서 분류됩니다</p>
   </div>
 </div>
 <div id="genOverlay">
@@ -3047,7 +3047,7 @@ function openDetail(kind, id){
     html += '<div class="toolrow">' +
       '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">수정하기</button>' +
       '<button class="btn sub" onclick="previewSermon(\'' + esc(s['ID']) + '\')">미리보기</button>' +
-      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">DOCX<br>내보내기<small class="bpath">01 Sermons / 연도 폴더</small></button></div>';
+      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">' + fmtTag() + '<br>내보내기<small class="bpath">01 Sermons / 연도 폴더</small></button></div>';
     state.detailId = s['ID'];
     function reqBtnRow(types, desktopOnly){
       return '<div class="toolrow' + (desktopOnly ? ' desktop-only' : '') + '">' + types.map(function(t){
@@ -10183,7 +10183,7 @@ function _exportSyncState_(){
 }
 var ltcHandle = null;  /* LTC교재·리더스앱 저장 (06 양육훈련 프로그램/LTC — 책별 폴더) */
 function dirStateText(){
-  if (!window.showDirectoryPicker) return '이 브라우저는 폴더 연결을 지원하지 않습니다. DOCX는 다운로드로 저장됩니다. (Chrome 권장)';
+  if (!window.showDirectoryPicker) return '이 브라우저는 폴더 연결을 지원하지 않습니다. 산출물은 다운로드로 저장됩니다. (Chrome 권장)';
   return '설교 기본원고 저장: ' + (dirHandle ? dirHandle.name : '미지정(다운로드 폴더 사용)') +
     ' · 클로드 연동: ' + (xHandle ? xHandle.name : '미지정') +
     ' · LTC: ' + (ltcHandle ? ltcHandle.name : '미지정(설교 폴더 사용)');
@@ -12961,7 +12961,7 @@ async function aiManuscript(id, meta){
       if (!ok) toast('번호 대지를 찾지 못해 자유원고 텍스트로 불러왔습니다 — [자유원고] 칩에서 확인하세요.');
     }
     updateComposeBadge(); renderSyncState();
-    toast('완성 원고를 작성창에 불러왔습니다 — 검토·수정 후 [내보내기]로 DOCX를 만드세요.');
+    toast('완성 원고를 작성창에 불러왔습니다 — 검토·수정 후 [내보내기]로 ' + fmtTag() + ' 파일을 만드세요.');
     autoSaveDraft('초안 자동 저장 — 다른 기기에서도 [진행중 불러오기]로 이어쓸 수 있어요'); /* 기기 간 이어쓰기 */
   } catch (e) { renderSyncState(); toast('원고 작성 실패: ' + e.message); }
 }
@@ -18015,7 +18015,7 @@ function cascStepList(target){
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg));
   var s = [];
   if (inA || inB) s.push({ label: '이미지 전환표' });
-  if (target === 'docx' || target === 'total') s.push({ label: 'DOCX 원고' });
+  if (target === 'docx' || target === 'total') s.push({ label: fmtTag() + ' 원고' });
   if (inA) {
     s.push({ label: '카드 원고' });
     if (target === 'cardpdf' || (sel && sel.cardpdf)) s.push({ label: '카드 디자인 PDF' });
@@ -18294,7 +18294,7 @@ function parseFileDate(name, fallbackYear){
 var TAIL_REF_RE = new RegExp('[\\s_\\-]+(' + BOOKS + ')\\s*\\d+(\\s*[장]?[\\s_:.]\\s*\\d+([-~]\\d+)?)*([\\s_]+\\d+)?\\s*$');
 function cleanTitle(name){
   try { name = name.normalize('NFC'); } catch (e) {}   /* macOS NFD 파일명 → NFC로 통일(시트 검색·중복 판정 어긋남 방지) */
-  name = name.replace(/\.(docx?|DOCX?)$/, '');
+  name = name.replace(/\.(docx?|DOCX?|hwpx?|HWPX?)$/, '');
   name = name.replace(TAIL_REF_RE, ''); /* 꼬리 성경구절은 제목에서 제외 (본문 칸이 따로 있음) */
   /* 토큰은 구분자 경계에서만 제거 — '설교문?'식 부분 일치는 제목 속 글자를 갉아먹는다(예: "설교자의 마음" → "자의 마음") */
   name = name.replace(/(^|[\s_\-.])(설교문|설교|원고|최종|수정\d*|final|v\d+)(?=$|[\s_\-.])/g, '$1');
@@ -18449,12 +18449,20 @@ $('#saveSermon').addEventListener('click', function(){
 });
 
 /* 산출물 파일 형식 칩 — 누르는 즉시 저장(설정 저장 버튼과 무관) */
+function fmtTag(){ return outFmt() === 'hwpx' ? 'HWPX' : 'DOCX'; }
+/* 화면에 박힌 형식 표기(버튼 라벨)를 현재 설정에 맞춰 다시 칠한다 */
+function paintFmtLabels(){
+  var t = fmtTag();
+  document.querySelectorAll('.fmtLbl').forEach(function(el){ el.textContent = t; });
+}
 function paintFmtChips(){
+  paintFmtLabels();
   var box = $('#fmtChips'); if (!box) return;
   var cur = outFmt();
   box.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-fmt') === cur); });
 }
 (function(){
+  try { paintFmtLabels(); } catch (e0){}
   var box = $('#fmtChips'); if (!box) return;
   box.addEventListener('click', function(e){
     var c = e.target.closest('.chip'); if (!c) return;
@@ -19813,7 +19821,7 @@ function renderLibRow(s){
   function chip(on, label){ return '<span class="lchip' + (on ? ' on' : '') + '">' + (on ? '● ' : '') + label + '</span>'; }
   var series = s['시리즈'] ? esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') : '';
   var paths = Object.keys(f.map).map(function(k){
-    var lbl = { hwp: '원고(HWP)', docx: '원고(DOCX)', pdf: 'PDF', card: '카드원고', ltc: 'LTC' }[k] || k;
+    var lbl = { hwp: '원고(HWP)', docx: '원고', pdf: 'PDF', card: '카드원고', ltc: 'LTC' }[k] || k;
     return '<div class="cnt" style="word-break:break-all">' + lbl + ': ' + esc(f.map[k]) + '</div>';
   }).join('');
   var id = esc(s['ID'] || '');
@@ -19836,7 +19844,7 @@ function renderLibRow(s){
       '<div class="toolrow" style="margin-top:9px">' +
         '<button class="btn sub" onclick="previewSermon(\'' + id + '\')">미리보기</button>' +
         '<button class="btn sub" onclick="editSermon(\'' + id + '\')">수정하기</button>' +
-        '<button class="btn gold desktop-only" onclick="exportSermonDocx(\'' + id + '\')">DOCX 내보내기</button>' +
+        '<button class="btn gold desktop-only" onclick="exportSermonDocx(\'' + id + '\')">' + fmtTag() + ' 내보내기</button>' +
         '<button class="btn sub" style="margin-left:auto;color:var(--warn);border-color:var(--warn)" onclick="deleteSermon(\'' + id + '\')">삭제</button>' +
       '</div>' +
       '<div class="relBox" data-relid="' + id + '" style="margin-top:9px"></div>' +
@@ -20850,7 +20858,7 @@ function openPreview(contentHtml, exportFn, pageMm){
     '<button onclick="closePrev()" style="background:#444;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">× 닫기</button>' +
     '<button onclick="window.print()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">🖨 인쇄</button>' +
     '<button id="pvFullBtn" onclick="togglePrevFull()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">⛶ 전체화면</button>';
-  if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">DOCX 내보내기</button>';
+  if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">' + fmtTag() + ' 내보내기</button>';
   bar += '</div>';
   ov.innerHTML = bar +
     '<div id="prevScroll" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px 0 calc(16px + env(safe-area-inset-bottom))">' +
@@ -21119,7 +21127,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v493';
+var APP_VER = 'v494';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
