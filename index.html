@@ -4769,27 +4769,14 @@ function studyFillCol(colEl, vid){
   if (vid === 'NET') jobs.push(studyLoadNetInline(R.idx).catch(function(){ return null; }));
   Promise.all(jobs).then(function(res){
     var data = res[0], inlineData = (vid === 'NET') ? res[1] : null;
-    studyColPaint(colEl, vid, data, R, { inline: inlineData });
-    /* 개역개정 등 스트롱 역본: NET 노트 번호를 스트롱 코드로 맞춘 자리에 뒤이어 달아 준다(본문은 먼저 보인다) */
-    if (vid !== 'NET' && studyNetNumOn() && TR_MAP[vid] && TR_MAP[vid].strong) studyNetNumLater(colEl, vid, data, R);
-  }).catch(function(e){ colEl.innerHTML = '<div class="stWarn">불러오지 못했습니다.<br><span class="cnt">성경앱 배포·CORS 필요. (' + esc(e.message) + ')</span></div>'; });
-}
-function studyColPaint(colEl, vid, data, R, opt){
-  opt = opt || {};
-  {
     var reg = TR_MAP[vid], book = data && data.books && data.books[R.idx];
     if (!book){ colEl.innerHTML = '<div class="cnt">이 역본에 본문이 없습니다.</div>'; return; }
-    var netBook = opt.net && opt.net.books ? opt.net.books[R.idx] : null;
     var r = R.r, rows = [];
     for (var c = r.c1; c <= r.c2; c++){
       var verses = book.chapters[c - 1] || [];
-      var netVs = netBook ? (netBook.chapters[c - 1] || []) : null;
       var vs = (c === r.c1) ? r.v1 : 1, ve = (c === r.c2) ? Math.min(r.v2, verses.length) : verses.length;
       for (var vi = vs; vi <= ve; vi++){ if (!verses[vi - 1]) continue;
-        var inner;
-        if (vid === 'NET' && opt.inline) inner = studyNetVerseInner(verses[vi - 1], c, vi, opt.inline);
-        else if (opt.inline && netVs) inner = studyTrNetVerseInner(verses[vi - 1], netVs[vi - 1], reg, c, vi, opt.inline);
-        else inner = studyVerseInner(verses[vi - 1], reg);
+        var inner = (vid === 'NET' && inlineData) ? studyNetVerseInner(verses[vi - 1], c, vi, inlineData) : studyVerseInner(verses[vi - 1], reg);
         rows.push({ cv: c * 1000 + vi, label: c + ':' + vi, inner: inner });
       }
     }
