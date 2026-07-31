@@ -1,0 +1,324 @@
+{
+  "_설명": "유형별 hwpx 템플릿 껍데기의 역할→문단모양(paraPr)·글자모양(charPr) 지도. 원본 원고에서 실측한 값이라 이 지도대로 찍으면 서식이 원본과 100% 같다.",
+  "manuscript": {
+    "shell": "templates/manuscript.hwpx",
+    "설명": "설교 원고(기본·자유) — 216×290mm 세로, 여백 10mm, 함초롬바탕 12pt",
+    "slots": [
+      "title"
+    ],
+    "styles": {
+      "normal": 5,
+      "bold": 7,
+      "red": 8,
+      "blue": 11,
+      "heading": 15,
+      "title": 7
+    },
+    "roles": {
+      "ref": {
+        "para": 13,
+        "style": "bold"
+      },
+      "normal": {
+        "para": 13,
+        "style": "normal"
+      },
+      "bold": {
+        "para": 13,
+        "style": "bold"
+      },
+      "heading": {
+        "para": 13,
+        "style": "heading"
+      },
+      "scripture": {
+        "para": 13,
+        "style": "red"
+      },
+      "illustration": {
+        "para": 13,
+        "style": "blue"
+      },
+      "blank": {
+        "para": 13,
+        "style": "normal"
+      }
+    }
+  },
+  "card": {
+    "shell": "templates/card.hwpx",
+    "설명": "카드원고 — 310×210mm 가로(아이패드 미니), 쪽번호 꼬리말, 이미지 전환 = 빨간 띠 표",
+    "slots": [
+      null,
+      "title"
+    ],
+    "styles": {
+      "normal": 0,
+      "bold": 10,
+      "title": 11,
+      "red": 12,
+      "bar": 13,
+      "blue": 16,
+      "big": 19,
+      "bigplain": 20
+    },
+    "roles": {
+      "ref": {
+        "para": 11,
+        "style": "red"
+      },
+      "line": {
+        "para": 10,
+        "style": "normal"
+      },
+      "bold": {
+        "para": 10,
+        "style": "bold"
+      },
+      "scripture": {
+        "para": 10,
+        "style": "red"
+      },
+      "illustration": {
+        "para": 10,
+        "style": "blue"
+      },
+      "blank": {
+        "para": 10,
+        "style": "normal"
+      }
+    },
+    "bar": {
+      "para": 8,
+      "style": "bar",
+      "tblFill": 2,
+      "cellFill": 3,
+      "width": 82205,
+      "height": 4610,
+      "cellHeight": 1800,
+      "repeatHeader": "1",
+      "treatAsChar": "0",
+      "hasMargin": "1",
+      "vertAlign": "TOP",
+      "outMargin": "left=\"0\" right=\"0\" top=\"0\" bottom=\"0\"",
+      "inMargin": "left=\"50\" right=\"50\" top=\"0\" bottom=\"0\"",
+      "cellMargin": "left=\"600\" right=\"600\" top=\"200\" bottom=\"200\"",
+      "tailRun": 0
+    }
+  },
+  "ltc": {
+    "shell": "templates/ltc.hwpx",
+    "설명": "LTC 교재 — A4 세로, 남색(#1F3864) 머리띠·대지 밑줄·연파랑 원어박스",
+    "slots": [
+      "head1",
+      "sep1",
+      "date",
+      "sep2",
+      "series",
+      null
+    ],
+    "styles": {
+      "h1": 11,
+      "sep": 12,
+      "h2": 13,
+      "reftop": 14,
+      "title": 15,
+      "read": 16,
+      "readref": 17,
+      "num": 18,
+      "pname": 19,
+      "dash": 20,
+      "pref": 21,
+      "body": 22,
+      "boxh": 23,
+      "boxheb": 24,
+      "bullet": 25,
+      "boxtext": 26,
+      "sharemark": 27,
+      "sharelabel": 28,
+      "sharetext": 29,
+      "emdash": 30,
+      "sechead": 31,
+      "notemark": 32,
+      "notetext": 33,
+      "gnum": 34,
+      "plain": 0
+    },
+    "roles": {
+      "reftop": {
+        "para": 3,
+        "style": "reftop"
+      },
+      "title": {
+        "para": 14,
+        "style": "title"
+      },
+      "read": {
+        "para": 15,
+        "style": "read"
+      },
+      "point": {
+        "para": 4,
+        "style": "pname"
+      },
+      "body": {
+        "para": 13,
+        "style": "body"
+      },
+      "boxhead": {
+        "para": 5,
+        "style": "boxh"
+      },
+      "boxitem": {
+        "para": 6,
+        "style": "boxtext"
+      },
+      "boxitem_end": {
+        "para": 7,
+        "style": "boxtext"
+      },
+      "share": {
+        "para": 17,
+        "style": "sharetext"
+      },
+      "gbshead": {
+        "para": 8,
+        "style": "sechead"
+      },
+      "gbsnote": {
+        "para": 9,
+        "style": "notetext"
+      },
+      "gbsq": {
+        "para": 10,
+        "style": "body"
+      },
+      "blank": {
+        "para": 11,
+        "style": "plain"
+      },
+      "noticehead": {
+        "para": 12,
+        "style": "sechead"
+      },
+      "notice": {
+        "para": 20,
+        "style": "plain"
+      }
+    }
+  },
+  "plan": {
+    "shell": "templates/plan.hwpx",
+    "설명": "시리즈 설교계획표 — A4 세로, 6열 표(회차·주일예배·전주간 묵상 본문·주제/행사·LTC·GBS)",
+    "slots": [
+      "title"
+    ],
+    "styles": {
+      "data": 0,
+      "head": 7,
+      "title": 8
+    },
+    "roles": {
+      "blank": {
+        "para": 1,
+        "style": "data"
+      },
+      "line": {
+        "para": 19,
+        "style": "data"
+      }
+    },
+    "table": {
+      "cellPara": 18,
+      "cols": [
+        3646,
+        6760,
+        9274,
+        26019,
+        3797,
+        3797
+      ],
+      "headFill": [
+        9,
+        10,
+        11,
+        9,
+        9,
+        9
+      ],
+      "firstFill": [
+        6,
+        7,
+        8,
+        6,
+        6,
+        6
+      ],
+      "rowFill": [
+        3,
+        5,
+        4,
+        3,
+        3,
+        3
+      ],
+      "tblFill": 3,
+      "headHeight": 3546,
+      "rowHeight": 4395,
+      "headStyle": "head",
+      "dataStyle": "data",
+      "repeatHeader": "1",
+      "treatAsChar": "0",
+      "hasMargin": "0",
+      "vertAlign": "CENTER",
+      "outMargin": "left=\"283\" right=\"283\" top=\"283\" bottom=\"283\"",
+      "inMargin": "left=\"510\" right=\"510\" top=\"141\" bottom=\"141\"",
+      "cellMargin": "left=\"510\" right=\"510\" top=\"141\" bottom=\"141\""
+    }
+  },
+  "dawn": {
+    "shell": "templates/dawn.hwpx",
+    "설명": "새벽설교 원고 — 216×290mm 세로, 여백 15mm, 함초롬바탕 13pt (제목줄에 찬송·통독범위 포함)",
+    "slots": [
+      "title"
+    ],
+    "styles": {
+      "normal": 8,
+      "bold": 0,
+      "title": 0,
+      "red": 9,
+      "blue": 10,
+      "heading": 0
+    },
+    "roles": {
+      "ref": {
+        "para": 0,
+        "style": "bold"
+      },
+      "normal": {
+        "para": 0,
+        "style": "normal"
+      },
+      "bold": {
+        "para": 0,
+        "style": "bold"
+      },
+      "heading": {
+        "para": 0,
+        "style": "bold"
+      },
+      "scripture": {
+        "para": 0,
+        "style": "red"
+      },
+      "illustration": {
+        "para": 0,
+        "style": "blue"
+      },
+      "blank": {
+        "para": 0,
+        "style": "normal"
+      }
+    }
+  }
+}
