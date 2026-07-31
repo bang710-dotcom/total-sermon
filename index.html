@@ -2139,7 +2139,27 @@ function saveData(){ if (!_dataLoaded) return; idbSet('data', state.data).catch(
 function $(s){ return document.querySelector(s); }
 function $$(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-function toast(msg){ var t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2400); }
+/* 열려 있는 전체화면 오버레이(본문연구·자료·확인창 등)가 있으면 true */
+function anyOverlayOpen(){
+  /* position:fixed 요소는 offsetParent가 null이라 쓸 수 없다 → 계산된 스타일·크기로 판별 */
+  function vis(el){
+    if (!el) return false;
+    var cs = window.getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  }
+  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'calOv', 'uiDlgOv', 'penPad'];
+  for (var i = 0; i < ids.length; i++){ if (vis(document.getElementById(ids[i]))) return true; }
+  return false;
+}
+function toast(msg){
+  var t = $('#toast'); t.textContent = msg;
+  /* 모달 위에서도 확실히 보이도록 — 열린 오버레이가 있으면 화면 중앙에 크게 띄운다 */
+  document.body.classList.toggle('ovOpen', anyOverlayOpen());
+  t.classList.add('show'); clearTimeout(t._h);
+  t._h = setTimeout(function(){ t.classList.remove('show'); }, 2400);
+}
 function debounce(fn, ms){ var h; return function(){ var a = arguments, c = this; clearTimeout(h); h = setTimeout(function(){ fn.apply(c, a); }, ms); }; }
 function isDesktop(){ return window.matchMedia('(min-width: 900px)').matches; }
 /* 스트리밍 응답 idle 워치독 — 지정 시간 동안 한 바이트도 안 오면 자동 중단(무한 로딩 방지).
@@ -21131,7 +21151,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v494';
+var APP_VER = 'v495';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
