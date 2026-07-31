@@ -559,6 +559,11 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 /* 지우개 ↔ 직전 도구 빠른 전환 (연구노트 모드 전용 플로팅 버튼) */
 #snSwap{position:fixed;right:16px;bottom:20px;z-index:340;width:52px;height:52px;border-radius:50%;background:var(--card);border:1.5px solid var(--line);color:var(--text);font-size:20px;line-height:1;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer}
 #snSwap.on{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+/* 실행 취소 — 펜슬로 필기하는 손 가까이(지우개 전환 버튼 위)에 하나 더 (v481) */
+#snUndoFab{position:fixed;right:16px;bottom:80px;z-index:340;width:52px;height:52px;border-radius:50%;background:var(--card);border:1.5px solid var(--line);color:var(--text);font-size:21px;line-height:1;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer}
+#snUndoFab:disabled{opacity:.32;cursor:default;box-shadow:none}
+.snBar .snUndoBtn{font-weight:700;color:var(--accent2);border-color:var(--accent2)}
+.snBar button:disabled{opacity:.4;cursor:default;color:var(--dim);border-color:var(--line);font-weight:400}
 .stSeg.stClimax .stSegRange{color:var(--gold,#d4af37)}
 .stStar{color:var(--gold,#d4af37);font-weight:700;margin-left:4px}
 .stXrefRow{font-size:12.5px;line-height:1.6;padding:4px 0;border-top:1px dashed var(--line)}
@@ -6691,7 +6696,6 @@ function snUndoRecord(tag){
   SN_SNAP = snSnapNow();
   snUndoPaint();
 }
-function snCanUndo(){ snUndoSync(); return !!(SND && SN_UNDO.length); }
 function snUndoPaint(){
   var can = !!(SND && SN_UNDO.length);
   var b = document.querySelector('#studyText [data-snundo]');
@@ -6858,6 +6862,7 @@ function snSwapTool(){
 }
 /* ── 툴바 ── */
 function snBarHtml(){
+  snUndoSync();
   function tb(t, label, title){ return '<button type="button" data-sntool="' + t + '"' + (SNS.tool === t ? ' class="on"' : '') + ' title="' + title + '">' + label + '</button>'; }
   var cols = SN_COLORS.map(function(c){ return '<button type="button" class="snCol' + (SNS.color === c ? ' on' : '') + '" data-sncol="' + c + '" style="background:' + c + '" title="색"></button>'; }).join('');
   var ws = '';
@@ -6888,6 +6893,7 @@ function snAfterRender(){
   snApplyMarks();
   snRenderNotes();
   snLayout();
+  snUndoPaint();      /* 다시 그린 뒤 실행취소 버튼 활성 상태 맞추기 */
 }
 function snVerseEls(){
   var col = document.querySelector('#studyText .stCol[data-vi="0"]');
@@ -7434,7 +7440,7 @@ function snClick(e){
     var tx = e.target && e.target.classList && e.target.classList.contains('snNTx') ? e.target : null;
     if (!tx) return;
     var noteEl = tx.closest('.snNote'), n = noteEl && snNote(noteEl.getAttribute('data-nid'));
-    if (n){ n.text = tx.innerText.replace(/ /g, ' '); snTouch(); snDrawLines(); }
+    if (n){ n.text = tx.innerText.replace(/ /g, ' '); snTouch('tx:' + n.id); snDrawLines(); }
   });
   st.addEventListener('focusout', function(e){
     var tx = e.target && e.target.classList && e.target.classList.contains('snNTx') ? e.target : null;
@@ -7443,13 +7449,21 @@ function snClick(e){
     noteEl.classList.remove('editing');
     tx.removeAttribute('contenteditable');
     var n = snNote(noteEl.getAttribute('data-nid'));
-    if (n){ var txt = tx.innerText.replace(/ /g, ' '); if (txt !== n.text){ n.text = txt; snTouch(); } }
+    if (n){ var txt = tx.innerText.replace(/ /g, ' '); if (txt !== n.text){ n.text = txt; snTouch('tx:' + n.id); } }
     snLayout();
   });
   document.addEventListener('selectionchange', function(){
     if (!SNS.on) return;
     clearTimeout(SNS._selT);
     SNS._selT = setTimeout(snShowApply, 260);
+  });
+  /* 키보드(아이패드 매직키보드·맥)에서도 ⌘Z / Ctrl+Z 로 실행 취소 — 메모 글자 입력 중엔 브라우저 기본 동작에 맡긴다 */
+  document.addEventListener('keydown', function(e){
+    if (!SNS.on || !SND) return;
+    if (!(e.key === 'z' || e.key === 'Z') || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+    var ae = document.activeElement;
+    if (ae && ae.classList && ae.classList.contains('snNTx')) return;
+    e.preventDefault(); snUndo();
   });
   window.addEventListener('resize', function(){ if (SNS.on) snLayout(); });
 })();
@@ -20691,7 +20705,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v490';
+var APP_VER = 'v491';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
