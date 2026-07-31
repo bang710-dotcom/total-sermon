@@ -5591,6 +5591,69 @@ function renderWordStudy(j){
   h += sec('설교 포인트', j.설교포인트);
   return h;
 }
+/* ── 본문연구 AI 정리 → 성경앱 [노트] 본문 (v496) ──
+   성경앱 노트 보기 화면의 표기법에 맞춘다:
+     · 한 줄 전체가 **…** → 소제목(강조색 굵게)   · "- " 로 시작 → 들여쓴 항목
+     · 문장 속 **…** → 굵게                        · 빈 줄 → 문단 간격
+     · 성구 표기(롬 5:8 등)는 성경앱이 자동으로 링크로 만든다 → 참조는 그대로 적는다
+   (노트 제목은 성경앱이 맨 위에 따로 붙이므로 여기서 반복하지 않는다) */
+function studyBibleNoteText(j){
+  var L = [];
+  function sec(h){ if (L.length) L.push(''); L.push('**' + h + '**'); }
+  function put(t){ if (t) L.push(String(t).replace(/\s*\n\s*/g, ' ').trim()); }
+
+  if (j.장르){
+    var gs = String(j.장르), gm = gs.match(/^([^+·:—-]+)[+·:—-]\s*(.*)$/);
+    sec('장르');
+    put(gm ? ('**' + gm[1].trim() + '** — ' + gm[2].trim()) : gs.trim());
+  }
+  if (j.핵심원어 && j.핵심원어.length){
+    sec('깊이 팔 핵심 원어');
+    j.핵심원어.forEach(function(w){
+      var head = '- **' + (w.단어 || '') + '**';
+      var meta = [w.원어, w.발음, w.스트롱].filter(Boolean).join(' · ');
+      if (meta) head += ' (' + meta + ')';
+      if (w.뜻) head += ' — ' + w.뜻;
+      L.push(head);
+      if (w.왜) put('↳ ' + w.왜);
+    });
+  }
+  if (j.정황){ sec('1차 독자 정황'); put(j.정황); }
+  if (j.구속사위치){ sec('구속사적 위치'); put(j.구속사위치); }
+  if (j.구조){
+    sec('본문 구조');
+    if (typeof j.구조 === 'string') put(j.구조);
+    else {
+      if (j.구조.유형) put('구조 유형: **' + j.구조.유형 + '**');   /* 줄 전체가 **…**이면 소제목이 되어 버린다 → 앞말을 붙여 본문으로 */
+      (j.구조.단락 || []).forEach(function(s){
+        L.push('- **' + (s.범위 || '') + '** ' + (s.요지 || ''));
+      });
+      if (j.구조.설명) put('↳ ' + j.구조.설명);
+    }
+  }
+  if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)){
+    sec('클라이맥스 절');
+    put('**' + (j.클라이맥스.절 || '') + '** — ' + (j.클라이맥스.이유 || ''));
+  }
+  if (j.상호본문 && j.상호본문.length){
+    sec('상호본문 (인용·암시)');
+    j.상호본문.forEach(function(x){ L.push('- **' + (x.본문 || '') + '** — ' + (x.관계 || '')); });
+  }
+  if (j.해석이견 && j.해석이견.length){
+    sec('해석의 갈림길');
+    j.해석이견.forEach(function(v, i){
+      L.push('- **' + (v.쟁점 || ('쟁점 ' + (i + 1))) + '**');
+      (v.견해 || []).forEach(function(o){ put('· ' + o); });
+      if (v.택함) put('**택함:** ' + v.택함);
+    });
+  }
+  if (j.신학주제 && j.신학주제.length){
+    sec('신학 주제');
+    put(j.신학주제.join(' · '));
+  }
+  if (j.설교다리){ sec('설교로 넘어가는 다리'); put(j.설교다리); }
+  return L.join('\n');
+}
 /* ── 연구 → 원고 파이프라인 ── */
 function studyResearchText(j, title){
   var L = ['■ 본문연구: ' + (title || '')];
@@ -5622,7 +5685,7 @@ function studyToBible(){
   var c = { bookIdx: R.idx, startChap: r.c1, startVerse: r.v1 || 1,
             endChap: r.c2 || r.c1, endVerse: (r.wholeChapter ? 999 : (r.v2 || r.v1 || 1)) };
   var refShort = bmRefShort(c);
-  var txt = studyResearchText(j, String($('#studyTitle').textContent || '').replace(/ — .*$/, ''));
+  var txt = studyBibleNoteText(j);   /* 성경앱 노트 표기법으로 구조화(소제목·항목·굵게) */
   var id = 'study-' + (BM_USFM[R.idx] || 'unk') + bmPad2(c.startChap) + bmPad2(c.startVerse)
          + '-' + bmPad2(c.endChap) + bmPad2(c.endVerse);
   var themes = (j.신학주제 && j.신학주제.length) ? j.신학주제.slice(0, 5) : [];
