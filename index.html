@@ -4794,7 +4794,7 @@ function studyRenderText(){
     + (SNS.on ? snBarHtml() : '')
     + (STUDY.structOn ? '<div id="svzBanner">' + svzBannerHtml() + '</div>' : '')
     + (SNS.on
-      ? '<div id="snWrap"><div id="snPage" style="' + snPageStyle() + '">' + colsHtml + '<svg id="snSvg" xmlns="http://www.w3.org/2000/svg"><g id="snGLines"></g><g id="snGInk"></g></svg><div id="snNotes"></div></div></div><button id="snSwap" type="button"></button>'
+      ? '<div id="snWrap"><div id="snPage" style="' + snPageStyle() + '">' + colsHtml + '<svg id="snSvg" xmlns="http://www.w3.org/2000/svg"><g id="snGLines"></g><g id="snGInk"></g></svg><div id="snNotes"></div></div></div><button id="snSwap" type="button"></button><button id="snUndoFab" type="button" title="실행 취소">↺</button>'
       : colsHtml);
   studyFillCol(host.querySelector('.stCol[data-vi="0"]'), STUDY.versions[0]);
   if (STUDY.split) studyFillCol(host.querySelector('.stCol[data-vi="1"]'), STUDY.versions[1] || 'RNKSV');
@@ -6653,12 +6653,64 @@ function snStatusText(){
   return '✓ 저장됨' + (SN_REMOTE ? ' · 시트 ' + SN_REMOTE : '');
 }
 function snStatus(){ var el = $('#snStatus'); if (el) el.textContent = snStatusText(); }
-function snTouch(){
+/* 변경 저장만 (되돌리기 기록 없음) — 실행 취소가 스스로를 다시 기록하지 않게 분리 */
+function snCommit(){
   if (!SND) return;
   SND.updatedAt = new Date().toISOString();
   SN_DIRTY = true; SN_NEEDPUSH = true; snStatus();
   clearTimeout(SN_TSAVE);
   SN_TSAVE = setTimeout(snSaveLocal, 700);
+}
+/* 모든 변경은 snTouch를 지나므로 여기 한 곳에서 직전 상태를 쌓는다.
+   tag를 주면 같은 동작(지우개 드래그·메모 타이핑)이 한 단계로 묶인다. (v481) */
+function snTouch(tag){
+  if (!SND) return;
+  snUndoRecord(tag);
+  snCommit();
+}
+/* ── 실행 취소 (애플펜슬 필기·강조·메모 되돌리기, v481) ── */
+var SN_UNDO = [], SN_UNDO_MAX = 40, SN_SNAP = '', SN_UNDO_DOC = null, SN_UTAG = '', SN_UT = 0;
+function snSnapNow(){
+  try { return JSON.stringify({ m: SND.marks || [], n: SND.notes || [], k: SND.ink || [] }); } catch (e){ return ''; }
+}
+/* 문서가 바뀌면(다른 본문·시트에서 받아온 최신본) 기록을 새로 시작 */
+function snUndoSync(){
+  if (SN_UNDO_DOC === SND) return;
+  SN_UNDO_DOC = SND; SN_UNDO = []; SN_UTAG = ''; SN_UT = 0;
+  SN_SNAP = SND ? snSnapNow() : '';
+}
+function snUndoRecord(tag){
+  snUndoSync();
+  if (!SND) return;
+  var now = Date.now(), same = tag && tag === SN_UTAG && (now - SN_UT) < 1200;
+  if (!same && SN_SNAP){
+    SN_UNDO.push(SN_SNAP);
+    if (SN_UNDO.length > SN_UNDO_MAX) SN_UNDO.shift();
+  }
+  SN_UTAG = tag || ''; SN_UT = now;
+  SN_SNAP = snSnapNow();
+  snUndoPaint();
+}
+function snCanUndo(){ snUndoSync(); return !!(SND && SN_UNDO.length); }
+function snUndoPaint(){
+  var can = !!(SND && SN_UNDO.length);
+  var b = document.querySelector('#studyText [data-snundo]');
+  if (b) b.disabled = !can;
+  var f = $('#snUndoFab');
+  if (f){ f.disabled = !can; f.title = can ? '실행 취소 — 마지막 필기·강조·메모 되돌리기' : '되돌릴 작업이 없습니다'; }
+}
+function snUndo(){
+  snUndoSync();
+  if (!SND || !SN_UNDO.length){ toast('되돌릴 작업이 없습니다'); return; }
+  var prev = SN_UNDO.pop(), st;
+  try { st = JSON.parse(prev); } catch (e){ snUndoPaint(); return; }
+  SND.marks = st.m || []; SND.notes = st.n || []; SND.ink = st.k || [];
+  SN_SNAP = prev; SN_UTAG = ''; SN_UT = 0;
+  SNS.selNote = null; SNS.draw = null;
+  snCommit();
+  snHideApply();
+  snRefreshText();      /* 본문 다시 그리기 → 강조·메모·잉크까지 함께 복원(snAfterRender) */
+  snUndoPaint();
 }
 function snSaveLocal(){
   if (!SND) return;
@@ -6819,6 +6871,9 @@ function snBarHtml(){
     + tb('memo', '🗒 메모', '본문 탭=연결 메모, 여백 탭=자유 메모')
     + tb('pen', '✒ 펜', '자유 필기 — 펜슬·손가락 (오른쪽 아래 ◌ 버튼으로 지우개와 빠른 전환)')
     + tb('erase', '◌ 지우개', '획·형광·박스·원을 탭해 지우기')
+    + '<span class="snSep"></span>'
+    + '<button type="button" class="snUndoBtn" data-snundo="1" title="실행 취소 — 마지막 필기·강조·메모 되돌리기"'
+      + (SN_UNDO.length ? '' : ' disabled') + '>↺ 실행취소</button>'
     + '<span class="snSep"></span>' + cols + ws
     + '<span class="snSep"></span>'
     + '<button type="button" data-snfs="-1" title="본문 글자 작게">－ 글자</button>'
@@ -7110,7 +7165,7 @@ function snEraseAt(e){
     }
     return true;
   });
-  if (del){ snTouch(); snLayout(); }
+  if (del){ snTouch('erase'); snLayout(); }   /* 문지르는 동안은 한 단계로 묶어 되돌린다 */
 }
 /* ── 포인터 흐름 ── */
 function snPD(e){
@@ -7295,6 +7350,8 @@ function snClick(e){
   var t = e.target;
   var sw = t.closest && t.closest('#snSwap');
   if (sw){ snSwapTool(); e.stopPropagation(); return; }
+  var ub = t.closest && (t.closest('[data-snundo]') || t.closest('#snUndoFab'));
+  if (ub){ snUndo(); e.stopPropagation(); return; }
   var tl = t.closest && t.closest('[data-sntool]');
   if (tl){
     var ntool = tl.getAttribute('data-sntool');
