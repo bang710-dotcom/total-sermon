@@ -18128,6 +18128,21 @@ async function ensureCuts(id, meta){
   if (cuts && cuts.length) await saveCutsSidecar(id, meta, cuts);
   return cuts;
 }
+/* 이미지자료(프롬프트) 앱 직접 생성 — 요청함 파일(폴더 필요) 대신 앱에서 만들고 저장한다.
+   폴더가 없으면 saveBlobToResults가 다운로드로 폴백한다. (v498) */
+async function genImgDataInApp(id, meta){
+  try {
+    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+    setGenStage('이미지 자료 — 전환표 만드는 중…');
+    var cuts = await ensureCuts(id, meta);
+    if (!cuts || !cuts.length) throw new Error('전환표 생성 실패');
+    setGenStage('이미지 자료 — 문서 저장 중…');
+    await saveImgDataDocxFile(meta, cuts);
+    hideGenOverlay(); renderSyncState();
+    if (id) { try { await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e){} }
+    toast('이미지 자료 생성 완료 — ' + imgDataNames(meta).docx);
+  } catch (e){ hideGenOverlay(); renderSyncState(); toast('이미지 자료 실패: ' + (e.message || e)); }
+}
 async function saveImgDataDocxFile(meta, cuts){
   var D = await ensureDocxLib();
   await saveBlobToResults((outFmt() === 'hwpx') ? await hwpxBuild(hwpxManuscript(buildImgDataParas(meta, cuts)))
@@ -21256,7 +21271,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v497';
+var APP_VER = 'v498';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
