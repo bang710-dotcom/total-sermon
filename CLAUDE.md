@@ -33,3 +33,14 @@
 - 배포 반영 여부·버전 확인은 git 대신 **파일 내용으로** 확인한다(예: `grep "var APP_VER" index.html`, 코드 식별자 grep, 파일 diff). 원격 상태가 정말 필요하면 사용자에게 물어본다.
 
 **증상과 복구:** 변경이 origin에 안 올라가고 자동 푸시가 멈춘 듯하면 십중팔구 **stale `.git/index.lock`**이다. 맥 터미널에서 `rm -f .git/index.lock` 한 번이면 워처가 재개된다. (이 잠금 파일 자체는 정상이며 평소엔 git이 만들고 즉시 지운다 — 워처 단독 동작 시엔 문제 없음. 고아 잠금은 에이전트가 샌드박스 git을 끼어 돌렸을 때만 발생했다.)
+
+## HWPX(한글) 산출물 — v493+
+
+앱은 원고·카드원고·LTC 교재·설교계획·이미지자료·전환표시본을 **hwpx로 직접 생성**한다(기본값).
+- 껍데기 템플릿: `total-sermon-web/hwpx/templates/{manuscript,dawn,card,ltc,plan}.hwpx`
+  = 목사님 실제 원고에서 본문만 비운 파일. 용지·여백·글꼴·색·표 서식이 그 안 header.xml(charPr/paraPr/borderFill)에 확정돼 있다.
+- 앱 코드: `index.html` 의 `HWPX_TYPES`(역할→ID 지도) + `hwpxBuild()`. **새 서식을 만들지 않고** 역할 ID로 문단만 찍는다.
+- 같은 템플릿·같은 지도를 Cowork 스킬 **hwpx-sermon-docs** 도 쓴다(`hwpx/build_hwpx.py`, `hwpx/hwpx_types.json`).
+  → 템플릿이나 역할 지도를 고치면 **앱·스킬 양쪽을 함께** 고칠 것.
+- DOCX 생성 코드는 그대로 두었다. 설정 → 도구 → **산출물 파일 형식**에서 DOCX로 되돌릴 수 있다.
+- 되읽기(카드원고 추출·LTC 되읽기·드래그 가져오기·폴더 스캔)는 `zipDocParas()` 가 docx·hwpx 를 모두 처리한다(옛 docx 파일도 계속 인식).
