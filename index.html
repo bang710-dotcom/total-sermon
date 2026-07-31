@@ -6788,6 +6788,7 @@ function snToggle(){
 function snEnable(){
   SNS.on = true; SNS.tool = 'sel'; SNS.selNote = null;
   if (!SND) SND = snNewDoc();
+  snUndoSync();
   if (SND.ver && STUDY.versions[0] !== SND.ver) STUDY.versions[0] = SND.ver;
   STUDY.split = false;
   /* 오른쪽 자료창은 건드리지 않는다 — ⇔ 버튼과 [노트] 버튼은 서로 독립 동작 */
@@ -6893,7 +6894,8 @@ function snAfterRender(){
   snApplyMarks();
   snRenderNotes();
   snLayout();
-  snUndoPaint();      /* 다시 그린 뒤 실행취소 버튼 활성 상태 맞추기 */
+  snUndoSync();       /* 그린 시점의 상태를 되돌리기 기준선으로 — 첫 획도 되돌릴 수 있게 */
+  snUndoPaint();
 }
 function snVerseEls(){
   var col = document.querySelector('#studyText .stCol[data-vi="0"]');
