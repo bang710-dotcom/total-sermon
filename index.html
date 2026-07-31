@@ -5709,14 +5709,29 @@ function studyToCompose(){
     if (!state.compose.points) state.compose.points = [];
     var ex = [];
     if (j.핵심원어 && j.핵심원어.length) ex.push(j.핵심원어.map(function(w){ return (w.단어 || '') + '(' + (w.원어 || '') + ', ' + (w.발음 || '') + ') — ' + (w.뜻 || '') + (w.왜 ? '. ' + w.왜 : ''); }).join(' '));
+    if (j.정황) ex.push('1차 독자 정황: ' + j.정황);
     if (j.구속사위치) ex.push(j.구속사위치);
+    if (j.구조 && typeof j.구조 === 'object' && (j.구조.단락 || []).length){
+      ex.push('구조' + (j.구조.유형 ? '(' + j.구조.유형 + ')' : '') + ': '
+        + j.구조.단락.map(function(s){ return (s.범위 || '') + ' ' + (s.요지 || ''); }).join(' / ')
+        + (j.구조.설명 ? ' — ' + j.구조.설명 : ''));
+    }
     if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) ex.push('클라이맥스 ' + (j.클라이맥스.절 || '') + ': ' + (j.클라이맥스.이유 || ''));
-    var pt = newPoint();
-    if (pt.blocks && pt.blocks[0]) pt.blocks[0].body = ex.join('\n');
-    state.compose.points.push(pt);
+    var body = ex.join('\n').trim();
+    if (!body){ toast('AI 정리에 옮길 주해 재료가 없습니다 — [다시 정리]로 새로 생성해 보세요.'); return; }
+    /* 마지막 대지가 완전히 비어 있으면 그 칸을 쓰고, 아니면 새 대지를 만든다(빈 대지가 쌓이지 않게) */
+    var pts = state.compose.points, last = pts.length ? normPoint(pts[pts.length - 1]) : null;
+    var pt, idx;
+    if (last && !pHasContent(last)){ pt = last; pts[pts.length - 1] = pt; idx = pts.length; }
+    else { pt = newPoint(); pts.push(pt); idx = pts.length; }
+    var blk = (pt.blocks || []).filter(function(b){ return b && b.type === 'body'; })[0];
+    if (!blk){ blk = newBodyBlock('', '주해근거'); pt.blocks.unshift(blk); }
+    blk.role = '주해근거';
+    blk.body = (String(blk.body || '').trim() ? blk.body.trim() + '\n' : '') + body;
     try { if (typeof renderPoints === 'function') renderPoints(); } catch (e) {}
-    try { if (typeof saveComposeDraftSoon === 'function') saveComposeDraftSoon(); } catch (e) {}
-    toast('본문연구를 새 대지(주해근거)로 보냈습니다 — 작성 화면에서 확인하세요.');
+    /* 디바운스(700ms)를 기다리지 않고 즉시 저장 — 바로 앱을 닫거나 화면을 옮겨도 남는다 */
+    try { if (typeof saveComposeDraft === 'function') saveComposeDraft(); else if (typeof saveComposeDraftSoon === 'function') saveComposeDraftSoon(); } catch (e) {}
+    toast(idx + '번째 대지의 주해근거로 보냈습니다 — [작성] 화면에서 확인하세요.');
   } catch (e){ toast('원고로 보내기 실패: ' + e.message); }
 }
 function studyTokenizeVerse(v){
@@ -9926,8 +9941,11 @@ function restoreComposeDraft(){
   return idbGet('composeDraft').then(function(d){
     if (!d || !d.compose) return false;
     var c = d.compose;
-    var has = !!((c.free || '').trim()) || (c.intro || '').trim() || (c.concBody || '').trim()
-      || (c.points || []).some(function(p){ return p && ((p.text || '').trim() || (p.apply || '').trim() || (p.body || '').trim()); });
+    /* 내용 유무 판정은 저장할 때와 똑같은 기준을 써야 한다(v497).
+       예전에는 옛 구조(p.text/p.apply/p.body)만 봐서, 블록에만 내용이 있는 초안
+       — 예: 본문연구 [새 대지로 보내기]로 주해근거만 채운 초안 — 을 통째로 버렸다. */
+    var has = !!((c.free || '').trim()) || structHasContent(c)
+      || (c.points || []).some(function(p){ return p && ((p.apply || '').trim() || (p.body || '').trim()); });
     if (!has) return false;
     state.editing = d.editing || null;
     state.versionOf = d.versionOf || null;
