@@ -1687,7 +1687,7 @@ body.uiDlgOpen{overflow:hidden}
         <span style="font-size:12.5px">파일명에서 날짜·제목·본문을 자동 인식합니다 · 여러 개 동시 가능 · 예화 이미지도 함께 놓으면 알아서 분류</span><br><br>
         <button class="linkbtn" id="pickFiles" style="font-size:14px">또는 파일 선택…</button><br>
         <button class="linkbtn" id="pickPhotos" style="font-size:14px">📷 사진 앨범에서 예화 이미지 선택…</button>
-        <input type="file" id="fileInput" accept=".docx,image/*" multiple style="display:none">
+        <input type="file" id="fileInput" accept=".hwpx,.docx,image/*" multiple style="display:none">
         <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
       </div>
       <div id="impList" style="margin-top:14px"></div>
@@ -1847,6 +1847,13 @@ body.uiDlgOpen{overflow:hidden}
       <div class="card">
         <label>🛠 도구</label>
         <div class="cnt" style="margin:6px 0 12px">필요할 때만 펼쳐 쓰는 기능들입니다.</div>
+
+        <label style="margin-top:0">산출물 파일 형식</label>
+        <div class="chips" id="fmtChips">
+          <span class="chip" data-fmt="hwpx">HWPX (한글)</span>
+          <span class="chip" data-fmt="docx">DOCX (워드)</span>
+        </div>
+        <div class="cnt" style="margin:6px 0 14px">원고·카드원고·LTC 교재·설교계획·이미지자료를 어떤 파일로 만들지 정합니다. <b>HWPX</b>는 목사님 원본 서식(용지·여백·함초롬바탕·색·표)이 그대로 적용되며 한글에서 바로 편집됩니다. 아이패드에서 열어보려면 한컴오피스가 필요하고, 없으면 <b>DOCX</b>로 두세요. 이미 만들어 둔 파일은 형식을 바꿔도 그대로 읽습니다.</div>
 
         <details class="setGrp">
           <summary>📓 옵시디언 보관함 내보내기</summary>
@@ -13338,7 +13345,7 @@ async function cardDocxFileHandle(meta){
   async function findIn(d){
     try { return await d.getFileHandle(want); } catch (e) {}
     try { for await (var e of d.values()) { if (e.kind !== 'file') continue; var n = nf(e.name); if (n === want) return e; } } catch (e) {}
-    try { for await (var e2 of d.values()) { if (e2.kind !== 'file') continue; var n2 = nf(e2.name); if (/\.docx$/i.test(n2) && n2.indexOf('카드원고') >= 0 && (!dnum || n2.indexOf(dnum) >= 0)) return e2; } } catch (e) {}
+    try { for await (var e2 of d.values()) { if (e2.kind !== 'file') continue; var n2 = nf(e2.name); if (isDocOut(n2) && n2.indexOf('카드원고') >= 0 && (!dnum || n2.indexOf(dnum) >= 0)) return e2; } } catch (e) {}
     return null;
   }
   /* 우선: claude-exchange/_claude_결과함(현재 카드원고 저장 위치 — 루트+하위 일자폴더 재귀) */
@@ -13350,7 +13357,7 @@ async function cardDocxFileHandle(meta){
         if (e.kind !== 'file') continue;
         var n = nf(e.name);
         if (n === want) { if (!exact) exact = e; continue; }
-        if (/\.docx$/i.test(n) && n.indexOf('카드원고') >= 0 && (!dnum || n.indexOf(dnum) >= 0)) {
+        if (isDocOut(n) && n.indexOf('카드원고') >= 0 && (!dnum || n.indexOf(dnum) >= 0)) {
           var f = await e.getFile(); if (f.lastModified > fuzzyM) { fuzzyM = f.lastModified; fuzzy = e; }
         }
       }
@@ -14033,7 +14040,7 @@ async function ltcDocxMatchInDir(dir, meta){
     for await (var e of dir.values()) {
       if (e.kind !== 'file') continue;
       var nm = e.name.normalize('NFC');
-      if (!/\.docx$/i.test(nm) || /^~\$/.test(nm)) continue;   /* 임시 잠금파일(~$) 제외 */
+      if (!isDocOut(nm) || /^~\$/.test(nm)) continue;   /* 임시 잠금파일(~$) 제외 */
       if (nm === want) return e;                                /* 정규화 후 정확히 일치 */
       if (!loose && nm.indexOf('LTC교재_') === 0 && (!ymd || nm.indexOf(ymd) >= 0) && titleN && nm.indexOf(titleN) >= 0) loose = e;
     }
@@ -15066,7 +15073,7 @@ async function checkAssets(id){
         var n = e2.name, nn = n.normalize ? n.normalize('NFC') : n;
         if (!ip && ymd && n.indexOf(ymd) === 0 && nn.indexOf('이미지자료') >= 0) ip = { dir: parent, name: n };
         if (!ig && /백스테이지.*\.zip$/.test(nn) && tok && n.indexOf(tok.ab) >= 0) ig = { dir: parent, name: n };
-        if (!cardExHit && /\.docx$/i.test(nn) && nn.indexOf('카드원고') >= 0 && (!ymd || n.indexOf(ymd) >= 0)) cardExHit = { dir: parent, name: n };
+        if (!cardExHit && isDocOut(nn) && nn.indexOf('카드원고') >= 0 && (!ymd || n.indexOf(ymd) >= 0)) cardExHit = { dir: parent, name: n };
       });
       a['이미지프롬프트'] = ip ? { ok: true, hit: ip } : null;
       a['이미지생성'] = ig ? { ok: true, hit: ig } : null;
@@ -18305,7 +18312,7 @@ function docxXmlToText(xml){
   return paras.join('\n');
 }
 function handleImportFiles(files){
-  var list = Array.prototype.slice.call(files).filter(function(f){ return /\.docx$/i.test(f.name) && !/^~\$/.test(f.name); });
+  var list = Array.prototype.slice.call(files).filter(function(f){ return isDocOut(f.name) && !/^~\$/.test(f.name); });
   if (!list.length) { toast('docx 파일이 없습니다.'); return; }
   loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js').then(function(){
     var chain = Promise.resolve();
@@ -18365,7 +18372,7 @@ function classifyPickedFiles(fileList){
   var files = Array.prototype.slice.call(fileList || []);
   if (!files.length) return;
   var imgs = files.filter(function(f){ return /^image\//.test(f.type); });
-  var docs = files.filter(function(f){ return /\.docx$/i.test(f.name) && !/^~\$/.test(f.name); });
+  var docs = files.filter(function(f){ return isDocOut(f.name) && !/^~\$/.test(f.name); });
   if (imgs.length) handleIdeaImages(imgs);
   if (docs.length) handleImportFiles(docs);
   if (!imgs.length && !docs.length) toast('이미지 또는 문서(.hwpx·.docx) 파일만 받을 수 있습니다.');
@@ -18441,6 +18448,24 @@ $('#saveSermon').addEventListener('click', function(){
   });
 });
 
+/* 산출물 파일 형식 칩 — 누르는 즉시 저장(설정 저장 버튼과 무관) */
+function paintFmtChips(){
+  var box = $('#fmtChips'); if (!box) return;
+  var cur = outFmt();
+  box.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-fmt') === cur); });
+}
+(function(){
+  var box = $('#fmtChips'); if (!box) return;
+  box.addEventListener('click', function(e){
+    var c = e.target.closest('.chip'); if (!c) return;
+    state.settings = state.settings || {};
+    state.settings.fileFmt = (c.getAttribute('data-fmt') === 'docx') ? 'docx' : 'hwpx';
+    save(LS.settings, state.settings);
+    paintFmtChips();
+    toast('산출물 형식: ' + (outFmt() === 'hwpx' ? 'HWPX (한글)' : 'DOCX (워드)'));
+  });
+  paintFmtChips();
+})();
 $('#saveSettings').addEventListener('click', function(){
   state.settings = { url: $('#setUrl').value.trim(), token: $('#setToken').value.trim(), claudeKey: $('#setClaude').value.trim(),
     laUrl: $('#setLaUrl').value.trim(), laToken: $('#setLaToken').value.trim(),
@@ -18449,7 +18474,8 @@ $('#saveSettings').addEventListener('click', function(){
     vidProxyUrl: ($('#setVidProxyUrl') ? $('#setVidProxyUrl').value.trim() : (state.settings && state.settings.vidProxyUrl) || ''),
     memoUrl: ($('#setMemoUrl') ? $('#setMemoUrl').value.trim() : (state.settings && state.settings.memoUrl) || ''),
     memoKey: ($('#setMemoKey') ? $('#setMemoKey').value.trim() : (state.settings && state.settings.memoKey) || ''),
-    imgEngine: ($('#imgEngineSel') ? $('#imgEngineSel').value : (state.settings && state.settings.imgEngine) || 'flux') };
+    imgEngine: ($('#imgEngineSel') ? $('#imgEngineSel').value : (state.settings && state.settings.imgEngine) || 'flux'),
+    fileFmt: ((state.settings && state.settings.fileFmt) === 'docx') ? 'docx' : 'hwpx' };
   STUDY._memoP = null;   /* 메모 설정 변경 → 다음 열람 때 새로 불러오기 */
   save(LS.settings, state.settings);
   toast('설정 저장됨');
@@ -19387,7 +19413,7 @@ async function findImageDoc(meta){
   var ymd = String(meta['날짜'] || '').replace(/-/g, '');
   var best = null;
   await eachResultFile(async function(e){
-    if (!/\.docx$/i.test(e.name) || e.name.indexOf('이미지자료') < 0) return;
+    if (!isDocOut(e.name) || e.name.indexOf('이미지자료') < 0) return;
     if (ymd && e.name.indexOf(ymd) < 0) return;
     var f = await e.getFile();
     if (!best || f.lastModified > best.m) best = { m: f.lastModified, entry: e, name: e.name };
@@ -21130,6 +21156,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   $('#setClaude').value = state.settings.claudeKey || '';
   if ($('#setLaUrl')) $('#setLaUrl').value = state.settings.laUrl || '';
   if ($('#setLaToken')) $('#setLaToken').value = state.settings.laToken || '';
+  try { paintFmtChips(); } catch (eFc){}
   if ($('#setProxyUrl')) $('#setProxyUrl').value = state.settings.proxyUrl || '';
   if ($('#setProxyToken')) $('#setProxyToken').value = state.settings.proxyToken || '';
   if ($('#setVidProxyUrl')) $('#setVidProxyUrl').value = state.settings.vidProxyUrl || '';
