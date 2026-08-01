@@ -9500,28 +9500,44 @@ document.addEventListener('click', function(e){
   else if (act === 'timer0') fmTmReset();
 });
 /* 집중 모드 하단 토스트 — 집중 오버레이(z-index 600) 위에 뜨는 전용 토스트(일반 #toast는 뒤에 가려짐) */
-function fmToast(msg){
+/* ms=0 이면 다음 fmToast가 부를 때까지 계속 떠 있는다(진행 중 표시용) */
+function fmToast(msg, ms){
   var t = $('#fmToast'); if (!t) return;
   t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 1500);
+  clearTimeout(t._h);
+  if (ms !== 0) t._h = setTimeout(function(){ t.classList.remove('show'); }, ms || 1500);
 }
-/* 집중 모드 저장 버튼 피드백 — 저장 성공 시 버튼 텍스트 1.5초 변경(그동안 비활성) + 하단 토스트 */
+/* 집중 모드 저장 버튼 피드백 (v501)
+   ① 누르는 즉시 '저장 중…' — 시트 저장은 몇 초 걸리므로 먼저 반응부터 보여 준다
+   ② 끝나면 '✓ 수정저장됨' / 실패·중단이면 그 이유를 그대로 알려 준다
+   → 집중 모드를 나가지 않아도 저장 여부가 확인된다. */
 function fmDoSave(btn){
   if (typeof doSaveCompose !== 'function' || !btn) return;
+  if (btn.dataset.busy === '1') return;                 /* 연타 방지 */
   var wasEditing = !!state.editing;   /* 저장 전 판정: 기존 설교 수정이면 '수정저장됨', 신규면 '저장됨' */
-  var orig = btn.textContent;
-  btn.disabled = true;
+  var orig = btn.dataset.orig || btn.textContent;
+  btn.dataset.orig = orig;
+  btn.dataset.busy = '1'; btn.disabled = true;
+  btn.textContent = '저장 중…';
+  fmToast('저장 중…', 0);                                /* 즉시 반응 — 끝날 때까지 유지 */
+  function restore(){ btn.textContent = orig; btn.disabled = false; btn.dataset.busy = ''; }
   Promise.resolve(doSaveCompose()).then(function(res){
-    /* null=제목 미입력, false=충돌 취소 → 피드백 없이 복원.
-       그 외엔 실제 저장 성공만 피드백(savedSig로 확인 → 오프라인 대기열 저장도 성공, 서버 실패는 제외). */
+    /* null=제목 미입력, false=충돌 취소 → 이유를 알려 주고 복원.
+       그 외엔 실제 저장 성공만 완료 표시(savedSig로 확인 → 오프라인 대기열 저장도 성공, 서버 실패는 제외). */
     var saved = res !== null && res !== false &&
                 (typeof composeSig !== 'function' || state.savedSig === composeSig());
-    if (!saved) { btn.disabled = false; return; }
+    if (!saved) {
+      fmToast(res === null ? '제목을 먼저 입력해 주세요' : (res === false ? '저장을 취소했습니다' : '저장하지 못했습니다 — 연결 상태를 확인해 주세요'), 2600);
+      restore(); return;
+    }
     var label = wasEditing ? '수정저장됨' : '저장됨';
     btn.textContent = '✓ ' + label;
-    fmToast(label);
-    setTimeout(function(){ btn.textContent = orig; btn.disabled = false; }, 1500);
-  }, function(){ btn.disabled = false; });
+    fmToast('✓ ' + label + (state.editing ? ' · ' + state.editing : ''), 1800);
+    setTimeout(restore, 1500);
+  }, function(e){
+    fmToast('저장 실패: ' + ((e && e.message) || e), 2600);
+    restore();
+  });
 }
 document.addEventListener('keydown', function(e){
   if (!document.body.classList.contains('focusMode')) return;
