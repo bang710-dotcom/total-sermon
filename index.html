@@ -9542,6 +9542,12 @@ function fmDoSave(btn){
 document.addEventListener('keydown', function(e){
   if (!document.body.classList.contains('focusMode')) return;
   if (e.key === 'Escape') { exitFocusMode(); return; }
+  /* ⌘S · Ctrl+S — 키보드에서도 같은 피드백으로 저장 (v501) */
+  if ((e.key === 's' || e.key === 'S') && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey){
+    e.preventDefault();
+    var sb = document.querySelector('#focusBar button[data-act="save"]');
+    if (sb) fmDoSave(sb);
+  }
 });
 
 /* ===== 마인드맵 (설교 아이디어 확장) ===== */
@@ -21292,7 +21298,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v500';
+var APP_VER = 'v501';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
