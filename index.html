@@ -9763,6 +9763,15 @@ function confirmDiscardCompose(msg){
   if (!composeDirty()) return true;
   return confirm(msg || '작성 중인 내용이 저장되지 않았습니다. 버리고 진행할까요?');
 }
+/* AI 보조 패널(강해 검증·대지 보강·실천 강화) 비우기.
+   세 패널은 "지금 작성창에 올라와 있는 원고"에 대한 일회성 판정이라, 다른 설교를 불러오거나
+   새 작성을 시작하면 반드시 함께 지워야 한다. (v502 이전엔 #ptExpo만 빠져 있어 이전 설교의
+   강해 검증 결과가 새 원고 화면에 그대로 남는 버그가 있었다.) */
+function clearAiPanels(){
+  ['ptExpo', 'ptReframe', 'ptApply'].forEach(function(id){
+    var el = $('#' + id); if (el) el.innerHTML = '';
+  });
+}
 function clearCompose(){
   state.editing = null;
   state.versionOf = null;
@@ -9774,8 +9783,7 @@ function clearCompose(){
   $('#c_dupCheck').innerHTML = '';
   var rp = $('#c_refPast'); if (rp) rp.innerHTML = '';
   var ril = $('#c_illust'); if (ril) ril.innerHTML = '';
-  var rf = $('#ptReframe'); if (rf) rf.innerHTML = '';
-  var ap = $('#ptApply'); if (ap) ap.innerHTML = '';
+  clearAiPanels();
   state.compose = newCompose();
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   state.savedSig = composeSig();
@@ -9821,8 +9829,7 @@ function editSermonFill(id, noNav){
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
   renderRefPast(); renderRefIllust();
-  var rf2 = $('#ptReframe'); if (rf2) rf2.innerHTML = '';
-  var ap2 = $('#ptApply'); if (ap2) ap2.innerHTML = '';
+  clearAiPanels();   /* ★ 이전 설교의 강해 검증·대지 보강·실천 강화 결과를 남기지 않는다 */
   state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
   if (!noNav) showPage('compose');   /* noNav=true면 현재 보고 있는 화면을 바꾸지 않음(자동 최신본 반영용) */
