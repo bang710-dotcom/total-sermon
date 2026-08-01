@@ -10,8 +10,8 @@
       "normal": 5,
       "bold": 7,
       "red": 8,
-      "blue": 11,
-      "heading": 15,
+      "blue": 9,
+      "heading": 7,
       "title": 7
     },
     "roles": {
