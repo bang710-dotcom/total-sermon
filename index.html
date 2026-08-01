@@ -14311,14 +14311,14 @@ async function aiLeadersTsv(id, meta){
         var dd = await readLtcDocxData(meta, tmpl);
         if (dd) {
           if (ltcContentSig(dd) !== ltcContentSig(tmpl)) {
-            if (await uiConfirm('저장된 교재 DOCX에서 수정 사항(본문 수정·공지사항 등)이 발견되었습니다.\n수정 사항을 포함해서 업로드할까요?\n\n[확인] 수정 반영 · [취소] 원래 생성본으로 업로드')) {
+            if (await uiConfirm('저장된 교재 파일에서 수정 사항(본문 수정·공지사항 등)이 발견되었습니다.\n수정 사항을 포함해서 업로드할까요?\n\n[확인] 수정 반영 · [취소] 원래 생성본으로 업로드')) {
               data = dd; fromDocx = true;
             }
           }
           /* dd는 있으나 내용이 같으면(수정 없음) 조용히 원본 사용 */
         } else if (canFolderSave()) {
           /* 폴더는 연결됐는데 교재 DOCX를 못 찾음 → 수정이 반영되지 않음을 알림 */
-          toast('교재 DOCX를 찾지 못해 원래 생성본으로 업로드합니다 — DOCX 수정은 반영되지 않습니다. 파일명·저장 폴더를 확인하세요(파일: ' + ltcFileName(meta) + ').');
+          toast('교재 파일을 찾지 못해 원래 생성본으로 업로드합니다 — 파일에서 손본 수정은 반영되지 않습니다. 파일명·저장 폴더를 확인하세요(파일: ' + ltcFileName(meta) + ').');
         }
       }
     } catch (e) {}
@@ -14371,7 +14371,7 @@ async function aiLeadersTsv(id, meta){
       aiMarkDone(id, '리더스앱업로드', 'Opus API 직결');
     }
     renderSyncState();
-    toast((fromDocx ? '저장된 교재 DOCX의 수정·공지 반영 · ' : '') + (uploaded ? ('리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' + (unpub ? ' (이전 버전 ' + unpub + '건 게시 해제)' : '')) : ((!laUrl || !laToken) ? '리더스앱 업로드 URL/토큰이 설정에 없어 파일로 받았습니다 — 설정에 입력하면 바로 업로드됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.')));
+    toast((fromDocx ? '저장된 교재 파일의 수정·공지 반영 · ' : '') + (uploaded ? ('리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' + (unpub ? ' (이전 버전 ' + unpub + '건 게시 해제)' : '')) : ((!laUrl || !laToken) ? '리더스앱 업로드 URL/토큰이 설정에 없어 파일로 받았습니다 — 설정에 입력하면 바로 업로드됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.')));
   } catch (e) { renderSyncState(); toast('리더스앱 파일 실패: ' + e.message); }
 }
 
@@ -18310,9 +18310,10 @@ async function runCascade(target, id, meta){
     /* 1) 단일 소스 전환표 — 카드·이미지 가지의 공통 이전 단계. (Total/[다시생성]이면 새로, 아니면 재사용) */
     if (inA || inB) { ck(); cascStep(k++, '이미지 전환표 확인 중…'); try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); } }
 
-    /* 2) 기본원고 DOCX — docx·Total에서만(다른 산출물의 이전 단계가 아니다). */
+    /* 2) 기본원고(HWPX/DOCX — 설정의 산출물 형식) — docx·Total에서만(다른 산출물의 이전 단계가 아니다).
+       ★ 안내 문구는 fmtTag()로 뽑아 실제 만들어지는 형식과 항상 일치시킨다(v502). */
     if (target === 'docx' || target === 'total') {
-      ck(); cascStep(k++, '설교 원고 DOCX 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 DOCX', e); }
+      ck(); cascStep(k++, '설교 원고 ' + fmtTag() + ' 내보내는 중…'); try { await exportManuscriptDocx(meta); await markOutput(id, '원고DOCX', '앱 직접 내보내기'); } catch (e) { rec('원고 ' + fmtTag(), e); }
     }
 
     /* 3) 카드 가지 */
@@ -18347,7 +18348,7 @@ async function runCascade(target, id, meta){
       var cuts = null;
       ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
       if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body))); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); } }
-      if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 DOCX 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
+      if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 ' + fmtTag() + ' 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
       if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
     }
     ck();
@@ -21306,7 +21307,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v502';
+var APP_VER = 'v503';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
