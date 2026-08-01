@@ -9983,6 +9983,7 @@ function restoreComposeDraft(){
     state.editing = d.editing || null;
     state.versionOf = d.versionOf || null;
     state.compose = c;
+    clearAiPanels();   /* 다른 기기 초안으로 작성창을 대체할 때도 이전 원고의 AI 판정은 남기지 않는다 */
     try { Object.keys(C_META).forEach(function(k){ var el = $('#' + C_META[k]); if (el && d.meta && d.meta[k] != null) el.value = d.meta[k]; }); } catch (e) {}
     state.savedSig = d.savedSig || '';
     state._draftAt = +d.at || 0;   /* 초안 스냅샷 시각 — 기준 스탬프(baseMod) 없는 옛 초안의 최신본 비교 폴백 */
@@ -21305,7 +21306,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v501';
+var APP_VER = 'v502';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
