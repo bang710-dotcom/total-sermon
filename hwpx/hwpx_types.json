@@ -21,7 +21,8 @@
       },
       "normal": {
         "para": 13,
-        "style": "normal"
+        "style": "normal",
+        "indent": true
       },
       "bold": {
         "para": 13,
@@ -33,11 +34,13 @@
       },
       "scripture": {
         "para": 13,
-        "style": "red"
+        "style": "red",
+        "indent": true
       },
       "illustration": {
         "para": 13,
-        "style": "blue"
+        "style": "blue",
+        "indent": true
       },
       "blank": {
         "para": 13,
@@ -297,7 +300,8 @@
       },
       "normal": {
         "para": 0,
-        "style": "normal"
+        "style": "normal",
+        "indent": true
       },
       "bold": {
         "para": 0,
@@ -313,12 +317,14 @@
       },
       "illustration": {
         "para": 0,
-        "style": "blue"
+        "style": "blue",
+        "indent": true
       },
       "blank": {
         "para": 0,
         "style": "normal"
       }
     }
-  }
+  },
+  "_들여쓰기": "문단 첫 줄 들여쓰기는 paraPr 가 아니라 본문 앞 '탭 문자'(hp:tab)로 넣는다. roles.<역할>.indent = true 인 역할만 탭으로 시작하며, 예화 제목 줄('ex) …')은 자동 예외다. 블록에 \"indent\": true/false 를 직접 주면 그 값이 우선한다."
 }

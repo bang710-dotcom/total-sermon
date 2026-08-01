@@ -42,8 +42,25 @@ def esc(s):
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', s)
 
 
-def run_xml(char_id, text):
-    return '<hp:run charPrIDRef="%s"><hp:t>%s</hp:t></hp:run>' % (char_id, esc(text))
+# 문단 첫 줄 들여쓰기 — 목사님 원고는 paraPr 들여쓰기가 아니라 본문 첫 글자 앞 '탭 문자'로 넣는다.
+# (한글에서 Tab 한 번 = 이 요소 하나. <hp:t> 안에 텍스트보다 먼저 온다.)
+TAB_XML = '<hp:tab width="4000" leader="0" type="1"/>'
+
+
+def run_xml(char_id, text, tab=False):
+    return '<hp:run charPrIDRef="%s"><hp:t>%s%s</hp:t></hp:run>' % (
+        char_id, TAB_XML if tab else '', esc(text))
+
+
+def wants_tab(role_spec, blk, plain):
+    """이 문단이 첫 줄 들여쓰기(탭)로 시작하는가.
+       ① 블록에 indent 를 직접 주면 그 값이 우선 ② 없으면 역할 기본값(hwpx_types.json 의 indent)
+       ③ 예화 제목 줄('ex) …')은 기준 원고에서 항상 들여쓰기가 없으므로 자동 예외."""
+    if 'indent' in blk:
+        return bool(blk['indent'])
+    if not role_spec.get('indent'):
+        return False
+    return not re.match(r'\s*ex\s*\)', plain or '', re.I)
 
 
 def para_xml(para_id, inner):
@@ -90,11 +107,14 @@ def build_blocks(spec, blocks):
         r = roles.get(role) or roles.get('body') or list(roles.values())[0]
         runs = b.get('runs')
         if runs:
-            inner = ''.join(run_xml(styles.get(s, styles[r['style']]), t) for s, t in runs)
+            plain = ''.join(t for _, t in runs)
+            tab = wants_tab(r, b, plain)
+            inner = ''.join(run_xml(styles.get(s, styles[r['style']]), t, tab and i == 0)
+                            for i, (s, t) in enumerate(runs))
         elif b.get('text'):
-            inner = run_xml(styles[r['style']], b['text'])
+            inner = run_xml(styles[r['style']], b['text'], wants_tab(r, b, b['text']))
         else:
-            inner = '<hp:run charPrIDRef="%d"/>' % styles[r['style']]
+            inner = '<hp:run charPrIDRef="%d"/>' % styles[r['style']]   # 빈 줄 — 들여쓰기 없음
         out.append(para_xml(r['para'], inner))
     return ''.join(out)
 
