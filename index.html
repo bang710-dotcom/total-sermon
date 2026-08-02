@@ -555,6 +555,10 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
    머리말·꼬리말은 고정 높이, 남는 자리를 전부 필기면(#ppTx)이 가져간다.
    높이를 다시 조절할 일이 있으면 --pp-h 값만 고치면 된다(ppPlace의 기본 위치도 이 값을 쓴다). */
 #penPad{--pp-h:150px;position:fixed;z-index:520;display:none;flex-direction:column;height:var(--pp-h);width:min(92vw,700px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.55);overflow:hidden}
+/* 처음 열릴 때(아직 옮긴 적 없을 때)는 좌표 계산 없이 CSS로 화면 아래에 붙인다.
+   → 화면 크기(zoom) 설정·홈 인디케이터(안전영역)를 브라우저가 알아서 빼주므로
+     아이패드 미니처럼 화면이 작은 기기에서도 아랫단이 잘리지 않는다. (v507) */
+#penPad.ppDock{left:50%;right:auto;transform:translateX(-50%);top:auto;bottom:calc(16px + env(safe-area-inset-bottom))}
 .ppHd{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--line);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .ppGrip{color:var(--dim);font-size:14px;flex:0 0 auto}
 .ppTitle{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
