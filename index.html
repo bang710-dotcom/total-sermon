@@ -551,15 +551,20 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .snErase #snPage{cursor:cell}
 .snMemoTool #snPage{cursor:copy}
 /* ── 펜슬 입력 패드: 작은 입력창 대신 크게 손글씨(스크리블) → 커서 자리에 삽입 (v453) ── */
-#penPad{position:fixed;z-index:520;display:none;flex-direction:column;width:min(92vw,700px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.55);overflow:hidden}
-.ppHd{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+/* ★ 패드 전체 높이를 PP_H 하나로 고정한다(v506: 300px → 150px, 절반).
+   머리말·꼬리말은 고정 높이, 남는 자리를 전부 필기면(#ppTx)이 가져간다.
+   높이를 다시 조절할 일이 있으면 --pp-h 값만 고치면 된다(ppPlace의 기본 위치도 이 값을 쓴다). */
+#penPad{--pp-h:150px;position:fixed;z-index:520;display:none;flex-direction:column;height:var(--pp-h);width:min(92vw,700px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.55);overflow:hidden}
+.ppHd{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--line);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .ppGrip{color:var(--dim);font-size:14px;flex:0 0 auto}
 .ppTitle{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ppMini{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:3px 9px;font-family:inherit;font-size:11.5px;cursor:pointer}
 .ppMini.on{color:var(--accent);border-color:var(--accent)}
-#ppTx{height:190px;resize:none;border:none;outline:none;background:var(--card2);color:var(--text);font-family:inherit;font-size:19px;line-height:1.7;padding:14px 16px;border-radius:0}
-.ppFt{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line)}
+#ppTx{flex:1 1 auto;height:auto;min-height:0;resize:none;border:none;outline:none;background:var(--card2);color:var(--text);font-family:inherit;font-size:19px;line-height:1.5;padding:7px 16px;border-radius:0}
+.ppFt{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px solid var(--line)}
 .ppHint{flex:1 1 auto;font-size:11px;color:var(--dim)}
+/* 패드 안 버튼은 터치용 54px 최소높이(모바일 공통 규칙)를 따르지 않는다 — 그만큼 필기면을 준다 */
+.ppFt .btn.mini{min-height:0;flex:0 0 auto;width:auto;padding:7px 12px;font-size:12.5px;line-height:1.3}
 /* 지우개 ↔ 직전 도구 빠른 전환 (연구노트 모드 전용 플로팅 버튼) */
 #snSwap{position:fixed;right:16px;bottom:20px;z-index:340;width:52px;height:52px;border-radius:50%;background:var(--card);border:1.5px solid var(--line);color:var(--text);font-size:20px;line-height:1;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer}
 #snSwap.on{background:var(--accent);border-color:var(--accent);color:var(--bg)}
@@ -7733,7 +7738,10 @@ function ppAutoPaint(){
 function ppPlace(){
   var d = PP.el, w = Math.min(window.innerWidth * 0.92, 700);
   var x = (PP.x != null) ? PP.x : Math.max(4, (window.innerWidth - w) / 2);
-  var y = (PP.y != null) ? PP.y : Math.max(4, window.innerHeight - 320);
+  /* 기본 위치 = 화면 아래에서 20px 띄운 자리. 패드 높이(--pp-h)를 실측해 쓰므로
+     높이를 바꿔도 아래 여백이 그대로 유지된다(v506 전에는 320px 고정값이었다). */
+  var h = d.offsetHeight || 150;
+  var y = (PP.y != null) ? PP.y : Math.max(4, window.innerHeight - h - 20);
   d.style.left = Math.max(4, Math.min(x, window.innerWidth - 120)) + 'px';
   d.style.top = Math.max(4, Math.min(y, window.innerHeight - 80)) + 'px';
 }
@@ -21321,7 +21329,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v505';
+var APP_VER = 'v506';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
