@@ -7720,34 +7720,56 @@ function ppBuild(){
   var hd = $('#ppHd');
   hd.addEventListener('pointerdown', function(e){
     if (e.target.closest && e.target.closest('button')) return;
+    /* 도킹(CSS 하단 고정) 상태에서 끌기 시작 → 지금 보이는 자리를 좌표로 바꿔 잡고 도킹 해제.
+       (transform:translateX(-50%)가 걸린 채로 left 를 주면 반쪽 어긋난다) */
     var r = d.getBoundingClientRect();
+    if (d.classList.contains('ppDock')){
+      d.classList.remove('ppDock');
+      PP.x = r.left; PP.y = r.top;
+      d.style.left = PP.x + 'px'; d.style.top = PP.y + 'px';
+    }
     PP.drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
     try { hd.setPointerCapture(e.pointerId); } catch (er){}
     e.preventDefault();
   });
   hd.addEventListener('pointermove', function(e){
     if (!PP.drag) return;
-    PP.x = Math.max(4, Math.min(e.clientX - PP.drag.dx, window.innerWidth - 120));
-    PP.y = Math.max(4, Math.min(e.clientY - PP.drag.dy, window.innerHeight - 60));
+    var v = ppView(), ph = d.offsetHeight || 150;
+    PP.x = Math.max(4, Math.min(e.clientX - PP.drag.dx, v.w - 120));
+    PP.y = Math.max(4, Math.min(e.clientY - PP.drag.dy, Math.max(4, v.h - ph - 8)));   /* 아랫단이 화면 밖으로 나가지 않게 */
     d.style.left = PP.x + 'px'; d.style.top = PP.y + 'px';
   });
   hd.addEventListener('pointerup', function(){ PP.drag = null; });
   hd.addEventListener('pointercancel', function(){ PP.drag = null; });
+  /* 화면이 바뀌면(회전·창 크기·화면 크기 설정) 열려 있는 패드를 화면 안으로 다시 넣는다 */
+  window.addEventListener('resize', function(){ if (ppOpenNow()) ppPlace(); });
 }
 function ppAutoPaint(){
   var b = $('#ppAuto'); if (!b) return;
   b.textContent = PP.auto ? '자동열림 ✓' : '자동열림 ✗';
   b.classList.toggle('on', PP.auto);
 }
+/* 패드가 놓이는 좌표계의 화면 크기.
+   화면 크기(zoom) 설정이 켜져 있으면 <html>에 CSS zoom 이 걸려, style.top/left 의 1px 이
+   실제 화면에서는 zoom 배만큼 커진다. window.innerHeight 는 zoom 과 무관한 값이므로
+   그대로 쓰면 패드가 화면 아래로 밀려 잘린다 → --app-h 와 같은 방식으로 zoom 으로 나눈다. */
+function ppView(){
+  var z = window.__uiZoom || 1;
+  return { w: Math.round(window.innerWidth / z), h: Math.round(window.innerHeight / z) };
+}
 function ppPlace(){
-  var d = PP.el, w = Math.min(window.innerWidth * 0.92, 700);
-  var x = (PP.x != null) ? PP.x : Math.max(4, (window.innerWidth - w) / 2);
-  /* 기본 위치 = 화면 아래에서 20px 띄운 자리. 패드 높이(--pp-h)를 실측해 쓰므로
-     높이를 바꿔도 아래 여백이 그대로 유지된다(v506 전에는 320px 고정값이었다). */
-  var h = d.offsetHeight || 150;
-  var y = (PP.y != null) ? PP.y : Math.max(4, window.innerHeight - h - 20);
-  d.style.left = Math.max(4, Math.min(x, window.innerWidth - 120)) + 'px';
-  d.style.top = Math.max(4, Math.min(y, window.innerHeight - 80)) + 'px';
+  var d = PP.el;
+  /* 아직 사용자가 옮긴 적 없으면 CSS 도킹(화면 하단 고정)에 맡긴다 — 계산 없이 항상 안전 */
+  if (PP.x == null || PP.y == null){
+    d.classList.add('ppDock');
+    d.style.left = ''; d.style.top = '';
+    return;
+  }
+  d.classList.remove('ppDock');
+  var v = ppView(), h = d.offsetHeight || 150;
+  /* 옮긴 뒤에도 아랫단이 화면 밖으로 나가지 않게 — 위쪽은 4px, 아래쪽은 패드 높이만큼 남긴다 */
+  d.style.left = Math.max(4, Math.min(PP.x, v.w - 120)) + 'px';
+  d.style.top = Math.max(4, Math.min(PP.y, Math.max(4, v.h - h - 8))) + 'px';
 }
 function ppOpen(t){
   ppBuild();
@@ -21333,7 +21355,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v506';
+var APP_VER = 'v507';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
