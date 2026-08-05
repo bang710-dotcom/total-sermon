@@ -3896,9 +3896,12 @@ async function prefsSelfTest(){
   /* 시트에 있는 최근 키 몇 개도 함께 — 다른 기기가 무엇을 올렸는지 확인용 */
   var sk = Object.keys(srvR).slice(-5);
   if (sk.length) L.push('', '시트에 기록된 최근 별점 키: ' + sk.join(', '));
-  L.push('', '※ 시트에 있는데 이 기기에 없으면 → [확인]을 누르면 지금 내려받아 반영합니다.');
-  var go = await uiConfirm(L.join('\n'), { okText: '내려받아 반영' });
-  if (go){ try { illRatePull(); illNotePull(); illUsePull(); illInsightPull(); } catch (e){} toast('시트 값을 내려받아 반영했습니다.'); }
+  L.unshift('■ 기기 간 동기화 점검 · ' + APP_VER + ' · ' + nowLocalStr_(), '');
+  L.push('', '※ 시트에 있는데 이 기기에 없으면 [내려받아 반영]을 누르세요.');
+  /* 토스트로 스쳐 지나가지 않게 — 닫기 전까지 남고, 글자를 그대로 복사할 수 있는 상자로 보여 준다 (v510) */
+  var go = await uiPrompt('점검 결과입니다. 아래 내용을 길게 눌러 복사하거나 화면을 캡처해 주세요.',
+                          L.join('\n'), { multiline: true, tall: true, mono: true, okText: '내려받아 반영', cancelText: '닫기' });
+  if (go !== null){ try { illRatePull(); illNotePull(); illUsePull(); illInsightPull(); } catch (e){} toast('시트 값을 내려받아 반영했습니다.'); }
 }
 /* 다른 기기 값을 받아 병합한 뒤 화면 갱신 — 회고 카드·서랍·도서관 모두 */
 function prefsRepaint(){
@@ -21432,7 +21435,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v509';
+var APP_VER = 'v510';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -21769,6 +21772,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         input.className = 'uiDlgIn';
         input.value = opts.defVal != null ? String(opts.defVal) : '';
         if (opts.placeholder) input.placeholder = opts.placeholder;
+        if (opts.tall) input.style.minHeight = '46vh';   /* 점검 결과처럼 긴 내용은 넉넉히 (v510) */
+        if (opts.mono) input.style.font = '12px/1.6 ui-monospace,Menlo,monospace';
         inWrap.appendChild(input);
       }
       okBtn.textContent = opts.okText || '확인';
@@ -21797,7 +21802,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   };
   window.uiPrompt = function(message, defVal, opts){
     opts = opts || {};
-    return enqueue({ message: message, isPrompt: true, defVal: defVal, okText: opts.okText, cancelText: opts.cancelText, placeholder: opts.placeholder, multiline: opts.multiline });
+    return enqueue({ message: message, isPrompt: true, defVal: defVal, okText: opts.okText, cancelText: opts.cancelText, placeholder: opts.placeholder, multiline: opts.multiline, tall: opts.tall, mono: opts.mono });
   };
   /* 3지선다: okText / extraText / cancelText → 'ok' | 'extra' | 'cancel' 반환 */
   window.uiChoose = function(message, opts){
