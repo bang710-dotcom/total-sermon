@@ -3953,8 +3953,9 @@ function illKeyVariants(key){
   if (v.indexOf(String(key || '')) < 0) v.push(String(key || ''));
   return v;
 }
-/* 저장소에서 이 예화의 값 찾기 — 대표키 → 옛 키 순 */
-function illPick(store, key){
+/* 저장소에서 이 예화의 값 찾기 — 대표키 → 옛 키 순.
+   ※ 이름은 반드시 illKeyPick — 앱에 이미 illPick(예화 추천 오버레이)가 있어 겹치면 덮어써진다. */
+function illKeyPick(store, key){
   var vs = illKeyVariants(key);
   for (var i = 0; i < vs.length; i++){ var v = store[vs[i]]; if (v !== undefined && v !== null && v !== '') return v; }
   return undefined;
@@ -3969,14 +3970,14 @@ function illPutKeyed(store, save, ns, what, key, val){
   try { prefsPush(ns, patch, what); } catch (e){}
   return canon;
 }
-function illRateFor(key){ var v = illPick(illRateStore(), key); return (v === 0 || v === 1 || v === 2) ? v : null; }
+function illRateFor(key){ var v = illKeyPick(illRateStore(), key); return (v === 0 || v === 1 || v === 2) ? v : null; }
 /* ── 별점 한 줄 메모(2026-07-14, 2차제안 후속 ②) ──
    "이 예화가 왜 먹혔나/안 먹혔나"를 한 줄로 남긴다. 별점과 같은 채널 구조:
    localStorage tsa.illRateNote + IndexedDB 미러 + 시트 prefs(ns=illRateNote) 동기화. */
 function illNoteStore(){ try { return JSON.parse(localStorage.getItem('tsa.illRateNote') || '{}') || {}; } catch (e){ return {}; } }
 function illNoteSave(m){ try { localStorage.setItem('tsa.illRateNote', JSON.stringify(m)); } catch (e){} try { idbSet('illRateNote', m); } catch (e){} }
 (function(){ try { if (localStorage.getItem('tsa.illRateNote') == null) idbGet('illRateNote').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illRateNote', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
-function illNoteFor(key){ return String(illPick(illNoteStore(), key) || ''); }
+function illNoteFor(key){ return String(illKeyPick(illNoteStore(), key) || ''); }
 function illNoteSet(key, val){
   val = String(val || '').trim().slice(0, 120);
   illPutKeyed(illNoteStore(), illNoteSave, 'illRateNote', '예화 한 줄 메모', key, val || null);   /* 대표키로 모음 (v511) */
@@ -4298,7 +4299,7 @@ document.addEventListener('click', function(e){
   e.preventDefault(); e.stopPropagation();
   var key = b.getAttribute('data-illkey'), val = +b.getAttribute('data-val');
   var m = illRateStore();
-  var cur = illPick(m, key);                       /* 옛 키에 있던 값도 함께 본다 */
+  var cur = illKeyPick(m, key);                       /* 옛 키에 있던 값도 함께 본다 */
   var next = (cur === val) ? null : val;           /* 같은 값을 다시 누르면 해제 */
   illPutKeyed(m, illRateSave, 'illRate', '예화 반응(별점)', key, next);   /* 대표키로 모아 저장·전송 (v511) */
   var row = b.closest('.illRateRow');
@@ -21458,7 +21459,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v511';
+var APP_VER = 'v512';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
