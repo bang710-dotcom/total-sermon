@@ -3858,25 +3858,47 @@ function prefsPush(ns, patch, what){
     return null;
   });
 }
-/* 개인설정 채널 자가 점검 — "왜 다른 기기에 안 보이나"를 한 번에 알려 준다 (v502) */
+/* 개인설정 채널 자가 점검 — "왜 다른 기기에 안 보이나"를 한 번에 알려 준다 (v502·v509 상세화)
+   통로가 열려 있어도 값이 안 보이는 경우가 있어, 시트 blob과 이 기기 값을 항목별로 대조해 보여 준다. */
 async function prefsSelfTest(){
   var st = state.settings || {};
   if (!st.url || !st.token){ toast('시트 API URL·토큰을 먼저 설정해 주세요.'); return; }
   toast('시트 개인설정 채널을 확인하는 중…');
+  var p;
   try {
-    var p = await api({ action: 'prefs' });
-    if (!p || typeof p !== 'object'){ toast('시트가 개인설정을 돌려주지 않았습니다 — Code.gs 버전을 확인해 주세요.'); return; }
-    function cnt(o){ return (o && typeof o === 'object') ? Object.keys(o).length : 0; }
-    var msg = '✓ 동기화 정상 — 시트에 별점 ' + cnt(p.illRate) + '건 · 메모 ' + cnt(p.illRateNote) + '건 · 사용기록 ' + cnt(p.illUse) + '건';
-    toast(msg);
-    /* 지금 바로 당겨와 화면에 반영 */
-    try { illRatePull(); illNotePull(); illUsePull(); } catch (e){}
+    p = await api({ action: 'prefs' });
   } catch (e){
     var m = String((e && e.message) || e);
     toast(/알 수 없는 action|unknown action/i.test(m)
       ? '이 시트의 Apps Script가 옛 버전입니다 — Code.gs를 최신으로 붙여넣고 [배포 관리 → 새 버전]으로 배포해 주세요. (예화 반응이 기기 간에 공유되지 않는 원인입니다)'
       : '점검 실패: ' + m);
+    return;
   }
+  if (!p || typeof p !== 'object'){ toast('시트가 개인설정을 돌려주지 않았습니다 — Code.gs 버전을 확인해 주세요.'); return; }
+  function cnt(o){ return (o && typeof o === 'object') ? Object.keys(o).length : 0; }
+  var srvR = p.illRate || {}, srvN = p.illRateNote || {};
+  var locR = illRateStore(), locN = illNoteStore();
+  var L = ['[ 시트 ]  별점 ' + cnt(srvR) + '건 · 메모 ' + cnt(srvN) + '건 · 사용기록 ' + cnt(p.illUse) + '건',
+           '[ 이 기기 ] 별점 ' + cnt(locR) + '건 · 메모 ' + cnt(locN) + '건', ''];
+  /* 지금 회고 카드에 떠 있는 항목들의 키가 시트에 있는지 대조 — 키가 어긋나면 여기서 드러난다 */
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#illRecapCard .illNoteIn'));
+  if (rows.length){
+    L.push('회고 카드에 뜬 ' + rows.length + '건 대조:');
+    rows.forEach(function(inp){
+      var k = inp.getAttribute('data-illkey') || '';
+      L.push(' · ' + k
+        + '  시트[별점 ' + (srvR[k] == null ? '없음' : srvR[k]) + ' / 메모 ' + (srvN[k] ? '있음' : '없음') + ']'
+        + '  이기기[별점 ' + (locR[k] == null ? '없음' : locR[k]) + ' / 메모 ' + (locN[k] ? '있음' : '없음') + ']');
+    });
+  } else {
+    L.push('회고 카드에 표시된 항목이 없습니다(모두 평가됨이거나 최근 설교 없음).');
+  }
+  /* 시트에 있는 최근 키 몇 개도 함께 — 다른 기기가 무엇을 올렸는지 확인용 */
+  var sk = Object.keys(srvR).slice(-5);
+  if (sk.length) L.push('', '시트에 기록된 최근 별점 키: ' + sk.join(', '));
+  L.push('', '※ 시트에 있는데 이 기기에 없으면 → [확인]을 누르면 지금 내려받아 반영합니다.');
+  var go = await uiConfirm(L.join('\n'), { okText: '내려받아 반영' });
+  if (go){ try { illRatePull(); illNotePull(); illUsePull(); illInsightPull(); } catch (e){} toast('시트 값을 내려받아 반영했습니다.'); }
 }
 /* 다른 기기 값을 받아 병합한 뒤 화면 갱신 — 회고 카드·서랍·도서관 모두 */
 function prefsRepaint(){
@@ -21410,7 +21432,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v508';
+var APP_VER = 'v509';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
