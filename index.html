@@ -1869,6 +1869,12 @@ body.uiDlgOpen{overflow:hidden}
         <div class="cnt" style="margin:6px 0 14px">원고·카드원고·LTC 교재·설교계획·이미지자료를 어떤 파일로 만들지 정합니다. <b>HWPX</b>는 목사님 원본 서식(용지·여백·함초롬바탕·색·표)이 그대로 적용되며 한글에서 바로 편집됩니다. 아이패드에서 열어보려면 한컴오피스가 필요하고, 없으면 <b>DOCX</b>로 두세요. 이미 만들어 둔 파일은 형식을 바꿔도 그대로 읽습니다.</div>
 
         <details class="setGrp">
+          <summary>🔎 기기 간 동기화 점검 <span class="sgSub">예화 반응·메모</span></summary>
+        <div class="cnt">예화 별점·한 줄 메모·사용 기록은 시트의 <b>개인설정 채널</b>을 통해 기기 간에 오갑니다. 한 기기에서 남긴 반응이 다른 기기에 안 보이면 이 버튼으로 확인하세요.</div>
+        <div style="margin-top:10px"><button class="btn sub" id="btnPrefsTest" type="button">지금 점검하기</button></div>
+        </details>
+
+        <details class="setGrp">
           <summary>📓 옵시디언 보관함 내보내기</summary>
         <div class="cnt">모든 설교를 <b>옵시디언 호환 .md</b>(연결·검색용 frontmatter·본문코드·키워드 태그·위키링크 포함) 묶음(zip)으로 내려받습니다. 한 방향 내보내기이며 <b>앱 데이터는 변경되지 않습니다.</b> 받은 zip을 풀어 옵시디언 보관함으로 열면 본문·시리즈·주제별로 자동 연결됩니다.</div>
         <div style="margin-top:10px"><button class="btn" id="btnObsidianExport">옵시디언 보관함(zip) 내보내기</button></div>
@@ -3748,7 +3754,7 @@ function illUsePush(key, val){
   var s = state.settings || {};
   if (!s.url || !s.token) return;
   var patch = {}; patch[key] = val;
-  try { apiPostOrQueue({ action: 'setPrefs', ns: 'illUse', patch: patch }).catch(function(){}); } catch (e){}
+  try { prefsPush('illUse', patch, '예화 사용 기록'); } catch (e){}
 }
 function illUsePull(){
   var s = state.settings || {};
@@ -3832,6 +3838,54 @@ function illComposeUsedLibIds(){
 }
 /* C3(2026-07-12): 예화 반응 별점 — 잘 먹힘(2)/보통(1)/다시 안 씀(0). localStorage 개인 신호.
    A1·A2 추천(illScoreOne)이 별점을 가중 — 잘 먹힌 예화는 우선, 다시 안 쓸 예화는 강등. */
+/* prefs(개인설정) 채널 공용 도우미 — 예화 별점·메모·사용기록 등이 기기 간에 오가는 통로. (v502)
+   전송이 실패하면 조용히 넘기지 말고 한 번은 알려 준다. 그러지 않으면
+   "저장했습니다" 토스트만 보고 다른 기기에서 사라진 걸 나중에야 알게 된다. */
+var _prefsWarnAt = 0;
+function prefsPush(ns, patch, what){
+  var st = state.settings || {};
+  if (!st.url || !st.token) return Promise.resolve(null);   /* 시트 미설정 — 로컬 전용 */
+  return apiPostOrQueue({ action: 'setPrefs', ns: ns, patch: patch }).catch(function(e){
+    var msg = String((e && e.message) || e);
+    var old = /알 수 없는 action|unknown action/i.test(msg);
+    if (Date.now() - _prefsWarnAt > 20000){
+      _prefsWarnAt = Date.now();
+      toast(old
+        ? ((what || '기록') + '이 이 기기에만 저장됐습니다 — 구글시트 Apps Script(Code.gs)를 최신으로 새 버전 배포해 주세요.'
+           + ' 그래야 다른 기기에서도 보입니다.')
+        : ((what || '기록') + '을 시트에 보내지 못했습니다(' + msg + ') — 이 기기에만 저장됨.'));
+    }
+    return null;
+  });
+}
+/* 개인설정 채널 자가 점검 — "왜 다른 기기에 안 보이나"를 한 번에 알려 준다 (v502) */
+async function prefsSelfTest(){
+  var st = state.settings || {};
+  if (!st.url || !st.token){ toast('시트 API URL·토큰을 먼저 설정해 주세요.'); return; }
+  toast('시트 개인설정 채널을 확인하는 중…');
+  try {
+    var p = await api({ action: 'prefs' });
+    if (!p || typeof p !== 'object'){ toast('시트가 개인설정을 돌려주지 않았습니다 — Code.gs 버전을 확인해 주세요.'); return; }
+    function cnt(o){ return (o && typeof o === 'object') ? Object.keys(o).length : 0; }
+    var msg = '✓ 동기화 정상 — 시트에 별점 ' + cnt(p.illRate) + '건 · 메모 ' + cnt(p.illRateNote) + '건 · 사용기록 ' + cnt(p.illUse) + '건';
+    toast(msg);
+    /* 지금 바로 당겨와 화면에 반영 */
+    try { illRatePull(); illNotePull(); illUsePull(); } catch (e){}
+  } catch (e){
+    var m = String((e && e.message) || e);
+    toast(/알 수 없는 action|unknown action/i.test(m)
+      ? '이 시트의 Apps Script가 옛 버전입니다 — Code.gs를 최신으로 붙여넣고 [배포 관리 → 새 버전]으로 배포해 주세요. (예화 반응이 기기 간에 공유되지 않는 원인입니다)'
+      : '점검 실패: ' + m);
+  }
+}
+/* 다른 기기 값을 받아 병합한 뒤 화면 갱신 — 회고 카드·서랍·도서관 모두 */
+function prefsRepaint(){
+  try { if (typeof renderIllRecap === 'function') renderIllRecap(); } catch (e){}
+  try {
+    var lib = document.getElementById('page-illlib');
+    if (document.getElementById('illResults') && lib && lib.classList.contains('on') && typeof renderIllLib === 'function') renderIllLib();
+  } catch (e){}
+}
 function illRateStore(){ try { return JSON.parse(localStorage.getItem('tsa.illRate') || '{}') || {}; } catch (e){ return {}; } }
 function illRateSave(m){ try { localStorage.setItem('tsa.illRate', JSON.stringify(m)); } catch (e){} try { idbSet('illRate', m); } catch (e){} }
 /* #2(2026-07-12): 별점을 IndexedDB에도 미러 — iOS '미사용 저장소 자동 삭제' 등으로 localStorage가 비워져도
@@ -3843,7 +3897,7 @@ function illRatePush(key, val){
   var s = state.settings || {};
   if (!s.url || !s.token) return;   /* 시트 미설정 시 로컬 캐시만 */
   var patch = {}; patch[key] = val;   /* val=null 이면 서버에서 삭제(툼스톤) */
-  try { apiPostOrQueue({ action: 'setPrefs', ns: 'illRate', patch: patch }).catch(function(){}); } catch (e){}
+  try { prefsPush('illRate', patch, '예화 반응(별점)'); } catch (e){}
 }
 /* 서버 별점 blob을 당겨 로컬과 병합(별점 유실 방지 우선: 로컬 유지 + 서버가 충돌 시 우선). */
 function illRatePull(){
@@ -3856,7 +3910,7 @@ function illRatePull(){
     var merged = Object.assign({}, local, srv);   /* 서버 우선(최신 편집) + 로컬 전용 키 보존 */
     if (JSON.stringify(merged) !== JSON.stringify(local)){
       illRateSave(merged);
-      try { if (document.getElementById('illResults') && document.getElementById('page-illlib') && document.getElementById('page-illlib').classList.contains('on')) renderIllLib(); } catch (e){}
+      prefsRepaint();   /* 회고 카드까지 다시 그린다 — 예전엔 도서관만 갱신해 빈 화면이 남았다 (v502) */
     }
   }).catch(function(){});
 }
@@ -3876,7 +3930,7 @@ function illNoteSet(key, val){
   var s = state.settings || {};
   if (s.url && s.token){
     var patch = {}; patch[key] = (val || null);
-    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illRateNote', patch: patch }).catch(function(){}); } catch (e){}
+    try { prefsPush('illRateNote', patch, '예화 한 줄 메모'); } catch (e){}
   }
 }
 function illNotePull(){
@@ -3887,7 +3941,7 @@ function illNotePull(){
     if (!srv || typeof srv !== 'object') return;
     var local = illNoteStore();
     var merged = Object.assign({}, local, srv);   /* 서버 우선 + 로컬 전용 키 보존(별점과 동일 규칙) */
-    if (JSON.stringify(merged) !== JSON.stringify(local)) illNoteSave(merged);
+    if (JSON.stringify(merged) !== JSON.stringify(local)){ illNoteSave(merged); prefsRepaint(); }
   }).catch(function(){});
 }
 document.addEventListener('change', function(e){
@@ -3910,7 +3964,7 @@ function illInsightSet(key, val){
   var s = state.settings || {};
   if (s.url && s.token){
     var patch = {}; patch[key] = (val || null);
-    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illInsight', patch: patch }).catch(function(){}); } catch (e){}
+    try { prefsPush('illInsight', patch, '예화 인사이트 메모'); } catch (e){}
   }
 }
 function illInsightPull(){
@@ -3949,7 +4003,7 @@ function illAnchorPush(key, arr){
   var s = state.settings || {};
   if (s.url && s.token){
     var patch = {}; patch[key] = (arr && arr.length ? arr : null);
-    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illAnchor', patch: patch }).catch(function(){}); } catch (e){}
+    try { prefsPush('illAnchor', patch, '예화 본문 연결'); } catch (e){}
   }
 }
 function illAnchorAdd(key, ref){
@@ -4054,7 +4108,7 @@ function illTopicPush(key, arr){
   var s = state.settings || {};
   if (s.url && s.token){
     var patch = {}; patch[key] = (arr && arr.length ? arr : null);
-    try { apiPostOrQueue({ action: 'setPrefs', ns: 'illTopic', patch: patch }).catch(function(){}); } catch (e){}
+    try { prefsPush('illTopic', patch, '예화 주제'); } catch (e){}
   }
 }
 /* 이 예화에 이미 표기된 주제(원본 카테고리 + 표준주제) — 중복 추가·드롭다운 제외용 */
