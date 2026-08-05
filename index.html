@@ -3939,24 +3939,47 @@ function illRatePull(){
     }
   }).catch(function(){});
 }
-function illRateFor(key){ var v = illRateStore()[key]; return (v === 0 || v === 1 || v === 2) ? v : null; }
+/* ── 예화 반응 키 정규화 (v511) ──
+   같은 예화가 인박스(inbox:I0077)와 라이브러리 편입본(lib:INBOX_I0077.txt) 두 키로 나타난다.
+   저장은 대표키 하나로 모으고, 읽을 때는 옛 키도 함께 본다(이미 쌓인 기록 보존). */
+function illKeyCanon(key){
+  var id = illSrcKeyToIdeaId(key);
+  return id ? ('inbox:' + id) : String(key || '');
+}
+function illKeyVariants(key){
+  var id = illSrcKeyToIdeaId(key);
+  if (!id) return [String(key || '')];
+  var v = ['inbox:' + id, 'lib:INBOX_' + id + '.txt'];
+  if (v.indexOf(String(key || '')) < 0) v.push(String(key || ''));
+  return v;
+}
+/* 저장소에서 이 예화의 값 찾기 — 대표키 → 옛 키 순 */
+function illPick(store, key){
+  var vs = illKeyVariants(key);
+  for (var i = 0; i < vs.length; i++){ var v = store[vs[i]]; if (v !== undefined && v !== null && v !== '') return v; }
+  return undefined;
+}
+/* 대표키에 쓰고, 같은 예화의 옛 키는 정리(로컬·시트 모두) */
+function illPutKeyed(store, save, ns, what, key, val){
+  var vs = illKeyVariants(key), canon = vs[0], patch = {};
+  if (val === null || val === undefined || val === ''){ delete store[canon]; patch[canon] = null; }
+  else { store[canon] = val; patch[canon] = val; }
+  vs.slice(1).forEach(function(k){ if (store[k] !== undefined){ delete store[k]; patch[k] = null; } });
+  save(store);
+  try { prefsPush(ns, patch, what); } catch (e){}
+  return canon;
+}
+function illRateFor(key){ var v = illPick(illRateStore(), key); return (v === 0 || v === 1 || v === 2) ? v : null; }
 /* ── 별점 한 줄 메모(2026-07-14, 2차제안 후속 ②) ──
    "이 예화가 왜 먹혔나/안 먹혔나"를 한 줄로 남긴다. 별점과 같은 채널 구조:
    localStorage tsa.illRateNote + IndexedDB 미러 + 시트 prefs(ns=illRateNote) 동기화. */
 function illNoteStore(){ try { return JSON.parse(localStorage.getItem('tsa.illRateNote') || '{}') || {}; } catch (e){ return {}; } }
 function illNoteSave(m){ try { localStorage.setItem('tsa.illRateNote', JSON.stringify(m)); } catch (e){} try { idbSet('illRateNote', m); } catch (e){} }
 (function(){ try { if (localStorage.getItem('tsa.illRateNote') == null) idbGet('illRateNote').then(function(v){ if (v && typeof v === 'object'){ try { localStorage.setItem('tsa.illRateNote', JSON.stringify(v)); } catch (e){} } }).catch(function(){}); } catch (e){} })();
-function illNoteFor(key){ return String(illNoteStore()[key] || ''); }
+function illNoteFor(key){ return String(illPick(illNoteStore(), key) || ''); }
 function illNoteSet(key, val){
-  var m = illNoteStore();
   val = String(val || '').trim().slice(0, 120);
-  if (val) m[key] = val; else delete m[key];
-  illNoteSave(m);
-  var s = state.settings || {};
-  if (s.url && s.token){
-    var patch = {}; patch[key] = (val || null);
-    try { prefsPush('illRateNote', patch, '예화 한 줄 메모'); } catch (e){}
-  }
+  illPutKeyed(illNoteStore(), illNoteSave, 'illRateNote', '예화 한 줄 메모', key, val || null);   /* 대표키로 모음 (v511) */
 }
 function illNotePull(){
   var s = state.settings || {};
@@ -4275,15 +4298,15 @@ document.addEventListener('click', function(e){
   e.preventDefault(); e.stopPropagation();
   var key = b.getAttribute('data-illkey'), val = +b.getAttribute('data-val');
   var m = illRateStore();
-  if (m[key] === val) delete m[key]; else m[key] = val;
-  illRateSave(m);
-  illRatePush(key, (m[key] == null ? null : m[key]));   /* #2 즉시 동기화(오프라인은 대기열) */
+  var cur = illPick(m, key);                       /* 옛 키에 있던 값도 함께 본다 */
+  var next = (cur === val) ? null : val;           /* 같은 값을 다시 누르면 해제 */
+  illPutKeyed(m, illRateSave, 'illRate', '예화 반응(별점)', key, next);   /* 대표키로 모아 저장·전송 (v511) */
   var row = b.closest('.illRateRow');
   if (row) row.querySelectorAll('.illRateBtn').forEach(function(x){
-    var v = +x.getAttribute('data-val'), on = m[key] === v, col = illRateColor(v);
+    var v = +x.getAttribute('data-val'), on = next === v, col = illRateColor(v);
     x.style.borderColor = on ? col : 'var(--line)'; x.style.background = on ? col : 'transparent'; x.style.color = on ? '#fff' : 'var(--dim)';
   });
-  toast(m[key] == null ? '반응 기록을 지웠습니다.' : '반응을 기록했습니다 — 추천에 반영됩니다.');
+  toast(next == null ? '반응 기록을 지웠습니다.' : '반응을 기록했습니다 — 추천에 반영됩니다.');
 }, true);
 function illCardU(it){
   var used = illUsedInSermons(it);
