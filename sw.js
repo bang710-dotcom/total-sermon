@@ -1,5 +1,5 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v512';         /* 앱 셸 — 버전마다 교체(index.html 등) */
+var CACHE = 'tsa-v513';         /* 앱 셸 — 버전마다 교체(index.html 등) */
 var CONTENT = 'tsa-content-v1';   /* 대용량 콘텐츠 — 버전 업에도 유지(매번 재다운로드 방지) */
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 /* ill-index(색인)·ill-story(전문 샤드, 해시 파일명=불변)도 콘텐츠 캐시 — v444 */
@@ -31,9 +31,15 @@ self.addEventListener('fetch', function (e) {
   /* API 호출(script.google.com 등)은 항상 네트워크 사용 */
   if (url.origin !== location.origin) return;
 
+  /* ★ v513: 앱 루트가 아닌 하위 페이지(예: /retreat/)는 셸 캐시에 넣지 않는다.
+     기존 코드는 같은 오리진의 '모든' navigate 응답을 './index.html' 로 저장해,
+     하위 페이지를 한 번 열면 오프라인 진입 시 그 페이지가 앱 대신 뜨는 문제가 있었다. */
+  var ROOT = new URL('./', self.registration.scope).pathname;
+  var isAppEntry = (url.pathname === ROOT || url.pathname === ROOT + 'index.html');
+
   /* 앱 진입(index.html)은 네트워크 우선 → 새 버전이 첫 실행에 바로 적용.
      오프라인일 때만 캐시 사용 */
-  if (e.request.mode === 'navigate' || /index\.html$/.test(url.pathname) || url.pathname.slice(-1) === '/') {
+  if (isAppEntry && (e.request.mode === 'navigate' || /index\.html$/.test(url.pathname) || url.pathname.slice(-1) === '/')) {
     e.respondWith(
       fetch(e.request).then(function (res) {
         if (res.ok) {
