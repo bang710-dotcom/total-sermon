@@ -12917,14 +12917,17 @@ async function aiYouTubeSummarize(id){
     if (url === null) return;
     url = url.trim();
     if (!/youtu\.?be/.test(url)) { toast('유효한 유튜브 링크가 아닙니다.'); return; }
-    /* 예배구분에 '대학'이 있으면 예배 전체 영상(full)으로 추정, 그 외는 설교만(sermon). 사용자가 확인·변경. */
-    var looksFull = /대학/.test(String(s['예배구분'] || ''));
-    var isFull = looksFull
-      ? await uiConfirm('이 링크는 「예배 전체 영상」인가요?\n\n[확인] = 예배 전체 → 설교 부분을 자동으로 찾습니다\n[취소] = 설교 부분만 업로드된 영상')
-      : !await uiConfirm('이 링크는 「설교 부분만」 업로드된 영상인가요?\n\n[확인] = 설교만 (장년·새벽 등)\n[취소] = 예배 전체 영상 → 설교 부분 자동 탐지');
+    /* 영상 종류 선택 — 예/아니오 반전 없이 버튼 두 개로 명확히 고른다(취소도 가능). */
+    var looksFull = /대학/.test(String(s['예배구분'] || ''));      /* 대학부=예배 실황 전체가 보통 */
+    var pick = await uiChoose('이 유튜브 영상은 어떤 영상인가요?\n(예배구분 「' + (s['예배구분'] || '-') + '」 기준 추천을 앞에 두었습니다)',
+      looksFull
+        ? { okText: '예배 전체 (설교 부분 자동 탐지)', extraText: '설교만 있는 영상', cancelText: '취소' }
+        : { okText: '설교만 있는 영상', extraText: '예배 전체 (설교 부분 자동 탐지)', cancelText: '취소' });
+    if (pick !== 'ok' && pick !== 'extra') return;
+    var isFull = looksFull ? (pick === 'ok') : (pick === 'extra');
     var serviceType = isFull ? 'full' : 'sermon';
-    showGenOverlay('유튜브 전사');
-    var r, j;
+    showGenOverlay('유튜브 전사 (영상 길이에 따라 1~3분 걸립니다)');
+    var r, j, raw = '';
     try {
       r = await fetch(c.url + '/youtube', {
         method: 'POST',
@@ -12932,12 +12935,21 @@ async function aiYouTubeSummarize(id){
         body: JSON.stringify({ youtubeUrl: url, serviceType: serviceType })
       });
     } catch (e) { hideGenOverlay(); toast('영상 분석 프록시 연결 실패: ' + e.message); return; }
-    try { j = await r.json(); } catch (e) { hideGenOverlay(); toast('응답 파싱 실패 (HTTP ' + r.status + ')'); return; }
+    /* 워커가 JSON이 아닌 응답(클라우드플레어 오류·타임아웃 등)을 줄 때 원인이 보이도록 본문 일부를 보여준다. */
+    try { raw = await r.text(); } catch (e) { raw = ''; }
+    try { j = JSON.parse(raw); } catch (e) {
+      hideGenOverlay();
+      var snip = String(raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+      toast('영상 분석 서버 응답 오류 (HTTP ' + r.status + ')' + (snip ? ' — ' + snip : '') +
+            (r.status === 0 || r.status >= 500 ? '\n영상이 길어 시간이 초과됐을 수 있습니다. 워커를 최신본으로 재배포했는지 확인해 주세요.' : ''));
+      return;
+    }
     hideGenOverlay();
     if (!j.ok) { toast('전사 실패: ' + (j.error || ('HTTP ' + r.status))); return; }
     var trans = String(j.transcript || '').trim();
     if (!trans) { toast('전사 결과가 비어 있습니다 — 영상이 공개인지, 설교 구간이 있는지 확인해 주세요.'); return; }
-    var span = (j.start_mmss && j.end_mmss) ? (' (' + j.start_mmss + '~' + j.end_mmss + ')') : '';
+    if (j.truncated) toast('⚠ 전사문 일부가 길이 제한으로 잘렸을 수 있습니다 — 요약본을 확인해 주세요.');
+    var span = (j.start_mmss && j.end_mmss && j.end_mmss !== '0:00') ? (' (' + j.start_mmss + '~' + j.end_mmss + ')') : '';
     /* 전사문은 원고텍스트가 비어 있을 때만 저장(준비된 원고 보존). */
     var setData = { ID: id };
     if (!String(s['원고텍스트'] || '').trim()) { setData['원고텍스트'] = trans; s['원고텍스트'] = trans; s._txt = true; s._txtAt = nowLocalStr_(); }
@@ -21465,7 +21477,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v514';
+var APP_VER = 'v515';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
