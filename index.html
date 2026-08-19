@@ -12956,8 +12956,9 @@ async function gemVideo(model, parts, gcfg, key){
     var data = await res.json().catch(function(){ return {}; });
     if (res.ok) return data;
     var msg = (data && data.error && data.error.message) || ('HTTP ' + res.status);
-    /* 모델·버전에 따라 mediaResolution·thinkingConfig를 모르는 경우가 있어, 그때는 빼고 한 번 더 */
-    if (!slim && /unknown name|cannot find field|invalid json payload/i.test(msg)) {
+    /* 모델·버전에 따라 mediaResolution·thinkingConfig를 모르거나(400) 이 조합에서 내부오류(500)를
+       내는 경우가 있어, 그때는 옵션을 빼고 기본 설정으로 한 번 더 시도한다. */
+    if (!slim && (res.status >= 500 || /unknown name|cannot find field|invalid json payload/i.test(msg))) {
       slim = true; cfg = { temperature: gcfg.temperature, maxOutputTokens: gcfg.maxOutputTokens };
       if (gcfg.responseMimeType) cfg.responseMimeType = gcfg.responseMimeType;
       i--; continue;
@@ -13040,19 +13041,41 @@ async function ytTranscribeInApp(rawUrl, serviceType, key){
       '전사문 본문만 출력하세요.'].join('\n');
   };
   var gcfg = { temperature: 0.2, maxOutputTokens: 65536, mediaResolution: 'MEDIA_RESOLUTION_LOW', thinkingConfig: { thinkingBudget: 0 } };
-  var wins = (end > start) ? ytWins(start, end) : [null];
-  var got = 0, truncated = false;
-  var texts = await pMapLimit(wins, 6, async function(w){
-    var d = await gemVideo(model, [vpart(w), { text: tprompt(w) }], gcfg, key);
-    var c = d && d.candidates && d.candidates[0];
-    if (c && c.finishReason === 'MAX_TOKENS') truncated = true;
-    var t = gemText(d);
-    got += t.length; try { updateGenOverlay(got); } catch (eU){}
-    return t;
-  });
+  var got = 0, truncated = false, firstErr = '', okCnt = 0;
+
+  /* 한 창 전사 — 실패해도 전체를 죽이지 않는다(그 구간만 비우고 계속). 긴 영상을 통째로
+     요청하면 Gemini가 500(Internal error)을 내므로, 요청은 항상 10분 창으로 잘라 보낸다. */
+  var doWin = async function(w){
+    try {
+      var d = await gemVideo(model, [vpart(w), { text: tprompt(w) }], gcfg, key);
+      var c = d && d.candidates && d.candidates[0];
+      if (c && c.finishReason === 'MAX_TOKENS') truncated = true;
+      var t = gemText(d);
+      okCnt++; got += t.length; try { updateGenOverlay(got); } catch (eU){}
+      return t;
+    } catch (e) { if (!firstErr) firstErr = e.message; return ''; }
+  };
+
+  var texts = [], wins = [];
+  if (end > start) {
+    wins = ytWins(start, end);
+    texts = await pMapLimit(wins, 4, doWin);
+  } else {
+    /* 스캔 실패(길이를 모름) → 0분부터 10분 창을 4개씩 물결로 훑고, 한 물결이 통째로
+       비면 영상이 끝난 것으로 보고 멈춘다(최대 18창 = 3시간). */
+    var t0 = 0;
+    while (wins.length < 18) {
+      var wave = [];
+      for (var k = 0; k < 4 && (wins.length + wave.length) < 18; k++) { wave.push({ start: t0, end: t0 + 600 }); t0 += 600; }
+      var res = await pMapLimit(wave, 4, doWin);
+      wins = wins.concat(wave); texts = texts.concat(res);
+      if (res.every(function(x){ return !String(x || '').trim(); })) break;
+    }
+    end = t0;
+  }
 
   var transcript = texts.map(function(t){ return String(t || '').trim(); }).filter(Boolean).join('\n').trim();
-  if (!transcript) throw new Error('전사 결과가 비어 있습니다 — 영상이 공개 상태인지 확인해 주세요.');
+  if (!transcript) throw new Error(firstErr || '전사 결과가 비어 있습니다 — 영상이 공개 상태인지 확인해 주세요.');
   return { ok: true, transcript: transcript, truncated: truncated, chunks: wins.length,
            start_sec: start, end_sec: end, start_mmss: ytMmss(start), end_mmss: ytMmss(end) };
 }
@@ -21644,7 +21667,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v517';
+var APP_VER = 'v518';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
