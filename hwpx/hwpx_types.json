@@ -12,7 +12,8 @@
       "red": 8,
       "blue": 9,
       "heading": 7,
-      "title": 7
+      "title": 7,
+      "bar": 10
     },
     "roles": {
       "ref": {
@@ -34,8 +35,7 @@
       },
       "scripture": {
         "para": 13,
-        "style": "red",
-        "indent": true
+        "style": "red"
       },
       "illustration": {
         "para": 13,
@@ -45,7 +45,28 @@
       "blank": {
         "para": 13,
         "style": "normal"
+      },
+      "line": {
+        "para": 13,
+        "style": "normal"
       }
+    },
+    "bar": {
+      "para": 14,
+      "style": "bar",
+      "tblFill": 3,
+      "cellFill": 4,
+      "width": 55532,
+      "height": 2600,
+      "cellHeight": 2600,
+      "repeatHeader": "0",
+      "treatAsChar": "0",
+      "hasMargin": "1",
+      "vertAlign": "CENTER",
+      "tailRun": 5,
+      "outMargin": "left=\"0\" right=\"0\" top=\"140\" bottom=\"140\"",
+      "inMargin": "left=\"0\" right=\"0\" top=\"0\" bottom=\"0\"",
+      "cellMargin": "left=\"300\" right=\"300\" top=\"120\" bottom=\"120\""
     }
   },
   "card": {
