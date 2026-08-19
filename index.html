@@ -60,6 +60,7 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .btn{display:inline-block;background:var(--accent);color:#0c1020;border:none;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;width:100%}
 .btn.sub{background:var(--card2);color:var(--text);border:1px solid var(--line);font-weight:500}
 .btn.sub.saveAsWarn{border-color:var(--warn);color:var(--warn)}
+.btn.sub.on{background:var(--accent);color:#0c1020;border-color:transparent;font-weight:700}
 .btn.gold{background:var(--accent2)}
 .btn:disabled{opacity:.45;cursor:default}
 /* ── 본문 칸에 붙은 [본문 연구] — 회색 미니버튼은 눈에 안 띄어 강조색 버튼으로 본문 입력칸 옆에 고정 (v480) ── */
@@ -2885,6 +2886,7 @@ function ensureText(id){
     if (d && d['원고텍스트'] != null) s['원고텍스트'] = d['원고텍스트'];
     if (d && d['요약본'] && !String(s['요약본'] || '').trim()) s['요약본'] = d['요약본'];
     if (d && d['실제요약본'] && !String(s['실제요약본'] || '').trim()) s['실제요약본'] = d['실제요약본'];
+    if (d && d['전사문'] != null && String(d['전사문']).trim()) s['전사문'] = d['전사문'];
     s._txt = true; s._txtAt = String(s['수정일'] || '') || nowLocalStr_(); saveData(); return s;
   }).catch(function(){
     /* 통신 실패 → 캐시 본문 유지. 단, 낡은 캐시임을 알면서 갱신에 실패한 경우엔 알려준다. */
@@ -3119,6 +3121,9 @@ function openDetail(kind, id){
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
     if (state.settings && (state.settings.geminiKey || state.settings.vidProxyUrl || state.settings.proxyUrl))   /* Gemini 키 또는 프록시 설정 시 노출 */
       html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
+    /* 원고 요약본과 실제 설교 요약본이 둘 다 있을 때만 — 강단에서 원고를 어떻게 바꿔 선포했는지 비교 */
+    if (String(s['요약본'] || '').trim() && String(s['실제요약본'] || '').trim())
+      html += '<div class="toolrow"><button class="btn sub mini" onclick="cmpOpen(\'' + esc(s['ID']) + '\')">⚖ 원고 ↔ 실제 설교 비교</button></div>';
     html += '<div class="toolrow"><button class="btn sub mini" onclick="shareSermon(\'' + esc(s['ID']) + '\')">↗ 공유 (카카오·메시지)</button>'
       + '<button class="btn sub mini" onclick="shareSermonCards(\'' + esc(s['ID']) + '\')">🖼 카드뉴스 공유 (5장)</button></div>';
     html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
@@ -13154,8 +13159,10 @@ async function aiYouTubeSummarize(id){
     if (!trans) { toast('전사 결과가 비어 있습니다 — 영상이 공개인지, 설교 구간이 있는지 확인해 주세요.'); return; }
     if (j.truncated) toast('⚠ 전사문 일부가 길이 제한으로 잘렸을 수 있습니다 — 요약본을 확인해 주세요.');
     var span = (j.start_mmss && j.end_mmss && j.end_mmss !== '0:00') ? (' (' + j.start_mmss + '~' + j.end_mmss + ')') : '';
-    /* 전사문은 원고텍스트가 비어 있을 때만 저장(준비된 원고 보존). */
-    var setData = { ID: id };
+    /* 전사문은 항상 '전사문' 칸에 남긴다(원고 ↔ 실제 설교 비교용, v520).
+       '원고텍스트'는 비어 있을 때만 채운다(준비된 원고 보존). */
+    var setData = { ID: id, '전사문': trans };
+    s['전사문'] = trans;
     if (!String(s['원고텍스트'] || '').trim()) { setData['원고텍스트'] = trans; s['원고텍스트'] = trans; s._txt = true; s._txtAt = nowLocalStr_(); }
     await apiPost({ action: 'update', sheet: 'sermons', data: setData });
     toast('전사 완료' + span + ' — 이어서 Opus가 요약본을 생성합니다…');
@@ -13178,6 +13185,163 @@ async function aiYouTubeSummarize(id){
   } catch (e) { hideGenOverlay(); renderSyncState(); toast('유튜브 요약 실패: ' + e.message); }
 }
 window.aiYouTubeSummarize = aiYouTubeSummarize;
+
+/* ══ 원고 ↔ 실제 설교 비교 (v520) ═══════════════════════════════════════════
+   준비한 원고와 실제로 선포한 설교를 나란히 놓고, 강단에서 무엇을 더하고 덜고
+   바꾸셨는지 살핀다. 원고 전문·전사문이 둘 다 있으면 그것으로(정밀), 없으면
+   요약본끼리 비교한다. 결과는 이 세션 동안만 캐시(재분석 버튼으로 다시 생성). */
+var CMP_MAX = 24000;                 /* 한쪽당 분석에 넣을 최대 글자 수 */
+window._cmpCache = window._cmpCache || {};
+
+var P_CMP = [
+  '당신은 설교학 훈련을 받은 분석가입니다. 같은 설교의 「준비한 원고」와 「실제로 선포한 설교」를 비교합니다.',
+  '설교자가 강단에서 회중의 반응·성령의 인도·현장 상황에 따라 원고를 어떻게 능동적으로 바꾸었는지 밝히는 것이 목적입니다.',
+  '평가나 점수를 매기지 말고, 관찰된 사실과 그 목회적 의미를 담담히 서술하세요.',
+  '차이가 거의 없으면 억지로 만들어내지 말고 그렇다고 적으세요.',
+  '',
+  '출력은 반드시 JSON 객체 하나만:',
+  '{"한줄": "가장 큰 변화를 한 문장으로",',
+  ' "유지": ["원고대로 지켜진 핵심 축 2~4개"],',
+  ' "추가": [{"내용": "실제 설교에만 있는 것", "해석": "왜 더하셨을지"}],',
+  ' "생략": [{"내용": "원고에만 있고 선포되지 않은 것", "해석": "왜 덜어내셨을지"}],',
+  ' "강조변화": [{"내용": "비중·어조가 달라진 지점", "해석": "그 효과"}],',
+  ' "구성변화": ["순서·전개가 달라진 점"],',
+  ' "관찰": "설교자에게 도움이 될 관찰 3~5문장. 다음 설교 준비에 참고할 만한 패턴 위주."}'
+].join('\n');
+
+function cmpSrc(s){
+  var ms = String(s['원고텍스트'] || '').trim(), rl = String(s['전사문'] || '').trim();
+  if (ms && rl) return { basis: '원고 전문 ↔ 실제 전사문', ms: ms.slice(0, CMP_MAX), rl: rl.slice(0, CMP_MAX), full: true };
+  return { basis: '원고 요약본 ↔ 실제 설교 요약본',
+           ms: String(s['요약본'] || '').trim().slice(0, CMP_MAX),
+           rl: String(s['실제요약본'] || '').trim().slice(0, CMP_MAX), full: false };
+}
+
+function cmpClose(){
+  var ov = document.getElementById('cmpOv');
+  if (ov) ov.remove();
+  document.body.style.overflow = '';
+}
+window.cmpClose = cmpClose;
+
+async function cmpOpen(id){
+  var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
+  try { await ensureText(id); } catch (e){}          /* 원고 전문·전사문 지연 로드 */
+  s = findSermon(id) || s;
+  var src = cmpSrc(s);
+  if (!src.ms || !src.rl) { toast('원고 요약본과 실제 설교 요약본이 둘 다 있어야 비교할 수 있습니다.'); return; }
+
+  cmpClose();
+  var ov = document.createElement('div');
+  ov.id = 'cmpOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:var(--bg);display:flex;flex-direction:column';
+  ov.innerHTML =
+    '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;justify-content:space-between;' +
+      'padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line);background:var(--card)">' +
+      '<div style="min-width:0"><div style="font-weight:800;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⚖ 원고 ↔ 실제 설교</div>' +
+      '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + esc(s['제목'] || '') + ' · ' + esc(src.basis) + '</div></div>' +
+      '<button class="btn sub mini" onclick="cmpClose()">× 닫기</button></div>' +
+    '<div style="flex:0 0 auto;display:flex;gap:6px;padding:10px 14px 0">' +
+      '<button class="btn sub mini" id="cmpTabA" onclick="cmpTab(0)">나란히 보기</button>' +
+      '<button class="btn sub mini" id="cmpTabB" onclick="cmpTab(1)">AI 분석</button>' +
+      '<button class="btn sub mini" style="margin-left:auto" onclick="cmpAnalyze(\'' + esc(id) + '\', true)">↻ 다시 분석</button></div>' +
+    '<div id="cmpBody" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(20px + env(safe-area-inset-bottom))"></div>';
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+  window._cmpId = id;
+  cmpTab(0);
+}
+window.cmpOpen = cmpOpen;
+
+/* 0 = 나란히 보기, 1 = AI 분석 */
+function cmpTab(n){
+  var id = window._cmpId, s = findSermon(id); if (!s) return;
+  var a = document.getElementById('cmpTabA'), b = document.getElementById('cmpTabB');
+  if (a) a.classList.toggle('on', n === 0);
+  if (b) b.classList.toggle('on', n === 1);
+  var body = document.getElementById('cmpBody'); if (!body) return;
+  window._cmpTab = n;
+
+  if (n === 0) {
+    var wide = window.innerWidth >= 900;
+    var col = function(title, tag, txt){
+      return '<div style="flex:1 1 0;min-width:0">' +
+        '<div style="font-weight:800;font-size:13.5px;margin-bottom:6px">' + title +
+        ' <span style="font-weight:400;color:var(--dim)">' + tag + '</span></div>' +
+        '<div class="fulltext" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px">' +
+        mdSum(esc(txt)) + '</div></div>';
+    };
+    body.innerHTML = '<div style="display:flex;gap:12px;flex-direction:' + (wide ? 'row' : 'column') + '">' +
+      col('준비한 원고', '요약본', String(s['요약본'] || '')) +
+      col('실제 설교', '유튜브 전사 요약', String(s['실제요약본'] || '')) + '</div>';
+    return;
+  }
+
+  var cached = window._cmpCache[id];
+  if (cached) { body.innerHTML = cmpHtml(cached); return; }
+  body.innerHTML = '<div class="libLoading" style="padding:30px 0"><span class="bigspin"></span>' +
+    '<span class="ltxt">아직 분석하지 않았습니다.</span></div>' +
+    '<div class="toolrow"><button class="btn sub" onclick="cmpAnalyze(\'' + esc(id) + '\')">AI로 차이 분석하기</button></div>' +
+    '<div class="cnt" style="margin-top:8px">원고와 실제 선포를 견주어 <b>더한 것·덜어낸 것·강조가 달라진 지점</b>을 정리합니다.</div>';
+}
+window.cmpTab = cmpTab;
+
+async function cmpAnalyze(id, force){
+  var s = findSermon(id); if (!s) return;
+  if (!force && window._cmpCache[id]) { window._cmpTab = 1; cmpTab(1); return; }
+  if (!aiKey()) { toast('설정에서 Claude API 키를 넣어야 분석할 수 있습니다.'); return; }
+  var src = cmpSrc(s);
+  if (!src.ms || !src.rl) { toast('비교할 자료가 부족합니다.'); return; }
+  var body = document.getElementById('cmpBody');
+  if (body) body.innerHTML = '<div class="libLoading" style="padding:30px 0"><span class="bigspin"></span><span class="ltxt">차이를 살피는 중…</span></div>';
+  try {
+    var out = await callClaude(P_CMP,
+      '제목: ' + (s['제목'] || '') + '\n본문: ' + (s['본문'] || '') + '\n비교 기준: ' + src.basis +
+      '\n\n[준비한 원고]\n' + src.ms + '\n\n[실제로 선포한 설교]\n' + src.rl,
+      8000, aiTick('비교분석'));
+    var j = aiJson(out);
+    if (!j || !j['한줄']) throw new Error('분석 응답 형식 오류 — 다시 시도해 주세요.');
+    j.__basis = src.basis;
+    window._cmpCache[id] = j;
+    window._cmpTab = 1;
+    if (document.getElementById('cmpBody')) cmpTab(1);
+    else toast('비교 분석 완료');
+  } catch (e) {
+    if (body) body.innerHTML = '<div class="empty">분석 실패: ' + esc(e.message) + '</div>' +
+      '<div class="toolrow"><button class="btn sub" onclick="cmpAnalyze(\'' + esc(id) + '\', true)">다시 시도</button></div>';
+    else toast('비교 분석 실패: ' + e.message);
+  }
+}
+window.cmpAnalyze = cmpAnalyze;
+
+function cmpHtml(j){
+  var box = function(title, inner, accent){
+    if (!inner) return '';
+    return '<div style="background:var(--card);border:1px solid var(--line);border-left:3px solid ' + (accent || 'var(--line)') +
+      ';border-radius:10px;padding:11px 13px;margin-bottom:10px">' +
+      '<div style="font-weight:800;font-size:13.5px;margin-bottom:6px">' + title + '</div>' + inner + '</div>';
+  };
+  var pairs = function(arr){
+    if (!arr || !arr.length) return '';
+    return arr.map(function(o){
+      if (typeof o === 'string') return '<div style="margin-bottom:7px">· ' + esc(o) + '</div>';
+      return '<div style="margin-bottom:9px">· <b>' + esc(o['내용'] || '') + '</b>' +
+        (o['해석'] ? '<div style="color:var(--dim);font-size:13px;margin-top:3px;padding-left:11px">↳ ' + esc(o['해석']) + '</div>' : '') + '</div>';
+    }).join('');
+  };
+  var lines = function(arr){
+    if (!arr || !arr.length) return '';
+    return arr.map(function(t){ return '<div style="margin-bottom:6px">· ' + esc(String(t)) + '</div>'; }).join('');
+  };
+  return '<div style="font-size:15px;font-weight:700;line-height:1.6;margin-bottom:12px">' + esc(j['한줄'] || '') + '</div>' +
+    box('그대로 지켜진 축', lines(j['유지']), 'var(--dim)') +
+    box('➕ 강단에서 더하신 것', pairs(j['추가']), 'var(--ok)') +
+    box('➖ 덜어내신 것', pairs(j['생략']), 'var(--warn)') +
+    box('◑ 강조가 달라진 지점', pairs(j['강조변화']), 'var(--accent2)') +
+    box('↕ 구성·순서 변화', lines(j['구성변화']), 'var(--accent)') +
+    box('설교자를 위한 관찰', '<div style="line-height:1.75">' + esc(j['관찰'] || '').replace(/\n/g, '<br>') + '</div>', 'var(--accent)') +
+    '<div class="cnt" style="margin-top:4px">비교 기준: ' + esc(j.__basis || '') + ' · 이 분석은 저장되지 않습니다(앱을 새로 열면 다시 분석).</div>';
+}
 
 /* ── 공유 (회중·동료에게 카카오/메시지로) ───────────────────────────────────
    navigator.share(파일 가능 시 파일째, 아니면 텍스트), 둘 다 없으면 클립보드 복사. */
@@ -21690,7 +21854,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v519';
+var APP_VER = 'v520';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
