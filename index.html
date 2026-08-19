@@ -14490,6 +14490,7 @@ var P_IMGDATA = [
   'type 의미: 표지(#1만, 영문 프롬프트 — 설교 전체 주제를 상징하는 장면으로 쓰되, 상징 요소·빛은 화면 가장자리·주변부에 배치하고 중앙은 제목 텍스트가 들어갈 어둡고 고요한 여백으로 비운 구도로 묘사), 일반(분위기 배경 — 영문 프롬프트), 본문(성경 본문을 얹을 배경 — 새 이미지를 만들지 않고 직전 일반 이미지를 어둡게·흐리게 가공해서 쓴다. en은 빈 문자열. ref=장절 약어, verse=원고에 인용된 그 성구 원문 그대로 — 앱이 이 값으로 성구를 자동 합성한다).',
   '★표현 방식(style) — 일반·표지 컷은 두 갈래로 명확히 구분한다: (가) 정보성 = 본문의 시대·장소·상황·역사적 배경을 청중이 이해하도록 돕는 장면 → style "사실적": 사실적이고 디테일하게(realistic, detailed, historically grounded, documentary-like painterly). (나) 메시지·상징·정서 = 설교의 메시지·상징적 의미·감정을 담는 장면 → style "추상적": 추상적·상징적으로(abstract, symbolic, minimal, evocative — 구체적 사물보다 빛·색·질감·형상 중심). 추상 이미지는 여러 단락을 한 화면으로 길게 덮어도 어색하지 않다. (본문 컷의 style은 직전 일반 컷을 따른다.)',
   'en(일반·표지만): 위 style을 그대로 반영해 그 단락의 장면을 묘사한다 — 사실적이면 구체적 디테일·고증, 추상적이면 상징·빛·색·질감 중심(특정 사물 최소화). 공통: 시네마틱 회화풍(cinematic painterly), 극적 명암(dramatic chiaroscuro), 사람 얼굴 없음·글자 없음(no visible faces, no text). 1~2문장. ※ "deep black background / vignette / 16:9" 같은 LED 마무리 문구는 절대 쓰지 마라(시스템이 자동 추가). 오직 장면 묘사.',
+  '★★★"발췌" 필드가 있으면 그것이 절대 기준이다 — 그 컷이 실제로 덮는 원고 구간 원문이다. 이미지는 ★반드시 그 발췌 안의 장면만 그린다. 발췌 밖(앞뒤 다른 컷이 담당하는 내용)은 절대 그리지 마라. 발췌가 예화면 그 예화 장면을, 성경 장면이면 그 성경 장면을 그린다. ko(한국어 설명)도 발췌 내용과 일치해야 한다.',
   '★★그 컷이 그리는 대상 = 자기 anchor 지점에서 "시작되는" 장면이다. 자기 범위(anchor ~ 다음 컷 anchor 직전)를 벗어난 뒤쪽 내용, 특히 뒤에 나오는 예화를 미리 그리지 마라. 범위 안에 예화가 통째로 들어 있으면 그 예화 장면이 아니라 ★구간 앞머리의 장면·주제를 그린다(예화에는 예화 자신의 컷이 따로 있다).',
   '★★인물 고증(매우 중요): 그 구간에 실제로 등장하는 인물을 원고에서 확인해 성별·인원수·시대·복장·행동을 en에 명확히 적는다. ①성경 장면이면 그 본문 인물의 성별을 정확히 반영한다(예: 무덤 앞에 남은 사람이 막달라 마리아면 → "a woman in first-century Judean robes", 절대 남성으로 묘사하지 말 것). ②현대 예화면 예화 속 인물의 성별·나이대(대학생·청년·어머니 등)에 맞춘다. ③얼굴은 보이지 않게 하되(뒷모습·역광·실루엣) 성별과 시대는 복장·머리 모양·체형으로 분명히 드러나게 묘사한다. ④en에 사람을 넣을 때는 반드시 성별을 명시한 표현(a woman / a young man / a young woman …)을 쓴다 — "a person", "a figure"처럼 모호하게 두면 남성으로 그려진다. ⑤원고에 인물이 특정되지 않으면 사람을 넣지 말고 사물·빛·공간으로 표현하라(틀린 성별의 인물보다 낫다).',
   '★en 안전 규칙(오생성 방지): 인물은 한 명 또는 명확히 분리된 실루엣으로만 묘사하고(겹치거나 융합된 형상·여러 몸이 붙은 구도 금지), 강·물·바다 장면에 사람을 눕히거나 떠 있게 묘사하지 마라(시신 연상). 모호하게 뭉친 군중·포개진 몸 대신 빛·길·손짓 등 명료한 단일 요소로 표현한다.',
@@ -14516,8 +14517,17 @@ async function aiImgData(meta){
   /* ★ 컷 목록(개수·번호·종류·지점)은 단일 전환표(T)가 결정한다 — 모델은 새로 정하지 않고 프롬프트 필드만 채운다.
      → 카드원고·전환표시본·생성이미지가 전부 같은 전환표를 공유(전환 시점·이미지 수 일치). */
   if (Array.isArray(T) && T.length) {
+    /* ★ 컷마다 "그 컷이 실제로 덮는 원고 구간"을 함께 넘긴다(v525) — 모델이 범위를 추측하다
+       뒤쪽 예화를 앞 컷 이미지로 그리던 사고를 막는다. */
+    var _tp = transParas(meta['원고텍스트']);
+    var _ti = T.map(function(e){ return transAnchorIdx(_tp, e.a); });
     var base = [{ n: 1, type: '표지', role: '표지', anchor: '' }].concat(
-      T.map(function(e){ return { n: e.n, type: e.t, role: e.role || '', anchor: e.a || '' }; }));
+      T.map(function(e, k){
+        var nx = -1;
+        for (var q = k + 1; q < _ti.length; q++){ if (_ti[q] > _ti[k]) { nx = _ti[q]; break; } }
+        return { n: e.n, type: e.t, role: e.role || '', anchor: e.a || '',
+                 '발췌': transExcerpt(_tp, _ti[k], nx, 700) };
+      }));
     var inp = { '제목': meta['제목'], '본문': meta['본문'], '예배구분': meta['예배구분'], '날짜': meta['날짜'],
       '원고': meta['원고텍스트'], '컷목록(고정)': base };
     var out = await callClaude(P_IMGDATA, JSON.stringify(inp), 32000, aiTick('이미지자료(프롬프트)'));
@@ -15671,6 +15681,67 @@ function storeTransIfEmpty(id, table){
 /* ★ 번호 결정론화: 표지(#1) 제외, 전환표는 배열 순서대로 #2,#3,#4… 고유·연속 번호를 강제한다.
    본문 컷이 "직전 일반 이미지의 변형"이라 LLM이 같은 번호를 재사용하는 버그를 코드에서 차단한다
    (본문 컷도 자기 고유 번호를 받는다 — 카드원고·이미지자료·전환표시본·PDF/PPTX 배지가 모두 이 표를 따르므로 한 번에 일관). */
+/* ══ 예화 앞 전환 강제 (v525) ════════════════════════════════════════════════
+   모델에게 "예화 앞에 컷을 두라"고 시켜도 앵커가 한두 단락 앞으로 밀리는 일이 잦았다.
+   → 원고를 코드로 훑어 예화("ex)" 줄) 위치를 직접 찾고, 그 줄에 앵커된 일반 컷이
+   없으면 앱이 직접 끼워 넣는다(= 전환 시점 지정). 연속 예화는 첫 예화 앞에만 한 컷을
+   두되, 모델이 뒤 예화에도 컷을 뒀으면(그림이 선명해 따로 쓸 값어치가 있다고 본 것)
+   그대로 살린다. 새로 만들 때만 적용 — 이미 확정된 표에는 손대지 않는다(번호 보존). */
+function transParas(txt){ return String(txt || '').split('\n').map(function(l){ return l.trim(); }); }
+function transKey(s){ return String(s || '').replace(/\*\*/g, '').replace(/[\s"'“”‘’·,.]/g, '').toLowerCase(); }
+function transIsEx(l){ return /^(\(예화\)|ex\s*\))/i.test(String(l || '').trim()); }
+function transIsHead(l){ l = String(l || '').trim(); return /^\(대지\)/.test(l) || /^\d{1,2}\s*[.)](?!\d)\s*\S/.test(l) || /^\[대지/.test(l) || /^\(결론\)/.test(l); }
+/* 앵커 문자열이 가리키는 원고 문단 번호 (못 찾으면 -1) */
+function transAnchorIdx(paras, a){
+  var k = transKey(a).slice(0, 10);
+  if (!k) return -1;
+  for (var i = 0; i < paras.length; i++){ var p = transKey(paras[i]); if (p && p.indexOf(k) === 0) return i; }
+  for (var j = 0; j < paras.length; j++){ var q = transKey(paras[j]); if (q && q.indexOf(k) >= 0) return j; }
+  return -1;
+}
+function enforceExCuts(table, txt){
+  var paras = transParas(txt);
+  if (!paras.length) return table;
+  var rows = (table || []).map(function(r){ return { t: r.t || '일반', a: r.a || '', role: r.role || '', i: transAnchorIdx(paras, r.a) }; });
+  var last = -1;                                   /* 위치를 못 찾은 항목은 직전 항목 바로 뒤로 */
+  rows.forEach(function(r){ if (r.i < 0) r.i = last + 0.5; last = r.i; });
+
+  var ex = [];
+  paras.forEach(function(l, i){ if (transIsEx(l)) ex.push(i); });
+  /* 연속 예화 묶기: 사이에 대지 선언이 없고 본문 단락이 4개 이하면 한 묶음 */
+  var groups = [];
+  ex.forEach(function(i){
+    if (groups.length){
+      var g = groups[groups.length - 1], prev = g[g.length - 1];
+      var between = paras.slice(prev + 1, i).filter(function(l){ return l; });
+      if (!between.some(transIsHead) && between.length <= 4) { g.push(i); return; }
+    }
+    groups.push([i]);
+  });
+  groups.forEach(function(g){
+    var first = g[0];
+    var title = paras[first].replace(/^(\(예화\)|ex\s*\))\s*/i, '').trim();
+    var have = rows.some(function(r){ return r.t !== '본문' && Math.abs(r.i - first) < 0.6; });
+    if (!have) rows.push({ t: '일반', a: paras[first].slice(0, 30), role: '예화 — ' + title.slice(0, 22), i: first });
+  });
+
+  rows.sort(function(a, b){ return a.i - b.i; });
+  var out = [], seen = {};
+  rows.forEach(function(r){
+    var key = r.t + '|' + Math.round(r.i * 2);
+    if (seen[key]) return; seen[key] = 1;
+    out.push({ t: r.t, a: r.a, role: r.role });
+  });
+  return out;
+}
+/* 한 컷이 덮는 원고 구간 원문(다음 컷 앵커 직전까지) — 프롬프트 모델에 그대로 준다 */
+function transExcerpt(paras, from, to, cap){
+  if (from < 0) return '';
+  var end = (to != null && to > from) ? to : paras.length;
+  var s = paras.slice(from, end).filter(function(l){ return l; }).join(' ');
+  return s.slice(0, cap || 700);
+}
+
 function normalizeTransTable(table){
   if (!Array.isArray(table)) return table;
   var sawGeneral = false;
@@ -15692,6 +15763,7 @@ var P_TRANSPLAN = [
 '★분량 원칙: 잦은 "일반(분위기)" 전환은 청중의 집중을 흩뜨리니 일반 컷은 아껴 묶는다. 단 "본문 컷"은 절대 억지로 줄이지 마라 — 봉독하는 본문 수가 본문 컷 수를 결정한다(아래 본문 컷 규칙 우선). 전체 장수는 일반 컷 절제로 조절하되, 본문 컷을 생략·병합해 줄이지 않는다.',
 '일반(분위기 배경) 전환: "설교 장면이 바뀌어 이전 이미지를 계속 두기 어색해지는 곳"(새 예화·새 국면 시작)에서만 둔다. 한 장면·한 흐름은 한 이미지로 길게 간다. 목표 6~10장. ★메시지·상징·정서 대목은 추상적 배경이라 여러 단락을 한 이미지로 길게 덮어도 어색하지 않다 — 아껴 묶어라.',
 '★★예화 규칙(2026-08-20 추가 — 최우선): 예화("ex)"로 시작하는 줄)는 화면이 반드시 바뀌어야 하는 지점이다. ①예화가 시작되기 "직전"에 일반 컷을 하나 둔다 — a(앵커)는 그 "ex) …" 제목 줄의 첫 30자 그대로. ②예화가 끝나고 본론(해석·적용)으로 돌아올 때도 새 일반 컷을 둔다(예화 장면 이미지를 본론까지 끌고 가지 않는다). ③이 규칙은 아래 "최소 한 단락" 원칙보다 우선한다.',
+'★연속 예화(같은 주제로 잇달아 나오는 예화들): 원칙은 ★첫 예화 앞에 한 컷만 두고 그 묶음을 한 이미지로 덮는다(이미지는 첫 예화 장면). 다만 뒤 예화가 그리는 그림이 앞 예화와 뚜렷이 다르고 선명하면(장소·시대·소재가 확연히 다른 장면) 그 예화 앞에도 컷을 둔다.',
 '★★한 컷의 범위 = 자기 앵커부터 "다음 컷 앵커 직전"까지다. 그 범위 안에 성격이 다른 장면(예화·다른 인물·다른 시대·다른 장소)이 섞이면 반드시 그 경계에서 컷을 나눠라. 한 컷이 두 장면을 함께 덮으면 이미지가 어느 쪽에도 맞지 않게 된다(실제 사고 사례: 성경 장면 구간에 컷을 두었는데 그 구간 뒤쪽 현대 예화가 그려짐).',
 '★한 이미지 최소 분량(일반 컷 한정): 일반 전환이 덮는 구간은 최소 한 단락(여러 문장)이어야 한다. 한 문장만 말하고 바로 다음 일반 이미지로 넘기지 마라. 특히 대지 선언("첫째 …", "둘째 …")은 그 자체로 한 일반 이미지를 차지하지 말고 ★바로 이어지는 본론·전개와 같은 이미지로 묶는다(대지 선언 직후 일반 전환 금지). (이 최소 분량 규칙은 일반 컷에만 적용 — 본문 컷에는 적용하지 않는다.)',
 '★★본문 컷 규칙(매우 중요 — 절대 절제·생략하지 말 것): 설교자가 강단에서 회중과 함께 화면을 보며 "읽는" 봉독 본문은 ★빠짐없이 각각 하나의 본문 컷으로 둔다(서로 다른 본문이면 각각 별도 번호). 예배 때 본문을 인용하며 화면을 한 장씩 넘겨 보여주어야 하기 때문이다. ① 연속·인접한 절(한 번에 이어 읽는 한 구간, 예: 17~18절)만 한 본문 컷으로 묶는다. ② 떨어져 있는 본문(예: 17절 … 한참 뒤 23절)은 절대 합치지 말고 각각 별도 본문 컷·별도 번호로 둔다. ③ 읽지 않고 스치듯 언급만 하는 인라인 인용("요 7:17에 보면…" 하고 지나감)에만 본문 컷을 만들지 않는다. 의심되면 본문 컷을 "두는" 쪽으로 결정하라(누락이 병합보다 나쁘다).',
@@ -15800,6 +15872,7 @@ async function ensureTransTable(id, meta){
       if (t2.length && t2.length < table.length) table = t2;   /* 더 적게 나왔을 때만 채택 */
     } catch (e) {}
   }
+  table = enforceExCuts(table, txt);    /* ★ 예화 앞 전환 강제(앵커를 원고에서 직접 찍는다) */
   table = normalizeTransTable(table);   /* ★ 번호 결정론화: #2부터 연속·고유(본문컷 번호 중복 차단) */
   window._cascTableFresh = true;   /* 이번 실행에서 표를 새로 만듦 — 같은 실행의 카드·컷은 이 표를 재사용 */
   if (table.length && id) {
@@ -21948,7 +22021,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v524';
+var APP_VER = 'v525';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
