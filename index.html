@@ -3100,7 +3100,7 @@ function openDetail(kind, id){
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성'], true);   /* 요청함(Cowork) 경유 — 데스크탑 전용 */
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
-    if (state.settings && (state.settings.vidProxyUrl || state.settings.proxyUrl))   /* 프록시(이미지/영상) 설정 시 노출 */
+    if (state.settings && (state.settings.geminiKey || state.settings.vidProxyUrl || state.settings.proxyUrl))   /* Gemini 키 또는 프록시 설정 시 노출 */
       html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
     html += '<div class="toolrow"><button class="btn sub mini" onclick="shareSermon(\'' + esc(s['ID']) + '\')">↗ 공유 (카카오·메시지)</button>'
       + '<button class="btn sub mini" onclick="shareSermonCards(\'' + esc(s['ID']) + '\')">🖼 카드뉴스 공유 (5장)</button></div>';
@@ -12907,14 +12907,165 @@ async function aiSummarize(id, s, force){
   } catch (e) { renderSyncState(); toast('요약 실패: ' + e.message); }
 }
 
+/* ══ 유튜브 전사 — 앱(브라우저)에서 Gemini 직접 호출 (v517) ═══════════════════
+   프록시 워커(클라우드플레어 해외 엣지)에서 Gemini를 부르면 'User location is not
+   supported' 지역 차단이 난다(결제 연결 키도 마찬가지 — 2026-06/08 실측). 반면
+   generativelanguage API는 CORS를 허용하므로, 브라우저에서 직접 부르면 요청 출발지가
+   사용자(한국)라 차단되지 않는다. 설정에 Gemini 키가 있으면 이 경로를 쓰고,
+   없으면 기존 워커 /youtube 라우트로 폴백한다.
+
+   방식(워커판과 동일): ① 스캔 = 길이/설교구간만 짧은 JSON으로 확인
+                      ② 전사 = 10분 창으로 쪼개 순수 텍스트로 병렬 호출 → 이어붙임
+   (한 번에 통짜 JSON으로 받으면 출력 토큰 한도에 걸려 잘리고 파싱이 깨진다.) */
+function geminiKey(){ return String((state.settings || {}).geminiKey || '').trim(); }
+
+/* Gemini는 '표준 시청 URL'만 영상으로 인식 — live/·shorts/·youtu.be·부가 파라미터를 정리.
+   (안 하면 웹페이지로 받아 'Unsupported MIME type: text/html' 오류) */
+function ytNormalizeUrl(u){
+  try {
+    var url = new URL(String(u || '').trim());
+    var h = url.hostname.replace(/^m\./, '').replace(/^www\./, '');
+    var id = '';
+    if (h === 'youtu.be') id = (url.pathname.split('/').filter(Boolean)[0] || '');
+    else if (/youtube(-nocookie)?\.com$/.test(h)) {
+      id = url.searchParams.get('v') || '';
+      if (!id) {
+        var seg = url.pathname.split('/').filter(Boolean);
+        if (seg.length >= 2 && ['live', 'shorts', 'embed', 'v'].indexOf(seg[0]) >= 0) id = seg[1];
+      }
+    }
+    return /^[A-Za-z0-9_-]{6,}$/.test(id) ? ('https://www.youtube.com/watch?v=' + id) : String(u || '').trim();
+  } catch (e) { return String(u || '').trim(); }
+}
+function gemText(data){
+  var c = data && data.candidates && data.candidates[0];
+  if (!c || !c.content || !c.content.parts) return '';
+  return c.content.parts.map(function(p){ return p.text || ''; }).join('');
+}
+/* generateContent 호출 + 429/5xx 재시도 */
+async function gemVideo(model, parts, gcfg, key){
+  var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
+  var last = '', cfg = gcfg, slim = false;
+  for (var i = 0; i < 3; i++) {
+    if (i) await new Promise(function(r){ setTimeout(r, 1500 * i); });
+    var res;
+    try {
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: parts }], generationConfig: cfg }) });
+    } catch (e) { last = '네트워크 오류: ' + e.message; continue; }
+    var data = await res.json().catch(function(){ return {}; });
+    if (res.ok) return data;
+    var msg = (data && data.error && data.error.message) || ('HTTP ' + res.status);
+    /* 모델·버전에 따라 mediaResolution·thinkingConfig를 모르는 경우가 있어, 그때는 빼고 한 번 더 */
+    if (!slim && /unknown name|cannot find field|invalid json payload/i.test(msg)) {
+      slim = true; cfg = { temperature: gcfg.temperature, maxOutputTokens: gcfg.maxOutputTokens };
+      if (gcfg.responseMimeType) cfg.responseMimeType = gcfg.responseMimeType;
+      i--; continue;
+    }
+    if (/Unsupported MIME type: text\/html/i.test(msg))
+      last = "유튜브 링크를 '영상'으로 인식하지 못했습니다 — 비공개·미등록·연령제한·멤버십 전용이거나 아직 처리 중인 라이브일 수 있습니다.";
+    else if (/API key not valid|API_KEY_INVALID/i.test(msg)) last = 'Gemini API 키가 유효하지 않습니다(설정에서 확인).';
+    else if (/User location is not supported/i.test(msg)) last = 'Gemini가 이 위치를 지원하지 않습니다 — VPN을 끄고 다시 시도해 주세요.';
+    else last = 'Gemini ' + res.status + ': ' + msg;
+    if (res.status !== 429 && res.status < 500) break;
+  }
+  throw new Error(last || 'Gemini 호출 실패');
+}
+function ytWins(start, end){
+  var total = Math.max(0, end - start), win = 600;            /* 창 = 10분 */
+  if (total / win > 18) win = Math.ceil(total / 18);          /* 최대 18창(=3시간) */
+  var out = [];
+  for (var t = start; t < end; t += win) out.push({ start: t, end: Math.min(end, t + win) });
+  return out.length ? out : [{ start: start, end: end }];
+}
+async function pMapLimit(items, limit, fn){
+  var out = new Array(items.length), i = 0;
+  var workers = [];
+  for (var w = 0; w < Math.min(limit, items.length); w++) {
+    workers.push((async function(){
+      while (true) { var idx = i++; if (idx >= items.length) return; out[idx] = await fn(items[idx], idx); }
+    })());
+  }
+  await Promise.all(workers);
+  return out;
+}
+function ytMmss(sec){ sec = Math.max(0, Math.round(sec || 0)); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); }
+
+/* 앱에서 직접 전사 → 워커 응답과 같은 모양({ok,transcript,start_mmss,…})으로 돌려준다. */
+async function ytTranscribeInApp(rawUrl, serviceType, key){
+  var yt = ytNormalizeUrl(rawUrl);
+  var model = 'gemini-2.5-flash';
+  var vpart = function(win){
+    var p = { file_data: { file_uri: yt } };
+    if (win) p.video_metadata = { start_offset: Math.round(win.start) + 's', end_offset: Math.round(win.end) + 's' };
+    return p;
+  };
+
+  /* ① 스캔 — 길이(+ 예배 전체면 설교 구간) */
+  var start = 0, end = 0;
+  try {
+    var sp = (serviceType === 'full')
+      ? ['이 영상은 한국 교회의 예배 실황 전체입니다.',
+         '이 안에서 「설교(말씀 선포) 부분」이 시작하고 끝나는 시각을 초 단위로 찾아 주세요.',
+         '설교는 보통 성경 본문 봉독으로 시작하여 마무리 권면과 기도로 끝납니다. 찬양·대표기도·봉헌·광고·성가대·축도는 설교가 아닙니다.',
+         '전사문은 출력하지 마세요. 시각만 필요합니다.',
+         '반드시 아래 JSON 하나만 출력: {"start_sec":number,"end_sec":number,"duration_sec":number}'].join('\n')
+      : ['이 영상은 한국 교회의 설교(말씀 선포) 영상입니다.',
+         '영상 전체 길이(초)와, 실제 말씀이 시작·끝나는 시각(초)을 알려 주세요.',
+         '전사문은 출력하지 마세요. 시각만 필요합니다.',
+         '반드시 아래 JSON 하나만 출력: {"start_sec":0,"end_sec":number,"duration_sec":number}'].join('\n');
+    var sd = await gemVideo(model, [vpart(null), { text: sp }],
+      { temperature: 0, maxOutputTokens: 2048, responseMimeType: 'application/json',
+        mediaResolution: 'MEDIA_RESOLUTION_LOW', thinkingConfig: { thinkingBudget: 0 } }, key);
+    var st = gemText(sd).trim(), pj = null;
+    try { pj = JSON.parse(st); } catch (e) { var mm = st.match(/\{[\s\S]*?\}/); if (mm) pj = JSON.parse(mm[0]); }
+    if (pj) {
+      var dur = Number(pj.duration_sec || 0);
+      start = Math.max(0, Number(pj.start_sec || 0));
+      end = Number(pj.end_sec || 0);
+      if (!(end > start)) { start = 0; end = dur; }
+      if (dur > 0) end = Math.min(end, dur);
+      if (!(end > start) || !isFinite(end)) { start = 0; end = 0; }
+      else if (serviceType === 'full') { start = Math.max(0, start - 15); end = end + 15; }   /* 앞뒤 15초 여유 */
+    }
+  } catch (eScan) { start = 0; end = 0; }   /* 스캔 실패 → 통짜 1회 전사로 폴백 */
+
+  /* ② 전사 — 10분 창 병렬(순수 텍스트) */
+  var tprompt = function(win){
+    return [(win ? ('한국 교회 설교 영상의 ' + ytMmss(win.start) + '부터 ' + ytMmss(win.end) + '까지 구간을') : '이 설교 영상 전체를') + ' 한국어로 정확히 받아쓰세요.',
+      '- 실제로 말한 내용만 전사합니다(요약·해설·머리말·타임스탬프·번호 금지).',
+      '- 구어를 살리되 군더더기(음/어/그 등)는 정리하고, 성경 인명·지명·신학 용어는 표준 한글 표기로 적습니다.',
+      '- 찬양·기도·광고 등 말씀 선포가 아닌 소리는 전사하지 않습니다.',
+      '- 말이 없으면 아무것도 출력하지 마세요.',
+      '전사문 본문만 출력하세요.'].join('\n');
+  };
+  var gcfg = { temperature: 0.2, maxOutputTokens: 65536, mediaResolution: 'MEDIA_RESOLUTION_LOW', thinkingConfig: { thinkingBudget: 0 } };
+  var wins = (end > start) ? ytWins(start, end) : [null];
+  var got = 0, truncated = false;
+  var texts = await pMapLimit(wins, 6, async function(w){
+    var d = await gemVideo(model, [vpart(w), { text: tprompt(w) }], gcfg, key);
+    var c = d && d.candidates && d.candidates[0];
+    if (c && c.finishReason === 'MAX_TOKENS') truncated = true;
+    var t = gemText(d);
+    got += t.length; try { updateGenOverlay(got); } catch (eU){}
+    return t;
+  });
+
+  var transcript = texts.map(function(t){ return String(t || '').trim(); }).filter(Boolean).join('\n').trim();
+  if (!transcript) throw new Error('전사 결과가 비어 있습니다 — 영상이 공개 상태인지 확인해 주세요.');
+  return { ok: true, transcript: transcript, truncated: truncated, chunks: wins.length,
+           start_sec: start, end_sec: end, start_mmss: ytMmss(start), end_mmss: ytMmss(end) };
+}
+
 /* 유튜브 링크 → (예배 전체 영상이면 설교 구간 자동 탐지) → Gemini 전사 → 이어서 Claude 요약본.
-   장년·새벽(설교만 업로드)·대학부(예배 전체) 모두 지원. 전사=Worker(Gemini), 요약=앱(Claude P_SUM). */
+   장년·새벽(설교만 업로드)·대학부(예배 전체) 모두 지원. 전사=Gemini(앱 직접 또는 워커), 요약=앱(Claude P_SUM). */
 async function aiYouTubeSummarize(id){
   try {
     if (!id) { toast('먼저 [시트에 저장]으로 설교를 저장해 주세요.'); return; }
     var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
+    var gk = geminiKey();                 /* 있으면 앱에서 Gemini 직접 호출(지역 차단 회피) */
     var c = vidProxyCfg();
-    if (!c.url || !c.token) { toast('설정 탭에서 유튜브 영상분석 프록시 URL과 토큰을 먼저 입력해 주세요.'); showPage('settings'); return; }
+    if (!gk && (!c.url || !c.token)) { toast('설정 탭에서 Gemini API 키(권장) 또는 영상분석 프록시 URL·토큰을 먼저 입력해 주세요.'); showPage('settings'); return; }
     if (!aiKey()) { toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 요약본을 만들 수 있습니다.'); return; }
     var url = await uiPrompt('설교 유튜브 링크를 입력하세요\n(대학부 예배 전체 영상도 가능 — 설교 부분을 자동으로 찾습니다)', '', { placeholder: 'https://youtu.be/...' });
     if (url === null) return;
@@ -12930,25 +13081,33 @@ async function aiYouTubeSummarize(id){
     var isFull = looksFull ? (pick === 'ok') : (pick === 'extra');
     var serviceType = isFull ? 'full' : 'sermon';
     showGenOverlay('유튜브 전사 (영상 길이에 따라 1~3분 걸립니다)');
-    var r, j, raw = '';
-    try {
-      r = await fetch(c.url + '/youtube', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-app-token': c.token },
-        body: JSON.stringify({ youtubeUrl: url, serviceType: serviceType })
-      });
-    } catch (e) { hideGenOverlay(); toast('영상 분석 프록시 연결 실패: ' + e.message); return; }
-    /* 워커가 JSON이 아닌 응답(클라우드플레어 오류·타임아웃 등)을 줄 때 원인이 보이도록 본문 일부를 보여준다. */
-    try { raw = await r.text(); } catch (e) { raw = ''; }
-    try { j = JSON.parse(raw); } catch (e) {
+    var j = null;
+    if (gk) {
+      /* ① 권장 — 앱에서 Gemini 직접 호출(지역 차단 없음) */
+      try { j = await ytTranscribeInApp(url, serviceType, gk); }
+      catch (e) { hideGenOverlay(); toast('전사 실패: ' + e.message); return; }
       hideGenOverlay();
-      var snip = String(raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
-      toast('영상 분석 서버 응답 오류 (HTTP ' + r.status + ')' + (snip ? ' — ' + snip : '') +
-            (r.status === 0 || r.status >= 500 ? '\n영상이 길어 시간이 초과됐을 수 있습니다. 워커를 최신본으로 재배포했는지 확인해 주세요.' : ''));
-      return;
+    } else {
+      /* ② 폴백 — 프록시 워커 /youtube 라우트 */
+      var r, raw = '';
+      try {
+        r = await fetch(c.url + '/youtube', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-app-token': c.token },
+          body: JSON.stringify({ youtubeUrl: url, serviceType: serviceType })
+        });
+      } catch (e) { hideGenOverlay(); toast('영상 분석 프록시 연결 실패: ' + e.message); return; }
+      /* 워커가 JSON이 아닌 응답(클라우드플레어 오류·타임아웃 등)을 줄 때 원인이 보이도록 본문 일부를 보여준다. */
+      try { raw = await r.text(); } catch (e) { raw = ''; }
+      try { j = JSON.parse(raw); } catch (e) {
+        hideGenOverlay();
+        var snip = String(raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+        toast('영상 분석 서버 응답 오류 (HTTP ' + r.status + ')' + (snip ? ' — ' + snip : ''));
+        return;
+      }
+      hideGenOverlay();
+      if (!j.ok) { toast('전사 실패: ' + (j.error || ('HTTP ' + r.status))); return; }
     }
-    hideGenOverlay();
-    if (!j.ok) { toast('전사 실패: ' + (j.error || ('HTTP ' + r.status))); return; }
     var trans = String(j.transcript || '').trim();
     if (!trans) { toast('전사 결과가 비어 있습니다 — 영상이 공개인지, 설교 구간이 있는지 확인해 주세요.'); return; }
     if (j.truncated) toast('⚠ 전사문 일부가 길이 제한으로 잘렸을 수 있습니다 — 요약본을 확인해 주세요.');
@@ -18831,6 +18990,7 @@ $('#saveSettings').addEventListener('click', function(){
     proxyUrl: ($('#setProxyUrl') ? $('#setProxyUrl').value.trim() : (state.settings && state.settings.proxyUrl) || ''),
     proxyToken: ($('#setProxyToken') ? $('#setProxyToken').value.trim() : (state.settings && state.settings.proxyToken) || ''),
     vidProxyUrl: ($('#setVidProxyUrl') ? $('#setVidProxyUrl').value.trim() : (state.settings && state.settings.vidProxyUrl) || ''),
+    geminiKey: ($('#setGeminiKey') ? $('#setGeminiKey').value.trim() : (state.settings && state.settings.geminiKey) || ''),
     memoUrl: ($('#setMemoUrl') ? $('#setMemoUrl').value.trim() : (state.settings && state.settings.memoUrl) || ''),
     memoKey: ($('#setMemoKey') ? $('#setMemoKey').value.trim() : (state.settings && state.settings.memoKey) || ''),
     imgEngine: ($('#imgEngineSel') ? $('#imgEngineSel').value : (state.settings && state.settings.imgEngine) || 'flux'),
@@ -18854,7 +19014,7 @@ function friendlyConnErr(e){
 }
 
 /* ===== 설정 이전 (기기 간, v444) — 코드 복사/붙여넣기 + 해시 링크 ===== */
-var XFER_KEYS = ['url', 'token', 'claudeKey', 'laUrl', 'laToken', 'proxyUrl', 'proxyToken', 'vidProxyUrl', 'memoUrl', 'memoKey', 'imgEngine'];
+var XFER_KEYS = ['url', 'token', 'claudeKey', 'laUrl', 'laToken', 'proxyUrl', 'proxyToken', 'vidProxyUrl', 'geminiKey', 'memoUrl', 'memoKey', 'imgEngine'];
 function xferEncode(){
   var o = {}; XFER_KEYS.forEach(function(k){ var v = (state.settings || {})[k]; if (v) o[k] = v; });
   return 'TSA1.' + btoa(unescape(encodeURIComponent(JSON.stringify(o))));
@@ -18871,7 +19031,7 @@ function xferDecode(code){
 }
 async function xferApply(o, srcLabel){
   var names = { url: 'API URL', token: 'API 토큰', claudeKey: 'Claude 키', laUrl: '리더스앱 URL', laToken: '리더스앱 토큰',
-    proxyUrl: '이미지 프록시', proxyToken: '프록시 토큰', vidProxyUrl: '유튜브 프록시', memoUrl: '성경앱 메모 URL', memoKey: '성경앱 메모 키', imgEngine: '이미지 엔진' };
+    proxyUrl: '이미지 프록시', proxyToken: '프록시 토큰', vidProxyUrl: '유튜브 프록시', geminiKey: 'Gemini 키', memoUrl: '성경앱 메모 URL', memoKey: '성경앱 메모 키', imgEngine: '이미지 엔진' };
   var list = Object.keys(o).map(function(k){ return names[k] || k; }).join(' · ');
   if (!await uiConfirm((srcLabel || '설정 코드') + '에서 아래 항목을 이 기기에 적용할까요?\n\n' + list + '\n\n(비어 있지 않은 항목만 덮어씁니다)')) return false;
   state.settings = state.settings || {};
@@ -18879,7 +19039,7 @@ async function xferApply(o, srcLabel){
   save(LS.settings, state.settings);
   /* 설정 화면 입력칸 동기화 */
   var f = { url: '#setUrl', token: '#setToken', claudeKey: '#setClaude', laUrl: '#setLaUrl', laToken: '#setLaToken',
-    proxyUrl: '#setProxyUrl', proxyToken: '#setProxyToken', vidProxyUrl: '#setVidProxyUrl', memoUrl: '#setMemoUrl', memoKey: '#setMemoKey' };
+    proxyUrl: '#setProxyUrl', proxyToken: '#setProxyToken', vidProxyUrl: '#setVidProxyUrl', geminiKey: '#setGeminiKey', memoUrl: '#setMemoUrl', memoKey: '#setMemoKey' };
   Object.keys(f).forEach(function(k){ var el = $(f[k]); if (el && o[k] != null) el.value = o[k]; });
   if (o.imgEngine && $('#imgEngineSel')) $('#imgEngineSel').value = o.imgEngine;
   toast('설정을 적용했습니다 — 연결을 확인합니다.');
@@ -21484,7 +21644,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v516';
+var APP_VER = 'v517';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -21525,6 +21685,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setProxyUrl')) $('#setProxyUrl').value = state.settings.proxyUrl || '';
   if ($('#setProxyToken')) $('#setProxyToken').value = state.settings.proxyToken || '';
   if ($('#setVidProxyUrl')) $('#setVidProxyUrl').value = state.settings.vidProxyUrl || '';
+  if ($('#setGeminiKey')) $('#setGeminiKey').value = state.settings.geminiKey || '';
   if ($('#setMemoUrl')) $('#setMemoUrl').value = state.settings.memoUrl || '';
   if ($('#setMemoKey')) $('#setMemoKey').value = state.settings.memoKey || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
