@@ -1535,6 +1535,7 @@ body.uiDlgOpen{overflow:hidden}
                 <div class="cascitem"><button class="btn sub" data-casc="bgimg" style="width:100%"><span class="blab">배경 이미지 생성</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="bgimg" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
               </div>
             </div>
+            <button class="btn sub" id="btnTransTable" style="width:100%;margin-top:8px"><span class="blab">🔎 이미지 전환표 보기 · 다시 잡기</span><small class="bpath">카드·전환표시·이미지가 공유하는 단일 기준표</small></button>
           </div>
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
         </div>
@@ -15698,6 +15699,83 @@ var P_TRANSPLAN = [
 '★★첫 컷(#2)은 반드시 "일반"이다 — 설교 서론/도입을 덮는 분위기 배경. 그리고 ★모든 본문 컷은 반드시 그 앞에 일반 컷이 먼저 와야 한다(본문 컷은 직전 일반 이미지를 가공해 만들기 때문). 본문 컷을 #2(첫 컷)로 두거나, 일반 없이 본문을 연속으로 두지 마라.',
 '출력은 JSON 하나만(설명·코드펜스 금지): {"trans":[{"n":2,"t":"일반"|"본문","a":"그 전환이 들어갈 원고 지점 — 직후 단락/인용의 첫 30자 그대로","role":"한국어 역할(예: 서론 / 1대지 선언 / 본문 요 7:17)"}]}  (#2부터, n 오름차순).',
 '한국어. 다시 강조 — 일반 컷은 아껴 묶되, 봉독하는 본문은 빠짐없이 각각 본문 컷으로(떨어진 본문은 합치지 말 것).'].join('\n');
+/* ══ 이미지 전환표 보기 · 다시 잡기 (v523) ═══════════════════════════════════
+   전환표는 카드원고·전환표시본·이미지가 공유하는 단일 기준표라, 한 번 만들어지면
+   원고가 바뀌기 전까지 재사용된다. 예전에는 [Total Sermon 내보내기]로 전체를 다시
+   만들 때만 새로 잡혔다 — 표만 따로 확인·재생성할 길이 없었다. 이 화면이 그 창구다. */
+function transTableClose(){
+  var ov = document.getElementById('ttOv'); if (ov) ov.remove();
+  document.body.style.overflow = '';
+}
+window.transTableClose = transTableClose;
+
+function transTableHtml(table, meta){
+  if (!table || !table.length) {
+    return '<div class="empty">아직 전환표가 없습니다 — [다시 잡기]를 누르면 원고를 읽고 새로 만듭니다.</div>';
+  }
+  var gen = table.filter(function(e){ return e.t !== '본문'; }).length;
+  var rows = table.map(function(e){
+    var isBody = (e.t === '본문');
+    return '<div style="display:flex;gap:9px;padding:8px 2px;border-bottom:1px solid var(--line)">' +
+      '<div style="flex:0 0 42px;font-weight:800;color:' + (isBody ? 'var(--accent2)' : 'var(--accent)') + '">#' + e.n + '</div>' +
+      '<div style="flex:0 0 42px;font-size:12px;color:var(--dim)">' + esc(e.t || '일반') + '</div>' +
+      '<div style="flex:1 1 0;min-width:0">' +
+        (e.role ? '<div style="font-size:13px">' + esc(e.role) + '</div>' : '') +
+        '<div style="font-size:12.5px;color:var(--dim);margin-top:2px">↳ ' + esc(String(e.a || '').slice(0, 46)) + '</div>' +
+      '</div></div>';
+  }).join('');
+  return '<div class="cnt" style="margin-bottom:8px">표지 #1 제외 <b>' + table.length + '개 컷</b> · 일반 ' + gen + ' · 본문 ' + (table.length - gen) +
+    ' <span style="opacity:.7">(총 ' + (table.length + 1) + '장)</span></div>' + rows +
+    '<div class="cnt" style="margin-top:10px">↳ 아래 글은 그 전환이 들어갈 원고 지점(앵커)입니다. <b>예화(ex) 앞에 컷이 서 있는지</b> 확인해 보세요.</div>';
+}
+
+async function transTableOpen(){
+  var id = state.editing || '';
+  var meta = (typeof collectCompose === 'function') ? collectCompose() : {};
+  if (id) meta['ID'] = id;
+  if (!String(meta['원고텍스트'] || '').trim() && id) { var sm = findSermon(id); if (sm) meta['원고텍스트'] = sm['원고텍스트'] || ''; }
+  var table = id ? sermonTrans(id) : null;
+
+  transTableClose();
+  var ov = document.createElement('div');
+  ov.id = 'ttOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9998;background:var(--bg);display:flex;flex-direction:column';
+  ov.innerHTML =
+    '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;justify-content:space-between;' +
+      'padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line);background:var(--card)">' +
+      '<div style="min-width:0"><div style="font-weight:800;font-size:15px">🔎 이미지 전환표</div>' +
+      '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + esc(meta['제목'] || '') + ' — 카드원고·전환표시본·이미지가 함께 쓰는 기준표</div></div>' +
+      '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="transTableClose()">× 닫기</button></div>' +
+    '<div style="flex:0 0 auto;display:flex;gap:6px;padding:10px 14px 0">' +
+      '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="transTableRegen()">🔄 다시 잡기</button></div>' +
+    '<div id="ttBody" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(20px + env(safe-area-inset-bottom))"></div>';
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+  window._ttMeta = meta;
+  document.getElementById('ttBody').innerHTML = transTableHtml(table, meta);
+}
+window.transTableOpen = transTableOpen;
+
+async function transTableRegen(){
+  var meta = window._ttMeta || {}, id = meta['ID'] || state.editing || '';
+  if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+  var had = id ? sermonTrans(id) : null;
+  if (had && had.length && !await uiConfirm('이미지 전환표를 새로 잡습니다 (지금 ' + had.length + '개 컷).\n\n' +
+      '⚠ 이미 만든 카드원고·전환표시본·생성 이미지와 번호·시점이 달라질 수 있습니다.\n새 표에 맞춰 그 산출물들도 다시 만드셔야 합니다. 진행할까요?')) return;
+  var body = document.getElementById('ttBody');
+  if (body) body.innerHTML = '<div class="libLoading" style="padding:30px 0"><span class="bigspin"></span><span class="ltxt">원고를 읽고 전환 시점을 다시 잡는 중…</span></div>';
+  try {
+    window._cascForce = true; window._cascTableFresh = false;      /* ensureTransTable 강제 재생성 스위치 */
+    var t = await ensureTransTable(id, meta);
+    if (body) body.innerHTML = transTableHtml(t, meta);
+    toast(t && t.length ? ('전환표를 새로 잡았습니다 — 총 ' + (t.length + 1) + '장') : '전환표 생성 실패');
+    try { renderSyncState(); } catch (e){}
+  } catch (e) {
+    if (body) body.innerHTML = '<div class="empty">전환표 생성 실패: ' + esc(e.message || String(e)) + '</div>';
+  } finally { window._cascForce = false; window._cascTableFresh = false; }
+}
+window.transTableRegen = transTableRegen;
+
 var _transRegen = false;   /* 직전 ensureTransTable 호출이 표를 새로 만들었는가(원고 변경) — 카세이드가 하위 산출물 강제 재생성에 사용 */
 async function ensureTransTable(id, meta){
   _transRegen = false;
@@ -16008,6 +16086,8 @@ async function bulletinKakao(){
     b.dataset.busy = '1'; b.disabled = true;
     Promise.resolve(bulletinKakao()).catch(function(){}).then(function(){ b.dataset.busy = ''; b.disabled = false; });
   });
+  var tb = $('#btnTransTable');
+  if (tb) tb.addEventListener('click', function(){ transTableOpen(); });
 })();
 
 /* ----- 시리즈 설교 계획: 목록 + 마법사 -----
@@ -21868,7 +21948,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v523';
+var APP_VER = 'v524';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
