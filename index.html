@@ -14512,6 +14512,52 @@ function renumberCuts(cuts){
 /* ── 표지(#1) 자동 생성 (v392): 설교 주제를 상징하되 중앙을 비운 배경을 생성하고,
    그 중앙 여백에 설교 제목·본문을 캔버스로 합성한다(genCoverWithRetry → composeCoverBlob).
    (구) "시리즈 고정 표지"(요한복음 자산 01.png 수동 삽입) 방식은 자동 생성으로 전환·폐기. ── */
+/* ══ 컷 인물 성별 보정 (v526) ═══════════════════════════════════════════════
+   프롬프트에 성별을 쓰라고 지시해도 모델이 "a person / a figure / a silhouette"로
+   두면 이미지 모델은 기본값으로 남성을 그린다(마리아 장면에 수염 난 남성이 나온 사고).
+   → 앱이 각 컷의 발췌(그 컷이 덮는 원고 구간)에서 인물의 성별을 직접 읽어내고,
+   en 문장의 사람 표현을 그 성별로 고정한다. 지시가 아니라 코드로 못 박는다. */
+var CUT_F_WORDS = ['막달라','마리아','마르다','룻','나오미','한나','사라','리브가','라헬','레아','미리암','드보라','에스더','엘리사벳','브리스길라','로디아','다말','아비가일','밧세바','수넴 여인','사르밧 과부','혈루증 앓는 여인','여인','여자','자매','어머니','엄마','아내','딸','소녀','할머니','여학생','여대생','아주머니','언니'];
+var CUT_M_WORDS = ['베드로','바울','다윗','모세','아브라함','야곱','이삭','엘리야','엘리사','다니엘','솔로몬','니고데모','도마','빌립','안드레','삭개오','바디매오','형제','아버지','아빠','남편','아들','소년','청년','할아버지','남학생','남자','아저씨','형'];
+function cutGender(text){
+  var t = String(text || '');
+  var f = 0, m = 0;
+  CUT_F_WORDS.forEach(function(w){ if (t.indexOf(w) >= 0) f++; });
+  CUT_M_WORDS.forEach(function(w){ if (t.indexOf(w) >= 0) m++; });
+  if (f > 0 && f >= m * 2) return 'F';       /* 여성 단서가 뚜렷이 우세할 때만 */
+  if (m > 0 && m >= f * 2) return 'M';
+  return '';
+}
+/* en 안에 사람이 등장하는가 */
+function cutHasPerson(en){ return /\b(person|figure|silhouette|man|woman|men|women|boy|girl|child|someone|individual|worshipper|disciple|mourner)\b/i.test(String(en || '')); }
+function cutFixGender(en, g){
+  var s = String(en || '');
+  if (!g || !cutHasPerson(s)) return s;
+  var isF = (g === 'F');
+  var word = isF ? 'a woman' : 'a man';
+  /* ① 모호한 표현 → 성별 명시 */
+  s = s.replace(/\b(a|an|one|the|single)\s+((?:\w+\s+){0,2}?)(person|figure|silhouette|individual)\b/gi, function(_, d, adj){
+    return (/^the$/i.test(d) ? 'the ' : 'a ') + (adj || '') + (isF ? 'woman' : 'man');
+  });
+  s = s.replace(/\bsomeone\b/gi, word);
+  /* ② 반대 성별 표현 → 교정 */
+  if (isF) {
+    s = s.replace(/\b(a|the)\s+(bearded\s+)?(man|male figure|young man|old man)\b/gi, function(_, d){ return (/^the$/i.test(d) ? 'the woman' : 'a woman'); });
+    s = s.replace(/\bmen\b/gi, 'women').replace(/\bmale\b/gi, 'female').replace(/\bbearded\b/gi, '').replace(/\bhis\b/gi, 'her').replace(/\bhim\b/gi, 'her');
+  } else {
+    s = s.replace(/\b(a|the)\s+(woman|female figure|young woman|old woman)\b/gi, function(_, d){ return (/^the$/i.test(d) ? 'the man' : 'a man'); });
+    s = s.replace(/\bwomen\b/gi, 'men').replace(/\bfemale\b/gi, 'male').replace(/\bher\b/gi, 'his');
+  }
+  /* ③ 그래도 성별 단어가 없으면 앞에 붙이고, 마지막에 못을 박는다 */
+  if (!new RegExp(isF ? '\\b(woman|women|female|girl|she|her)\\b' : '\\b(man|men|male|boy|he|his)\\b', 'i').test(s)) s = word + ' — ' + s;
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  s = s.charAt(0).toUpperCase() + s.slice(1);
+  s += isF
+    ? ' The single human figure is unmistakably female — feminine silhouette, long hair, women\'s clothing; do not depict a man or any bearded figure.'
+    : ' The single human figure is unmistakably male; do not depict a woman.';
+  return s;
+}
+
 async function aiImgData(meta){
   var T = await ensureTransTable(meta['ID'], meta);
   /* ★ 컷 목록(개수·번호·종류·지점)은 단일 전환표(T)가 결정한다 — 모델은 새로 정하지 않고 프롬프트 필드만 채운다.
@@ -14539,6 +14585,8 @@ async function aiImgData(meta){
       b.style = g.style || ''; b.ko = g.ko || '';
       b.en = (b.type === '본문') ? '' : (g.en || '');
       b.ref = g.ref || ''; b.verse = g.verse || '';
+      /* ★ 그 컷이 덮는 원고 구간에서 인물 성별을 읽어 en을 고정(v526) */
+      if (b.en) { var _g = cutGender((b['발췌'] || '') + ' ' + (b.ko || '') + ' ' + (b.role || '')); if (_g) { b.en = cutFixGender(b.en, _g); b.gender = _g; } }
     });
     return renumberCuts(base);   /* n: 표지=#1, 이후 #2,#3,#4… (이미 base가 정렬됨) */
   }
@@ -22021,7 +22069,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v525';
+var APP_VER = 'v526';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
