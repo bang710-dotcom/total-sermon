@@ -1831,9 +1831,12 @@ body.uiDlgOpen{overflow:hidden}
         <label>이미지 프록시 토큰 (APP_TOKEN)</label>
         <input type="password" autocomplete="off" id="setProxyToken" placeholder="Worker에 등록한 APP_TOKEN">
         <div class="cnt" style="margin-top:6px">설교 배경·제목 이미지를 앱에서 <b>바로 생성</b>합니다. 배경 엔진은 아래 <b>설교 이미지 AI 선택</b>에서 고릅니다. 비워두면 기존 요청함(Cowork) 방식으로 작동합니다.</div>
-        <label style="margin-top:14px">유튜브 영상분석 프록시 URL (비우면 위 주소 사용)</label>
+        <label style="margin-top:14px">Gemini API 키 (유튜브 전사)</label>
+        <input type="password" autocomplete="off" id="setGeminiKey" placeholder="AIza… (Google AI Studio 키)">
+        <div class="cnt" style="margin-top:6px">설교 <b>유튜브 링크</b>만 넣으면 설교 부분을 찾아 전사하고 <b>요약본</b>까지 만듭니다(전사=Gemini, 요약=Claude). 키를 넣으면 전사를 <b>이 기기에서 바로</b> 실행합니다 — 프록시 워커(해외 서버)로 부르면 <b>User location is not supported</b> 지역 차단이 나기 때문에 이 방식이 가장 확실합니다.</div>
+        <label style="margin-top:14px">유튜브 영상분석 프록시 URL <span style="opacity:.7">(선택 · 보통 비워 둠)</span></label>
         <input type="url" id="setVidProxyUrl" placeholder="비워두면 위 이미지 프록시 URL을 그대로 사용">
-        <div class="cnt" style="margin-top:6px">설교 <b>유튜브 링크</b>만 넣으면 설교 부분을 찾아 전사하고 <b>요약본</b>까지 만듭니다(전사=Gemini, 요약=Claude). 권장은 <b>기존 이미지 프록시 워커에 /youtube 라우트만 추가</b>하는 것 — 이때 이 칸은 비워 둡니다. <b>Gemini 키는 유료(결제 연결) 키</b>여야 지역 차단이 없습니다.</div>
+        <div class="cnt" style="margin-top:6px">⚠ <b>주소(https://…)를 넣는 칸이며, Gemini 키를 넣는 칸이 아닙니다.</b> 위 Gemini 키가 있으면 이 칸은 쓰이지 않습니다. 전사를 별도 워커로 돌릴 때만 그 주소를 넣으세요(비우면 위 이미지 프록시 주소를 사용).</div>
         </details>
 
         <details class="setGrp">
