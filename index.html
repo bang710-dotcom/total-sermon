@@ -2350,7 +2350,7 @@ function _editingGuardId(){
    덮어쓰지 않고 보호하되(state.editingGuard), 저장 전에 경고하고 '다른 기기 내용 보기'를 제공한다.
    비교는 목록 응답에 들어오는 필드로만(원고텍스트는 목록에서 생략되므로 제외 — 한계). */
 /* ⚠ '원고유형'은 구백엔드 시트 에코에 없어(스키마 추가 전) 비교에 넣으면 '다른 기기 수정' 오탐을 만든다 — 제외 */
-var _CONFLICT_FIELDS = ['날짜','예배구분','시리즈','시리즈순번','제목','본문','상태','핵심메시지','대지','예화','키워드','비고','요약본'];
+var _CONFLICT_FIELDS = ['날짜','예배구분','시리즈','시리즈순번','제목','본문','상태','핵심메시지','대지','예화','키워드','비고','요약본','실제요약본'];
 function _rowContentSig(r){
   if (!r) return '';
   return _CONFLICT_FIELDS.map(function(f){ return String(r[f] == null ? '' : r[f]); }).join('');
@@ -2783,7 +2783,15 @@ function apiPostOrQueue(body){
 }
 
 /* ===================== 검색 ===================== */
-var SERMON_FIELDS = ['제목','본문','시리즈','핵심메시지','대지','예화','키워드','원고텍스트','예배구분','요약본'];
+var SERMON_FIELDS = ['제목','본문','시리즈','핵심메시지','대지','예화','키워드','원고텍스트','예배구분','요약본','실제요약본'];
+
+/* ── 요약본 두 종류 (v519) ──────────────────────────────────────────────────
+   '요약본'      = 준비한 원고를 요약한 것 (설교 상세 → 요약본·주제어)
+   '실제요약본'  = 유튜브 영상(실제로 선포한 설교)을 전사해 요약한 것
+   둘은 서로 덮어쓰지 않고 나란히 보관한다. 밖으로 내보낼 때(성경앱 노트·옵시디언·
+   카드뉴스·공유 등)는 '실제로 한 설교'가 더 정확하므로 실제요약본을 우선한다. */
+function sumText(s){ return String((s && (s['실제요약본'] || s['요약본'])) || '').trim(); }
+function sumIsReal(s){ return !!String((s && s['실제요약본']) || '').trim(); }
 var IDEA_FIELDS = ['내용','출처','관련본문','키워드','유형','강조메시지','원문','제목'];
 
 function hl(text, terms, clip){
@@ -2876,6 +2884,7 @@ function ensureText(id){
   return api({ action: 'text', id: id }).then(function(d){
     if (d && d['원고텍스트'] != null) s['원고텍스트'] = d['원고텍스트'];
     if (d && d['요약본'] && !String(s['요약본'] || '').trim()) s['요약본'] = d['요약본'];
+    if (d && d['실제요약본'] && !String(s['실제요약본'] || '').trim()) s['실제요약본'] = d['실제요약본'];
     s._txt = true; s._txtAt = String(s['수정일'] || '') || nowLocalStr_(); saveData(); return s;
   }).catch(function(){
     /* 통신 실패 → 캐시 본문 유지. 단, 낡은 캐시임을 알면서 갱신에 실패한 경우엔 알려준다. */
@@ -3010,7 +3019,7 @@ function runSearch(){
     if (r.kind === 'sermon') {
       var s = r.d;
       var body = '';
-      ['핵심메시지','요약본','예화','원고텍스트'].forEach(function(f){
+      ['핵심메시지','요약본','실제요약본','예화','원고텍스트'].forEach(function(f){
         var v = String(s[f] || '');
         if (v && terms.some(function(t){ return v.toLowerCase().indexOf(t) >= 0; }))
           body += '<div class="snippet"><b style="color:var(--dim)">' + f + '</b> ' + hl(v, terms, 90) + '</div>';
@@ -3077,9 +3086,17 @@ function openDetail(kind, id){
     var kws = String(s['키워드'] || '').split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); }).filter(Boolean);
     if (kws.length) html += '<div class="kv"><span class="k">주제어</span><span class="v">' +
       kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>';
-    if (String(s['요약본'] || '').trim()) {
+    /* 요약본 두 종류 — 실제 설교(유튜브) 요약이 있으면 먼저·펼친 상태로, 원고 요약은 접어서 */
+    var _sumReal = String(s['실제요약본'] || '').trim(), _sumMs = String(s['요약본'] || '').trim();
+    if (_sumReal) {
       html += '<details class="sumbox" open>' +
-        '<summary>요약본</summary><div class="fulltext" style="margin-top:8px">' + mdSum(hl(s['요약본'], terms)) + '</div></details>';
+        '<summary>요약본 · 실제 설교 <span style="opacity:.6;font-weight:400">(유튜브 전사)</span></summary>' +
+        '<div class="fulltext" style="margin-top:8px">' + mdSum(hl(_sumReal, terms)) + '</div></details>';
+    }
+    if (_sumMs) {
+      html += '<details class="sumbox"' + (_sumReal ? '' : ' open') + '>' +
+        '<summary>요약본' + (_sumReal ? ' · 원고' : '') + '</summary>' +
+        '<div class="fulltext" style="margin-top:8px">' + mdSum(hl(_sumMs, terms)) + '</div></details>';
     }
     if (s['원고링크']) html += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:13.5px" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
     var done = doneTypes(s['ID']);
@@ -3106,7 +3123,7 @@ function openDetail(kind, id){
       + '<button class="btn sub mini" onclick="shareSermonCards(\'' + esc(s['ID']) + '\')">🖼 카드뉴스 공유 (5장)</button></div>';
     html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
     var txt = stripStructText(String(s['원고텍스트'] || ''));
-    var hasSum = !!String(s['요약본'] || '').trim();
+    var hasSum = !!sumText(s);
     html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">';
     if (!txt) html += s._txt
       ? '<div class="empty">저장된 원고 텍스트가 없습니다.</div>'
@@ -4582,7 +4599,7 @@ function renderPrepDash(){
   var dLabel = dd === 0 ? '오늘' : (dd === 1 ? '내일' : 'D-' + dd);
   var hasImg = (state.data.outputs || []).some(function(o){ return o['설교ID'] === s['ID'] && String(o['유형'] || '') === '이미지생성'; });
   var checks = [
-    { k: '요약본', ok: !!String(s['요약본'] || '').trim() },
+    { k: '요약본', ok: !!sumText(s) },
     { k: 'LTC', ok: !!(fm.ltcData || fm.ltc) },
     { k: '카드원고', ok: !!fm.cardArr },
     { k: '이미지', ok: hasImg },
@@ -11338,7 +11355,7 @@ function obsLinkName(s){ return String(s || '').replace(/[|#\[\]^]/g, ' ').repla
 function obsTagName(s){ return String(s || '').trim().replace(/\s+/g, '_').replace(/[^0-9A-Za-z가-힣_\-\/]/g, '_'); }
 /* 표준 요약본 마크다운 → 옵시디언 콜아웃. 매칭 안 되면 원문 통과(안전). */
 function obsBody(s){
-  var sum = String(s['요약본'] || '').trim();
+  var sum = sumText(s);
   if (!sum){ var dae = String(s['대지'] || '').trim(); return dae ? ('## 대지\n\n' + dae) : ''; }
   var lines = sum.split(/\r?\n/), out = [], m;
   for (var i = 0; i < lines.length; i++){
@@ -11979,7 +11996,7 @@ function bmIdMapPull(){
 }
 /* 설교 한 편의 요약본을 성경앱 [설교] 노트로 업서트 */
 function bmPushSermon(s){
-  var sum = String(s['요약본'] || '').trim();
+  var sum = sumText(s);
   var refStr = String(s['본문'] || '').trim();
   if (!tsaMemoCfg()) return Promise.reject(new Error('설정에 성경앱 메모 URL·키가 없습니다.'));
   if (!sum) return Promise.reject(new Error('요약본이 없습니다.'));
@@ -12017,7 +12034,7 @@ function bmPushSermonQuiet(id){
 function bmPushAllSermons(){
   if (!tsaMemoCfg()){ toast('설정에 성경앱 설교메모 URL·키를 먼저 입력해 주세요.'); return; }
   var rows = (state.data.sermons || []).filter(function(s){
-    return String(s['요약본'] || '').trim() && String(s['본문'] || '').trim();
+    return sumText(s) && String(s['본문'] || '').trim();
   });
   if (!rows.length){ toast('요약본이 있는 설교가 없습니다. (요약본은 필요할 때 시트에서 불러옵니다)'); return; }
   if (!confirm('요약본이 있는 설교 ' + rows.length + '건을 성경앱 [설교] 노트로 올립니다.\n같은 id는 덮어쓰므로 중복은 생기지 않습니다. 진행할까요?')) return;
@@ -12034,7 +12051,7 @@ function bmPushAllSermons(){
           okN++;
           buf.push({
             id: id, kind: '설교', ref: bmRefShort(c), title: bmSermonTitle(s),
-            memo: String(s['요약본']).trim(), color: '', tags: bmSermonTags(s),
+            memo: sumText(s), color: '', tags: bmSermonTags(s),
             bookIdx: c.bookIdx, startChap: c.startChap, startVerse: c.startVerse,
             endChap: c.endChap, endVerse: c.endVerse,
             createdAt: (prev && prev.createdAt) || new Date().toISOString(),
@@ -13090,6 +13107,8 @@ async function aiYouTubeSummarize(id){
     var c = vidProxyCfg();
     if (!gk && (!c.url || !c.token)) { toast('설정 탭에서 Gemini API 키(권장) 또는 영상분석 프록시 URL·토큰을 먼저 입력해 주세요.'); showPage('settings'); return; }
     if (!aiKey()) { toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 요약본을 만들 수 있습니다.'); return; }
+    if (String(s['실제요약본'] || '').trim() &&
+        !await uiConfirm('이미 「실제 설교 요약본」이 있습니다. 다시 만들어 교체할까요?\n(원고 요약본은 그대로 둡니다)')) return;
     var url = await uiPrompt('설교 유튜브 링크를 입력하세요\n(대학부 예배 전체 영상도 가능 — 설교 부분을 자동으로 찾습니다)', '', { placeholder: 'https://youtu.be/...' });
     if (url === null) return;
     url = url.trim();
@@ -13145,12 +13164,16 @@ async function aiYouTubeSummarize(id){
       32000, aiTick('요약본'));
     var sj = aiJson(out);
     if (!sj['요약본']) throw new Error('요약 응답 형식 오류 — 다시 시도해 주세요.');
-    await apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '요약본': sj['요약본'], '키워드': sj['키워드'] || '' } });
-    await apiPostOrQueue({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': url, '비고': '유튜브 자동 전사+요약' + span } });
-    s['요약본'] = sj['요약본']; if (sj['키워드']) s['키워드'] = sj['키워드'];
-    aiMarkDone(id, '설교요약', '유튜브 자동 전사+요약');
+    /* ★ 실제 설교 요약본은 원고 요약본('요약본')을 덮지 않고 '실제요약본'에 따로 저장한다(v519).
+       주제어는 원고 쪽에서 만든 것이 있으면 보존하고, 비어 있을 때만 채운다. */
+    var upd = { ID: id, '실제요약본': sj['요약본'] };
+    if (sj['키워드'] && !String(s['키워드'] || '').trim()) upd['키워드'] = sj['키워드'];
+    await apiPostOrQueue({ action: 'update', sheet: 'sermons', data: upd });
+    await apiPostOrQueue({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': url, '비고': '유튜브 자동 전사+요약(실제설교)' + span } });
+    s['실제요약본'] = sj['요약본']; if (upd['키워드']) s['키워드'] = upd['키워드'];
+    aiMarkDone(id, '설교요약', '유튜브 자동 전사+요약(실제설교)');
     renderSyncState();
-    toast('유튜브 → 요약본 완료 — 시트에 기록했습니다.');
+    toast('유튜브 → 실제 설교 요약본 완료 — 시트에 기록했습니다.');
     bmPushSermonQuiet(id);            /* 성경앱 [설교] 노트에도 자동 반영(v472) */
   } catch (e) { hideGenOverlay(); renderSyncState(); toast('유튜브 요약 실패: ' + e.message); }
 }
@@ -13177,7 +13200,7 @@ function shareSermon(id){
   var parts = ['「' + (s['제목'] || '(제목 없음)') + '」'];
   if (s['본문']) parts.push('본문: ' + s['본문']);
   if (s['핵심메시지']) parts.push('\n' + s['핵심메시지']);
-  if (s['요약본']) parts.push('\n' + String(s['요약본']).replace(/\*\*/g, '').replace(/^- /gm, '· '));
+  if (sumText(s)) parts.push('\n' + sumText(s).replace(/\*\*/g, '').replace(/^- /gm, '· '));
   shareContent({ title: s['제목'] || '설교', text: parts.join('\n') });
 }
 window.shareSermon = shareSermon;
@@ -13210,7 +13233,7 @@ var P_CARDNEWS = [
 ].join('\n');
 async function aiCardNews(s){
   var inp = { '제목': s['제목'] || '', '본문': s['본문'] || '', '예배구분': s['예배구분'] || '대학부',
-    '핵심메시지': s['핵심메시지'] || '', '요약본': String(s['요약본'] || '').trim() };
+    '핵심메시지': s['핵심메시지'] || '', '요약본': sumText(s) };
   var out = await callClaude(P_CARDNEWS, JSON.stringify(inp), 4000, aiTick('카드뉴스'));
   var deck = aiJson(out);
   if (!deck || !deck.cards || !deck.cards.length) throw new Error('카드뉴스 데이터를 만들지 못했습니다.');
@@ -13357,7 +13380,7 @@ document.addEventListener('click', function(e){
 }, true);
 async function shareSermonCards(id){
   var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
-  if (!String(s['요약본'] || '').trim()) { toast('먼저 요약본을 만들어 주세요.'); return; }
+  if (!sumText(s)) { toast('먼저 요약본을 만들어 주세요.'); return; }
   try {
     var deck = await aiCardNews(s);
     if (deck && deck.cards && deck.cards[0] && deck.cards[0].type === 'cover')
@@ -15544,7 +15567,7 @@ async function checkAssets(id){
   if (!s) return;
   var a = { __t: Date.now() };
   var cardDirHit = null, cardExHit = null;   /* 카드원고: 결과함 우선, 설교 폴더는 옛 파일 폴백 */
-  a['설교요약'] = String(s['요약본'] || '').trim() ? { ok: true } : null;
+  a['설교요약'] = sumText(s) ? { ok: true } : null;
   var base = docxFileName(s);
   var baseTxt = base.replace(/\.(docx|hwpx)$/, '.txt');
   var year = (String(s['날짜'] || '').slice(0, 4) || String(new Date().getFullYear())) + '년';
@@ -20284,7 +20307,7 @@ function libFiles(s){
   var m = {};
   try { m = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { m = {}; }
   return { 원고: !!(m.docx || m.hwp), pdf: !!m.pdf, card: !!m.card, ltc: !!m.ltc,
-           요약: !!String(s['요약본'] || '').trim(), map: m };
+           요약: !!sumText(s), map: m };
 }
 /* ===================== 지식연결망: 관련 설교 (읽기전용·비파괴) =====================
    같은 본문(절 겹침 가산)·공유 키워드·같은 시리즈로 설교를 엮는다.
@@ -20378,7 +20401,7 @@ function renderLibRow(s){
     '</summary>' +
     '<div class="libBody">' +
       (s['핵심메시지'] ? '<div class="kv"><span class="k">메시지</span><span class="v">' + esc(s['핵심메시지']) + '</span></div>' : '') +
-      (String(s['요약본'] || '').trim() ? '<details class="sumbox"><summary>요약본</summary><div class="fulltext" style="margin-top:6px">' + mdSum(esc(s['요약본'])) + '</div></details>' : '') +
+      (sumText(s) ? '<details class="sumbox"><summary>요약본' + (sumIsReal(s) ? ' · 실제 설교' : '') + '</summary><div class="fulltext" style="margin-top:6px">' + mdSum(esc(sumText(s))) + '</div></details>' : '') +
       (String(s['대지'] || '').trim() ? '<div class="kv"><span class="k">대지</span><span class="v">' + esc(s['대지']).replace(/\n/g, '<br>') + '</span></div>' : '') +
       (paths ? '<div style="margin-top:6px">' + paths + '</div>' : '<div class="cnt" style="margin-top:6px">연결된 파일 정보 없음</div>') +
       '<div class="toolrow" style="margin-top:9px">' +
@@ -20503,7 +20526,7 @@ function renderLibrary(){
   if (L.book) list = list.filter(function(s){ var b = bibleBookOf(s); return b && b.name === L.book; });
   if (L.topic) list = list.filter(function(s){ return topicsOf(s).indexOf(L.topic) >= 0; });
   if (L.q) { var ts = L.q.toLowerCase().split(/\s+/).filter(Boolean);
-    list = list.filter(function(s){ var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드','요약본','원고텍스트','대지'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase(); return ts.every(function(t){ return hay.indexOf(t) >= 0; }); }); }
+    list = list.filter(function(s){ var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드','요약본','실제요약본','원고텍스트','대지'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase(); return ts.every(function(t){ return hay.indexOf(t) >= 0; }); }); }
   if (L.flag) list = list.filter(function(s){ var f = libFiles(s); return L.flag === 'nopdf' ? !f.pdf : L.flag === 'nosum' ? !f.요약 : L.flag === 'nocard' ? !f.card : true; });
   list.sort(function(a, b){ return String(b['날짜'] || '').localeCompare(String(a['날짜'] || '')); });
   $('#libCnt').textContent = '설교 ' + list.length + '편' + (all.length !== list.length ? ' / 전체 ' + all.length : '');
@@ -21667,7 +21690,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v518';
+var APP_VER = 'v519';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
