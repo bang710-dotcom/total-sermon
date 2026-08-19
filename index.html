@@ -19016,16 +19016,20 @@ async function bibPrefetch(from, to, btn){
 })();
 
 /* ===== 설교 이미지 생성 (Cloudflare 프록시) — 자체완결 모듈 (1단계: 단일 생성) ===== */
+/* 주소 칸에 주소가 아닌 값(예: API 키)이 들어가면 상대경로로 요청이 나가 엉뚱한 서버(깃허브
+   페이지 등)가 405를 돌려준다 — http(s)로 시작하지 않으면 아예 없는 것으로 취급한다(v516). */
+function isHttpUrl_(u){ return /^https?:\/\//i.test(String(u || '').trim()); }
+function cleanUrl_(u){ var v = String(u || '').trim().replace(/\/+$/, ''); return isHttpUrl_(v) ? v : ''; }
+
 function imgProxyCfg(){
   var s = state.settings || {};
-  return { url: String(s.proxyUrl || '').trim().replace(/\/+$/, ''), token: String(s.proxyToken || '').trim() };
+  return { url: cleanUrl_(s.proxyUrl), token: String(s.proxyToken || '').trim() };
 }
-/* 유튜브 영상분석 프록시 설정 — 별도 vidProxyUrl이 없으면 이미지 프록시(proxyUrl)를 재사용.
+/* 유튜브 영상분석 프록시 설정 — 별도 vidProxyUrl이 없거나 주소 형식이 아니면 이미지 프록시(proxyUrl)를 재사용.
    (기존 이미지 워커에 /youtube 라우트만 추가하는 권장 구성에서는 vidProxyUrl을 비워둔다.) */
 function vidProxyCfg(){
   var s = state.settings || {};
-  var u = String(s.vidProxyUrl || s.proxyUrl || '').trim().replace(/\/+$/, '');
-  return { url: u, token: String(s.proxyToken || '').trim() };
+  return { url: cleanUrl_(s.vidProxyUrl) || cleanUrl_(s.proxyUrl), token: String(s.proxyToken || '').trim() };
 }
 /* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) / 'gemini'(=fal.ai 경유 Nano Banana) / 'krea'(=fal.ai 경유 Krea 2 Turbo) */
 function imgEngine(){ var e = state.settings && state.settings.imgEngine; return (e === 'gemini' || e === 'krea') ? e : 'flux'; }
@@ -21477,7 +21481,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v515';
+var APP_VER = 'v516';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
