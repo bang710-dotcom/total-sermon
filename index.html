@@ -20549,7 +20549,12 @@ async function loadImgSetZip(meta){
     return { zip: zip, name: hit.name, h: hit.h };
   } catch (e) { return null; }
 }
-function imgRegenClose(){ var ov = document.getElementById('irOv'); if (ov) ov.remove(); document.body.style.overflow = ''; }
+function imgRegenClose(){
+  var ov = document.getElementById('irOv'); if (ov) ov.remove();
+  (window._irThumbs || []).forEach(function(u){ try { URL.revokeObjectURL(u); } catch (e) {} });
+  window._irThumbs = [];
+  document.body.style.overflow = '';
+}
 window.imgRegenClose = imgRegenClose;
 
 async function imgRegenOpen(){
@@ -22242,7 +22247,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v527';
+var APP_VER = 'v528';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
