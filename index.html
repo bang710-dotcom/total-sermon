@@ -20579,6 +20579,8 @@ async function imgRegenOpen(){
       '<select id="irEngine" class="libsel">' + IMG_ENGINES.map(function(e){
         return '<option value="' + e.v + '"' + (e.v === imgEngine() ? ' selected' : '') + '>' + e.t + '</option>'; }).join('') + '</select>' +
       '<span class="cnt" style="margin:0">이번 재생성에만 적용됩니다(설정의 기본 엔진은 그대로).</span></div>' +
+    '<div id="irStatus" style="flex:0 0 auto;display:none;margin:10px 14px 0;padding:10px 12px;border-radius:10px;' +
+      'background:var(--card);border:1px solid var(--line);font-size:13.5px"></div>' +
     '<div id="irBody" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(20px + env(safe-area-inset-bottom))"></div>';
   document.body.appendChild(ov);
   document.body.style.overflow = 'hidden';
@@ -20586,6 +20588,20 @@ async function imgRegenOpen(){
 }
 window.imgRegenOpen = imgRegenOpen;
 
+/* 모달 안 진행 표시 — 전체화면 생성 오버레이(#genOverlay, z-index 400)는 이 모달(9998)
+   뒤에 가려 보이지 않으므로, 재생성 피드백은 모달 안에서 직접 그린다(v528). */
+function irStage(html, kind){
+  var el = document.getElementById('irStatus'); if (!el) return;
+  el.style.display = 'block';
+  el.style.borderColor = (kind === 'err') ? 'var(--warn)' : (kind === 'ok' ? 'var(--ok)' : 'var(--line)');
+  el.innerHTML = (kind === 'busy' ? '<span class="bigspin" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:-3px;margin-right:8px"></span>' : '') + html;
+}
+function irBusy(on, n){
+  var body = document.getElementById('irBody'); if (!body) return;
+  Array.prototype.forEach.call(body.querySelectorAll('button'), function(b){ b.disabled = !!on; });
+  var btn = document.getElementById('ir-btn-' + n);
+  if (btn) btn.innerHTML = on ? '생성 중…' : '↻ 재생성';
+}
 function imgRegenList(){
   var S = window._irState; if (!S) return;
   var body = document.getElementById('irBody'); if (!body) return;
@@ -20594,15 +20610,16 @@ function imgRegenList(){
     /* 이 컷 뒤에 딸린 본문 컷(파생본) — 함께 다시 만들어진다 */
     var follow = [];
     if (!isScr) { for (var k = i + 1; k < S.cuts.length && S.cuts[k].type === '본문'; k++) follow.push(S.cuts[k].n); }
-    return '<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid var(--line)">' +
+    return '<div id="ir-row-' + c.n + '" style="display:flex;gap:10px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid var(--line)">' +
       '<div style="flex:0 0 46px;font-weight:800;color:' + (isScr ? 'var(--accent2)' : 'var(--accent)') + '">#' + c.n + '</div>' +
       '<div style="flex:1 1 0;min-width:0">' +
         '<div style="font-size:13.5px">' + esc(c.role || (isScr ? '본문' : '일반')) + '</div>' +
         (c.ko ? '<div style="font-size:12.5px;color:var(--dim);margin-top:2px">' + esc(String(c.ko).slice(0, 90)) + '</div>' : '') +
         (follow.length ? '<div style="font-size:12px;color:var(--ok);margin-top:3px">↳ 본문 #' + follow.join(', #') + ' 도 함께 다시 만듭니다</div>' : '') +
         (isScr ? '<div style="font-size:12px;color:var(--dim);margin-top:3px">직전 일반 이미지에서 다시 파생합니다(새로 그리지 않음)</div>' : '') +
+        '<div id="ir-pv-' + c.n + '" style="margin-top:6px"></div>' +
       '</div>' +
-      '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="imgRegenOne(' + c.n + ')">↻ 재생성</button>' +
+      '<button id="ir-btn-' + c.n + '" class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="imgRegenOne(' + c.n + ')">↻ 재생성</button>' +
     '</div>';
   }).join('') + '<div class="cnt" style="margin-top:10px">재생성한 번호는 저장된 zip 안에서 바로 교체됩니다. 다른 번호와 표지는 그대로 둡니다.</div>';
 }
@@ -20614,11 +20631,12 @@ async function imgRegenOne(n){
   if (i < 0) return;
   var eng = (document.getElementById('irEngine') || {}).value || imgEngine();
   var c = cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
-  var pack = await loadImgSetZip(S.meta);
   var made = [];
-  showGenOverlay('이미지 생성');
+  irBusy(true, n);
+  irStage('#' + n + ' 이미지를 다시 만들고 있습니다 — <b>' + esc((IMG_ENGINES.filter(function(x){ return x.v === eng; })[0] || {}).t || eng) +
+    '</b> · 보통 20~60초 걸립니다. 창을 닫지 마세요.', 'busy');
+  var pack = await loadImgSetZip(S.meta);
   try {
-    setGenStage('#' + n + ' 다시 만드는 중… (' + eng + ')');
     var srcCanvas = null;
     if (isScr) {
       /* 본문 컷 = 직전 일반 이미지의 파생 — 저장된 그 이미지를 불러와 다시 파생 */
@@ -20636,10 +20654,11 @@ async function imgRegenOne(n){
       made.push({ n: c.n, blob: isCover ? await composeCoverBlob(srcCanvas, S.meta) : await canvasToBlob(srcCanvas) });
       /* ★ 뒤에 붙은 본문 컷들은 이 이미지의 파생본이므로 함께 다시 만든다 */
       for (var q = i + 1; q < cuts.length && cuts[q].type === '본문'; q++){
-        setGenStage('본문 #' + cuts[q].n + ' 파생 중…');
+        irStage('본문 #' + cuts[q].n + ' 을(를) 새 이미지에서 다시 파생하는 중…', 'busy');
         made.push({ n: cuts[q].n, blob: await deriveScriptureBg(srcCanvas, cuts[q]) });
       }
     }
+    irStage('저장하는 중… (' + made.length + '장)', 'busy');
     /* 저장 — zip이 있으면 그 안의 번호만 교체해 덮어쓰기, 없으면 낱장 PNG */
     if (pack) {
       for (var m = 0; m < made.length; m++) pack.zip.file(('0' + made[m].n).slice(-2) + '.png', made[m].blob);
@@ -20649,12 +20668,22 @@ async function imgRegenOne(n){
       var base = imgDataNames(S.meta).backstagePrefix;
       for (var m2 = 0; m2 < made.length; m2++) await saveBlobToResults(made[m2].blob, base + '_재생성_' + ('0' + made[m2].n).slice(-2) + '.png');
     }
-    hideGenOverlay();
-    toast('#' + made.map(function(x){ return x.n; }).join(', #') + ' 재생성 완료' + (pack ? ' — zip 안에서 교체했습니다' : ' — 낱장 PNG로 저장'));
+    /* 결과 미리보기 — 어떤 그림이 나왔는지 바로 확인하고, 마음에 안 들면 다시 누른다 */
+    window._irThumbs = window._irThumbs || [];
+    made.forEach(function(x){
+      var pv = document.getElementById('ir-pv-' + x.n); if (!pv) return;
+      var u = URL.createObjectURL(x.blob); window._irThumbs.push(u);
+      pv.innerHTML = '<img src="' + u + '" style="width:210px;max-width:100%;border-radius:8px;border:1px solid var(--line);display:block">' +
+        '<div style="font-size:12px;color:var(--ok);margin-top:3px">✓ 방금 새로 만든 이미지</div>';
+    });
+    var nums = '#' + made.map(function(x){ return x.n; }).join(', #');
+    irStage('<b style="color:var(--ok)">' + nums + ' 재생성 완료</b> — ' + (pack ? 'zip 안에서 교체했습니다.' : '낱장 PNG로 저장했습니다.') +
+      ' 마음에 들지 않으면 엔진을 바꿔 다시 눌러 보세요.', 'ok');
+    toast(nums + ' 재생성 완료');
   } catch (e) {
-    hideGenOverlay();
+    irStage('<b style="color:var(--warn)">재생성 실패</b> — ' + esc(e.message || String(e)), 'err');
     toast('재생성 실패: ' + (e.message || e));
-  }
+  } finally { irBusy(false, n); }
 }
 window.imgRegenOne = imgRegenOne;
 
