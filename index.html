@@ -1533,6 +1533,7 @@ body.uiDlgOpen{overflow:hidden}
                 <div class="cascitem"><button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="trans" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="imgdata" style="width:100%"><span class="blab">프롬프트 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="imgdata" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="bgimg" style="width:100%"><span class="blab">배경 이미지 생성</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="bgimg" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="transpdf" style="width:100%"><span class="blab">전환 표시 PDF</span><small class="bpath">전환표시본 + 생성 이미지 삽입</small></button><span class="cascsw" data-cascsel="transpdf" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (생성해 둔 배경 이미지가 있어야 만들어집니다)"></span></div>
               </div>
             </div>
             <button class="btn sub" id="btnTransTable" style="width:100%;margin-top:8px"><span class="blab">🔎 이미지 전환표 보기 · 다시 잡기</span><small class="bpath">카드·전환표시·이미지가 공유하는 단일 기준표</small></button>
@@ -14699,6 +14700,178 @@ window.requestTransDoc = function(){
   generateTransDoc(state.editing || '', m);
 };
 
+/* ═════════ 이미지전환표시 PDF — 생성한 배경 이미지를 참고로 끼운 판 (v529) ═════════
+   전환표시본과 "같은 본문·같은 전환표"를 쓰되, 각 전환 바 바로 아래에 그 번호로 실제
+   만들어진 배경 이미지를 작은 참고 그림으로 넣어 PDF로 조판한다(강단에서 다음 화면 확인용).
+   본문 서식은 hwpx 전환표시본과 같은 규격 — 216×290mm · 여백 10mm · 12pt · 줄간격 200%
+   · 전환 바 #EE0000 흰 볼드 · 성경 인용 빨강 · 예화 파랑.
+   이미지는 이미 저장해 둔 백스테이지 zip(NN.png)에서 읽는다(새로 만들지 않는다). */
+var TPDF_PG = { w: 216, h: 290, m: 10 };   /* mm — 전환표시본 용지·여백과 동일 */
+var TPDF_FONT = "'함초롬바탕','HCR Batang','Gowun Batang','Nanum Myeongjo',serif";
+function tpdfPx(mm){ return Math.round(mm * 96 / 25.4); }
+function ensureTransPdfFonts(){
+  if (document.getElementById('tp-fonts')) return;
+  var l = document.createElement('link'); l.id = 'tp-fonts'; l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap';
+  document.head.appendChild(l);   /* 함초롬바탕이 없는 기기용 대체 명조 */
+}
+function tpdfCss(cw, ch){
+  return '.tp-page{box-sizing:border-box;position:relative;width:' + cw + 'px;height:' + ch + 'px;overflow:hidden;'
+    + 'background:#fff;color:#000;font-family:' + TPDF_FONT + ';font-size:16px;line-height:1.9}'
+    + '.tp-page p{margin:0;text-align:justify;word-break:keep-all}'
+    + '.tp-b{font-weight:700}'
+    + '.tp-ind{text-indent:2em}'
+    + '.tp-blank{height:1.9em}'
+    + '.tp-bar{background:#EE0000;color:#fff;font-weight:700;text-align:center!important;text-indent:0!important;padding:2px 0;margin:7px 0!important}'
+    + '.tp-fig{width:44%;margin:0 0 9px auto}'
+    + '.tp-fig img{display:block;width:100%;border:1px solid #d0d0d0}'
+    + '.tp-cap{font-size:10.5px;line-height:1.5;color:#777;text-align:right}'
+    + '.tp-miss{border:1px dashed #c0c0c0;color:#999;font-size:12px;text-align:center;padding:16px 0}';
+}
+/* 이미지 blob → 폭을 줄인 JPEG dataURL (PDF 용량 억제 — 참고용 썸네일) */
+async function tpdfThumb(blob, maxW){
+  var url = URL.createObjectURL(blob);
+  try {
+    var im = await loadImgEl(url);
+    var nw = im.naturalWidth || 1, nh = im.naturalHeight || 1;
+    var w = Math.min(maxW || 760, nw), h = Math.max(1, Math.round(w * nh / nw));
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(im, 0, 0, w, h);
+    return cv.toDataURL('image/jpeg', 0.82);
+  } finally { try { URL.revokeObjectURL(url); } catch (e) {} }
+}
+/* 저장해 둔 배경 이미지 → { 번호: dataURL }. 백스테이지 zip(NN.png)이 기준,
+   zip이 없던 시절의 낱장 재생성 PNG로 빈 번호를 보완한다. */
+async function tpdfImgMap(meta){
+  var map = {};
+  var pack = await loadImgSetZip(meta);
+  if (pack){
+    var names = Object.keys(pack.zip.files).filter(function(n){ return !pack.zip.files[n].dir && /(?:^|\/)\d{1,3}\.png$/i.test(n); });
+    for (var i = 0; i < names.length; i++){
+      var n = +names[i].match(/(\d{1,3})\.png$/i)[1];
+      try { map[n] = await tpdfThumb(await pack.zip.file(names[i]).async('blob')); } catch (e) {}
+    }
+  }
+  if (canFolderSave()){
+    try {
+      await xPerm();
+      var pre = imgDataNames(meta).backstagePrefix;
+      await eachResultFile(async function(e){
+        var mm = e.name.match(/_재생성_(\d{1,3})\.png$/i);
+        if (!mm || map[+mm[1]] || !_nfcIncl(e.name, pre)) return;
+        try { map[+mm[1]] = await tpdfThumb(await e.getFile()); } catch (x) {}
+      });
+    } catch (e) {}
+  }
+  return map;
+}
+/* 전환표시본 본문 텍스트 확보 — 이미 만든 전환표시본 파일이 있으면 그 본문을 그대로 쓰고
+   (문서와 PDF의 전환 위치가 어긋나지 않게), 없으면 새로 생성한다. */
+function tpdfStripHead(lines, meta){
+  var out = (lines || []).slice(0);
+  var t = String(meta['제목'] || '').trim();
+  if (out.length && t && out[0].indexOf(t) >= 0) out.shift();
+  var r = String(meta['본문'] || '').replace(/\s/g, '');
+  if (out.length && r && out[0].replace(/\s/g, '') === r) out.shift();
+  return out;
+}
+async function ensureTransBody(id, meta, cuts){
+  try {
+    if (canFolderSave()){
+      var base = imgDataNames(meta).trans.replace(/\.(hwpx|docx)$/i, '');
+      var hit = await findResultFile(function(nm){
+        return /\.(hwpx|docx)$/i.test(nm) && _nfcEq(nm.replace(/\.(hwpx|docx)$/i, ''), base);
+      });
+      if (hit){
+        var lines = await zipDocParas(await (await hit.h.getFile()).arrayBuffer());
+        if (lines && lines.some(function(l){ return /^▶.*◀$/.test(l); })) return tpdfStripHead(lines, meta).join('\n');
+      }
+    }
+  } catch (e) {}
+  return await aiTransDoc(meta, cuts);
+}
+/* 문단 모델 + 이미지 → 페이지에 쌓을 블록 HTML 배열 */
+function tpdfBlocks(paras, imgMap){
+  var out = [];
+  function fig(n, cap){
+    return imgMap[n]
+      ? '<div class="tp-fig"><img src="' + imgMap[n] + '"><div class="tp-cap">' + esc(cap) + '</div></div>'
+      : '<div class="tp-fig"><div class="tp-miss">' + esc(cap) + ' — 생성된 이미지 없음</div></div>';
+  }
+  (paras || []).forEach(function(p){
+    var t = String(p.text || '');
+    if (p.bar){
+      out.push('<p class="tp-bar">' + esc(t) + '</p>');
+      var m = t.match(/#\s*(\d+)/);
+      if (m) out.push(fig(+m[1], (/본문/.test(t) ? '본문 이미지 #' : '이미지 #') + m[1]));
+      return;
+    }
+    if (!t.trim()) { out.push('<div class="tp-blank"></div>'); return; }
+    var cls = [];
+    if (p.bold) cls.push('tp-b');
+    if (p.ind || p.just) cls.push('tp-ind');
+    var col = p.color ? (p.color === EX_BLUE ? '#0000FF' : p.color === REF_RED ? '#FF0000' : '#' + p.color) : '';
+    out.push('<p' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + (col ? ' style="color:' + col + '"' : '') + '>' + esc(t) + '</p>');
+  });
+  return out;
+}
+async function buildTransPdfBlob(meta, body, imgMap){
+  await loadPdfLibs(); ensureTransPdfFonts();
+  try { await document.fonts.load("16px 'Gowun Batang'"); await document.fonts.ready; } catch (e) {}
+  var style = String(meta['원고유형'] || '').trim(); if (!DOCX_STYLES[style]) style = '기본원고';
+  var blocks = tpdfBlocks(parasFromText(meta, body, style).paras, imgMap);
+  /* 표지(#1)는 전환 바가 없다 — 제목부 바로 아래에 참고로 붙인다 */
+  if (imgMap[1]){
+    var at = 0;
+    for (var i = 0; i < blocks.length; i++) if (blocks[i].indexOf('tp-blank') > 0) { at = i; break; }
+    blocks.splice(at, 0, '<div class="tp-fig"><img src="' + imgMap[1] + '"><div class="tp-cap">표지 이미지 #1</div></div>');
+  }
+  var cw = tpdfPx(TPDF_PG.w - TPDF_PG.m * 2), ch = tpdfPx(TPDF_PG.h - TPDF_PG.m * 2);
+  var host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-99999px;top:0;width:' + (cw + 60) + 'px;background:#fff';
+  host.innerHTML = '<style>' + tpdfCss(cw, ch) + '</style>';
+  document.body.appendChild(host);
+  try {
+    var pages = [], cur = null;
+    function newPage(){ var d = document.createElement('div'); d.className = 'tp-page'; host.appendChild(d); pages.push(d); return d; }
+    cur = newPage();
+    for (var b = 0; b < blocks.length; b++){
+      var box = document.createElement('div'); box.innerHTML = blocks[b];
+      var node = box.firstChild; if (!node) continue;
+      cur.appendChild(node);
+      if (cur.scrollHeight > ch && cur.childNodes.length > 1){   /* 넘치면 다음 장으로 통째 이동 */
+        cur.removeChild(node);
+        cur = newPage();
+        if (blocks[b].indexOf('tp-blank') > 0) continue;         /* 새 장 첫 줄이 빈 줄이면 버림 */
+        cur.appendChild(node);
+      }
+    }
+    var JsPDF = window.jspdf.jsPDF;
+    var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: [TPDF_PG.w, TPDF_PG.h] });
+    for (var p = 0; p < pages.length; p++){
+      setGenStage('전환 표시 PDF — 조판 중 (' + (p + 1) + '/' + pages.length + ')');
+      var cv = await window.html2canvas(pages[p], { scale: 2, backgroundColor: '#ffffff', logging: false });
+      if (p > 0) pdf.addPage([TPDF_PG.w, TPDF_PG.h], 'portrait');
+      pdf.addImage(cv.toDataURL('image/jpeg', 0.9), 'JPEG', TPDF_PG.m, TPDF_PG.m, TPDF_PG.w - TPDF_PG.m * 2, TPDF_PG.h - TPDF_PG.m * 2);
+      pdf.setFontSize(9); pdf.setTextColor(90);
+      pdf.text('- ' + (p + 1) + ' -', TPDF_PG.w / 2, TPDF_PG.h - 4.5, { align: 'center' });
+    }
+    return pdf.output('blob');
+  } finally { document.body.removeChild(host); }
+}
+/* 전환표시 PDF 저장 — body(이미 만든 전환표시본 본문)가 있으면 그대로 재사용 */
+async function saveTransPdf(id, meta, cuts, body){
+  var imgMap = await tpdfImgMap(meta);
+  var have = Object.keys(imgMap).length;
+  if (!have) throw new Error('저장된 배경 이미지가 없습니다 — [배경 이미지 생성]을 먼저 해 주세요.');
+  var text = (body && body.trim()) ? body : await ensureTransBody(id, meta, cuts);
+  if (!String(text || '').trim()) throw new Error('전환표시본 본문 없음');
+  var blob = await buildTransPdfBlob(meta, text, imgMap);
+  await saveBlobToResults(blob, sermonFileBase(meta, '이미지전환표시본') + '.pdf');
+  await markOutput(id, '이미지전환표시PDF', '앱 직접 생성(이미지 ' + have + '장)');
+  return have;
+}
+
 /* LTC 교재 데이터 생성 (TSV와 공유) */
 async function aiLtcData(meta){
   var key = meta['ID'] || meta['제목'] || '';
@@ -18949,7 +19122,7 @@ async function saveImgDataDocxFile(meta, cuts){
 function cascStepList(target){
   var sel = (target === 'total') ? cascSel() : null;   /* Total은 켜둔 산출물만 단계로 표시 */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
-  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg));
+  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg || sel.transpdf));
   var s = [];
   if (inA || inB) s.push({ label: '이미지 전환표' });
   if (target === 'docx' || target === 'total') s.push({ label: fmtTag() + ' 원고' });
@@ -18963,6 +19136,7 @@ function cascStepList(target){
     if (target === 'trans' || (sel && sel.trans)) s.push({ label: '이미지 전환표시본' });
     if (target === 'imgdata' || (sel && sel.imgdata)) s.push({ label: '이미지 프롬프트' });
     if (target === 'bgimg' || (sel && sel.bgimg)) s.push({ label: '배경 이미지' });
+    if (target === 'transpdf' || (sel && sel.transpdf)) s.push({ label: '전환 표시 PDF' });
   }
   return s;
 }
@@ -18995,7 +19169,8 @@ function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov)
 function cascDone(id){
   var dt = (id && typeof doneTypes === 'function') ? doneTypes(id) : {};
   return { docx: !!dt['원고DOCX'], card: !!dt['카드원고'], cardpdf: !!dt['카드PDF'], cardpptx: !!dt['카드PPTX'],
-           trans: !!dt['이미지전환표시본'], imgdata: !!dt['이미지프롬프트'], bgimg: !!dt['이미지생성'] };
+           trans: !!dt['이미지전환표시본'], imgdata: !!dt['이미지프롬프트'], bgimg: !!dt['이미지생성'],
+           transpdf: !!dt['이미지전환표시PDF'] };
 }
 /* 원고가 (전환표를 만든 시점 이후) 바뀌었는가 — 바뀌었으면 묻지 않고 새로 만든다. */
 function manuscriptChanged(id, meta){
@@ -19006,8 +19181,8 @@ function manuscriptChanged(id, meta){
 }
 /* 버튼별 산출물 키 — 이 키들이 모두 '만든 적 있음'이면 다시 만들지 묻는다. */
 var CASC_TARGET_KEYS = { docx: ['docx'], card: ['card'], cardpdf: ['card', 'cardpdf'], cardpptx: ['card', 'cardpptx'],
-  trans: ['trans'], imgdata: ['imgdata'], bgimg: ['bgimg'],
-  total: ['docx', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg'] };
+  trans: ['trans'], imgdata: ['imgdata'], bgimg: ['bgimg'], transpdf: ['transpdf'],
+  total: ['docx', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'] };
 /* 이미 만든 적 있을 때: 결과물 보기 / 다시 생성하기 / 닫기 — 선택을 Promise로 반환 */
 function askCascRegen(){
   return new Promise(function(resolve){
@@ -19060,7 +19235,7 @@ async function runCascade(target, id, meta){
   if ((target === 'bgimg' || (sel && sel.bgimg)) && !await uiConfirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
   if (target === 'total') window._cascForce = true;   /* ★ Total Sermon = 켜둔 산출물 전체 재생성(이전 산출물 유무와 무관) */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
-  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg));
+  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg || sel.transpdf));
   var k = 0;
   cascShow(cascStepList(target));
   var fails = [];   /* 한 단계가 실패해도 멈추지 않고 다음 단계로 — 무엇이 실패했는지 모아 알린다 */
@@ -19105,11 +19280,14 @@ async function runCascade(target, id, meta){
       var doTrans = (target === 'trans' || !!(sel && sel.trans));
       var doImg = (target === 'imgdata' || !!(sel && sel.imgdata));
       var doBg = (target === 'bgimg' || !!(sel && sel.bgimg));
+      var doTransPdf = (target === 'transpdf' || !!(sel && sel.transpdf));
       var cuts = null;
       ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
       if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body))); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); } }
       if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 ' + fmtTag() + ' 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
       if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
+      /* 전환 표시 PDF — 전환표시본 본문(방금 만들었으면 그대로 재사용) + 생성해 둔 배경 이미지 */
+      if (doTransPdf) { ck(); cascStep(k++, '전환 표시 PDF(이미지 삽입) 조판 중…'); try { await saveTransPdf(id, meta, cuts, (typeof body === 'string' ? body : '')); } catch (e) { rec('전환 표시 PDF', e); } }
     }
     ck();
     toast(fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인');
@@ -19140,7 +19318,7 @@ $$('#composeMeta [data-casc]').forEach(function(b){
   });
 })();
 /* ===== Total 포함 토글(가지 6개) — 선택·종속관계·기억 ===== */
-var CASC_SEL_KEYS = ['card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg'];
+var CASC_SEL_KEYS = ['card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'];
 var CASC_DEPS = { cardpdf: ['card'], cardpptx: ['card'] };   /* 켤 때 함께 켜질 필수 하위 소스 */
 var CASC_DEPENDENTS = { card: ['cardpdf', 'cardpptx'] };       /* 끌 때 함께 꺼질 상위(이 소스가 필요함) */
 function cascSwEl(k){ return document.querySelector('#composeMeta .cascsw[data-cascsel="' + k + '"]'); }
@@ -22247,7 +22425,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v528';
+var APP_VER = 'v529';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
