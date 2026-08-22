@@ -14724,11 +14724,13 @@ function tpdfCss(cw, ch){
     + '.tp-blank{height:1.9em}'
     + '.tp-bar{background:#EE0000;color:#fff;font-weight:700;text-align:center!important;text-indent:0!important;padding:2px 0;margin:7px 0!important}'
     + '.tp-fig{width:38%;margin:0 0 9px auto}'
-    + '.tp-fig img{display:block;width:100%;border:1px solid #d0d0d0}'
+    + '.tp-fig img{display:block;width:100%;height:auto;border:1px solid #d0d0d0}'
     + '.tp-cap{font-size:10.5px;line-height:1.5;color:#777;text-align:right}'
     + '.tp-miss{border:1px dashed #c0c0c0;color:#999;font-size:12px;text-align:center;padding:16px 0}';
 }
-/* 이미지 blob → 폭을 줄인 JPEG dataURL (PDF 용량 억제 — 참고용 썸네일) */
+/* 이미지 blob → 폭을 줄인 JPEG {u:dataURL, w, h} (PDF 용량 억제 — 참고용 썸네일).
+   ★ w·h를 함께 돌려주는 이유: <img>에 width·height를 박아야 이미지가 다 그려지기 전에도
+     높이가 잡혀 페이지 나누기(넘침 판정)가 어긋나지 않는다. */
 async function tpdfThumb(blob, maxW){
   var url = URL.createObjectURL(blob);
   try {
@@ -14737,7 +14739,7 @@ async function tpdfThumb(blob, maxW){
     var w = Math.min(maxW || 760, nw), h = Math.max(1, Math.round(w * nh / nw));
     var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
     cv.getContext('2d').drawImage(im, 0, 0, w, h);
-    return cv.toDataURL('image/jpeg', 0.82);
+    return { u: cv.toDataURL('image/jpeg', 0.82), w: w, h: h };
   } finally { try { URL.revokeObjectURL(url); } catch (e) {} }
 }
 /* 저장해 둔 배경 이미지 → { 번호: dataURL }. 백스테이지 zip(NN.png)이 기준,
@@ -14790,12 +14792,13 @@ async function ensureTransBody(id, meta, cuts){
   } catch (e) {}
   return await aiTransDoc(meta, cuts);
 }
+function tpdfImgTag(im){ return '<img src="' + im.u + '" width="' + im.w + '" height="' + im.h + '">'; }
 /* 문단 모델 + 이미지 → 페이지에 쌓을 블록 HTML 배열 */
 function tpdfBlocks(paras, imgMap){
   var out = [];
   function fig(n, cap){
     return imgMap[n]
-      ? '<div class="tp-fig"><img src="' + imgMap[n] + '"><div class="tp-cap">' + esc(cap) + '</div></div>'
+      ? '<div class="tp-fig">' + tpdfImgTag(imgMap[n]) + '<div class="tp-cap">' + esc(cap) + '</div></div>'
       : '<div class="tp-fig"><div class="tp-miss">' + esc(cap) + ' — 생성된 이미지 없음</div></div>';
   }
   (paras || []).forEach(function(p){
@@ -14825,8 +14828,10 @@ async function buildTransPdfBlob(meta, body, imgMap){
   if (imgMap[1]){
     var at = 0;
     for (var i = 0; i < blocks.length; i++) if (blocks[i].indexOf('tp-blank') > 0) { at = i; break; }
-    blocks.splice(at, 0, '<div class="tp-fig"><img src="' + imgMap[1] + '"><div class="tp-cap">표지 이미지 #1</div></div>');
+    blocks.splice(at, 0, '<div class="tp-fig">' + tpdfImgTag(imgMap[1]) + '<div class="tp-cap">표지 이미지 #1</div></div>');
   }
+  /* 그림을 미리 다 읽어 둔다 — 조판(넘침 판정)·html2canvas 양쪽에서 빈 그림이 되지 않게 */
+  try { await Promise.all(Object.keys(imgMap).map(function(n){ return loadImgEl(imgMap[n].u).catch(function(){ return null; }); })); } catch (e) {}
   var cw = tpdfPx(TPDF_PG.w - TPDF_PG.m * 2), ch = tpdfPx(TPDF_PG.h - TPDF_PG.m * 2);
   var host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-99999px;top:0;width:' + (cw + 60) + 'px;background:#fff';
