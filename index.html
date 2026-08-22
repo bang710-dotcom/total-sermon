@@ -14723,7 +14723,7 @@ function tpdfCss(cw, ch){
     + '.tp-ind{text-indent:2em}'
     + '.tp-blank{height:1.9em}'
     + '.tp-bar{background:#EE0000;color:#fff;font-weight:700;text-align:center!important;text-indent:0!important;padding:2px 0;margin:7px 0!important}'
-    + '.tp-fig{width:44%;margin:0 0 9px auto}'
+    + '.tp-fig{width:38%;margin:0 0 9px auto}'
     + '.tp-fig img{display:block;width:100%;border:1px solid #d0d0d0}'
     + '.tp-cap{font-size:10.5px;line-height:1.5;color:#777;text-align:right}'
     + '.tp-miss{border:1px dashed #c0c0c0;color:#999;font-size:12px;text-align:center;padding:16px 0}';
@@ -14801,9 +14801,10 @@ function tpdfBlocks(paras, imgMap){
   (paras || []).forEach(function(p){
     var t = String(p.text || '');
     if (p.bar){
-      out.push('<p class="tp-bar">' + esc(t) + '</p>');
+      /* 전환 바와 그 이미지는 한 덩어리 — 페이지가 갈릴 때 둘이 떨어지지 않게 묶는다 */
       var m = t.match(/#\s*(\d+)/);
-      if (m) out.push(fig(+m[1], (/본문/.test(t) ? '본문 이미지 #' : '이미지 #') + m[1]));
+      out.push('<div class="tp-cut"><p class="tp-bar">' + esc(t) + '</p>'
+        + (m ? fig(+m[1], (/본문/.test(t) ? '본문 이미지 #' : '이미지 #') + m[1]) : '') + '</div>');
       return;
     }
     if (!t.trim()) { out.push('<div class="tp-blank"></div>'); return; }
