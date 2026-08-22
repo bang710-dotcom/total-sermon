@@ -50,6 +50,6 @@
 - 앱 코드: `index.html` 의 `HWPX_TYPES`(역할→ID 지도) + `hwpxBuild()`. **새 서식을 만들지 않고** 역할 ID로 문단만 찍는다.
 - 같은 템플릿·같은 지도를 Cowork 스킬 **hwpx-sermon-docs** 도 쓴다(`hwpx/build_hwpx.py`, `hwpx/hwpx_types.json`).
   → 템플릿이나 역할 지도를 고치면 **앱·스킬 양쪽을 함께** 고칠 것.
-- **전환 표시 PDF (v529)**: 전환표시본과 같은 본문·전환표에 「배경 이미지 생성」으로 만든 그림을 각 전환 바 아래에 참고 썸네일로 끼워 PDF로 조판한다(`tpdfImgMap`/`tpdfBlocks`/`buildTransPdfBlob`/`saveTransPdf`, 캐스케이드 키 `transpdf`). hwpx가 아니라 html2canvas+jsPDF로 만들지만 용지·여백·색은 hwpx 전환표시본과 같은 규격(216×290mm·여백 10mm·12pt·바 #EE0000). 이미지는 저장된 백스테이지 zip(NN.png)에서 읽으며, 없으면 만들지 않고 안내한다.
+- **전환 표시 PDF (v529, v530에서 썸네일 축소)**: 전환표시본과 같은 본문·전환표에 「배경 이미지 생성」으로 만든 그림을 각 전환 바 오른쪽 끝에 작은 참고 썸네일(본문 폭 21%)로 겹쳐 올려 PDF로 조판한다(음수 여백 flex — 그림 때문에 쪽수가 늘지 않게)(`tpdfImgMap`/`tpdfBlocks`/`buildTransPdfBlob`/`saveTransPdf`, 캐스케이드 키 `transpdf`). hwpx가 아니라 html2canvas+jsPDF로 만들지만 용지·여백·색은 hwpx 전환표시본과 같은 규격(216×290mm·여백 10mm·12pt·바 #EE0000). 이미지는 저장된 백스테이지 zip(NN.png)에서 읽으며, 없으면 만들지 않고 안내한다.
 - DOCX 생성 코드는 그대로 두었다. 설정 → 도구 → **산출물 파일 형식**에서 DOCX로 되돌릴 수 있다.
 - 되읽기(카드원고 추출·LTC 되읽기·드래그 가져오기·폴더 스캔)는 `zipDocParas()` 가 docx·hwpx 를 모두 처리한다(옛 docx 파일도 계속 인식).
