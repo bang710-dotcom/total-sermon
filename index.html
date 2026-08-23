@@ -14693,6 +14693,7 @@ async function generateTransDoc(id, meta){
     if (outFmt() === 'hwpx') blob = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body)));
     else { var Dx = await ensureDocxLib(); blob = await Dx.Packer.toBlob(buildTransDocx(Dx, meta, body)); }
     await saveBlobToResults(blob, imgDataNames(meta).trans);
+    if (id) { try { setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) }); } catch (e) {} }   /* 이 본문이 어느 원고로 만들어졌는지 기록 */
     hideGenOverlay(); renderSyncState();
     toast('이미지전환표시본 저장 완료 — [아웃풋]에서 확인.');
   } catch (e) { hideGenOverlay(); toast('전환표시본 실패: ' + (e.message || e)); }
@@ -14779,7 +14780,8 @@ async function tpdfImgMap(meta){
    ★ v531: 그 파일이 "지금 원고와 같은 문장"일 때만 재사용한다. 예전에는 원고를 고친 뒤에도
    옛 전환표시본 본문을 그대로 써서 전환 PDF에 수정 전 문장이 남았다. */
 function transStripCodes(s){
-  return String(s || '').replace(/^\s*\((?:서론|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론|대지)\)\s*/, '');
+  return String(s || '').replace(/^\s*\((?:서론|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론|대지)\)\s*/, '')
+                       .replace(/^\s*\d{1,2}\s*[.)]\s+/, '');   /* 문서로 렌더될 때 붙는 대지 번호 */
 }
 function transPlainKey(txt){
   return transKey(String(txt || '').split('\n')
@@ -14790,13 +14792,9 @@ function transPlainKey(txt){
 function transBodyFresh(body, meta){
   var a = transPlainKey(body), b = transPlainKey(meta && meta['원고텍스트']);
   if (!a || !b) return false;
-  if (Math.abs(a.length - b.length) > Math.max(24, Math.round(b.length * 0.01))) return false;
-  for (var k = 1; k <= 5; k++){                      /* 원고 곳곳에서 30자씩 뽑아 그대로 들어 있는지 확인 */
-    var at = Math.floor(b.length * k / 6);
-    var chunk = b.substr(Math.max(0, at - 15), 30);
-    if (chunk && a.indexOf(chunk) < 0) return false;
-  }
-  return true;
+  /* 한 글자만 달라도 "바뀐 것"으로 본다 — 어긋났을 때의 대가(옛 문장이 PDF에 남는 것)가 크고,
+     새로 만드는 비용은 이제 없다(앵커 재정렬은 로컬·즉시). */
+  return a === b;
 }
 function tpdfStripHead(lines, meta){
   var out = (lines || []).slice(0);
@@ -14817,7 +14815,7 @@ async function ensureTransBody(id, meta, cuts){
         var lines = await zipDocParas(await (await hit.h.getFile()).arrayBuffer());
         if (lines && lines.some(function(l){ return /^▶.*◀$/.test(l); })){
           var body = tpdfStripHead(lines, meta).join('\n');
-          if (transBodyFresh(body, meta)) return body;          /* 같은 문장일 때만 재사용 */
+          if (transBodySig(id) === manuscriptSig(meta) || transBodyFresh(body, meta)) return body;   /* 같은 문장일 때만 재사용 */
           /* 원고가 바뀌었다 → 전환표(번호·순서)는 그대로 두고 전환 지점만 새 원고에 다시 붙인다 */
           var tbl = (cuts || []).filter(function(c){ return c.n >= 2; })
             .map(function(c){ return { n: c.n, t: c.type || c.t || '일반', a: c.anchor || c.a || '', role: c.role || '' }; });
@@ -19538,7 +19536,7 @@ async function runCascade(target, id, meta){
       var doTransPdf = (target === 'transpdf' || !!(sel && sel.transpdf));
       var cuts = null;
       ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
-      if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body))); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); } } catch (e) { rec('전환표시본', e); } }
+      if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body))); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); try { setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) }); } catch (e2) {} } } catch (e) { rec('전환표시본', e); } }
       if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 ' + fmtTag() + ' 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
       if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
       /* 전환 표시 PDF — 전환표시본 본문(방금 만들었으면 그대로 재사용) + 생성해 둔 배경 이미지 */
