@@ -16033,9 +16033,11 @@ function transLcs(a, b){                       /* 최장 공통 부분수열 길
   }
   return prev[m];
 }
-function transAnchorKey(a){ return transKey(String(a || '').replace(/^\([^)]{1,8}\)\s*/, '')); }   /* (적용)·(실천) 등 구조코드 제거 */
+/* 앵커·문단을 같은 잣대로 — (적용)·(실천) 등 구조코드와 대지 번호("1. ")를 떼고 비교한다.
+   원고에는 "1. 대지문"으로, 전환표 앵커에는 "(적용) …" 형태로 들어 있어 그대로 비교하면 어긋난다. */
+function transAnchorKey(a){ return transKey(transStripCodes(String(a || '').trim())); }
 function transScore(k, line){                  /* 앵커 k 가 이 문단에서 시작하는가 (0~1) */
-  var p = transKey(line); if (!k || !p) return 0;
+  var p = transKey(transStripCodes(String(line || '').trim())); if (!k || !p) return 0;
   var s1 = transLcs(k, p.slice(0, k.length + 6)) / k.length;          /* 문단 첫머리와 비교 */
   var s2 = transLcs(k, p.slice(0, k.length * 3)) / k.length * 0.97;   /* 문장이 앞에 끼어든 경우 */
   return Math.max(s1, s2);
@@ -16049,7 +16051,8 @@ function retransMatch(table, txt){
   var lines = String(txt || '').split('\n').filter(function(l){ return !/^▶.*◀$/.test(l.trim()); });
   var cand = [], isQ = [];
   for (var i = 0; i < lines.length; i++){
-    var l = lines[i].trim(); if (!l) continue;
+    var l = lines[i].trim();
+    if (!l || !transStripCodes(l).trim()) continue;    /* 빈 줄·구조코드만 있는 줄("(주해)")은 후보에서 뺀다 */
     cand.push(i); isQ.push(refQuoteRe().test(l));
   }
   var rows = (table || []).map(function(r){
@@ -16259,8 +16262,9 @@ async function transTableOpen(){
       '<div style="min-width:0"><div style="font-weight:800;font-size:15px">🔎 이미지 전환표</div>' +
       '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + esc(meta['제목'] || '') + ' — 카드원고·전환표시본·이미지가 함께 쓰는 기준표</div></div>' +
       '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="transTableClose()">× 닫기</button></div>' +
-    '<div style="flex:0 0 auto;display:flex;gap:6px;padding:10px 14px 0">' +
-      '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="transTableRegen()">🔄 다시 잡기</button></div>' +
+    '<div style="flex:0 0 auto;display:flex;gap:6px;padding:10px 14px 0;flex-wrap:wrap">' +
+      '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="transTableRegen()">🔄 다시 잡기</button>' +
+      '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="transTableRestore()">📂 이전 전환표 되읽기</button></div>' +
     '<div id="ttBody" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(20px + env(safe-area-inset-bottom))"></div>';
   document.body.appendChild(ov);
   document.body.style.overflow = 'hidden';
@@ -22707,7 +22711,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v532';
+var APP_VER = 'v533';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
