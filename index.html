@@ -16041,62 +16041,60 @@ function transScore(k, line){                  /* 앵커 k 가 이 문단에서 
   return Math.max(s1, s2);
 }
 /* 옛 전환표(table)를 새 원고(txt)에 다시 붙인다.
+   컷 순서는 절대 뒤바뀌면 안 되므로, 낱개로 최고점을 고르지 않고
+   "순서를 지키면서 전체 점수 합이 최대가 되는 배치"를 동적계획법으로 한 번에 찾는다
+   (컷 25개 × 문단 200개라도 5,000칸 — 즉시 끝난다).
    → { lines(전환 바 제거한 원고 줄), rows:[{n,t,role,a,i,score}], weak:[번호…] } */
 function retransMatch(table, txt){
   var lines = String(txt || '').split('\n').filter(function(l){ return !/^▶.*◀$/.test(l.trim()); });
-  var cand = [], isQ = {};
+  var cand = [], isQ = [];
   for (var i = 0; i < lines.length; i++){
     var l = lines[i].trim(); if (!l) continue;
-    cand.push(i); isQ[i] = refQuoteRe().test(l);
+    cand.push(i); isQ.push(refQuoteRe().test(l));
   }
   var rows = (table || []).map(function(r){
     return { n: r.n, t: /본문/.test(String(r.t || '')) ? '본문' : '일반', role: r.role || '',
              k: transAnchorKey(r.a), a: r.a || '', i: -1, score: 0 };
   });
-  function best(r, lo, hi){
-    var bi = -1, bs = 0;
-    for (var q = 0; q < cand.length; q++){
-      var ix = cand[q]; if (ix < lo || ix > hi) continue;
-      if (r.t === '본문' ? !isQ[ix] : isQ[ix]) continue;    /* 본문 컷은 성경 인용 줄에만, 일반 컷은 그 밖에만 */
-      var s = transScore(r.k, lines[ix]);
-      if (s > bs + 1e-9) { bs = s; bi = ix; }               /* 동점이면 앞쪽 문단 우선 */
+  var R = rows.length, C = cand.length, weak = [];
+  if (!R || !C) return { lines: lines, rows: rows, weak: rows.map(function(r){ return r.n; }) };
+  /* 점수판: raw = 앵커 유사도, adj = 종류(본문/일반) 불일치에 벌점 — 벌점은 배치에만 쓰고 보고에는 raw를 쓴다 */
+  var raw = [], adj = [], r0, q0;
+  for (r0 = 0; r0 < R; r0++){
+    raw[r0] = []; adj[r0] = [];
+    for (q0 = 0; q0 < C; q0++){
+      var s = transScore(rows[r0].k, lines[cand[q0]]);
+      raw[r0][q0] = s;
+      adj[r0][q0] = s - ((rows[r0].t === '본문') !== !!isQ[q0] ? 0.6 : 0);
     }
-    return { i: bi, s: bs };
   }
-  var last = lines.length - 1;
-  rows.forEach(function(r){ var b = best(r, 0, last); r.i = b.i; r.score = b.s; });
-  /* 1차: 0.8 이상만 확정하고 순서(단조 증가)를 강제 */
-  var fixed = [];
-  rows.forEach(function(r, k){
-    if (r.score < 0.8 || r.i < 0) return;
-    if (fixed.length && r.i <= rows[fixed[fixed.length - 1]].i) return;
-    fixed.push(k);
-  });
-  /* 2차: 미확정 앵커는 확정된 앞뒤 이웃 사이에서만 다시 찾는다 */
-  var weak = [];
-  rows.forEach(function(r, k){
-    if (fixed.indexOf(k) >= 0) return;
-    var lo = 0, hi = last;
-    for (var a2 = 0; a2 < fixed.length; a2++){
-      if (fixed[a2] < k) lo = rows[fixed[a2]].i + 1;
-      else { hi = rows[fixed[a2]].i - 1; break; }
+  /* dp[r][q] = r번째 컷을 q번째 문단에 두었을 때의 최대 누적 점수 (q는 반드시 앞 컷보다 뒤) */
+  var dp = [], bk = [], NEG = -1e9;
+  for (r0 = 0; r0 < R; r0++){
+    dp[r0] = []; bk[r0] = [];
+    var runBest = NEG, runIdx = -1;
+    for (q0 = 0; q0 < C; q0++){
+      if (r0 === 0) { dp[0][q0] = adj[0][q0]; bk[0][q0] = -1; continue; }
+      if (dp[r0 - 1][q0 - 1] > runBest) { runBest = dp[r0 - 1][q0 - 1]; runIdx = q0 - 1; }
+      dp[r0][q0] = (runIdx < 0) ? NEG : runBest + adj[r0][q0];
+      bk[r0][q0] = runIdx;
     }
-    var b = best(r, lo, hi);
-    r.i = b.i; r.score = b.s;
-    if (r.i < 0 || r.score < 0.5) weak.push(r.n);
-  });
-  /* 마무리: 전체 순서 보정(겹치거나 못 찾은 컷은 직전 컷 다음 후보로) */
-  var prev = -1;
-  rows.forEach(function(r){
-    if (r.i <= prev){
-      var nx = -1;
-      for (var q = 0; q < cand.length; q++){ if (cand[q] > prev) { nx = cand[q]; break; } }
-      r.i = nx >= 0 ? nx : Math.min(prev + 1, last);
-      if (weak.indexOf(r.n) < 0) weak.push(r.n);
-    }
-    prev = r.i;
-    r.a = String(lines[r.i] || '').trim().slice(0, 30);
-  });
+  }
+  var endQ = -1, endV = NEG;
+  for (q0 = 0; q0 < C; q0++) if (dp[R - 1][q0] > endV) { endV = dp[R - 1][q0]; endQ = q0; }
+  if (endQ < 0){                                    /* 컷보다 문단이 적은 비정상 상황 — 순서대로 흩어 놓는다 */
+    rows.forEach(function(r, k){ r.i = cand[Math.min(k, C - 1)]; r.score = 0; weak.push(r.n); });
+  } else {
+    var pick = [], q = endQ;
+    for (r0 = R - 1; r0 >= 0; r0--){ pick[r0] = q; q = bk[r0][q]; }
+    rows.forEach(function(r, k){
+      r.i = cand[pick[k]];
+      r.score = raw[k][pick[k]];
+      var typeBad = (r.t === '본문') !== !!isQ[pick[k]];
+      if (r.score < 0.5 || typeBad) weak.push(r.n);   /* 문장이 많이 바뀌었거나 종류가 안 맞는 자리 → 확인 권장 */
+    });
+  }
+  rows.forEach(function(r){ r.a = String(lines[r.i] || '').trim().slice(0, 30); });
   return { lines: lines, rows: rows, weak: weak };
 }
 /* 재정렬 결과 → 전환표시본 본문(전환 바가 삽입된 원고 전문). AI를 쓰지 않는다. */
