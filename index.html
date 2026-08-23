@@ -14827,6 +14827,86 @@ async function ensureTransBody(id, meta, cuts){
   return await aiTransDoc(meta, cuts);
 }
 function tpdfImgTag(im){ return '<img src="' + im.u + '" width="' + im.w + '" height="' + im.h + '">'; }
+
+/* ══════════ 전환 표시 PDF — 보이지 않는 텍스트층 (v534) ══════════════════════
+   페이지 그림 위에 "안 보이는 글자"를 실제 글자가 놓인 자리에 그대로 얹는다.
+   스캔본에 OCR을 입히는 것과 같은 원리 — 보이는 조판은 한 점도 바뀌지 않고,
+   아이패드 PDF 앱에서 하이라이트·밑줄·검색·복사가 된다.
+   글꼴은 외곽선을 지우고 자폭(hmtx)과 유니코드 대응만 남긴 220KB짜리 한글 서브셋을 쓴다
+   (어차피 보이지 않으므로 모양은 필요 없다 → 파일이 커지지 않는다). */
+var TPDF_TEXT_FONT = './fonts/pdf-text-layer-ko.ttf';
+var _tpdfFontB64 = null;
+async function tpdfFontB64(){
+  if (_tpdfFontB64 !== null) return _tpdfFontB64;
+  try {
+    var buf = await (await fetch(TPDF_TEXT_FONT)).arrayBuffer();
+    var u8 = new Uint8Array(buf), s = '', CH = 0x8000;
+    for (var i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+    _tpdfFontB64 = btoa(s);
+  } catch (e) { _tpdfFontB64 = ''; }   /* 폰트를 못 받으면 텍스트층 없이 진행 */
+  return _tpdfFontB64;
+}
+async function tpdfAddTextFont(pdf){
+  var b64 = await tpdfFontB64();
+  if (!b64) return false;
+  try { pdf.addFileToVFS('tpdfko.ttf', b64); pdf.addFont('tpdfko.ttf', 'TPDFKO', 'normal'); return true; }
+  catch (e) { return false; }
+}
+/* 한 페이지 DOM에서 "줄 단위" 글자 상자를 뽑는다 → [{text,left,right,top,bottom,size}] (px, 페이지 기준) */
+function tpdfLineBoxes(pageEl){
+  var base = pageEl.getBoundingClientRect(), out = [];
+  var walker = document.createTreeWalker(pageEl, NodeFilter.SHOW_TEXT, null, false);
+  var rng = document.createRange(), n;
+  while ((n = walker.nextNode())){
+    var s = n.nodeValue || ''; if (!s.trim()) continue;
+    var size = 16;
+    try { size = parseFloat(getComputedStyle(n.parentNode).fontSize) || 16; } catch (e) {}
+    var cur = null;
+    for (var i = 0; i < s.length; i++){
+      try { rng.setStart(n, i); rng.setEnd(n, i + 1); } catch (e) { continue; }
+      var r = rng.getBoundingClientRect();
+      if (!r || r.width <= 0.01) continue;                       /* 줄 끝에서 사라진 공백 등 */
+      if (cur && Math.abs(r.top - cur.top) < 1.5){               /* 같은 줄 → 이어 붙인다 */
+        cur.text += s.charAt(i); cur.right = r.right;
+        if (r.bottom > cur.bottom) cur.bottom = r.bottom;
+      } else {
+        if (cur) out.push(cur);
+        cur = { text: s.charAt(i), left: r.left, right: r.right, top: r.top, bottom: r.bottom, size: size };
+      }
+    }
+    if (cur) out.push(cur);
+  }
+  return out.map(function(c){
+    return { text: c.text, size: c.size,
+             left: c.left - base.left, right: c.right - base.left,
+             top: c.top - base.top, bottom: c.bottom - base.top };
+  });
+}
+/* 뽑은 줄 상자를 현재 페이지에 "보이지 않는 글자"로 얹는다 */
+function tpdfDrawTextLayer(pdf, pageEl){
+  var boxes = tpdfLineBoxes(pageEl);
+  if (!boxes.length) return;
+  var k = (TPDF_PG.w - TPDF_PG.m * 2) / (pageEl.offsetWidth || 1);   /* px → mm */
+  pdf.setFont('TPDFKO', 'normal');
+  pdf.setTextColor(0);
+  for (var i = 0; i < boxes.length; i++){
+    var b = boxes[i];
+    var t = b.text.replace(/\s+$/, '');
+    if (!t.trim()) continue;
+    var pt = b.size * k * 72 / 25.4;                                  /* 화면 글자크기 → pt */
+    pdf.setFontSize(pt);
+    var target = (b.right - b.left) * k;
+    var natural = 0;
+    try { natural = pdf.getTextWidth(t); } catch (e) { natural = target; }
+    var cs = t.length > 0 ? (target - natural) / t.length : 0;
+    var lim = pt * 25.4 / 72 * 0.4;                                   /* 자간 보정 한계(글자폭의 40%) */
+    if (!isFinite(cs) || Math.abs(cs) > lim) cs = 0;                  /* 측정이 어긋난 줄은 보정 없이 */
+    var x = TPDF_PG.m + b.left * k;
+    var y = TPDF_PG.m + (b.bottom * k) - (b.size * k * 0.21);         /* 베이스라인 */
+    try { pdf.text(t, x, y, { renderingMode: 'invisible', charSpace: cs }); } catch (e) {}
+  }
+  pdf.setCharSpace(0);
+}
 /* 문단 모델 + 이미지 → 페이지에 쌓을 블록 HTML 배열 */
 function tpdfBlocks(paras, imgMap){
   var out = [];
@@ -14888,11 +14968,14 @@ async function buildTransPdfBlob(meta, body, imgMap){
     }
     var JsPDF = window.jspdf.jsPDF;
     var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: [TPDF_PG.w, TPDF_PG.h] });
+    var hasTextFont = await tpdfAddTextFont(pdf);   /* 보이지 않는 텍스트층용 한글 글꼴 */
     for (var p = 0; p < pages.length; p++){
       setGenStage('전환 표시 PDF — 조판 중 (' + (p + 1) + '/' + pages.length + ')');
       var cv = await window.html2canvas(pages[p], { scale: 2, backgroundColor: '#ffffff', logging: false });
       if (p > 0) pdf.addPage([TPDF_PG.w, TPDF_PG.h], 'portrait');
       pdf.addImage(cv.toDataURL('image/jpeg', 0.9), 'JPEG', TPDF_PG.m, TPDF_PG.m, TPDF_PG.w - TPDF_PG.m * 2, TPDF_PG.h - TPDF_PG.m * 2);
+      if (hasTextFont) tpdfDrawTextLayer(pdf, pages[p]);   /* ★ 하이라이트·밑줄·검색이 되도록 글자를 얹는다 */
+      pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(9); pdf.setTextColor(90);
       pdf.text('- ' + (p + 1) + ' -', TPDF_PG.w / 2, TPDF_PG.h - 4.5, { align: 'center' });
     }
@@ -22787,7 +22870,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v533';
+var APP_VER = 'v534';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
