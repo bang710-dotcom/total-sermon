@@ -1538,6 +1538,7 @@ body.uiDlgOpen{overflow:hidden}
             </div>
             <button class="btn sub" id="btnTransTable" style="width:100%;margin-top:8px"><span class="blab">🔎 이미지 전환표 보기 · 다시 잡기</span><small class="bpath">카드·전환표시·이미지가 공유하는 단일 기준표</small></button>
             <button class="btn sub" id="btnImgRegen" style="width:100%;margin-top:6px"><span class="blab">🖼 이미지 낱장 재생성</span><small class="bpath">번호별 · 엔진 선택 · 뒤따르는 본문 컷 자동 포함</small></button>
+            <button class="btn sub" id="btnRetrans" style="width:100%;margin-top:6px"><span class="blab">♻ 원고 수정 반영 (전환표·이미지 유지)</span><small class="bpath">고친 문장에 전환 지점만 다시 맞춰 전환표시본 · 전환 PDF 재생성</small></button>
           </div>
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
         </div>
@@ -14774,7 +14775,29 @@ async function tpdfImgMap(meta){
   return map;
 }
 /* 전환표시본 본문 텍스트 확보 — 이미 만든 전환표시본 파일이 있으면 그 본문을 그대로 쓰고
-   (문서와 PDF의 전환 위치가 어긋나지 않게), 없으면 새로 생성한다. */
+   (문서와 PDF의 전환 위치가 어긋나지 않게), 없으면 새로 생성한다.
+   ★ v531: 그 파일이 "지금 원고와 같은 문장"일 때만 재사용한다. 예전에는 원고를 고친 뒤에도
+   옛 전환표시본 본문을 그대로 써서 전환 PDF에 수정 전 문장이 남았다. */
+function transStripCodes(s){
+  return String(s || '').replace(/^\s*\((?:서론|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론|대지)\)\s*/, '');
+}
+function transPlainKey(txt){
+  return transKey(String(txt || '').split('\n')
+    .filter(function(l){ return l.trim() && !/^▶.*◀$/.test(l.trim()); })
+    .map(function(l){ return transStripCodes(l.trim()); }).join(' '));
+}
+/* 전환표시본 파일 본문이 현재 원고와 같은 문장인가 (문서 서식 변환 차이는 허용) */
+function transBodyFresh(body, meta){
+  var a = transPlainKey(body), b = transPlainKey(meta && meta['원고텍스트']);
+  if (!a || !b) return false;
+  if (Math.abs(a.length - b.length) > Math.max(24, Math.round(b.length * 0.01))) return false;
+  for (var k = 1; k <= 5; k++){                      /* 원고 곳곳에서 30자씩 뽑아 그대로 들어 있는지 확인 */
+    var at = Math.floor(b.length * k / 6);
+    var chunk = b.substr(Math.max(0, at - 15), 30);
+    if (chunk && a.indexOf(chunk) < 0) return false;
+  }
+  return true;
+}
 function tpdfStripHead(lines, meta){
   var out = (lines || []).slice(0);
   var t = String(meta['제목'] || '').trim();
@@ -14792,7 +14815,14 @@ async function ensureTransBody(id, meta, cuts){
       });
       if (hit){
         var lines = await zipDocParas(await (await hit.h.getFile()).arrayBuffer());
-        if (lines && lines.some(function(l){ return /^▶.*◀$/.test(l); })) return tpdfStripHead(lines, meta).join('\n');
+        if (lines && lines.some(function(l){ return /^▶.*◀$/.test(l); })){
+          var body = tpdfStripHead(lines, meta).join('\n');
+          if (transBodyFresh(body, meta)) return body;          /* 같은 문장일 때만 재사용 */
+          /* 원고가 바뀌었다 → 전환표(번호·순서)는 그대로 두고 전환 지점만 새 원고에 다시 붙인다 */
+          var tbl = (cuts || []).filter(function(c){ return c.n >= 2; })
+            .map(function(c){ return { n: c.n, t: c.type || c.t || '일반', a: c.anchor || c.a || '', role: c.role || '' }; });
+          if (tbl.length) return retransBody(retransMatch(tbl, meta['원고텍스트']));
+        }
       }
     }
   } catch (e) {}
@@ -15989,6 +16019,176 @@ function normalizeTransTable(table){
     return { n: i + 2, t: isBody ? '본문' : '일반', a: r.a || '', role: r.role || '' };
   });
 }
+/* ══════════ 원고 수정 반영 — 전환표 "다시 만들지 않고 다시 붙이기" (v531) ══════════
+   최종 산출물까지 다 만든 뒤 원고 문장 몇 개를 고치면, 지금까지는 서명이 달라져 전환표가
+   통째로 새로 생성됐다 → 컷 번호·개수가 바뀌어 이미 만든 배경 이미지가 어긋났다.
+   전환의 정체는 {n, t, a(앵커)} 뿐이므로, 컷 개수·번호·순서는 그대로 두고 앵커만 새 원고
+   문단에 다시 붙이면 이미지를 한 장도 새로 만들지 않고 전환표시본·전환 PDF만 새 문장으로
+   다시 만들 수 있다. AI 호출 없이 문자열 유사도로 처리한다(즉시·무비용·결정론적). */
+function transLcs(a, b){                       /* 최장 공통 부분수열 길이 */
+  var n = a.length, m = b.length; if (!n || !m) return 0;
+  var prev = [], cur = [], i, j;
+  for (j = 0; j <= m; j++) { prev[j] = 0; cur[j] = 0; }
+  for (i = 1; i <= n; i++){
+    for (j = 1; j <= m; j++) cur[j] = (a.charAt(i - 1) === b.charAt(j - 1)) ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+    for (j = 0; j <= m; j++) { prev[j] = cur[j]; cur[j] = 0; }
+  }
+  return prev[m];
+}
+function transAnchorKey(a){ return transKey(String(a || '').replace(/^\([^)]{1,8}\)\s*/, '')); }   /* (적용)·(실천) 등 구조코드 제거 */
+function transScore(k, line){                  /* 앵커 k 가 이 문단에서 시작하는가 (0~1) */
+  var p = transKey(line); if (!k || !p) return 0;
+  var s1 = transLcs(k, p.slice(0, k.length + 6)) / k.length;          /* 문단 첫머리와 비교 */
+  var s2 = transLcs(k, p.slice(0, k.length * 3)) / k.length * 0.97;   /* 문장이 앞에 끼어든 경우 */
+  return Math.max(s1, s2);
+}
+/* 옛 전환표(table)를 새 원고(txt)에 다시 붙인다.
+   → { lines(전환 바 제거한 원고 줄), rows:[{n,t,role,a,i,score}], weak:[번호…] } */
+function retransMatch(table, txt){
+  var lines = String(txt || '').split('\n').filter(function(l){ return !/^▶.*◀$/.test(l.trim()); });
+  var cand = [], isQ = {};
+  for (var i = 0; i < lines.length; i++){
+    var l = lines[i].trim(); if (!l) continue;
+    cand.push(i); isQ[i] = refQuoteRe().test(l);
+  }
+  var rows = (table || []).map(function(r){
+    return { n: r.n, t: /본문/.test(String(r.t || '')) ? '본문' : '일반', role: r.role || '',
+             k: transAnchorKey(r.a), a: r.a || '', i: -1, score: 0 };
+  });
+  function best(r, lo, hi){
+    var bi = -1, bs = 0;
+    for (var q = 0; q < cand.length; q++){
+      var ix = cand[q]; if (ix < lo || ix > hi) continue;
+      if (r.t === '본문' ? !isQ[ix] : isQ[ix]) continue;    /* 본문 컷은 성경 인용 줄에만, 일반 컷은 그 밖에만 */
+      var s = transScore(r.k, lines[ix]);
+      if (s > bs + 1e-9) { bs = s; bi = ix; }               /* 동점이면 앞쪽 문단 우선 */
+    }
+    return { i: bi, s: bs };
+  }
+  var last = lines.length - 1;
+  rows.forEach(function(r){ var b = best(r, 0, last); r.i = b.i; r.score = b.s; });
+  /* 1차: 0.8 이상만 확정하고 순서(단조 증가)를 강제 */
+  var fixed = [];
+  rows.forEach(function(r, k){
+    if (r.score < 0.8 || r.i < 0) return;
+    if (fixed.length && r.i <= rows[fixed[fixed.length - 1]].i) return;
+    fixed.push(k);
+  });
+  /* 2차: 미확정 앵커는 확정된 앞뒤 이웃 사이에서만 다시 찾는다 */
+  var weak = [];
+  rows.forEach(function(r, k){
+    if (fixed.indexOf(k) >= 0) return;
+    var lo = 0, hi = last;
+    for (var a2 = 0; a2 < fixed.length; a2++){
+      if (fixed[a2] < k) lo = rows[fixed[a2]].i + 1;
+      else { hi = rows[fixed[a2]].i - 1; break; }
+    }
+    var b = best(r, lo, hi);
+    r.i = b.i; r.score = b.s;
+    if (r.i < 0 || r.score < 0.5) weak.push(r.n);
+  });
+  /* 마무리: 전체 순서 보정(겹치거나 못 찾은 컷은 직전 컷 다음 후보로) */
+  var prev = -1;
+  rows.forEach(function(r){
+    if (r.i <= prev){
+      var nx = -1;
+      for (var q = 0; q < cand.length; q++){ if (cand[q] > prev) { nx = cand[q]; break; } }
+      r.i = nx >= 0 ? nx : Math.min(prev + 1, last);
+      if (weak.indexOf(r.n) < 0) weak.push(r.n);
+    }
+    prev = r.i;
+    r.a = String(lines[r.i] || '').trim().slice(0, 30);
+  });
+  return { lines: lines, rows: rows, weak: weak };
+}
+/* 재정렬 결과 → 전환표시본 본문(전환 바가 삽입된 원고 전문). AI를 쓰지 않는다. */
+function retransBody(m){
+  var mark = {};
+  m.rows.forEach(function(r){ (mark[r.i] = mark[r.i] || []).push(r); });
+  var out = [];
+  for (var i = 0; i < m.lines.length; i++){
+    (mark[i] || []).forEach(function(r){
+      out.push('▶ ' + (r.t === '본문' ? '본문 이미지 #' : '이미지 #') + r.n + ' 전환 ◀');
+    });
+    out.push(m.lines[i]);
+  }
+  return out.join('\n');
+}
+/* 파일맵 여러 키를 한 번에 갱신(시트 전송·재렌더 1회) */
+function setSermonFileMapMulti(id, obj){
+  if (!id || !obj) return;
+  var s = findSermon(id); if (!s) return;
+  var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
+  Object.keys(obj).forEach(function(k){ fm[k] = obj[k]; });
+  s['파일맵'] = JSON.stringify(fm); saveData();
+  apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }).catch(function(){});
+  if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
+}
+/* 전환표시본 본문을 만든 시점의 원고 서명 — 원고가 바뀌면 옛 본문을 재사용하지 않게 한다 */
+function transBodySig(id){
+  var s = id ? findSermon(id) : null; if (!s) return '';
+  try { return (JSON.parse(s['파일맵'] || '{}') || {}).transBodySig || ''; } catch (e) { return ''; }
+}
+/* ★ [원고 수정 반영] — 전환표·이미지는 그대로 두고 새 문장으로 전환표시본·전환 PDF만 다시 만든다 */
+async function applyRetrans(id, meta){
+  try {
+    var txt = String((meta && meta['원고텍스트']) || '').trim();
+    if (!txt) { toast('원고를 먼저 작성해 주세요.'); return; }
+    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    var table = id ? sermonTrans(id) : null;
+    if (!table || !table.length) { toast('저장된 전환표가 없습니다 — [이미지 전환표 보기]에서 먼저 만들어 주세요.'); return; }
+    var m = retransMatch(table, txt);
+    var okCnt = m.rows.length - m.weak.length;
+    var msg = '전환표의 컷 ' + m.rows.length + '개(#2~#' + m.rows[m.rows.length - 1].n + ')를 그대로 두고,\n'
+      + '수정된 원고에 전환 지점만 다시 맞춥니다. 배경 이미지는 그대로 씁니다.\n\n'
+      + '· 자동 확정 ' + okCnt + '개'
+      + (m.weak.length ? '\n· 확인 권장 ' + m.weak.length + '개 — #' + m.weak.join(', #') + ' (문장이 많이 바뀐 자리)' : '')
+      + '\n\n전환표시본과 전환 표시 PDF를 다시 만들까요?';
+    if (!await uiConfirm(msg, { okText: '반영' })) return;
+    showGenOverlay('원고 수정 반영');
+    setGenStage('전환 지점 다시 맞추는 중…');
+    var sig = manuscriptSig(meta);
+    var newTable = m.rows.map(function(r){ return { n: r.n, t: r.t, a: r.a, role: r.role }; });
+    setSermonFileMapMulti(id, { trans: newTable, transSig: sig, transBodySig: sig });
+    try { await saveBlobToResults(new Blob([JSON.stringify({ ref: meta['본문'] || '', sig: sig, trans: newTable }, null, 1)], { type: 'application/json' }), sermonFileBase(meta, '전환표') + '.json'); } catch (e) {}
+    /* 이미지 컷 사이드카(프롬프트)도 앵커만 갱신 — 프롬프트·이미지는 그대로 */
+    try {
+      var raw = await loadCutsSidecarRaw(meta);
+      if (raw && raw.cuts && raw.cuts.length){
+        var byN = {}; m.rows.forEach(function(r){ byN[r.n] = r; });
+        raw.cuts.forEach(function(c){ var r = byN[c.n]; if (r) { c.anchor = r.a; c.type = r.t; } });
+        await saveCutsSidecar(id, meta, raw.cuts);
+      }
+    } catch (e) {}
+    setGenStage('전환표시본 다시 만드는 중…');
+    var body = retransBody(m);
+    var blob;
+    if (outFmt() === 'hwpx') blob = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body)));
+    else { var Dx = await ensureDocxLib(); blob = await Dx.Packer.toBlob(buildTransDocx(Dx, meta, body)); }
+    await saveBlobToResults(blob, imgDataNames(meta).trans);
+    if (id) { try { await markOutput(id, '이미지전환표시본', '원고 수정 반영(전환표 유지)'); } catch (e) {} }
+    var pdfMsg = '';
+    try {
+      setGenStage('전환 표시 PDF 다시 조판 중…');
+      var imgMap = await tpdfImgMap(meta);
+      var have = Object.keys(imgMap).length;
+      if (have){
+        var pblob = await buildTransPdfBlob(meta, body, imgMap);
+        await saveBlobToResults(pblob, sermonFileBase(meta, '이미지전환표시본') + '.pdf');
+        if (id) { try { await markOutput(id, '이미지전환표시PDF', '원고 수정 반영(이미지 ' + have + '장)'); } catch (e) {} }
+      } else pdfMsg = ' (저장된 배경 이미지가 없어 PDF는 건너뜀)';
+    } catch (e) { pdfMsg = ' (PDF 실패: ' + ((e && e.message) || e) + ')'; }
+    hideGenOverlay(); renderSyncState();
+    toast('원고 수정 반영 완료 — 전환 ' + m.rows.length + '개 유지'
+      + (m.weak.length ? ' · #' + m.weak.join(', #') + ' 위치는 확인해 보세요' : '') + pdfMsg);
+  } catch (e) { hideGenOverlay(); toast('원고 수정 반영 실패: ' + ((e && e.message) || e)); }
+}
+window.requestRetrans = function(){
+  var m = (typeof collectCompose === 'function') ? collectCompose() : {};
+  if (state.editing) m['ID'] = state.editing;
+  applyRetrans(state.editing || '', m);
+};
+
 /* ★ 이미지 전환표 = 단일 진실 소스. 기본원고(원고텍스트)로 한 번 확정해 파일맵에 박고,
    원고가 바뀌면(서명 불일치) 갱신. 카드원고·이미지컷·전환표시본이 모두 이 표만 따른다 →
    세 산출물의 전환 지점·번호가 100% 동일. */
@@ -16397,6 +16597,12 @@ async function bulletinKakao(){
   if (tb) tb.addEventListener('click', function(){ transTableOpen(); });
   var ib = $('#btnImgRegen');
   if (ib) ib.addEventListener('click', function(){ imgRegenOpen(); });
+  var rb = $('#btnRetrans');
+  if (rb) rb.addEventListener('click', function(){
+    if (rb.dataset.busy === '1') return;
+    rb.dataset.busy = '1'; rb.disabled = true;
+    Promise.resolve(window.requestRetrans()).catch(function(){}).then(function(){ rb.dataset.busy = ''; rb.disabled = false; });
+  });
 })();
 
 /* ----- 시리즈 설교 계획: 목록 + 마법사 -----
@@ -19095,10 +19301,23 @@ async function ensureCuts(id, meta){
   if (raw && raw.cuts && raw.cuts.length) {
     /* 전환표가 만들어진 뒤 원고가 바뀌었으면 재생성 여부 확인 (origSig가 있는 경우에만 비교 — 구버전 사이드카는 그냥 사용) */
     if (raw.origSig && raw.origSig !== manuscriptSig(meta)) {
-      if (await uiConfirm('원고가 전환표를 만든 이후로 바뀌었습니다.\n전환표(이미지 컷 위치)를 다시 만들까요?\n\n[확인] 다시 생성 · [취소] 기존 전환표 사용')) {
+      var pick = await askCutsStale();
+      if (pick === 'regen') {
         setGenStage('이미지 컷(전환표) 다시 생성 중…');
         var fresh = await aiImgData(meta);
         if (fresh && fresh.length) { await saveCutsSidecar(id, meta, fresh); return fresh; }
+      } else if (pick === 'realign') {
+        /* ★ 위치만 다시 맞추기 — 컷 번호·개수·프롬프트·이미지는 그대로, 앵커만 새 원고에 다시 붙인다 */
+        setGenStage('전환 지점 다시 맞추는 중…');
+        var tbl0 = raw.cuts.filter(function(c){ return c.n >= 2; })
+          .map(function(c){ return { n: c.n, t: c.type || '일반', a: c.anchor || '', role: c.role || '' }; });
+        var mm = retransMatch(tbl0, meta['원고텍스트']);
+        var byN0 = {}; mm.rows.forEach(function(r){ byN0[r.n] = r; });
+        raw.cuts.forEach(function(c){ var r = byN0[c.n]; if (r) { c.anchor = r.a; c.type = r.t; } });
+        await saveCutsSidecar(id, meta, raw.cuts);
+        if (id) setSermonFileMapMulti(id, { trans: mm.rows.map(function(r){ return { n: r.n, t: r.t, a: r.a, role: r.role }; }), transSig: manuscriptSig(meta) });
+        if (mm.weak.length) toast('전환 지점 재정렬 — #' + mm.weak.join(', #') + ' 위치는 확인해 보세요');
+        return raw.cuts;
       }
     }
     return raw.cuts;
@@ -19209,6 +19428,30 @@ function askCascRegen(){
     box.appendChild(mk('닫기', null, false));
     ov.appendChild(box);
     ov.addEventListener('click', function(e){ if (e.target === ov) { if (ov.parentNode) document.body.removeChild(ov); resolve(null); } });
+    document.body.appendChild(ov);
+  });
+}
+/* 원고가 전환표 이후로 바뀌었을 때 3지선다 — 이미지를 살리는 [위치만 다시 맞추기]가 기본 (v531) */
+function askCutsStale(){
+  return new Promise(function(resolve){
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;max-width:360px;width:100%;padding:22px 20px;box-shadow:0 14px 44px rgba(0,0,0,.4);text-align:center';
+    box.innerHTML = '<div style="font-size:16px;font-weight:800;margin-bottom:8px;color:var(--text)">원고가 바뀌었어요</div>'
+      + '<div style="font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:16px">전환표를 만든 뒤 원고 문장이 수정됐습니다.<br>이미 만든 배경 이미지를 살리려면 <b>위치만 다시 맞추기</b>를 고르세요.</div>';
+    function mk(label, sub, val, primary){
+      var b = document.createElement('button');
+      b.innerHTML = '<div>' + label + '</div>' + (sub ? '<div style="font-size:11px;font-weight:500;opacity:.75;margin-top:2px">' + sub + '</div>' : '');
+      b.style.cssText = 'display:block;width:100%;margin:8px 0 0;padding:11px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;line-height:1.35;' + (primary ? 'background:var(--accent);color:#fff;border:1px solid var(--accent)' : 'background:transparent;color:var(--text);border:1px solid var(--line)');
+      b.onclick = function(){ if (ov.parentNode) document.body.removeChild(ov); resolve(val); };
+      return b;
+    }
+    box.appendChild(mk('위치만 다시 맞추기', '컷 번호·이미지 그대로 · 전환 지점만 새 원고에', 'realign', true));
+    box.appendChild(mk('전환표 새로 만들기', '컷이 새로 정해져 이미지를 다시 만들어야 함', 'regen', false));
+    box.appendChild(mk('기존 그대로 쓰기', null, 'keep', false));
+    ov.appendChild(box);
+    ov.addEventListener('click', function(e){ if (e.target === ov) { if (ov.parentNode) document.body.removeChild(ov); resolve('keep'); } });
     document.body.appendChild(ov);
   });
 }
