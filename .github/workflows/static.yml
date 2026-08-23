@@ -13,9 +13,12 @@ permissions:
   pages: write
   id-token: write
 
+# 저장소가 커서(성경·주석·폰트·예화 샤드 등 약 300MB) 배포 한 번에 수 분이 걸린다.
+# 자동 커밋 워처가 짧은 간격으로 여러 번 커밋하면 그만큼 큐에 쌓여 최신 버전이 한참 뒤에 올라간다.
+# → 진행 중인 배포는 취소하고 "가장 마지막 커밋"만 배포한다(중간 버전은 어차피 최신본이 덮어쓴다).
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
