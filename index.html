@@ -16299,8 +16299,28 @@ async function ensureTransTable(id, meta){
   var storedSig = null;
   if (s) { try { storedSig = (JSON.parse(s['파일맵'] || '{}') || {}).transSig; } catch (e) {} }
   var force = !!(window._cascForce && !window._cascTableFresh);   /* [다시 생성] — 이번 실행 첫 호출에서 한 번만 새로, 이후 같은 표 재사용 */
+  window._transRealigned = false;
   if (!force && stored && stored.length && storedSig && storedSig === sig) return normalizeTransTable(stored);   /* 같은 원고 → 재사용(번호 정규화) */
   if (!txt) return stored ? normalizeTransTable(stored) : null;   /* 원고 없으면 계획 불가 — 기존 것 반환 */
+  /* ★ v533: 표가 이미 있는데 "원고 문장만" 손본 경우 — 표를 새로 만들지 않고 앵커만 다시 붙인다.
+     예전에는 여기서 AI가 새 표를 만들어 컷 번호·위치가 통째로 달라졌고(대지 선언 컷이 사라지는 식),
+     이미 만들어 둔 배경 이미지가 전부 어긋났다. 원고가 너무 많이 달라졌을 때만 아래 새 표 생성으로 간다.
+     [전환표 다시 잡기]·[다시 생성](force)은 그대로 새 표를 만든다. */
+  if (!force && stored && stored.length && storedSig){
+    var base0 = normalizeTransTable(stored);
+    var mm0 = retransMatch(base0, txt);
+    if (mm0.weak.length <= Math.max(2, Math.ceil(base0.length * 0.34))){
+      var rows0 = mm0.rows.map(function(r){ return { n: r.n, t: r.t, a: r.a, role: r.role }; });
+      if (id){
+        setSermonFileMapMulti(id, { trans: rows0, transSig: sig });
+        try { await saveBlobToResults(new Blob([JSON.stringify({ ref: meta['본문'] || '', sig: sig, trans: rows0 }, null, 1)], { type: 'application/json' }), sermonFileBase(meta, '전환표') + '.json'); } catch (e) {}
+      }
+      window._cascTableFresh = true;         /* 이번 실행의 다른 단계도 이 표를 그대로 쓴다 */
+      window._transRealigned = true;         /* 컷 사이드카도 묻지 않고 같은 방식으로 맞춘다 */
+      toast('원고 수정 반영 — 전환표 유지, 지점만 재정렬' + (mm0.weak.length ? ' (#' + mm0.weak.join(', #') + ' 확인 권장)' : ''));
+      return rows0;
+    }
+  }
   _transRegen = true;   /* 여기부터는 새로 생성(원고가 바뀌었거나 최초) */
   var out = await callClaude(P_TRANSPLAN, JSON.stringify({ 제목: meta['제목'], 본문: meta['본문'], 예배구분: meta['예배구분'], 원고: txt }), 16000, aiTick('이미지 전환표'));
   var j = aiJson(out);
@@ -19308,7 +19328,7 @@ async function ensureCuts(id, meta){
   if (raw && raw.cuts && raw.cuts.length) {
     /* 전환표가 만들어진 뒤 원고가 바뀌었으면 재생성 여부 확인 (origSig가 있는 경우에만 비교 — 구버전 사이드카는 그냥 사용) */
     if (raw.origSig && raw.origSig !== manuscriptSig(meta)) {
-      var pick = await askCutsStale();
+      var pick = window._transRealigned ? 'realign' : await askCutsStale();   /* 전환표를 이미 재정렬했으면 컷도 같은 방식으로(중복 질문 없이) */
       if (pick === 'regen') {
         setGenStage('이미지 컷(전환표) 다시 생성 중…');
         var fresh = await aiImgData(meta);
