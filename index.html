@@ -16293,6 +16293,82 @@ async function transTableRegen(){
 }
 window.transTableRegen = transTableRegen;
 
+/* ══ 이전 전환표 되읽기 (v533) ══════════════════════════════════════════════
+   결과함에 남아 있는 전환표·이미지자료 JSON에서 예전 표를 골라 되살린다.
+   이미 만든 배경 이미지에 맞는 표로 되돌릴 때 쓴다(고른 표는 현재 원고에 맞춰 자동 재정렬). */
+async function transTableCands(meta){
+  var out = [];
+  if (!canFolderSave()) return out;
+  try { await xPerm(); } catch (e) { return out; }
+  var wantT = sermonFileBase(meta, '전환표') + '.json', wantI = imgDataNames(meta).json;
+  await eachResultFile(async function(e, parent){
+    var isT = _nfcEq(e.name, wantT), isI = _nfcEq(e.name, wantI);
+    if (!isT && !isI) return;
+    try {
+      var f = await e.getFile();
+      var j = JSON.parse(await f.text());
+      var rows = [];
+      if (isT) rows = (j.trans || []).map(function(r){ return { n: r.n, t: r.t, a: r.a || '', role: r.role || '' }; });
+      else rows = (Array.isArray(j.cuts) ? j.cuts : []).filter(function(c){ return c.n >= 2; })
+        .map(function(c){ return { n: c.n, t: c.type || '일반', a: c.anchor || '', role: c.role || '' }; });
+      if (rows.length) out.push({ folder: (parent && parent.name) || '', kind: isT ? '전환표' : '이미지자료', when: f.lastModified, rows: rows });
+    } catch (x) {}
+  });
+  out.sort(function(a, b){ return b.when - a.when; });
+  return out;
+}
+async function transTableRestore(){
+  var meta = window._ttMeta || {}, id = meta['ID'] || state.editing || '';
+  var body = document.getElementById('ttBody');
+  if (body) body.innerHTML = '<div class="libLoading" style="padding:30px 0"><span class="bigspin"></span><span class="ltxt">결과함에서 예전 전환표를 찾는 중…</span></div>';
+  var cands = await transTableCands(meta);
+  if (!cands.length){ if (body) body.innerHTML = transTableHtml(id ? sermonTrans(id) : null, meta); toast('결과함에서 이 설교의 전환표 파일을 찾지 못했습니다.'); return; }
+  var pick = await new Promise(function(resolve){
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;max-width:380px;width:100%;padding:20px;box-shadow:0 14px 44px rgba(0,0,0,.4);max-height:80vh;overflow:auto';
+    box.innerHTML = '<div style="font-size:15px;font-weight:800;margin-bottom:6px">되살릴 전환표 고르기</div>'
+      + '<div style="font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:12px">배경 이미지를 만들 때 쓴 표를 고르세요. 고른 표는 <b>지금 원고에 맞춰 지점만 재정렬</b>되고, 컷 번호·개수는 그대로 유지됩니다.</div>';
+    cands.forEach(function(c, k){
+      var b = document.createElement('button');
+      b.innerHTML = '<div>' + esc(c.folder || '결과함') + ' · ' + esc(c.kind) + ' · 컷 ' + c.rows.length + '개</div>'
+        + '<div style="font-size:11px;font-weight:500;opacity:.75;margin-top:2px">' + new Date(c.when).toLocaleString() + '</div>';
+      b.style.cssText = 'display:block;width:100%;margin:6px 0 0;padding:10px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;line-height:1.35;text-align:left;background:transparent;color:var(--text);border:1px solid var(--line)';
+      b.onclick = function(){ if (ov.parentNode) document.body.removeChild(ov); resolve(k); };
+      box.appendChild(b);
+    });
+    var cb = document.createElement('button');
+    cb.textContent = '닫기';
+    cb.style.cssText = 'display:block;width:100%;margin:10px 0 0;padding:10px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;background:transparent;color:var(--dim);border:1px solid var(--line)';
+    cb.onclick = function(){ if (ov.parentNode) document.body.removeChild(ov); resolve(-1); };
+    box.appendChild(cb);
+    ov.appendChild(box);
+    ov.addEventListener('click', function(e){ if (e.target === ov) { if (ov.parentNode) document.body.removeChild(ov); resolve(-1); } });
+    document.body.appendChild(ov);
+  });
+  if (pick < 0){ if (body) body.innerHTML = transTableHtml(id ? sermonTrans(id) : null, meta); return; }
+  try {
+    var base = normalizeTransTable(cands[pick].rows);
+    var mm = retransMatch(base, String(meta['원고텍스트'] || ''));
+    var rows = mm.rows.map(function(r){ return { n: r.n, t: r.t, a: r.a, role: r.role }; });
+    var sig = manuscriptSig(meta);
+    if (id){
+      setSermonFileMapMulti(id, { trans: rows, transSig: sig });
+      try { await saveBlobToResults(new Blob([JSON.stringify({ ref: meta['본문'] || '', sig: sig, trans: rows }, null, 1)], { type: 'application/json' }), sermonFileBase(meta, '전환표') + '.json'); } catch (e) {}
+    }
+    if (body) body.innerHTML = transTableHtml(rows, meta);
+    toast('전환표를 되살렸습니다 — 컷 ' + rows.length + '개'
+      + (mm.weak.length ? ' · #' + mm.weak.join(', #') + ' 위치는 확인해 보세요' : '')
+      + ' · 이제 [♻ 원고 수정 반영]으로 문서를 다시 만드세요');
+    try { renderSyncState(); } catch (e) {}
+  } catch (e) {
+    if (body) body.innerHTML = transTableHtml(id ? sermonTrans(id) : null, meta);
+    toast('전환표 되읽기 실패: ' + ((e && e.message) || e));
+  }
+}
+window.transTableRestore = transTableRestore;
+
 var _transRegen = false;   /* 직전 ensureTransTable 호출이 표를 새로 만들었는가(원고 변경) — 카세이드가 하위 산출물 강제 재생성에 사용 */
 async function ensureTransTable(id, meta){
   _transRegen = false;
