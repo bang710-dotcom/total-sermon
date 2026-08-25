@@ -12951,8 +12951,10 @@ async function aiSummarize(id, s, force){
    사용자(한국)라 차단되지 않는다. 설정에 Gemini 키가 있으면 이 경로를 쓰고,
    없으면 기존 워커 /youtube 라우트로 폴백한다.
 
-   방식(워커판과 동일): ① 스캔 = 길이/설교구간만 짧은 JSON으로 확인
-                      ② 전사 = 10분 창으로 쪼개 순수 텍스트로 병렬 호출 → 이어붙임
+   방식: ① 스캔 = 길이/설교구간만 짧은 JSON으로 확인
+        ② 전사 = 10분 창으로 쪼개 순수 텍스트로 병렬 호출 → 이어붙임
+        ③ 끝까지 훑기 = 「설교만 있는 영상」은 스캔이 준 끝시각을 믿지 않고, 빈 물결이
+           나올 때까지 창을 이어 붙인다(v535 — 전사문이 중간에서 끊기던 원인).
    (한 번에 통짜 JSON으로 받으면 출력 토큰 한도에 걸려 잘리고 파싱이 깨진다.) */
 function geminiKey(){ return String((state.settings || {}).geminiKey || '').trim(); }
 
@@ -13065,6 +13067,9 @@ async function ytTranscribeInApp(rawUrl, serviceType, key){
       if (dur > 0) end = Math.min(end, dur);
       if (!(end > start) || !isFinite(end)) { start = 0; end = 0; }
       else if (serviceType === 'full') { start = Math.max(0, start - 15); end = end + 15; }   /* 앞뒤 15초 여유 */
+      /* 「설교만 있는 영상」은 처음부터 끝까지가 다 설교다 — 모델이 찍어준 시작 시각을 믿고
+         앞을 잘라내면 도입부가 통째로 사라진다. 시작은 항상 0초. */
+      if (serviceType !== 'full') start = 0;
     }
   } catch (eScan) { start = 0; end = 0; }   /* 스캔 실패 → 통짜 1회 전사로 폴백 */
 
@@ -13079,41 +13084,62 @@ async function ytTranscribeInApp(rawUrl, serviceType, key){
   };
   var gcfg = { temperature: 0.2, maxOutputTokens: 65536, mediaResolution: 'MEDIA_RESOLUTION_LOW', thinkingConfig: { thinkingBudget: 0 } };
   var got = 0, truncated = false, firstErr = '', okCnt = 0;
+  var WIN = 600, CAP = 30;                    /* 창 10분 · 최대 30창(=5시간) 안전판 */
 
-  /* 한 창 전사 — 실패해도 전체를 죽이지 않는다(그 구간만 비우고 계속). 긴 영상을 통째로
-     요청하면 Gemini가 500(Internal error)을 내므로, 요청은 항상 10분 창으로 잘라 보낸다. */
-  var doWin = async function(w){
+  /* 한 창 전사 — 실패해도 전체를 죽이지 않는다(실패는 null, 말이 없어 빈 구간은 ''로 구분).
+     긴 영상을 통째로 요청하면 Gemini가 500(Internal error)을 내므로, 요청은 항상 10분 창으로
+     잘라 보낸다. 한 창이 출력 한도(MAX_TOKENS)에 걸리면 그 창을 반으로 쪼개 다시 받는다. */
+  var doWin = async function(w, depth){
     try {
       var d = await gemVideo(model, [vpart(w), { text: tprompt(w) }], gcfg, key);
       var c = d && d.candidates && d.candidates[0];
-      if (c && c.finishReason === 'MAX_TOKENS') truncated = true;
       var t = gemText(d);
+      if (c && c.finishReason === 'MAX_TOKENS') {
+        if ((depth || 0) < 2 && (w.end - w.start) > 120) {
+          var mid = Math.round((w.start + w.end) / 2);
+          var a = await doWin({ start: w.start, end: mid }, (depth || 0) + 1);
+          var b = await doWin({ start: mid, end: w.end }, (depth || 0) + 1);
+          return [a, b].map(function(x){ return String(x || '').trim(); }).filter(Boolean).join('\n');
+        }
+        truncated = true;
+      }
       okCnt++; got += t.length; try { updateGenOverlay(got); } catch (eU){}
       return t;
-    } catch (e) { if (!firstErr) firstErr = e.message; return ''; }
+    } catch (e) { if (!firstErr) firstErr = e.message; return null; }
   };
 
   var texts = [], wins = [];
-  if (end > start) {
-    wins = ytWins(start, end);
-    texts = await pMapLimit(wins, 4, doWin);
-  } else {
-    /* 스캔 실패(길이를 모름) → 0분부터 10분 창을 4개씩 물결로 훑고, 한 물결이 통째로
-       비면 영상이 끝난 것으로 보고 멈춘다(최대 18창 = 3시간). */
-    var t0 = 0;
-    while (wins.length < 18) {
+  if (end > start) { wins = ytWins(start, end); texts = await pMapLimit(wins, 4, function(w){ return doWin(w); }); }
+
+  /* ③ 끝까지 훑기 — 「설교만 있는 영상」은 영상 끝까지 전부 받아써야 한다. 스캔이 알려준
+     길이·끝시각은 믿지 않는다(Gemini가 영상 길이를 실제보다 짧게 답하는 일이 잦아, 그대로
+     쓰면 전사문이 중간에서 끊긴다 — 실제 증상). 마지막 창 다음부터 창을 이어 붙여 한 물결이
+     통째로 비면(=영상 끝) 멈춘다. 예배 전체 영상은 설교 구간만 필요하므로 확장하지 않되,
+     스캔이 실패해 구간을 모를 때는 종류와 상관없이 이 방식으로 훑는다. */
+  if (serviceType !== 'full' || !(end > start)) {
+    var t0 = wins.length ? wins[wins.length - 1].end : 0;
+    while (wins.length < CAP) {
       var wave = [];
-      for (var k = 0; k < 4 && (wins.length + wave.length) < 18; k++) { wave.push({ start: t0, end: t0 + 600 }); t0 += 600; }
-      var res = await pMapLimit(wave, 4, doWin);
+      for (var k = 0; k < 3 && (wins.length + wave.length) < CAP; k++) { wave.push({ start: t0, end: t0 + WIN }); t0 += WIN; }
+      var res = await pMapLimit(wave, 3, function(w){ return doWin(w); });
       wins = wins.concat(wave); texts = texts.concat(res);
-      if (res.every(function(x){ return !String(x || '').trim(); })) break;
+      if (res.every(function(x){ return !String(x || '').trim(); })) { t0 -= wave.length * WIN; break; }
     }
-    end = t0;
+    if (t0 > end) end = t0;
   }
+
+  /* 실패한 창은 한 번 더(순차) — 여기서 조용히 버리면 가운데가 뭉텅 빠진 전사문이 나온다. */
+  for (var i2 = 0; i2 < texts.length; i2++) {
+    if (texts[i2] !== null) continue;
+    var v2 = await doWin(wins[i2]);
+    if (v2 !== null) texts[i2] = v2;
+  }
+  var failCnt = texts.filter(function(x){ return x === null; }).length;
 
   var transcript = texts.map(function(t){ return String(t || '').trim(); }).filter(Boolean).join('\n').trim();
   if (!transcript) throw new Error(firstErr || '전사 결과가 비어 있습니다 — 영상이 공개 상태인지 확인해 주세요.');
-  return { ok: true, transcript: transcript, truncated: truncated, chunks: wins.length,
+  return { ok: true, transcript: transcript, truncated: truncated, chunks: wins.length, failCnt: failCnt,
+           failMsg: failCnt ? firstErr : '', okCnt: okCnt,
            start_sec: start, end_sec: end, start_mmss: ytMmss(start), end_mmss: ytMmss(end) };
 }
 
@@ -13173,6 +13199,8 @@ async function aiYouTubeSummarize(id){
     var trans = String(j.transcript || '').trim();
     if (!trans) { toast('전사 결과가 비어 있습니다 — 영상이 공개인지, 설교 구간이 있는지 확인해 주세요.'); return; }
     if (j.truncated) toast('⚠ 전사문 일부가 길이 제한으로 잘렸을 수 있습니다 — 요약본을 확인해 주세요.');
+    /* 구간 실패는 조용히 넘기지 않는다 — 가운데가 빠진 전사문으로 요약하면 내용이 어긋난다. */
+    if (j.failCnt) toast('⚠ ' + j.failCnt + '개 구간(약 ' + (j.failCnt * 10) + '분)을 받아쓰지 못했습니다' + (j.failMsg ? ' — ' + j.failMsg : '') + '. 잠시 후 다시 시도하면 채워집니다.');
     var span = (j.start_mmss && j.end_mmss && j.end_mmss !== '0:00') ? (' (' + j.start_mmss + '~' + j.end_mmss + ')') : '';
     /* 전사문은 항상 '전사문' 칸에 남긴다(원고 ↔ 실제 설교 비교용, v520).
        '원고텍스트'는 비어 있을 때만 채운다(준비된 원고 보존). */
@@ -22874,7 +22902,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v535';
+var APP_VER = 'v536';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
