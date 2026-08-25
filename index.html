@@ -21563,9 +21563,13 @@ function renderLibRow(s){
   var f = libFiles(s);
   function chip(on, label){ return '<span class="lchip' + (on ? ' on' : '') + '">' + (on ? '● ' : '') + label + '</span>'; }
   var series = s['시리즈'] ? esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') : '';
-  var paths = Object.keys(f.map).map(function(k){
-    var lbl = { hwp: '원고(HWP)', docx: '원고', pdf: 'PDF', card: '카드원고', ltc: 'LTC' }[k] || k;
-    return '<div class="cnt" style="word-break:break-all">' + lbl + ': ' + esc(f.map[k]) + '</div>';
+  /* 파일맵에는 파일 경로 외에 내부 사이드카(ltcData·trans·transSig·cardArr·hymn·kakaoAt 등)도 들어 있다.
+     여기서는 '연결된 파일' 목록만 보여준다 — 알려진 파일 키 + 문자열 값만 통과(내부 데이터 노출 방지). */
+  var FMAP_LBL = { hwp: '원고(HWP)', docx: '원고', pdf: 'PDF', card: '카드원고', ltc: 'LTC' };
+  var paths = Object.keys(f.map).filter(function(k){
+    return FMAP_LBL[k] && typeof f.map[k] === 'string' && f.map[k].trim();
+  }).map(function(k){
+    return '<div class="cnt" style="word-break:break-all">' + FMAP_LBL[k] + ': ' + esc(f.map[k]) + '</div>';
   }).join('');
   var id = esc(s['ID'] || '');
   return '<details class="card libItem" style="margin-bottom:7px;position:relative"><summary>' +
@@ -22870,7 +22874,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v534';
+var APP_VER = 'v535';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
