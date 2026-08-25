@@ -3125,6 +3125,8 @@ function openDetail(kind, id){
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
     if (state.settings && (state.settings.geminiKey || state.settings.vidProxyUrl || state.settings.proxyUrl))   /* Gemini 키 또는 프록시 설정 시 노출 */
       html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
+    /* 자막 붙여넣기 — Claude 키만 있으면 되고(영상 분석 불필요), 영상이 길어도 잘리지 않는다(v537) */
+    html += '<div class="toolrow"><button class="btn sub mini" onclick="aiCaptionSummarize(\'' + esc(s['ID']) + '\')">📝 유튜브 자막 붙여넣어 요약본 만들기</button></div>';
     /* 원고 요약본과 실제 설교 요약본이 둘 다 있을 때만 — 강단에서 원고를 어떻게 바꿔 선포했는지 비교 */
     if (String(s['요약본'] || '').trim() && String(s['실제요약본'] || '').trim())
       html += '<div class="toolrow"><button class="btn sub mini" onclick="cmpOpen(\'' + esc(s['ID']) + '\')">⚖ 원고 ↔ 실제 설교 비교</button></div>';
@@ -12750,7 +12752,8 @@ var GEN_MSG = {
   '묵상 일정': '묵상 일정을 짜고 있어요',
   '설교 선택지': '주일 설교 선택지를 구상하고 있어요',
   '새벽 설교 선택지': '새벽 설교 선택지를 구상하고 있어요',
-  '상황 설교 개요': '상황 설교 개요를 구상하고 있어요'
+  '상황 설교 개요': '상황 설교 개요를 구상하고 있어요',
+  '자막 정리': '붙여넣은 자막을 전사문으로 다듬고 있어요'
 };
 var GEN_SUB_AI = '잠시만 기다려 주세요. 생성에는 시간이<br>다소 걸릴 수 있습니다.';
 function showGenOverlay(label){
@@ -13202,32 +13205,120 @@ async function aiYouTubeSummarize(id){
     /* 구간 실패는 조용히 넘기지 않는다 — 가운데가 빠진 전사문으로 요약하면 내용이 어긋난다. */
     if (j.failCnt) toast('⚠ ' + j.failCnt + '개 구간(약 ' + (j.failCnt * 10) + '분)을 받아쓰지 못했습니다' + (j.failMsg ? ' — ' + j.failMsg : '') + '. 잠시 후 다시 시도하면 채워집니다.');
     var span = (j.start_mmss && j.end_mmss && j.end_mmss !== '0:00') ? (' (' + j.start_mmss + '~' + j.end_mmss + ')') : '';
-    /* 전사문은 항상 '전사문' 칸에 남긴다(원고 ↔ 실제 설교 비교용, v520).
-       '원고텍스트'는 비어 있을 때만 채운다(준비된 원고 보존). */
-    var setData = { ID: id, '전사문': trans };
-    s['전사문'] = trans;
-    if (!String(s['원고텍스트'] || '').trim()) { setData['원고텍스트'] = trans; s['원고텍스트'] = trans; s._txt = true; s._txtAt = nowLocalStr_(); }
-    await apiPost({ action: 'update', sheet: 'sermons', data: setData });
-    toast('전사 완료' + span + ' — 이어서 Opus가 요약본을 생성합니다…');
-    var out = await callClaude(P_SUM,
-      '제목: ' + (s['제목'] || '') + '\n본문: ' + (s['본문'] || '') + '\n예배: ' + (s['예배구분'] || '') + '\n\n[설교 원고 전문(유튜브 자동 전사)]\n' + trans,
-      32000, aiTick('요약본'));
-    var sj = aiJson(out);
-    if (!sj['요약본']) throw new Error('요약 응답 형식 오류 — 다시 시도해 주세요.');
-    /* ★ 실제 설교 요약본은 원고 요약본('요약본')을 덮지 않고 '실제요약본'에 따로 저장한다(v519).
-       주제어는 원고 쪽에서 만든 것이 있으면 보존하고, 비어 있을 때만 채운다. */
-    var upd = { ID: id, '실제요약본': sj['요약본'] };
-    if (sj['키워드'] && !String(s['키워드'] || '').trim()) upd['키워드'] = sj['키워드'];
-    await apiPostOrQueue({ action: 'update', sheet: 'sermons', data: upd });
-    await apiPostOrQueue({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': url, '비고': '유튜브 자동 전사+요약(실제설교)' + span } });
-    s['실제요약본'] = sj['요약본']; if (upd['키워드']) s['키워드'] = upd['키워드'];
-    aiMarkDone(id, '설교요약', '유튜브 자동 전사+요약(실제설교)');
-    renderSyncState();
-    toast('유튜브 → 실제 설교 요약본 완료 — 시트에 기록했습니다.');
-    bmPushSermonQuiet(id);            /* 성경앱 [설교] 노트에도 자동 반영(v472) */
+    await realSummaryFromTranscript(id, s, trans, { src: '유튜브 자동 전사', link: url, span: span, doneMsg: '전사 완료' + span });
   } catch (e) { hideGenOverlay(); renderSyncState(); toast('유튜브 요약 실패: ' + e.message); }
 }
 window.aiYouTubeSummarize = aiYouTubeSummarize;
+
+/* ══ 전사문 → 「실제 설교」 요약본 저장 (공용 뒷단, v537) ═══════════════════
+   유튜브 자동 전사와 자막 붙여넣기가 같은 길을 쓰도록 뽑아낸 부분.
+   전사문은 항상 '전사문' 칸에 남기고(원고 ↔ 실제 설교 비교용, v520),
+   '원고텍스트'는 비어 있을 때만 채운다(준비된 원고 보존).
+   요약은 '실제요약본'에만 저장해 원고 요약본('요약본')을 덮지 않는다(v519). */
+async function realSummaryFromTranscript(id, s, trans, o){
+  o = o || {};
+  var src = o.src || '전사', span = o.span || '';
+  var setData = { ID: id, '전사문': trans };
+  s['전사문'] = trans;
+  if (!String(s['원고텍스트'] || '').trim()) { setData['원고텍스트'] = trans; s['원고텍스트'] = trans; s._txt = true; s._txtAt = nowLocalStr_(); }
+  await apiPost({ action: 'update', sheet: 'sermons', data: setData });
+  toast((o.doneMsg || '전사 완료') + ' — 이어서 Opus가 요약본을 생성합니다…');
+  var out = await callClaude(P_SUM,
+    '제목: ' + (s['제목'] || '') + '\n본문: ' + (s['본문'] || '') + '\n예배: ' + (s['예배구분'] || '') + '\n\n[설교 원고 전문(' + src + ')]\n' + trans,
+    32000, aiTick('요약본'));
+  var sj = aiJson(out);
+  if (!sj['요약본']) throw new Error('요약 응답 형식 오류 — 다시 시도해 주세요.');
+  var upd = { ID: id, '실제요약본': sj['요약본'] };
+  if (sj['키워드'] && !String(s['키워드'] || '').trim()) upd['키워드'] = sj['키워드'];
+  await apiPostOrQueue({ action: 'update', sheet: 'sermons', data: upd });
+  var note = src + '+요약(실제설교)' + span;
+  await apiPostOrQueue({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '설교요약', '상태': '완료', '링크': o.link || '', '비고': note } });
+  s['실제요약본'] = sj['요약본']; if (upd['키워드']) s['키워드'] = upd['키워드'];
+  aiMarkDone(id, '설교요약', note);
+  renderSyncState();
+  toast('실제 설교 요약본 완료 — 시트에 기록했습니다.');
+  bmPushSermonQuiet(id);              /* 성경앱 [설교] 노트에도 자동 반영(v472) */
+}
+
+/* ══ 유튜브 자막 붙여넣기 → 실제 설교 요약본 (v537) ═════════════════════════
+   채널 소유 계정이 아니면 자막을 API로 내려받을 수 없고(captions.download는 소유자
+   OAuth 필요), 비공식 timedtext 경로는 PoToken·데이터센터 IP 차단으로 막힌다.
+   그래서 사람이 유튜브 [스크립트 표시]에서 복사해 붙여넣는 길만 열어 둔다 —
+   차단 위험 0, 영상 길이와 무관(잘림 없음), 비용도 거의 들지 않는다.
+   붙여넣은 자막은 ①로컬 청소(타임스탬프·중복·효과음 제거) ②Claude 문장 정리
+   (문장부호·문단·성경 고유명사) 순으로 다듬어 전사문 품질을 맞춘 뒤 요약한다. */
+function capStrip(raw){
+  var lines = String(raw || '').replace(/\r/g, '').split('\n');
+  var out = [], prev = '';
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].trim();
+    if (!t) continue;
+    if (/^WEBVTT/i.test(t)) continue;
+    if (/^\d+$/.test(t)) continue;                                     /* SRT 자막 번호 */
+    if (/^(\d{1,2}:)?\d{1,2}:\d{2}([.,]\d{1,3})?\s*(-->|$)/.test(t)) continue;   /* 00:12 / 00:00:12,000 --> … */
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(t)) continue;                  /* 유튜브 스크립트의 1:23 줄 */
+    t = t.replace(/<[^>]*>/g, '')                                      /* <c>·<00:00:12.000> 태그 */
+         .replace(/^\s*\[[^\]]{1,20}\]\s*/g, '')                       /* [음악] [박수] [웃음] */
+         .replace(/\[(음악|박수|웃음|기침|외국어|소리)\]/g, '')
+         .replace(/^\s*\d{1,2}:\d{2}(:\d{2})?\s+/, '')                 /* "1:23 말씀을…" 한 줄 형태 */
+         .replace(/\s+/g, ' ').trim();
+    if (!t) continue;
+    if (t === prev) continue;                                          /* 롤링 자막 중복 줄 */
+    out.push(t); prev = t;
+  }
+  return out.join('\n').trim();
+}
+var P_CAPTIDY = [
+'당신은 한국 교회 설교 자막을 읽을 수 있는 전사문으로 다듬는 편집자다.',
+'입력은 유튜브 자동자막이라 문장부호·문단이 없고 고유명사가 틀려 있다. 다음만 하고 그대로 돌려준다.',
+'① 문장부호와 문단을 넣어 읽히게 만든다(문장 단위로 끊고, 화제가 바뀌면 빈 줄로 문단을 나눈다).',
+'② 성경 인명·지명·신학 용어를 표준 한글 표기로 고친다(예: 막다라→막달라, 도마·베드로·바울·칭의·성령 등).',
+'③ 음성인식이 명백히 잘못 들은 낱말은 문맥상 맞는 말로 고친다. 구어체 말투와 어미는 그대로 살린다.',
+'④ 군더더기(음/어/그/이제 같은 습관어)와 반복된 같은 말은 정리한다.',
+'★ 절대 금지: 요약·압축·해설·머리말·소제목·번호 붙이기, 내용 추가, 문장 순서 바꾸기. 말한 내용은 하나도 빼지 않는다.',
+'설명 없이 다듬은 본문만 출력한다.'].join('\n');
+/* 자막을 3,000자 안팎 덩이로 잘라 순서대로 다듬는다(한 번에 보내면 출력 한도에 걸려 뒤가 잘린다). */
+async function capTidy(text){
+  var paras = text.split('\n'), chunks = [], cur = '';
+  for (var i = 0; i < paras.length; i++) {
+    if (cur.length + paras[i].length > 3000 && cur) { chunks.push(cur); cur = ''; }
+    cur += (cur ? '\n' : '') + paras[i];
+  }
+  if (cur) chunks.push(cur);
+  var got = 0;
+  var res = await pMapLimit(chunks, 2, async function(ch){
+    try {
+      var r = await callClaude(P_CAPTIDY, ch, 8000);
+      var t = String(r || '').trim();
+      got += t.length; try { updateGenOverlay(got); } catch (e){}
+      return t || ch;
+    } catch (e) { return ch; }        /* 다듬기 실패한 덩이는 원문 그대로 — 내용은 잃지 않는다 */
+  });
+  return res.join('\n\n').trim();
+}
+async function aiCaptionSummarize(id){
+  try {
+    if (!id) { toast('먼저 [시트에 저장]으로 설교를 저장해 주세요.'); return; }
+    var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
+    if (!aiKey()) { toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 요약본을 만들 수 있습니다.'); return; }
+    if (String(s['실제요약본'] || '').trim() &&
+        !await uiConfirm('이미 「실제 설교 요약본」이 있습니다. 다시 만들어 교체할까요?\n(원고 요약본은 그대로 둡니다)')) return;
+    var raw = await uiPrompt(
+      '유튜브 자막을 붙여넣어 주세요.\n\n영상 아래 [더보기] → [스크립트 표시]를 누르고, 스크립트 전체를 드래그해 복사(⌘A는 페이지 전체가 잡히니 스크립트 안에서 드래그)한 뒤 여기에 붙여넣으시면 됩니다.\n타임스탬프(0:12 …)가 섞여 있어도 앱이 알아서 걷어냅니다.',
+      '', { multiline: true, tall: true, mono: true, okText: '요약본 만들기', placeholder: '0:03\n오늘 우리가 함께 읽은 본문은…' });
+    if (raw === null) return;
+    var body = capStrip(raw);
+    if (body.length < 200) { toast('자막이 너무 짧습니다 — 스크립트 전체를 복사해 붙여넣어 주세요.'); return; }
+    showGenOverlay('자막 정리');
+    var trans = '';
+    try { trans = await capTidy(body); } catch (e) { trans = body; }
+    hideGenOverlay();
+    if (!trans.trim()) trans = body;
+    await realSummaryFromTranscript(id, s, trans, {
+      src: '유튜브 자막', doneMsg: '자막 정리 완료 (' + (trans.length > 1000 ? (trans.length / 1000).toFixed(1) + 'k' : trans.length) + '자)' });
+  } catch (e) { hideGenOverlay(); renderSyncState(); toast('자막 요약 실패: ' + e.message); }
+}
+window.aiCaptionSummarize = aiCaptionSummarize;
 
 /* ══ 원고 ↔ 실제 설교 비교 (v520) ═══════════════════════════════════════════
    준비한 원고와 실제로 선포한 설교를 나란히 놓고, 강단에서 무엇을 더하고 덜고
@@ -22902,7 +22993,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v536';
+var APP_VER = 'v537';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
