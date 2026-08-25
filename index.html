@@ -3123,10 +3123,13 @@ function openDetail(kind, id){
     }
     html += reqBtnRow(['이미지프롬프트', '이미지생성'], true);   /* 요청함(Cowork) 경유 — 데스크탑 전용 */
     html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
-    if (state.settings && (state.settings.geminiKey || state.settings.vidProxyUrl || state.settings.proxyUrl))   /* Gemini 키 또는 프록시 설정 시 노출 */
-      html += '<div class="toolrow"><button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약본 자동생성</button></div>';
-    /* 자막 붙여넣기 — Claude 키만 있으면 되고(영상 분석 불필요), 영상이 길어도 잘리지 않는다(v537) */
-    html += '<div class="toolrow"><button class="btn sub mini" onclick="aiCaptionSummarize(\'' + esc(s['ID']) + '\')">📝 유튜브 자막 붙여넣어 요약본 만들기</button></div>';
+    /* 실제 설교 요약본 만드는 두 길을 한 줄에 나란히 — 왼쪽 영상 전사(Gemini 키·프록시 필요),
+       오른쪽 자막 붙여넣기(Claude 키만 있으면 되고 영상이 길어도 잘리지 않는다, v538).
+       왼쪽이 숨으면 오른쪽이 flex로 한 줄을 채운다. */
+    html += '<div class="toolrow">' +
+      (state.settings && (state.settings.geminiKey || state.settings.vidProxyUrl || state.settings.proxyUrl)
+        ? '<button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약</button>' : '') +
+      '<button class="btn sub mini" onclick="aiCaptionSummarize(\'' + esc(s['ID']) + '\')">📝 자막 붙여넣어 요약</button></div>';
     /* 원고 요약본과 실제 설교 요약본이 둘 다 있을 때만 — 강단에서 원고를 어떻게 바꿔 선포했는지 비교 */
     if (String(s['요약본'] || '').trim() && String(s['실제요약본'] || '').trim())
       html += '<div class="toolrow"><button class="btn sub mini" onclick="cmpOpen(\'' + esc(s['ID']) + '\')">⚖ 원고 ↔ 실제 설교 비교</button></div>';
@@ -22993,7 +22996,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v537';
+var APP_VER = 'v538';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
