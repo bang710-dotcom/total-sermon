@@ -10146,7 +10146,8 @@ function saveComposeDraft(){
   } catch (e) {}
 }
 var saveComposeDraftSoon = debounce(saveComposeDraft, 700);
-function clearComposeDraft(){ try { state._draftBaseMod = null; state._draftAt = 0; idbSet('composeDraft', null).catch(function(){}); dropComposeDraftRemote(); } catch (e) {} }
+/* deep=true — 시트 [저장]으로 이 원고가 확정된 경우: 이 기기 캐시에 없는 다른 기기 초안 행까지 시트에서 훑어 정리(v539) */
+function clearComposeDraft(deep){ try { state._draftBaseMod = null; state._draftAt = 0; idbSet('composeDraft', null).catch(function(){}); dropComposeDraftRemote(deep); } catch (e) {} }
 function restoreComposeDraft(){
   return idbGet('composeDraft').then(function(d){
     if (!d || !d.compose) return false;
@@ -10242,13 +10243,58 @@ function pushComposeDraftRemote(){
   } catch (e) {}
 }
 var pushComposeDraftRemoteSoon = debounce(pushComposeDraftRemote, 10000);
-function dropComposeDraftRemote(){
+function dropComposeDraftRemote(deep){
   try {
     _cdraftLastSig = '';
     /* 과거 응답 유실로 늘어난 유령 행까지 전부 정리 — 1행만 지우면 남은 행이 '다른 기기 작성 원고'로 오제안됨 */
     var rows = (state.data.seriesdraft || []).filter(function(r){ return r && r['시리즈명'] === CDRAFT_NAME && r['ID']; });
     rows.forEach(function(row){ apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: row['ID'] } }).catch(function(){}); });
     state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return !(x && x['시리즈명'] === CDRAFT_NAME); });
+    if (deep) _sweepComposeDraftRemote();
+  } catch (e) {}
+}
+/* '수정일'('yyyy-MM-dd HH:mm') → epoch ms. 값이 없거나 형식이 안 맞으면 0. */
+function _sheetModMs(v){
+  var s = String(v || '').trim(); if (!s) return 0;
+  var t = new Date(s.replace(' ', 'T')).getTime();
+  return isFinite(t) ? t : 0;
+}
+/* 이 작성초안이 '이미 시트 저장본에 흡수된' 옛 초안인가 (v539).
+   판정 기준은 같은 설교 ID의 최종 저장 시각 — 초안이 기반한 설교 행의 '수정일'이 초안 시각 이후면,
+   그 초안 내용은 이미 저장에 반영됐거나 저장본보다 옛것이다. 시트에 아직 없는 새 원고 초안은 보존한다.
+   기기 시계(snap.at)와 시트 서버 시각('수정일')이 몇 분 어긋날 수 있으므로 2분 여유를 둔다 —
+   오판의 대가가 비대칭이기 때문. 오판으로 '흡수됨' 처리하면 다른 기기의 미저장 원고가 사라지고,
+   반대로 놓치면 배너가 한 번 더 뜰 뿐이다(배너에 두 시각이 함께 표시되므로 눈으로 가려낼 수 있다). */
+var CDRAFT_SKEW_MS = 120000;
+function _cdraftAbsorbed(snap){
+  try {
+    if (!snap || !snap.at) return true;
+    if (!snap.editing) return false;
+    var row = findSermon(snap.editing); if (!row) return false;
+    var m = _sheetModMs(row['수정일']);
+    return !!m && m >= (+snap.at || 0) + CDRAFT_SKEW_MS;
+  } catch (e) { return false; }
+}
+/* 시트의 '__작성초안__' 행을 직접 받아, 이미 흡수된 초안 행을 지운다 (v539).
+   이 기기가 아직 델타로 받지 못한 다른 기기 초안 행은 로컬 캐시 기준 삭제로는 지워지지 않아 살아남고,
+   나중에 동기화될 때 '다른 기기에서 작성 중이던 원고'로 되살아나 최종본 이전 내용을 제안하게 된다.
+   아직 흡수되지 않은(= 진짜 미저장) 다른 기기 초안은 건드리지 않는다. */
+var _cdraftSweptAt = 0;
+function _sweepComposeDraftRemote(){
+  try {
+    var s = state.settings || {};
+    if (!s.url || !s.token || !navigator.onLine) return;
+    if (Date.now() - _cdraftSweptAt < 60000) return;   /* 연속 저장 시 중복 조회 방지 */
+    _cdraftSweptAt = Date.now();
+    api({ action: 'list', sheet: 'seriesdraft' }).then(function(d){
+      ((d && d.seriesdraft) || []).forEach(function(r){
+        if (!r || r['시리즈명'] !== CDRAFT_NAME || !r['ID']) return;
+        var snap = null; try { snap = JSON.parse(r['메타JSON'] || 'null'); } catch (e) {}
+        if (snap && snap.compose && !_cdraftAbsorbed(snap)) return;   /* 아직 살아 있는 미저장 초안 — 보존 */
+        apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: r['ID'] } }).catch(function(){});
+        state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return !(x && x['ID'] === r['ID']); });
+      });
+    }).catch(function(){});
   } catch (e) {}
 }
 /* 동기화 후 호출 — 원격 작성초안이 이 기기 것보다 새로우면 배너로 복원 제안 */
@@ -10259,6 +10305,17 @@ function maybeOfferRemoteComposeDraft(){
     if (!snap || !snap.compose || !snap.at) return;
     if (String(localStorage.getItem('tsa.cdraftSeen') || '') === String(snap.at)) return;  /* 이미 안내함 */
     if (_cdraftSig(snap) === _cdraftLastSig) return;                                        /* 내가 올린 것 */
+    /* ── (v539) 같은 설교 ID면 '그 ID의 최종 저장본'이 우선 ──
+       예전에는 초안끼리만(local.at vs snap.at) 시각을 비교했다. 저장을 마친 기기는 로컬 초안이 비므로
+       옛 원격 초안이 언제나 이겼고, 그 결과 최종 저장본 이전 내용이 작성창을 덮어썼다.
+       이제 초안이 기반한 설교 행의 '수정일'이 초안 시각 이후면 제안하지 않고 그 초안 행을 정리한다. */
+    if (_cdraftAbsorbed(snap)) {
+      try { apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: row['ID'] } }).catch(function(){}); } catch (e) {}
+      state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return x !== row; });
+      return;
+    }
+    var sRow = null; try { if (snap.editing) sRow = findSermon(snap.editing); } catch (e) {}
+    var savedTxt = sRow ? fmtSheetSaved(sRow['수정일']) : '';
     idbGet('composeDraft').then(function(local){
       if (local && local.at && local.at >= snap.at) return;   /* 이 기기 초안이 더 최신 */
       var wrap = document.getElementById('uxBanners'); if (!wrap) return;
@@ -10267,12 +10324,21 @@ function maybeOfferRemoteComposeDraft(){
       function p2(n){ return ('0' + n).slice(-2); }
       var b = document.createElement('div');
       b.id = 'cdraftBanner'; b.className = 'uxBanner uxInfo';
-      b.innerHTML = '<div class="uxbTxt"><b>다른 기기에서 작성 중이던 원고가 있습니다.</b><br>'
-        + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + p2(when.getHours()) + ':' + p2(when.getMinutes())
-        + ' 저장분 — 불러오면 현재 작성 화면을 대체합니다.</div>';
+      /* 두 시각을 나란히 보여 준다 — 어느 쪽이 최신인지 눈으로 확인하고 고르게(v539) */
+      b.innerHTML = '<div class="uxbTxt"><b>다른 기기에서 작성 중이던 원고가 있습니다.</b>'
+        + (sRow ? ' 「' + esc(sRow['제목'] || '(제목 없음)') + '」' : '') + '<br>'
+        + '미저장 초안 ' + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + p2(when.getHours()) + ':' + p2(when.getMinutes())
+        + (savedTxt ? ' · 시트 최종 저장본 ' + esc(savedTxt) : '')
+        + ' — 불러오면 현재 작성 화면을 대체합니다.</div>';
       function dismiss(){ try { localStorage.setItem('tsa.cdraftSeen', String(snap.at)); } catch (e) {} if (b.parentNode) b.parentNode.removeChild(b); }
+      if (sRow && snap.editing){
+        var btn0 = document.createElement('button');
+        btn0.type = 'button'; btn0.className = 'uxbBtn'; btn0.textContent = '최종 저장본 열기';
+        btn0.addEventListener('click', function(){ dismiss(); try { resumeSermon(snap.editing); } catch (e) {} });
+        b.appendChild(btn0);
+      }
       var btn = document.createElement('button');
-      btn.type = 'button'; btn.className = 'uxbBtn'; btn.textContent = '불러오기';
+      btn.type = 'button'; btn.className = 'uxbBtn'; btn.textContent = '초안 불러오기';
       btn.addEventListener('click', function(){
         idbSet('composeDraft', snap).then(function(){ return restoreComposeDraft(); })
           .then(function(){ dismiss(); if (window.showPage) showPage('compose'); toast('다른 기기의 작성 원고를 불러왔습니다.'); })
@@ -10333,7 +10399,7 @@ async function _doSaveComposeInner(){
     if (!origId) { stampLocalId_(body); state.pendingAddLid = body.data['로컬ID']; }   /* 이 작성 세션의 add 멱등키 기억 */
     /* 저장한 내용의 서명을 스냅샷 — durable 보관된 경우에만 '깨끗함'으로 표시(진짜 실패 시 dirty 유지). */
     var _sig = composeSig();
-    return submit(body, origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+    return submit(body, origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(true); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
       /* 신규 add거나, 삭제→재등록으로 새 ID가 돌아온 경우 그 ID로 전환(이후 [저장]은 새 행을 갱신) */
       if (id && typeof id === 'string' && (!origId || id !== origId)) {
         state.editing = id;
@@ -10364,7 +10430,7 @@ function saveReconcileCopy(data, origId){
   var body = existing ? { action: 'update', sheet: 'sermons', data: Object.assign({}, d, { ID: existing['ID'] }) }
                       : { action: 'add', sheet: 'sermons', data: d };
   var _sig = composeSig();
-  return submit(body, '내 작업을 검토본으로 저장했습니다 (원본·다른 기기 내용 모두 보존)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+  return submit(body, '내 작업을 검토본으로 저장했습니다 (원본·다른 기기 내용 모두 보존)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(true); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     var nid = existing ? existing['ID'] : id;
     if (nid && typeof nid === 'string') { state.editing = nid; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     return nid;
@@ -10399,7 +10465,7 @@ async function _doSaveAsNewInner(){
   var _un = _lockSaveBtns();
   var _body = { action: 'add', sheet: 'sermons', data: data };
   stampLocalId_(_body); state.pendingAddLid = _body.data['로컬ID'];   /* 오프라인 보관 후 이어지는 [저장]이 같은 행으로 upsert되게 */
-  return submit(_body, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+  return submit(_body, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { state.savedSig = _sig; state.remoteConflict = null; clearComposeDraft(true); } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; state.pendingAddLid = null; updateComposeBadge(); refreshReqBtns(); }
     try { illRecordUsage(state.editing || (typeof id === 'string' ? id : '')); } catch (eR){}
     return id;
@@ -22996,7 +23062,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v538';
+var APP_VER = 'v539';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
