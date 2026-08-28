@@ -14225,11 +14225,12 @@ async function ensureCardScriptText(meta){
 /* 저장된 카드원고 DOCX 파일 핸들 찾기(맥 NFD 파일명 대비 — 정확 일치 실패 시 '카드원고'+날짜 토큰으로 매칭). */
 async function cardDocxFileHandle(meta){
   function nf(s){ try { return s.normalize('NFC'); } catch (e) { return s; } }
-  var want = nf(sermonFileBase(meta, '카드원고') + outExt());
+  var wants = sermonFileNames(meta, '카드원고', outExt()).map(nf);
+  var want = wants[0];
   var dnum = String(meta['날짜'] || '').replace(/-/g, '');
   async function findIn(d){
     try { return await d.getFileHandle(want); } catch (e) {}
-    try { for await (var e of d.values()) { if (e.kind !== 'file') continue; var n = nf(e.name); if (n === want) return e; } } catch (e) {}
+    try { for await (var e of d.values()) { if (e.kind !== 'file') continue; var n = nf(e.name); if (wants.indexOf(n) >= 0) return e; } } catch (e) {}
     try { for await (var e2 of d.values()) { if (e2.kind !== 'file') continue; var n2 = nf(e2.name); if (isDocOut(n2) && n2.indexOf('카드원고') >= 0 && (!dnum || n2.indexOf(dnum) >= 0)) return e2; } } catch (e) {}
     return null;
   }
@@ -14241,7 +14242,7 @@ async function cardDocxFileHandle(meta){
         if (e.kind === 'directory') { if (depth === 0 && resultsDateKey(e.name)) await walk(e, depth + 1); continue; }
         if (e.kind !== 'file') continue;
         var n = nf(e.name);
-        if (n === want) { if (!exact) exact = e; continue; }
+        if (wants.indexOf(n) >= 0) { if (!exact) exact = e; continue; }
         if (isDocOut(n) && n.indexOf('카드원고') >= 0 && (!dnum || n.indexOf(dnum) >= 0)) {
           var f = await e.getFile(); if (f.lastModified > fuzzyM) { fuzzyM = f.lastModified; fuzzy = e; }
         }
@@ -14490,17 +14491,55 @@ async function saveBlobToResults(blob, fname){
   var fh = await dir.getFileHandle(fname, { create: true });
   var w = await fh.createWritable(); await w.write(blob); await w.close();
 }
+/* 파일명에 들어갈 시리즈 태그 = 시리즈명 + 회차번호 (예: "요한복음3").
+   ★ 회차번호의 정본은 별도 필드 '시리즈순번'이다(입력칸 #c_seriesNo). 예전 이 함수는
+     '시리즈' 문자열 끝의 숫자만 찾았기 때문에, 시리즈명에 번호를 직접 적지 않는 정상 입력
+     (시리즈="요한복음", 시리즈순번="3")에서는 번호가 통째로 빠진 파일명이 나왔다.
+   순서: ①시리즈명 끝에 번호가 적혀 있으면(옛 입력 방식) 그것 ②없으면 '시리즈순번'.
+   meta에 시리즈 정보가 없으면 ID로 시트 저장본에서 보완한다.
+   legacy=true 면 예전(번호 없는) 규칙 그대로 — 이미 저장된 옛 파일을 찾을 때만 쓴다. */
+function seriesTag(meta, legacy){
+  var ser = String((meta && meta['시리즈']) || '').trim();
+  var no  = String((meta && meta['시리즈순번']) || '').trim();
+  if ((!ser || !no) && meta && meta['ID'] && typeof findSermon === 'function') {
+    var s0 = findSermon(meta['ID']);
+    if (s0) { if (!ser) ser = String(s0['시리즈'] || '').trim(); if (!no) no = String(s0['시리즈순번'] || '').trim(); }
+  }
+  if (!ser) return '';
+  var mm = ser.match(/^(.*?)\s*\(?\s*(\d+)\s*회?\)?\s*$/);
+  if (mm) return mm[1].replace(/\s+/g, '') + mm[2];      /* 시리즈명에 번호가 함께 적힌 경우 */
+  if (legacy) return ser.replace(/\s+/g, '');            /* 옛 규칙 — 번호 없음 */
+  no = no.replace(/[^\d]/g, '');                         /* '3회' → '3' */
+  return ser.replace(/\s+/g, '') + no;
+}
 /* 설교 파일명 규칙: "YYYYMMDD 원고형태_설교장소_(시리즈번호)제목_본문" */
-function sermonFileBase(meta, type){
+function sermonFileBase(meta, type, legacy){
   function san(s){ return String(s || '').replace(/[\\/:*?"<>|]/g, '').replace(/\.+$/, '').trim(); }
   var d = String(meta['날짜'] || '').replace(/-/g, '');
   var loc = san(meta['예배구분'] || '대학부');
   var title = san(meta['제목'] || '');
   var ref = san(String(meta['본문'] || '').replace(/:/g, '_'));
-  var ser = String(meta['시리즈'] || (meta['ID'] && typeof findSermon === 'function' && findSermon(meta['ID']) ? (findSermon(meta['ID'])['시리즈'] || '') : '') || '').trim(), serP = '';
-  if (ser) { var mm = ser.match(/^(.*?)\s*\(?\s*(\d+)\s*회?\)?\s*$/); serP = mm ? (mm[1].replace(/\s+/g, '') + mm[2]) : ser.replace(/\s+/g, ''); }
+  var serP = seriesTag(meta, legacy);
   var titlePart = (serP ? serP + '_' : '') + title;
   return san(d + ' ' + type) + '_' + loc + '_' + titlePart + '_' + ref;
+}
+/* 되읽기용 후보 이름 — 새 규칙(번호 포함) 우선, 옛 규칙(번호 없음) 폴백.
+   저장은 항상 새 규칙 한 가지로만 하고, 찾을 때만 옛 이름도 함께 본다
+   (번호 규칙을 고치기 전에 만들어 둔 전환표·컷 사이드카·백스테이지 zip을 잃지 않도록). */
+function sermonFileBases(meta, type){
+  var a = sermonFileBase(meta, type), b = sermonFileBase(meta, type, true);
+  return (a === b) ? [a] : [a, b];
+}
+function sermonFileNames(meta, type, ext){
+  return sermonFileBases(meta, type).map(function(b){ return b + (ext || ''); });
+}
+function _nfcEqAny(nm, list){
+  for (var i = 0; i < list.length; i++) if (_nfcEq(nm, list[i])) return true;
+  return false;
+}
+function _nfcInclAny(nm, list){
+  for (var i = 0; i < list.length; i++) if (_nfcIncl(nm, list[i])) return true;
+  return false;
 }
 /* 내보내기 파일명용 원고형식 라벨: '카드원고'만 이름에 남기고, 기본원고·자유원고 등은 넣지 않는다(내용이 동일하므로). */
 function fileTypeTag(t){ return String(t || '').trim() === '카드원고' ? '카드원고' : ''; }
@@ -16571,9 +16610,9 @@ async function transTableCands(meta){
   var out = [];
   if (!canFolderSave()) return out;
   try { await xPerm(); } catch (e) { return out; }
-  var wantT = sermonFileBase(meta, '전환표') + '.json', wantI = imgDataNames(meta).json;
+  var wantT = sermonFileNames(meta, '전환표', '.json'), wantI = imgDataNames(meta).jsonAlts;
   await eachResultFile(async function(e, parent){
-    var isT = _nfcEq(e.name, wantT), isI = _nfcEq(e.name, wantI);
+    var isT = _nfcEqAny(e.name, wantT), isI = _nfcEqAny(e.name, wantI);
     if (!isT && !isI) return;
     try {
       var f = await e.getFile();
@@ -16718,8 +16757,14 @@ async function checkAssets(id){
     try { ydir = await dirHandle.getDirectoryHandle(year); } catch (e) {}
     if (ydir) { for await (var e of ydir.values()) { if (e.kind === 'file') names[e.name] = true; } }
     function hit(n){ return names[n] ? { ok: true, hit: { dir: ydir, name: n } } : null; }
-    a['원고작성'] = hit(sermonFileBase(s, fileTypeTag(s['원고유형'])) + outExt()) || hit(sermonFileBase(s, fileTypeTag(s['원고유형'])) + '.docx');
-    cardDirHit = hit(sermonFileBase(s, '카드원고') + outExt()) || hit(sermonFileBase(s, '카드원고') + '.docx');   /* 폴백(옛 파일이 설교 폴더에 있을 때) */
+    /* 새 파일명(시리즈번호 포함)·옛 파일명(번호 없음)을 모두 확인 — 규칙 변경 전 파일도 계속 인식 */
+    function hitAny(type){
+      var bs = sermonFileBases(s, type), r = null;
+      for (var i = 0; i < bs.length && !r; i++) r = hit(bs[i] + outExt()) || hit(bs[i] + '.docx');
+      return r;
+    }
+    a['원고작성'] = hitAny(fileTypeTag(s['원고유형']));
+    cardDirHit = hitAny('카드원고');   /* 폴백(옛 파일이 설교 폴더에 있을 때) */
     if (!ltcHandle) { /* LTC 폴더 미지정 — 설교 폴더 연도 방식 폴백 */
       a['LTC교재'] = hit(ltcFileName(s));
       a['리더스앱업로드'] = hit('리더스앱_' + baseTxt);
