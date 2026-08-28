@@ -32,6 +32,13 @@
 - `maybeOfferRemoteComposeDraft` — 예전엔 초안끼리만(`local.at` vs `snap.at`) 비교해서, 저장을 마쳐 로컬 초안이 빈 기기에서 옛 원격 초안이 항상 이기고 **최종본 이전 내용이 작성창을 덮어썼다**(2026-08-26 사례). 지금은 위 게이트를 통과한 초안만 배너로 제안하고, 배너에 초안 시각·시트 최종 저장 시각을 함께 보여 주며 **[최종 저장본 열기] / [초안 불러오기] / [무시]** 3지선다를 준다.
 - `clearComposeDraft(true)`(저장 완료 시) → `dropComposeDraftRemote(true)` → `_sweepComposeDraftRemote()` — 로컬 캐시에 없는(아직 델타로 못 받은) 다른 기기 초안 행까지 시트에서 직접 받아 정리한다. 이 정리를 안 하면 그 행이 살아남아 나중에 되살아난다. 흡수되지 않은 진짜 미저장 초안은 건드리지 않는다.
 
+## 산출물 파일명 — 시리즈 회차 번호 (v540)
+
+파일명은 `sermonFileBase(meta, type)` 하나가 만든다: `YYYYMMDD 원고형태_예배구분_시리즈명+회차_제목_본문`.
+- 회차 번호의 **정본은 별도 필드 `시리즈순번`**(입력칸 `#c_seriesNo`)이다. v539까지는 이 함수가 `시리즈` 문자열 끝의 숫자만 찾아서, 정상 입력(시리즈="요한복음" / 시리즈순번="3")이면 **번호가 통째로 빠진 파일명**이 나왔다. 지금은 `seriesTag(meta)`가 ①시리즈명 끝의 숫자(옛 입력 방식) ②`시리즈순번` 순으로 쓴다.
+- **저장은 새 이름 하나로만**, **되읽기는 새·옛 이름 둘 다** 본다(`sermonFileBases`/`sermonFileNames`/`_nfcEqAny`/`_nfcInclAny`, `imgDataNames().jsonAlts·transAlts·backstagePrefixes`). 이 폴백을 지우면 v540 이전에 만든 **전환표·컷 사이드카·백스테이지 zip을 못 찾아 전환표가 새로 생성**되고 이미지 번호가 어긋난다.
+- `docxFileName`(리더스앱 txt·폴더스캔 base)과 `ltcFileName`(LTC 교재)은 원래 시리즈를 넣지 않는 별도 규칙 — 건드리지 말 것.
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).

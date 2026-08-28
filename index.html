@@ -14992,10 +14992,10 @@ async function tpdfImgMap(meta){
   if (canFolderSave()){
     try {
       await xPerm();
-      var pre = imgDataNames(meta).backstagePrefix;
+      var pre = imgDataNames(meta).backstagePrefixes;
       await eachResultFile(async function(e){
         var mm = e.name.match(/_재생성_(\d{1,3})\.png$/i);
-        if (!mm || map[+mm[1]] || !_nfcIncl(e.name, pre)) return;
+        if (!mm || map[+mm[1]] || !_nfcInclAny(e.name, pre)) return;
         try { map[+mm[1]] = await tpdfThumb(await e.getFile()); } catch (x) {}
       });
     } catch (e) {}
@@ -15034,9 +15034,9 @@ function tpdfStripHead(lines, meta){
 async function ensureTransBody(id, meta, cuts){
   try {
     if (canFolderSave()){
-      var base = imgDataNames(meta).trans.replace(/\.(hwpx|docx)$/i, '');
+      var base = imgDataNames(meta).transAlts;
       var hit = await findResultFile(function(nm){
-        return /\.(hwpx|docx)$/i.test(nm) && _nfcEq(nm.replace(/\.(hwpx|docx)$/i, ''), base);
+        return /\.(hwpx|docx)$/i.test(nm) && _nfcEqAny(nm.replace(/\.(hwpx|docx)$/i, ''), base);
       });
       if (hit){
         var lines = await zipDocParas(await (await hit.h.getFile()).arrayBuffer());
@@ -21272,15 +21272,19 @@ function imgDataNames(meta){
     json: sermonFileBase(meta, '이미지자료') + '.json',
     docx: sermonFileBase(meta, '이미지자료') + outExt(),
     trans: sermonFileBase(meta, '이미지전환표시본') + outExt(),
-    backstagePrefix: sermonFileBase(meta, '백스테이지')
+    backstagePrefix: sermonFileBase(meta, '백스테이지'),
+    /* 되읽기용 후보(새 이름 + 옛 이름) — 저장은 위의 단일 이름으로만 한다 */
+    jsonAlts: sermonFileNames(meta, '이미지자료', '.json'),
+    transAlts: sermonFileNames(meta, '이미지전환표시본', ''),
+    backstagePrefixes: sermonFileBases(meta, '백스테이지')
   };
 }
 async function loadCutsSidecarRaw(meta){
   if (!canFolderSave()) return null;
   try { await xPerm(); } catch (e) { return null; }
   try {
-    var want = imgDataNames(meta).json;
-    var hit = await findResultFile(function(nm){ return _nfcEq(nm, want); });
+    var want = imgDataNames(meta).jsonAlts;
+    var hit = await findResultFile(function(nm){ return _nfcEqAny(nm, want); });
     if (!hit) return null;
     var f = await hit.h.getFile();
     var j = JSON.parse(await f.text());
@@ -21396,8 +21400,8 @@ async function loadImgSetZip(meta){
   if (!canFolderSave()) return null;
   try { await xPerm(); } catch (e) { return null; }
   if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-  var pre = imgDataNames(meta).backstagePrefix;
-  var hit = await findResultFile(function(nm){ return /\.zip$/i.test(nm) && _nfcIncl(nm, pre); });
+  var pre = imgDataNames(meta).backstagePrefixes;
+  var hit = await findResultFile(function(nm){ return /\.zip$/i.test(nm) && _nfcInclAny(nm, pre); });
   if (!hit) return null;
   try {
     var f = await hit.h.getFile();
@@ -23107,7 +23111,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v539';
+var APP_VER = 'v540';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
