@@ -1542,7 +1542,7 @@ body.uiDlgOpen{overflow:hidden}
           </div>
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
         </div>
-        <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab">📮 주보 내용 카톡 보내기</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 내 카톡(나와의 채팅)</small></button>
+        <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab">📮 주보내용 카톡 초안</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 고쳐서 한 번에 복사</small></button>
         <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(설교 원고 파일은 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">설교 기본원고 저장 폴더 지정</button>
@@ -16946,11 +16946,19 @@ $$('#composeMeta [data-req]').forEach(function(b){
   });
 });
 
-/* ----- 주보 내용 카톡 보내기 -----
+/* ----- 주보내용 카톡 초안 (v542) -----
    저장된 설교의 제목·본문·결단찬양·GBS 질문(LTC 교재의 gbs)을 모아
-   백엔드(action=kakaoSend) 경유로 카카오 '나와의 채팅'에 발송한다.
-   카카오 텍스트 템플릿 한도(200자)에 맞춰 줄 경계에서 여러 통으로 나눈다.
-   결단찬양은 파일맵.hymn에 저장해 기기 간 공유·재사용. */
+   ★ "한 번에 복사할 수 있는 초안 모달"로 띄운다. 그 자리에서 고칠 수도 있다.
+
+   ※ v541까지는 백엔드(action=kakaoSend)로 '나와의 채팅'에 바로 보냈는데,
+     카카오 텍스트 템플릿 한도(200자) 때문에 한 주보가 4~6통으로 쪼개져 도착했다.
+     결국 그 조각들을 손으로 이어 붙여 다시 보내야 해서 손이 더 갔다.
+     → 쪼갤 이유가 없는 '복사' 방식으로 바꿨다. 발송 코드(splitKakao·kakaoSend)와
+       백엔드는 그대로 두었다(다른 경로에서 다시 쓸 수 있게).
+
+   결단찬양은 예전처럼 파일맵.hymn에 저장해 기기 간 공유·재사용하고,
+   손으로 고친 초안은 파일맵.bulletin{sig,text}에 담아 다시 열어도 그대로 살아난다
+   (sig = 그때 자동 생성된 원문의 서명 — 제목·찬양·GBS가 바뀌면 초안을 새로 만든다). */
 function splitKakao(text, limit){
   limit = limit || 200;
   var out = [], cur = '';
