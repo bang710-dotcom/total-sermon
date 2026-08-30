@@ -17025,16 +17025,82 @@ async function bulletinKakao(){
     });
   }
   var full = lines.join('\n');
-  if (!await uiConfirm('아래 내용을 내 카톡(나와의 채팅)으로 보낼까요?\n\n' + full)) return;
-  var chunks = splitKakao(full, 200);
-  try {
-    toast('카카오톡으로 보내는 중…');
-    var r = await apiPost({ action: 'kakaoSend', messages: chunks });
-    toast('내 카톡으로 ' + ((r && r.sent) || chunks.length) + '통 발송 완료 — 나와의 채팅에서 확인하세요.');
-    try { setSermonFileMap(id, 'kakaoAt', nowLocalStr_()); } catch (eK){}   /* 주간 대시보드 '주보카톡' 체크용 */
-  } catch (e) {
-    toast('카톡 발송 실패: ' + e.message);
+  var sig = bulletinSig(full);
+  /* 지난번 손으로 고친 초안이 있고, 그 뒤로 제목·찬양·GBS가 그대로면 고친 것을 이어서 쓴다 */
+  var saved = (fm.bulletin && fm.bulletin.sig === sig) ? String(fm.bulletin.text || '') : '';
+  bulletinDraftOpen(id, saved || full, full, sig);
+}
+/* 자동 생성 원문의 서명 — 내용이 바뀌었는지 판별용(공백 정규화 후 길이+간이해시) */
+function bulletinSig(t){
+  var s = String(t || '').replace(/\s+/g, ' ').trim();
+  var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return s.length + ':' + (h >>> 0).toString(36);
+}
+/* 주보내용 초안 모달 — 그 자리에서 고치고, 한 번에 복사한다.
+   text=처음 보여줄 내용(고친 초안이 있으면 그것) / fresh=방금 자동 생성한 원문 / sig=fresh의 서명 */
+function bulletinDraftOpen(id, text, fresh, sig){
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;padding:18px;box-shadow:0 14px 44px rgba(0,0,0,.4);max-height:88vh;display:flex;flex-direction:column';
+  box.innerHTML = '<div style="font-size:15px;font-weight:800;margin-bottom:4px">📮 주보내용 카톡 초안</div>'
+    + '<div style="font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:10px">고칠 곳이 있으면 아래에서 바로 고치신 뒤 <b>[전체 복사]</b>를 누르세요. 한 통으로 붙여넣을 수 있습니다. 고친 내용은 저장되어 다시 열어도 그대로입니다.</div>';
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.spellcheck = false;
+  ta.style.cssText = 'width:100%;flex:1;min-height:42vh;resize:vertical;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;line-height:1.7;box-sizing:border-box';
+  box.appendChild(ta);
+  var info = document.createElement('div');
+  info.style.cssText = 'font-size:11px;color:var(--dim);margin-top:6px;min-height:15px';
+  function tick(){ info.textContent = ta.value.length + '자 · ' + ta.value.split('\n').length + '줄'; }
+  tick(); ta.addEventListener('input', tick);
+  box.appendChild(info);
+  var row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;margin-top:10px';
+  function mkBtn(label, primary){
+    var b = document.createElement('button');
+    b.type = 'button'; b.textContent = label;
+    b.style.cssText = 'flex:1;padding:11px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;'
+      + (primary ? 'background:var(--accent);color:#fff;border:1px solid var(--accent)'
+                 : 'background:transparent;color:var(--dim);border:1px solid var(--line)');
+    return b;
   }
+  var lastSaved = text;   /* 시트 왕복을 아끼려 실제로 달라졌을 때만 저장 */
+  function persist(){   /* 고친 초안 보관 — 자동 생성 원문과 같으면 굳이 저장하지 않는다 */
+    try {
+      if (!id || ta.value === lastSaved) return;
+      lastSaved = ta.value;
+      if (ta.value.trim() === String(fresh || '').trim()) setSermonFileMap(id, 'bulletin', null);
+      else setSermonFileMap(id, 'bulletin', { sig: sig, text: ta.value });
+    } catch (e) {}
+  }
+  function close(){ persist(); if (ov.parentNode) document.body.removeChild(ov); }
+  var copyB = mkBtn('📋 전체 복사', true);
+  copyB.addEventListener('click', function(){
+    var v = ta.value;
+    var done = function(ok){
+      if (!ok) { toast('자동 복사가 막혔습니다 — 위 칸을 길게 눌러 직접 복사해 주세요.'); return; }
+      copyB.textContent = '복사됨 ✓';
+      setTimeout(function(){ copyB.textContent = '📋 전체 복사'; }, 1600);
+      toast('주보내용을 복사했습니다 — 카톡에 붙여넣으세요.');
+      persist();
+      try { if (id) setSermonFileMap(id, 'kakaoAt', nowLocalStr_()); } catch (e) {}   /* 주간 대시보드 '주보카톡' 체크용 */
+    };
+    ta.focus(); ta.select();
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(v).then(function(){ done(true); }, function(){ done(!!(document.execCommand && document.execCommand('copy'))); });
+    else done(!!(document.execCommand && document.execCommand('copy')));
+  });
+  var resetB = mkBtn('↺ 자동 생성본으로');
+  resetB.addEventListener('click', function(){ ta.value = fresh; tick(); ta.focus(); });
+  var closeB = mkBtn('닫기');
+  closeB.addEventListener('click', close);
+  row.appendChild(copyB); row.appendChild(resetB); row.appendChild(closeB);
+  box.appendChild(row);
+  ov.appendChild(box);
+  ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
+  document.body.appendChild(ov);
+  ta.focus();
 }
 (function(){
   var b = $('#c_kakao');
@@ -23139,7 +23205,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v541';
+var APP_VER = 'v542';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
