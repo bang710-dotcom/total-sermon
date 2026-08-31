@@ -1,5 +1,5 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v543';         /* 앱 셸 — 버전마다 교체(index.html 등) */
+var CACHE = 'tsa-v544';         /* 앱 셸 — 버전마다 교체(index.html 등) */
 var CONTENT = 'tsa-content-v1';   /* 대용량 콘텐츠 — 버전 업에도 유지(매번 재다운로드 방지) */
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 /* ill-index(색인)·ill-story(전문 샤드, 해시 파일명=불변)도 콘텐츠 캐시 — v444 */

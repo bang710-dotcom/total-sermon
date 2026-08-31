@@ -7454,6 +7454,10 @@ function snPD(e){
     try { $('#studyText').setPointerCapture(e.pointerId); } catch (er) {}
     e.preventDefault(); e.stopPropagation(); return;
   }
+  /* 구조 뷰 컨트롤(★ 주제절 · ✂ 나누기 · ⌃ 합치기)은 어떤 도구에서도 "버튼"으로 남는다 (v544).
+     펜슬로 눌렀을 때 형광 긋기·필기·지우기가 시작돼 버리면 탭이 되지 않으므로 여기서 먼저 빠진다.
+     (_penDown 은 위에서 이미 기록했으므로 snPU 의 펜 탭 합성 클릭은 그대로 동작한다) */
+  if (t.closest && t.closest('.svzStar, .svzCut, .svzMerge')) return;
   var noteEl = t.closest && t.closest('.snNote');
   /* 형광·박스·원 + 펜슬 = 긋는 대로 칠하기·묶기 (박스·원은 줄마다 따로 묶인다, v492) */
   if ((SNS.tool === 'hl' || SNS.tool === 'box' || SNS.tool === 'cir') && e.pointerType === 'pen' && !noteEl){
@@ -7721,6 +7725,11 @@ function snClick(e){
   if (wd){ SNS.penW = +wd.getAttribute('data-snw'); snBarRepaint(); e.stopPropagation(); return; }
   var zm = t.closest && t.closest('[data-snfs]');
   if (zm){ snFont(+zm.getAttribute('data-snfs')); e.stopPropagation(); return; }
+  /* ★·✂·⌃합치기(구조 뷰 편집)는 노트 모드의 어떤 도구에서도 그대로 눌린다 (v544).
+     아래 도구별 처리가 e.stopPropagation() 으로 삼켜 버리면 본문연구 창의 위임 핸들러
+     (svzSetTheme/svzCutAt/svzMergeAt)까지 클릭이 올라가지 못해 버튼이 죽은 것처럼 보였다.
+     여기서 그냥 return 하면 클릭이 그대로 위로 올라가 구조 모드와 똑같이 동작한다. */
+  if (t.closest && t.closest('.svzStar, .svzCut, .svzMerge')) return;
   var noteEl = t.closest && t.closest('.snNote');
   if (noteEl){
     if (Date.now() - (SNS.dragSquelch || 0) < 300){ e.stopPropagation(); return; }
@@ -23221,7 +23230,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v543';
+var APP_VER = 'v544';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
