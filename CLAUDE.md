@@ -63,7 +63,15 @@
   = 목사님 실제 원고에서 본문만 비운 파일. 용지·여백·글꼴·색·표 서식이 그 안 header.xml(charPr/paraPr/borderFill)에 확정돼 있다.
 - 앱 코드: `index.html` 의 `HWPX_TYPES`(역할→ID 지도) + `hwpxBuild()`. **새 서식을 만들지 않고** 역할 ID로 문단만 찍는다.
 - 같은 템플릿·같은 지도를 Cowork 스킬 **hwpx-sermon-docs** 도 쓴다(`hwpx/build_hwpx.py`, `hwpx/hwpx_types.json`).
-  → 템플릿이나 역할 지도를 고치면 **앱·스킬 양쪽을 함께** 고칠 것.
+  → 템플릿이나 역할 지도를 고치면 **앱·스킬 양쪽을 함께** 고칠 것. 템플릿은 두 벌
+  (`total-sermon-web/hwpx/templates/`, `Dropbox/total-sermon/hwpx/templates/`)이므로 항상 같이 갱신한다.
+- **템플릿의 `Preview/PrvImage.png` (v546, 2026-08-31)**: hwpx 안의 이 그림이 곧 macOS Finder 의 문서
+  썸네일이다. 예전 껍데기에는 1×1 짜리 **반투명 초록 픽셀**(RGBA 0,255,0,127)이 들어 있어, 그 1픽셀이
+  아이콘 크기로 확대되며 앱이 만든 hwpx 가 전부 **초록색 박스**로 보였다(파일·열기 자체는 정상).
+  5종 템플릿 모두 210×297 흰 종이 PNG 로 교체했다. **앞으로 템플릿을 새로 뜰 때 이 1×1 스텁이 다시
+  들어가지 않게 확인할 것.** 이미 만들어진 파일은 `total-sermon/tools/fix_hwpx_preview.py <폴더>` 로 일괄 교정
+  (1×1 짜리만 골라 바꾸므로 한글이 저장한 진짜 미리보기는 건드리지 않는다). Finder 아이콘이 그대로면
+  `qlmanage -r cache && killall Finder`.
 - **전환 표시 PDF (v529, v530에서 썸네일 축소)**: 전환표시본과 같은 본문·전환표에 「배경 이미지 생성」으로 만든 그림을 각 전환 바 오른쪽 끝에 작은 참고 썸네일(본문 폭 21%)로 겹쳐 올려 PDF로 조판한다(음수 여백 flex — 그림 때문에 쪽수가 늘지 않게)(`tpdfImgMap`/`tpdfBlocks`/`buildTransPdfBlob`/`saveTransPdf`, 캐스케이드 키 `transpdf`). hwpx가 아니라 html2canvas+jsPDF로 만들지만 용지·여백·색은 hwpx 전환표시본과 같은 규격(216×290mm·여백 10mm·12pt·바 #EE0000). 이미지는 저장된 백스테이지 zip(NN.png)에서 읽으며, 없으면 만들지 않고 안내한다.
 - **전환 표시 PDF의 보이지 않는 텍스트층 (v534)**: 페이지 래스터 위에 `renderingMode:'invisible'` 로 같은 글자를 같은 자리에 얹어, 아이패드 PDF 뷰어에서 하이라이트·밑줄·검색·복사가 되게 한다(스캔본 OCR과 같은 원리, 보이는 조판은 불변). 줄 위치는 `tpdfLineBoxes()` 가 DOM Range 로 글자마다 측정해 줄 단위로 묶고, `tpdfDrawTextLayer()` 가 px→mm 로 환산해 찍는다(자간은 charSpace 로 실제 폭에 맞춤, 글자폭 40% 초과 보정은 무시). 글꼴은 `fonts/pdf-text-layer-ko.ttf` — Noto Serif KR 한글 전체를 서브셋한 뒤 **외곽선을 지우고 자폭(hmtx)·cmap 만 남긴 220KB** 파일(보이지 않으니 모양 불필요 → PDF 용량 부담 최소). 없으면 텍스트층만 건너뛰고 예전처럼 만든다.
 - **원고 수정 반영 — 전환표 재정렬 (v532)**: 산출물을 다 만든 뒤 원고 문장을 고쳤을 때, 전환표를 새로 만들지 않고 **컷 번호·개수·순서는 그대로 둔 채 앵커만 새 원고 문단에 다시 붙인다**(이미 만든 배경 이미지를 그대로 씀). 순서를 지키면서 전체 유사도 합이 최대가 되는 배치를 동적계획법으로 찾고(`retransMatch`), 전환 바 삽입은 AI 없이 로컬로 한다(`retransBody`). 진입점 넷 — ⓪**`ensureTransTable`(v533, 가장 중요)**: 표가 이미 있고 원고 서명만 달라졌으면 **AI로 새 표를 만들지 않고 재정렬**한다(예전엔 여기서 새 표가 나와 대지 선언 컷이 사라지고 번호가 한 칸씩 밀려 이미지와 어긋났다). 재정렬 실패분이 34%를 넘을 때만 새 표를 만들고, `force`([전환표 다시 잡기]·[다시 생성])는 그대로 새 표. 재정렬했으면 `window._transRealigned`로 컷 사이드카도 묻지 않고 같이 맞춘다 ①[♻ 원고 수정 반영] 버튼(`btnRetrans`→`applyRetrans`: 전환표·컷 사이드카 갱신 → 전환표시본 → 전환 PDF) ②컷 사이드카가 낡았을 때 뜨는 3지선다(`askCutsStale`, 기본값 "위치만 다시 맞추기") ③`ensureTransBody`가 옛 전환표시본을 재사용하기 전 신선도 검사(`transBodyFresh`·파일맵 `transBodySig`) — 문장이 하나라도 다르면 재사용하지 않고 재정렬한다. 앵커 단락이 삭제됐거나 유사도가 낮은 컷은 `weak`로 보고(같은 자리 겹침 허용 — 뒤 컷이 줄줄이 밀리지 않게).
