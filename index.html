@@ -3774,8 +3774,16 @@ function illRecordUsage(sermonId){
       apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '사용설교ID': val } }).catch(function(){});
     }
   });
-  /* 라이브러리(json) 예화도 기록 — 인박스 레코드가 없으므로 prefs(ns=illUse) 채널에 남긴다(2026-07-14). */
-  try { illComposeUsedLibIds().forEach(function(lid){ illUseRecord(lid, sermonId); }); } catch (e){}
+  /* 라이브러리(json) 예화도 기록 — 인박스 레코드가 없으므로 prefs(ns=illUse) 채널에 남긴다(2026-07-14).
+     ★ 제목 폴백(서랍에서 삽입하지 않은 예화)은 story 대조가 있어야 판정된다. 샤드 분리(v444) 뒤로
+     저장 시점엔 전문이 아직 안 붙어 있는 경우가 많아 조용히 아무것도 기록되지 않았다 → 전문을
+     기다렸다가 기록한다. 그 사이 작성창이 바뀌어도 되도록 지금의 대지 배열을 붙잡아 넘긴다. (v547) */
+  try {
+    var pts = state.compose.points;
+    var run = function(){ try { illComposeUsedLibIds(pts).forEach(function(lid){ illUseRecord(lid, sermonId); }); } catch (e){} };
+    if (ILLUST && ILLUST._sharded && !ILLUST._storyDone && typeof illEnsureStories === 'function') illEnsureStories().then(run).catch(run);
+    else run();
+  } catch (e){}
 }
 /* ── 라이브러리(json) 예화 사용 이력(ns=illUse, 2026-07-14) ──
    인박스 예화의 '사용설교ID'에 해당하는 것을 순수 라이브러리 예화에도 제공.
@@ -3835,19 +3843,24 @@ function illStoryOverlap(storyN, hayN){
 /* compose의 예화 블록 → 라이브러리(json) 예화 id 역해석.
    srcKey(lib:) = 확실. 제목 폴백은 (a) 정규화 완전일치(본문 있으면 유사성까지 확인),
    (b) 포함일치는 블록 본문이 story와 실제로 겹칠 때만 — 성경 어구형 제목 오탐 차단. */
-function illComposeUsedLibIds(){
+function illComposeUsedLibIds(points){
   if (!(ILLUST && ILLUST.items && ILLUST.items.length)) return [];
   var seen = {}, out = [];
   var norm = ILLUST._normIdx;
-  if (!norm || norm._n !== ILLUST.items.length){
-    norm = { _n: ILLUST.items.length, map: {}, story: {} };
+  /* ★ 색인 무효화에 "전문(story) 병합 여부"를 함께 넣는다 (v547).
+     v444 샤드 분리 뒤로 부팅 직후에는 story 가 비어 있는데, 그때 만든 색인을 항목 수가
+     같다는 이유로 계속 재사용해 story 검증이 영원히 실패했다 → 서랍에서 삽입하지 않은
+     (srcKey 없는) 예화가 사용 기록에 전혀 남지 않았고, 홈의 [지난 설교 예화 회고]도 뜨지 않았다. */
+  var storyOn = !!(ILLUST._storyDone);
+  if (!norm || norm._n !== ILLUST.items.length || norm._s !== storyOn){
+    norm = { _n: ILLUST.items.length, _s: storyOn, map: {}, story: {} };
     ILLUST.items.forEach(function(x){
       var k = illNormT(x.title);
       if (k.length >= 4 && !norm.map[k]){ norm.map[k] = x.id; norm.story[k] = illNormT(String(x.story || '')).slice(0, 800); }
     });
     ILLUST._normIdx = norm;
   }
-  (state.compose.points || []).forEach(function(p){
+  (points || state.compose.points || []).forEach(function(p){
     pBlocks(p).forEach(function(b){
       if (b.type !== 'ill') return;
       var id = '';
@@ -4552,13 +4565,17 @@ function renderIllRecap(){
     var sidSet = {}; recent.forEach(function(s){ sidSet[String(s['ID'] || '').trim()] = s; });
     var pool = illUnified(), items = [], seen = {};
     var useMap = illUseStore();
+    /* 별점 저장소는 한 번만 읽는다 — 예화가 6,500편이라 항목마다 localStorage+JSON.parse 를
+       하면 홈을 그릴 때마다 수천 번 파싱하게 된다. (v547) */
+    var rateMap = illRateStore();
+    function ratedAlready(k){ var v = illKeyPick(rateMap, k); return (v === 0 || v === 1 || v === 2); }
     function hitSermon(ids){
       var hit = null;
       String(ids || '').split(/[,;]\s*/).forEach(function(x){ x = x.trim(); if (!hit && sidSet[x]) hit = sidSet[x]; });
       return hit;
     }
     pool.forEach(function(it){
-      if (seen[it.key] || illRateFor(it.key) !== null) return;
+      if (seen[it.key] || ratedAlready(it.key)) return;
       var s = null;
       var iid = illSrcKeyToIdeaId(it.key);
       if (iid){ var d = findIdea(iid); if (d) s = hitSermon(d['사용설교ID']); }
@@ -4567,6 +4584,27 @@ function renderIllRecap(){
       seen[it.key] = 1;
       items.push({ it: it, s: s });
     });
+    /* ★ 안전망 (v547) — 사용 기록이 하나도 안 남았을 때도 회고는 뜨게 한다.
+       기록(사용설교ID·illUse)은 원고에 서랍 예화를 삽입하고 저장해야 남는데, 코워크·AI로 쓴
+       원고를 붙여넣거나 제목만 적어 둔 경우에는 비어 있다. 그러면 설교를 마쳐도 홈에 아무것도
+       뜨지 않아 "평가 카드가 사라졌다"로 보였다. 기록이 없으면 최근 설교의 '예화' 요약 필드에
+       예화 제목(정규화 6자+)이 등장하는지로 찾아 준다(소급 스캔과 같은 판정, 전문 없이도 됨). */
+    if (!items.length){
+      var recs = recent.filter(function(s){ return illNormT(String(s['예화'] || '')).length >= 6; });
+      if (recs.length){
+        var hay = recs.map(function(s){ return { s: s, n: illNormT(String(s['예화'] || '')) }; });
+        for (var pi = 0; pi < pool.length && items.length < 5; pi++){
+          var it2 = pool[pi];
+          if (seen[it2.key] || ratedAlready(it2.key)) continue;
+          var nt = illNormT(it2.title); if (nt.length < 6) continue;
+          for (var hi = 0; hi < hay.length; hi++){
+            if (hay[hi].n.indexOf(nt) < 0) continue;
+            seen[it2.key] = 1; items.push({ it: it2, s: hay[hi].s });
+            break;
+          }
+        }
+      }
+    }
     if (!items.length){ card.style.display = 'none'; return; }
     items = items.slice(0, 5);
     var rows = items.map(function(x){
@@ -23235,7 +23273,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v546';
+var APP_VER = 'v547';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
