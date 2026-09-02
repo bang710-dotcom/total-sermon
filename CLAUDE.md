@@ -39,6 +39,19 @@
 - **저장은 새 이름 하나로만**, **되읽기는 새·옛 이름 둘 다** 본다(`sermonFileBases`/`sermonFileNames`/`_nfcEqAny`/`_nfcInclAny`, `imgDataNames().jsonAlts·transAlts·backstagePrefixes`). 이 폴백을 지우면 v540 이전에 만든 **전환표·컷 사이드카·백스테이지 zip을 못 찾아 전환표가 새로 생성**되고 이미지 번호가 어긋난다.
 - `docxFileName`(리더스앱 txt·폴더스캔 base)과 `ltcFileName`(LTC 교재)은 원래 시리즈를 넣지 않는 별도 규칙 — 건드리지 말 것.
 
+## 검증 게이트 · 회중 반응 — v548
+
+외부 설교 스킬 묶음(`cys-claude-sermon-skills`) 검토(`Dropbox/total-sermon/docs/외부설교스킬_검토_20260902.html`)에서 가져온 것들. 핵심 발상은 **AI가 쓴 답을 다시 AI에게 검사시키지 않고, 앱이 이미 가진 확정 데이터와 기계적으로 대조**하는 것이다.
+
+- **성경 참조 실재성** — `VERSE_COUNTS_RAW`(66권 장별 절 수, 16진·약 3.3KB 상수) + `refAudit(text)` / `refAuditBare(list, bookIdx)` / `refAuditHtml()`. fetch 없이 즉시 판정한다. 자동 검사 지점: 본문연구 「AI 정리」(상호본문·클라이맥스·단락 범위), 「강해 검증」의 근거절, **완성 원고를 받은 직후**(`aiManuscript`). 수동은 작성 화면 [📕 성경 참조 전체 검증](`auditComposeRefs`).
+  → ⚠ **`bible/bNN.json` 을 교체하면 이 표도 다시 뽑을 것.** 생성 명령은 `VERSE_COUNTS_RAW` 위 주석에 있다.
+  → 오탐 방지: 절(`장:절`)이 있는 표기만 검사하고, 앞 글자가 한글·영문·숫자면(“그렇지요 3:16”) 건너뛴다.
+- **사본 경계 본문 경고** — `MSS_DISPUTED`(막 16:9-20, 요 7:53-8:11, 요일 5:7-8 등 15곳) + `mssWarnFor()`. 작성 화면 본문칸 아래(`#c_mssWarn`, `renderMssWarn`)와 본문연구 창 머리(`#stMss`, `openStudy`)에 뜬다.
+- **선택지 5결 매트릭스** — `MSG_DIVERSITY_RULE` 을 `P_SERMON`·`P_OCC`·`P_TOPIC`·`P_DAWN` 끝에 부착(`METAPHOR_AXIS_RULE` 뒤). 선택지가 서로 다른 결(신학명제/실천권면/내러티브/실존진단/종말소망)에서 나오게 하고, 핵심메시지 25~45자·추상명사 나열 금지를 함께 건다.
+- **찬송 번호 대조** — `hymnFixSync()` 가 `sanitizeHymns()` 안에서 성경앱 645장 목록과 맞춘다. **사용자 입력용 `hymnResolve` 와 우선순위가 반대다** — 모델은 곡명이 정확하고 번호를 자주 틀리므로 여기서는 곡명 우선, 목록에 없는 번호는 떼어 낸다. 호출 전에 `await studyLoadHymns()` 로 목록을 확보해 둔다(목록이 없으면 손대지 않는다).
+- **흔한 오용** — `MISUSE_RULE` 을 `P_STUDYSYN` 에 부착하고 출력 JSON에 `흔한오용[]`(주장·유형·바로잡기) 추가 → `renderStudyAi` 의 「⚠ 이 본문의 흔한 오용」.
+- **회중 반응 시뮬레이션** — `PERSONAS_ADULT`(전체 회중 8인)·`PERSONAS_YOUTH`(대학부 8인) 두 벌 + `P_PERSONA` + `aiPersona(kind)` / `renderPersona`. 「강해 검증」이 *원고가 본문에 맞는가*를 보는 데 비해 이건 *누가 어떻게 듣는가*를 본다. 페르소나 목록이 **유일한 발화 근거**이고, 페르소나끼리 대화 금지·신학 수준 초과 발화 금지·없는 일화 창작 금지를 프롬프트에서 못 박는다. 페르소나를 고치려면 두 배열만 손대면 된다.
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
