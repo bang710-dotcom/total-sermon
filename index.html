@@ -1213,7 +1213,14 @@ body.fmPhase1 #aiFab,
 body.fmPhase1 #tabAi,
 body.fmPhase1 #editorPane .edHeader{opacity:0;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.sidebar,header.mobile,.tabbar,#composeMeta,#aiFab,#tabAi,#editorPane .edHeader{transition-duration:.01ms}}
-body.focusMode #editorPane{max-width:760px;margin:0 auto;padding:8vh 26px 4vh;min-height:auto;box-sizing:border-box}
+/* 본문 열은 기본이 가운데. --fmShiftX 로 좌우로 민다 (v549 — 듀얼 모니터에서 고개를 돌리지 않도록).
+   ★ transform 은 진입·종료 FLIP 애니메이션이 쓰므로 건드리지 않고 position:relative + left 로 옮긴다. */
+body.focusMode #editorPane{max-width:760px;margin:0 auto;padding:8vh 26px 4vh;min-height:auto;box-sizing:border-box;position:relative;left:var(--fmShiftX,0px)}
+/* 빈 여백을 마우스로 끌면 본문 열이 따라온다 — 여백에서만 ↔ 커서로 끌 수 있음을 알린다 */
+body.focusMode #page-compose.on{cursor:ew-resize}
+body.focusMode #editorPane{cursor:auto}
+body.fmDragging,body.fmDragging #editorPane,body.fmDragging #editorPane *{cursor:ew-resize!important;user-select:none}
+body.fmDragging #editorPane{transition:none!important}
 /* 텍스트 칸: 선 없이 투명, 포커스해도 테두리 없음, 스크롤바 없음 */
 body.focusMode #editorPane .edTa,
 body.focusMode #editorPane .edFree{font-size:calc(15.5px * var(--edScale,1));font-family:var(--edFont,inherit);color:var(--text);line-height:1.85;text-align:justify;background:transparent!important;border-color:transparent!important;box-shadow:none!important;resize:none;scrollbar-width:none;overflow:hidden}
@@ -1236,6 +1243,8 @@ body.focusMode.fmBarShow #focusBar{opacity:.97;pointer-events:auto;transform:tra
 #focusBar:not(.free) .fbChips,#focusBar:not(.free) .fbChipSep{display:none}
 #focusBar .fbChip{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:11.5px;font-weight:700;color:var(--text);cursor:pointer;min-width:0}
 #focusBar .fbChip:hover{border-color:var(--accent)}
+/* 본문 위치 이동 버튼 — 옮길 여백이 있는 넓은 화면에서만 의미가 있다 */
+@media (max-width:900px){ #focusBar .fbPos,#focusBar .fbPosSep{display:none} }
 /* 집중 모드 저장 토스트 — 하단 중앙, 반투명 어두운 배경(오버레이 위 z-index) */
 #fmToast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(8px);z-index:720;background:rgba(0,0,0,.72);color:#fff;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .3s ease,transform .3s ease;white-space:nowrap}
 #fmToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -9889,12 +9898,83 @@ function fmApplyFont(i){ if (!FM_FONTS.length) return; i = ((i % FM_FONTS.length
   var b = document.getElementById('fmFontBtn'); if (b) b.textContent = '글꼴 · ' + f.k;
   fmAutosize(); setTimeout(fmAutosize, 400); }   /* 글꼴 교체(웹폰트 로드 후) 높이 재계산 */
 function fmCycleFont(){ var i = (parseInt(localStorage.getItem('tsa.fmFont') || '0', 10) || 0) + 1; fmApplyFont(i); }
+/* ── 본문 열 좌우 이동 (v549) ────────────────────────────────────────────────
+   모니터 두 대를 쓰면 브라우저가 있는 모니터가 시선에서 비껴 있어, 그 화면 "가운데"에 놓인
+   본문을 보려고 계속 고개를 돌려야 한다. 본문 열을 원하는 쪽으로 밀어 두면 그럴 일이 없다.
+   ★ transform 은 진입·종료 FLIP 애니메이션이 쓰므로, 이동은 CSS 변수 --fmShiftX(+left)로만 한다.
+   조작법 셋 — ①툴바 ◀ ⊙ ▶  ②빈 여백을 마우스로 끌기(더블클릭하면 가운데로)  ③⌥←/⌥→/⌥0.
+   값은 이 기기에만 기억한다(사무실·집의 화면 배치가 다르므로 기기별로 두는 게 맞다). */
+var FM_SHIFT_KEY = 'tsa.fmShiftX', FM_SHIFT_STEP = 60;
+/* 열이 화면 밖으로 나가지 않는 최대 이동폭 — 좌우 여백의 절반씩 */
+function fmShiftMax(){
+  var ed = document.getElementById('editorPane');
+  var w = ed ? ed.offsetWidth : 760;
+  return Math.max(0, Math.round((window.innerWidth - w) / 2));
+}
+function fmGetShift(){ var v = parseFloat(localStorage.getItem(FM_SHIFT_KEY) || '0'); return isFinite(v) ? v : 0; }
+function fmApplyShift(px, save){
+  var m = fmShiftMax();
+  px = Math.round(Math.max(-m, Math.min(m, (+px || 0))));
+  try { document.body.style.setProperty('--fmShiftX', px + 'px'); } catch (e) {}
+  if (save !== false) { try { localStorage.setItem(FM_SHIFT_KEY, px); } catch (e) {} }
+  return px;
+}
+function fmCurShift(){
+  var v = parseFloat(getComputedStyle(document.body).getPropertyValue('--fmShiftX'));
+  return isFinite(v) ? v : 0;
+}
+function fmNudgeShift(d){
+  var m = fmShiftMax();
+  if (!m){ fmToast('창이 좁아 본문을 옮길 여백이 없습니다', 1600); return; }
+  var px = fmApplyShift(d === 0 ? 0 : fmCurShift() + d);
+  var pct = Math.round(Math.abs(px) / m * 100);
+  fmToast(px === 0 ? '본문 위치 · 가운데' : ('본문 위치 · ' + (px < 0 ? '왼쪽' : '오른쪽') + ' ' + pct + '%'), 1200);
+}
+/* 빈 여백 드래그 — 텍스트 선택과 겹치지 않게 editorPane·툴바 바깥에서만, 마우스에서만 받는다 */
+var _fmDrag = null;
+document.addEventListener('pointerdown', function(e){
+  if (!document.body.classList.contains('focusMode')) return;
+  if (e.pointerType && e.pointerType !== 'mouse') return;    /* 터치·펜은 스크롤이 우선 */
+  if (e.button !== 0 || !e.target.closest) return;
+  if (e.target.closest('#editorPane') || e.target.closest('#focusBar') || e.target.closest('#fmHandle')) return;
+  var pc = e.target.closest('#page-compose'); if (!pc) return;
+  if (!fmShiftMax()) return;
+  _fmDrag = { x0: e.clientX, base: fmCurShift(), el: pc, pid: e.pointerId };
+  document.body.classList.add('fmDragging');
+  try { pc.setPointerCapture(e.pointerId); } catch (err) { _fmDrag.pid = null; }
+  e.preventDefault();                                        /* 커서·선택 유지 */
+});
+document.addEventListener('pointermove', function(e){
+  if (!_fmDrag) return;
+  fmApplyShift(_fmDrag.base + (e.clientX - _fmDrag.x0), false);   /* 끄는 동안엔 저장하지 않는다 */
+});
+function fmDragEnd(){
+  if (!_fmDrag) return;
+  try { if (_fmDrag.pid != null) _fmDrag.el.releasePointerCapture(_fmDrag.pid); } catch (e) {}
+  document.body.classList.remove('fmDragging');
+  fmApplyShift(fmCurShift(), true);                          /* 손을 뗀 자리를 기억 */
+  _fmDrag = null;
+}
+document.addEventListener('pointerup', fmDragEnd);
+document.addEventListener('pointercancel', fmDragEnd);
+/* 빈 여백 더블클릭 → 가운데로 되돌리기 */
+document.addEventListener('dblclick', function(e){
+  if (!document.body.classList.contains('focusMode') || !e.target.closest) return;
+  if (e.target.closest('#editorPane') || e.target.closest('#focusBar') || e.target.closest('#fmHandle')) return;
+  if (!e.target.closest('#page-compose')) return;
+  fmNudgeShift(0);
+});
+/* 창 크기·모니터가 바뀌면 이동폭을 다시 가둔다(열이 화면 밖으로 나가지 않게) */
+window.addEventListener('resize', function(){
+  if (document.body.classList.contains('focusMode')) fmApplyShift(fmCurShift(), false);
+});
 function fmRestorePrefs(){
   try {
     document.body.style.removeProperty('--edColor');   /* 색 도구 제거 — 잔여 색조 정리 */
     var s = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
     document.body.style.setProperty('--edScale', s);
     fmApplyFont(parseInt(localStorage.getItem('tsa.fmFont') || '0', 10) || 0);
+    fmApplyShift(fmGetShift(), false);                 /* 지난번에 맞춰 둔 본문 위치 복원 */
   } catch (e) {}
 }
 /* ── 전체화면 진입/해제 (사용자 클릭 제스처에서만 허용됨) ── */
@@ -10076,6 +10156,9 @@ document.addEventListener('click', function(e){
   else if (act === 'font') fmCycleFont();
   else if (act === 'timer') fmTmToggle();
   else if (act === 'timer0') fmTmReset();
+  else if (act === 'shiftL') fmNudgeShift(-FM_SHIFT_STEP);
+  else if (act === 'shiftR') fmNudgeShift(FM_SHIFT_STEP);
+  else if (act === 'shiftMid') fmNudgeShift(0);
 });
 /* 집중 모드 하단 토스트 — 집중 오버레이(z-index 600) 위에 뜨는 전용 토스트(일반 #toast는 뒤에 가려짐) */
 /* ms=0 이면 다음 fmToast가 부를 때까지 계속 떠 있는다(진행 중 표시용) */
@@ -24183,6 +24266,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   <span class="fbSep"></span>
   <button id="fmTimerBtn" data-act="timer" type="button" title="리허설 타이머 — 시작/일시정지 (예상 시간은 낭독 분당 300자 기준)">⏱ 리허설</button>
   <button data-act="timer0" type="button" title="리허설 시간 재설정">↺</button>
+  <span class="fbSep fbPosSep"></span>
+  <button class="fbPos" data-act="shiftL" type="button" title="본문을 왼쪽으로 (⌥←) — 빈 여백을 마우스로 끌어도 옮겨집니다">◀</button>
+  <button class="fbPos" data-act="shiftMid" type="button" title="본문을 화면 가운데로 (⌥0) — 빈 여백을 더블클릭해도 됩니다">⊙</button>
+  <button class="fbPos" data-act="shiftR" type="button" title="본문을 오른쪽으로 (⌥→) — 빈 여백을 마우스로 끌어도 옮겨집니다">▶</button>
   <span class="fbSep fbChipSep"></span>
   <span class="fbChips" aria-label="구조화 도구"></span>
 </div>
