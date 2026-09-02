@@ -1219,7 +1219,7 @@ body.focusMode #editorPane{max-width:760px;margin:0 auto;padding:8vh 26px 4vh;mi
 /* 빈 여백을 마우스로 끌면 본문 열이 따라온다 — 여백에서만 ↔ 커서로 끌 수 있음을 알린다 */
 body.focusMode #page-compose.on{cursor:ew-resize}
 body.focusMode #editorPane{cursor:auto}
-body.fmDragging,body.fmDragging #editorPane,body.fmDragging #editorPane *{cursor:ew-resize!important;user-select:none}
+body.fmDragging,body.fmDragging #editorPane,body.fmDragging #editorPane *{cursor:ew-resize!important;-webkit-user-select:none;user-select:none}
 body.fmDragging #editorPane{transition:none!important}
 /* 텍스트 칸: 선 없이 투명, 포커스해도 테두리 없음, 스크롤바 없음 */
 body.focusMode #editorPane .edTa,

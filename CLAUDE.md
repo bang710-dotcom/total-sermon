@@ -52,6 +52,19 @@
 - **흔한 오용** — `MISUSE_RULE` 을 `P_STUDYSYN` 에 부착하고 출력 JSON에 `흔한오용[]`(주장·유형·바로잡기) 추가 → `renderStudyAi` 의 「⚠ 이 본문의 흔한 오용」.
 - **회중 반응 시뮬레이션** — `PERSONAS_ADULT`(전체 회중 8인)·`PERSONAS_YOUTH`(대학부 8인) 두 벌 + `P_PERSONA` + `aiPersona(kind)` / `renderPersona`. 「강해 검증」이 *원고가 본문에 맞는가*를 보는 데 비해 이건 *누가 어떻게 듣는가*를 본다. 페르소나 목록이 **유일한 발화 근거**이고, 페르소나끼리 대화 금지·신학 수준 초과 발화 금지·없는 일화 창작 금지를 프롬프트에서 못 박는다. 페르소나를 고치려면 두 배열만 손대면 된다.
 
+## 집중모드 본문 열 좌우 이동 — v549
+
+모니터 두 대를 쓰면 브라우저가 놓인 화면이 시선에서 비껴 있어, 그 화면 "가운데"의 본문을 보려고 고개를 계속 돌려야 한다. 그래서 집중모드 본문 열을 좌우로 옮길 수 있게 했다.
+
+- **`--fmShiftX`(CSS 변수) + `body.focusMode #editorPane{position:relative;left:var(--fmShiftX,0px)}`.
+  ⚠ `transform` 은 쓰지 말 것** — 진입·종료 FLIP 애니메이션(`fmFlip`)이 `#editorPane` 의 `transform` 을 인라인으로 쓴다. 둘이 겹치면 전환이 깨진다.
+- 조작 셋: 툴바 `◀ ⊙ ▶`(`data-act="shiftL/shiftMid/shiftR"`, `.fbPos`) · 빈 여백 마우스 드래그(더블클릭=가운데) · `⌃⌥←`/`⌃⌥→`/`⌃⌥0`.
+  → 단축키에 `⌥←/⌥→` 단독을 쓰지 않은 이유: macOS에서 **단어 단위 커서 이동**이라 타이핑을 방해한다.
+  → 드래그는 **pointer 가 아니라 mouse 이벤트**다. `mousedown` 의 `preventDefault` 는 선택·포커스 이동만 막고 `click`·`dblclick` 은 그대로 흘려보내, "끌어서 옮기기"와 "더블클릭해서 가운데로"가 함께 동작한다(pointerdown 에서 막으면 브라우저마다 뒤따르는 마우스 이벤트가 갈린다). 마우스 전용이라 아이패드 스크롤 제스처는 건드리지 않는다.
+- 함수: `fmShiftMax()`(열이 화면 밖으로 안 나가는 한계 = 좌우 여백) · `fmApplyShift(px, save)` · `fmCurShift()` · `fmNudgeShift(d)`. 값은 `localStorage['tsa.fmShiftX']` 에 **기기별로** 둔다(사무실·집의 화면 배치가 다르므로).
+- 창을 좁히면 `resize` 에서 다시 가두되 **저장값은 건드리지 않는다** — 넓은 화면으로 돌아오면 원래 위치가 복원된다. 복원은 `fmRestorePrefs()` 안에서.
+- 툴바의 위치 버튼은 `@media (max-width:900px)` 에서 숨긴다(옮길 여백이 없는 화면에선 의미가 없다).
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
