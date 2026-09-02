@@ -9930,38 +9930,48 @@ function fmNudgeShift(d){
   var pct = Math.round(Math.abs(px) / m * 100);
   fmToast(px === 0 ? '본문 위치 · 가운데' : ('본문 위치 · ' + (px < 0 ? '왼쪽' : '오른쪽') + ' ' + pct + '%'), 1200);
 }
-/* 빈 여백 드래그 — 텍스트 선택과 겹치지 않게 editorPane·툴바 바깥에서만, 마우스에서만 받는다 */
+/* 빈 여백 드래그 — 본문칸·툴바 바깥의 빈 곳에서만 잡는다.
+   ★ pointer 이벤트가 아니라 mouse 이벤트를 쓴다: mousedown 의 preventDefault 는 선택·포커스 이동만 막고
+     click·dblclick 은 그대로 발생시켜, "끌어서 옮기기"와 "더블클릭해서 가운데로"가 함께 동작한다.
+     (pointerdown 에서 preventDefault 하면 브라우저마다 뒤따르는 마우스 이벤트 발생이 갈린다.)
+     마우스 전용이라 아이패드·아이폰의 스크롤 제스처는 건드리지 않는다. */
 var _fmDrag = null;
-document.addEventListener('pointerdown', function(e){
-  if (!document.body.classList.contains('focusMode')) return;
-  if (e.pointerType && e.pointerType !== 'mouse') return;    /* 터치·펜은 스크롤이 우선 */
-  if (e.button !== 0 || !e.target.closest) return;
-  if (e.target.closest('#editorPane') || e.target.closest('#focusBar') || e.target.closest('#fmHandle')) return;
-  var pc = e.target.closest('#page-compose'); if (!pc) return;
-  if (!fmShiftMax()) return;
-  _fmDrag = { x0: e.clientX, base: fmCurShift(), el: pc, pid: e.pointerId };
-  document.body.classList.add('fmDragging');
-  try { pc.setPointerCapture(e.pointerId); } catch (err) { _fmDrag.pid = null; }
-  e.preventDefault();                                        /* 커서·선택 유지 */
-});
-document.addEventListener('pointermove', function(e){
-  if (!_fmDrag) return;
-  fmApplyShift(_fmDrag.base + (e.clientX - _fmDrag.x0), false);   /* 끄는 동안엔 저장하지 않는다 */
-});
-function fmDragEnd(){
-  if (!_fmDrag) return;
-  try { if (_fmDrag.pid != null) _fmDrag.el.releasePointerCapture(_fmDrag.pid); } catch (e) {}
-  document.body.classList.remove('fmDragging');
-  fmApplyShift(fmCurShift(), true);                          /* 손을 뗀 자리를 기억 */
-  _fmDrag = null;
+function fmMarginTarget(e){
+  var t = e.target;
+  if (!t || !t.closest) return null;
+  if (t.closest('#editorPane') || t.closest('#focusBar') || t.closest('#fmHandle')) return null;
+  return t.closest('#page-compose');
 }
-document.addEventListener('pointerup', fmDragEnd);
-document.addEventListener('pointercancel', fmDragEnd);
+document.addEventListener('mousedown', function(e){
+  if (!document.body.classList.contains('focusMode') || e.button !== 0) return;
+  if (!fmMarginTarget(e)) return;
+  var mx = fmShiftMax(); if (!mx) return;
+  /* 최대 이동폭은 끄는 동안 변하지 않으므로 미리 재 둔다 — 움직일 때마다 레이아웃을 다시 읽지 않게 */
+  _fmDrag = { x0: e.clientX, base: fmCurShift(), max: mx, moved: false };
+  e.preventDefault();                       /* 텍스트 선택·포커스 이동 방지(커서 자리 유지) */
+});
+document.addEventListener('mousemove', function(e){
+  if (!_fmDrag) return;
+  var dx = e.clientX - _fmDrag.x0;
+  if (!_fmDrag.moved){
+    if (Math.abs(dx) < 3) return;           /* 손 떨림은 무시 — 더블클릭이 드래그로 오인되지 않게 */
+    _fmDrag.moved = true;
+    document.body.classList.add('fmDragging');
+  }
+  var px = Math.round(Math.max(-_fmDrag.max, Math.min(_fmDrag.max, _fmDrag.base + dx)));
+  try { document.body.style.setProperty('--fmShiftX', px + 'px'); } catch (err) {}   /* 끄는 동안엔 저장하지 않는다 */
+});
+document.addEventListener('mouseup', function(){
+  if (!_fmDrag) return;
+  var moved = _fmDrag.moved;
+  _fmDrag = null;
+  document.body.classList.remove('fmDragging');
+  if (moved) fmApplyShift(fmCurShift(), true);              /* 손을 뗀 자리를 기억 */
+});
 /* 빈 여백 더블클릭 → 가운데로 되돌리기 */
 document.addEventListener('dblclick', function(e){
-  if (!document.body.classList.contains('focusMode') || !e.target.closest) return;
-  if (e.target.closest('#editorPane') || e.target.closest('#focusBar') || e.target.closest('#fmHandle')) return;
-  if (!e.target.closest('#page-compose')) return;
+  if (!document.body.classList.contains('focusMode')) return;
+  if (!fmMarginTarget(e)) return;
   fmNudgeShift(0);
 });
 /* 창 크기·모니터가 바뀌면 이동폭을 다시 가둔다(열이 화면 밖으로 나가지 않게) */
@@ -10208,6 +10218,14 @@ document.addEventListener('keydown', function(e){
     e.preventDefault();
     var sb = document.querySelector('#focusBar button[data-act="save"]');
     if (sb) fmDoSave(sb);
+    return;
+  }
+  /* 본문 열 좌우 이동 — ⌃⌥←/→/0 (v549).
+     ⌥←/⌥→ 단독은 macOS에서 '단어 단위 커서 이동'이라 쓰지 않는다(타이핑을 방해하지 않게). */
+  if (e.altKey && e.ctrlKey && !e.metaKey){
+    if (e.key === 'ArrowLeft'){ e.preventDefault(); fmNudgeShift(-FM_SHIFT_STEP); }
+    else if (e.key === 'ArrowRight'){ e.preventDefault(); fmNudgeShift(FM_SHIFT_STEP); }
+    else if (e.key === '0'){ e.preventDefault(); fmNudgeShift(0); }
   }
 });
 
@@ -23739,7 +23757,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v548';
+var APP_VER = 'v549';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -24267,9 +24285,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   <button id="fmTimerBtn" data-act="timer" type="button" title="리허설 타이머 — 시작/일시정지 (예상 시간은 낭독 분당 300자 기준)">⏱ 리허설</button>
   <button data-act="timer0" type="button" title="리허설 시간 재설정">↺</button>
   <span class="fbSep fbPosSep"></span>
-  <button class="fbPos" data-act="shiftL" type="button" title="본문을 왼쪽으로 (⌥←) — 빈 여백을 마우스로 끌어도 옮겨집니다">◀</button>
-  <button class="fbPos" data-act="shiftMid" type="button" title="본문을 화면 가운데로 (⌥0) — 빈 여백을 더블클릭해도 됩니다">⊙</button>
-  <button class="fbPos" data-act="shiftR" type="button" title="본문을 오른쪽으로 (⌥→) — 빈 여백을 마우스로 끌어도 옮겨집니다">▶</button>
+  <button class="fbPos" data-act="shiftL" type="button" title="본문을 왼쪽으로 (⌃⌥←) — 빈 여백을 마우스로 끌어도 옮겨집니다">◀</button>
+  <button class="fbPos" data-act="shiftMid" type="button" title="본문을 화면 가운데로 (⌃⌥0) — 빈 여백을 더블클릭해도 됩니다">⊙</button>
+  <button class="fbPos" data-act="shiftR" type="button" title="본문을 오른쪽으로 (⌃⌥→) — 빈 여백을 마우스로 끌어도 옮겨집니다">▶</button>
   <span class="fbSep fbChipSep"></span>
   <span class="fbChips" aria-label="구조화 도구"></span>
 </div>
