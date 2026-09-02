@@ -3330,8 +3330,18 @@ function renderRefPast(){
   html += '</div>';
   box.innerHTML = html;
 }
+/* 사본상 논쟁이 있는 본문이면 본문칸 아래에 바로 알린다 (v548) — 강단에서 처음 듣지 않도록 */
+function renderMssWarn(){
+  var box = $('#c_mssWarn'); if (!box) return;
+  try {
+    var el = $('#c_ref'); var r = el ? parseRange(String(el.value || '').trim()) : null;
+    var idx = r ? devoBookIdxMap()[r.book] : null;
+    box.innerHTML = (idx == null) ? '' : mssWarnHtml(mssWarnFor(idx, r.c1, r.v1, r.c2, r.v2));
+  } catch (e){ box.innerHTML = ''; }
+}
 (function(){
-  var ref = $('#c_ref'); if (ref) ref.addEventListener('input', debounce(renderRefPast, 200));
+  var ref = $('#c_ref');
+  if (ref) ref.addEventListener('input', debounce(function(){ renderRefPast(); renderMssWarn(); }, 200));
   var box = $('#c_refPast');
   if (box) box.addEventListener('click', function(e){
     var h = e.target.closest && e.target.closest('.pastbox > h4');
@@ -5852,8 +5862,25 @@ function renderStudyAi(j){
       + (v.택함 ? '<div class="stViewPick"><b>택함:</b> ' + esc(v.택함) + '</div>' : '') + '</div>';
   }).join('') + '</div>';
   if (j.신학주제 && j.신학주제.length) h += '<div class="stAiSec"><h4>신학 주제</h4><div class="stThemes">' + j.신학주제.map(function(t){ return '<span class="stTheme">' + esc(t) + '</span>'; }).join('') + '</div></div>';
+  if (j.흔한오용 && j.흔한오용.length) h += '<div class="stAiSec"><h4>⚠ 이 본문의 흔한 오용</h4>' + j.흔한오용.map(function(x){
+    return '<div class="stMisuse"><div class="mu1">' + esc(x.주장 || '') + '</div>'
+      + (x.유형 ? '<div class="mu2">' + esc(x.유형) + '</div>' : '')
+      + (x.바로잡기 ? '<div class="mu3">↳ ' + esc(x.바로잡기) + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
   if (j.설교다리) h += '<div class="stAiSec"><h4>설교로 넘어가는 다리</h4><div class="stBridge">' + stMd(j.설교다리) + '</div></div>';
-  return h || '<div class="cnt">결과가 비었습니다 — 다시 시도해 주세요.</div>';
+  if (!h) return '<div class="cnt">결과가 비었습니다 — 다시 시도해 주세요.</div>';
+  /* 검증 게이트 — AI가 적은 상호본문·클라이맥스·단락 범위가 실재하는 절인지 로컬 성경과 대조 */
+  var vf = [];
+  try {
+    var withBook = (j.상호본문 || []).map(function(x){ return (x && x.본문) || ''; });
+    if (j.클라이맥스 && j.클라이맥스.절) withBook.push(String(j.클라이맥스.절));
+    vf = refAudit(withBook.join('\n'));
+    var bi = STUDY.range ? STUDY.range.idx : null;
+    var bare = (j.구조 && j.구조.단락 ? j.구조.단락 : []).map(function(sg){ return sg && sg.범위; });
+    if (j.클라이맥스 && j.클라이맥스.절) bare.push(j.클라이맥스.절);
+    vf = vf.concat(refAuditBare(bare, bi));
+  } catch (e){ vf = []; }
+  return refAuditHtml(vf, '본문 연구 정리') + h;
 }
 /* ── 원어 심층 연구 (단어 하나 깊이 파기) ── */
 var P_WORDSTUDY = [
@@ -6284,6 +6311,7 @@ function openStudy(ref){
   snReset();
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null;
   $('#studyTitle').textContent = ref + ' — 본문연구';
+  try { var _mw = $('#stMss'); if (_mw) _mw.innerHTML = mssWarnHtml(mssWarnFor(idx, r.c1, r.v1, r.c2, r.v2)); } catch (e){}
   /* ★저장된 생성물이 있으면 창을 열 때 바로 함께 보여 준다.
      · AI 정리 저장본 → [AI 정리] 탭으로 열기(없으면 기존대로 [원어])
      · 구조 분석 저장본 → 왼쪽 본문에 구조 표시를 켠 상태로 열기(저장본이 없으면 꺼둠 — 자동 생성은 하지 않는다) */
@@ -8378,6 +8406,12 @@ function renderExpo(j, pts){
   h += '<div class="exHd2" style="margin-top:8px">무게중심 <span class="exGr ' + exGrCls(wc.판정) + '">' + esc(wc.판정 || '—') + '</span></div>';
   if (wc.이유) h += '<div class="exMini">' + esc(wc.이유) + '</div>';
   if (j.총평) h += '<div class="exSum" style="margin-top:8px"><b>총평</b> — ' + esc(j.총평) + '</div>';
+  /* 검증 게이트 — 모델이 짚은 근거절이 실제로 있는 절인지 로컬 성경과 대조 */
+  try {
+    var _bare = [];
+    arr.forEach(function(d){ (d.근거절 || []).forEach(function(x){ _bare.push(x); }); });
+    h += refAuditHtml(refAuditBare(_bare, composeBookIdx()), '근거절');
+  } catch (e){}
   h += '</div>';
   return h;
 }
@@ -10231,7 +10265,7 @@ function editSermonFill(id, noNav){
     if (_jeok) c.intro = _jeok;
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
-  renderRefPast(); renderRefIllust();
+  renderRefPast(); renderMssWarn(); renderRefIllust();
   clearAiPanels();   /* ★ 이전 설교의 강해 검증·대지 보강·실천 강화 결과를 남기지 않는다 */
   state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
@@ -13197,7 +13231,7 @@ var P_SERMON = [
 '대지마다: 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나에게 동일하게 말 걸어 마음의 변화와 삶의 방향을 결단하게 하는 설교적 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '★ 적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·행사·캠페인·실천과제 목록이 아니다. 청중의 삶의 자리를 찌르고 "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 설교적 메시지여야 한다. 외적 과제 나열 금지 — 메시지의 자기화와 결단에 초점을 둔다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
-'요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유.'].join('\n') + METAPHOR_AXIS_RULE;
+'요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE;
 
 /* 이달의 말씀 — 대학부(주일) 시리즈용: 달마다 그 달 본문 범위에서 선포·신앙고백형 1~2절 선정 */
 var P_MONTHWORD = [
@@ -13216,7 +13250,7 @@ var P_OCC = [
 '★강해(Exposition)→보편 메시지(필수): 강해는 주해로 밝혀진 "본문 자체의 맥락에서 드러난 저자의 의도"를, 그 본문을 넘어 모든 시대·모든 사람에게 동일하게 적용되는 하나의 보편적 메시지(Universal Message)로 길어 올리는 작업이다. 절차: ①주해로 저자가 1차 독자에게 의도한 본래 의미를 확정한다 → ②그 의미에서 시대·문화에 매인 외피를 벗기고 그 아래 흐르는 변하지 않는 신학적 진리(하나님의 성품·구원 경륜·언약·복음)를 분별한다 → ③그 진리를 오늘 청중("나")의 실존에 동일하게 말 거는 한 문장으로 재진술한다. ★경계: 보편 메시지는 본문이 명시적으로 지지하는 범위 안에서만 길어 올린다 — 본문에 없는 교훈을 알레고리·도덕화로 지어내지 않고, 1차 독자만의 특수 정황과 모든 시대의 보편 진리를 혼동하지 않는다.',
 '대지마다: 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나에게 동일하게 말 걸어 마음의 변화와 삶의 방향을 결단하게 하는 설교적 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '★ 적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·행사·캠페인·실천과제 목록이 아니다. 청중의 삶의 자리를 찌르고 "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 설교적 메시지여야 한다. 외적 과제 나열 금지 — 메시지의 자기화와 결단에 초점을 둔다.',
-'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).'].join('\n') + METAPHOR_AXIS_RULE;
+'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE;
 
 /* 생성된 주제어(키워드)를 작성 화면 입력칸 #c_kw 에도 반영한다 (v541).
    ★ 왜 필요한가: aiSummarize 는 시트와 메모리(findSermon)에만 키워드를 썼고 입력칸은 건드리지
@@ -19178,7 +19212,7 @@ var P_DAWN = [
 '★찬송(필수): 각 선택지에 "새벽기도회를 시작할 때 함께 부르는" 찬송 딱 한 곡만 고른다. 한국교회 새찬송가(21세기 찬송가)에서 그 날 주제에 어울리고 새벽에 부르기 적합한 잔잔하고 헌신적인 곡을 우선한다. 값은 반드시 한글 "장번호 + 곡명" 형식 한 줄로만 적는다(예: "470장 내 평생 살아온 길"). 번호가 불확실하면 곡명만 정확히 적는다. ★금지: 곡을 여러 개 적거나(시작·기도전·마칠 때 등 구분 금지) 영어 단어·로마자·상태표기(running/started/realtime 등)·따옴표·괄호 라벨을 곡명 앞뒤에 붙이지 말 것 — 오직 한글 장번호와 곡명만.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
 '★주일(요일이 "일") 처리(필수): 주일 날의 각 선택지에는 "묵상요약" 필드를 반드시 채워 넣는다(비우지 말 것) — 묵상집에 실을 설교 요약본이다. 분량은 한글 공백 포함 320~330자. 구성: 도입(본문이 말 거는 정황 한 문장) → 본문의 핵심 메시지 → 오늘 나의 삶으로의 적용, 따뜻한 높임말 산문(불릿·번호 금지). ★마지막 문장(필수): 이 주일에 같은 본문·메시지로 가정에서 가정예배를 드리거나 개인 묵상을 하는 성도들에게 권면하는 형태로 마무리한다. 주일 외의 날 선택지에는 "묵상요약"을 넣지 않는다.',
-'요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE;
+'요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE;
 
 /* 찬송 값 정규화: 모델이 곡명 앞에 영문 토큰(running/started/realtime 등)이나 라벨을 붙여
    반환하는 경우가 있어, 실제 찬송이 시작되는 지점('NNN장 …' 또는 한글 곡명)부터만 남긴다.
@@ -19217,9 +19251,33 @@ function cleanHymn(v){
   var kor = s.match(/[가-힣].*$/);      /* 번호 없이 곡명만 있는 경우, 한글 시작부터 */
   return kor ? kor[0].trim() : '';
 }
+/* AI가 적어 준 찬송 표기를 성경앱 찬송가 645장 목록으로 바로잡는다 (v548 검증 게이트).
+   ★ 사람이 직접 칠 때 쓰는 hymnResolve 와 우선순위가 반대다 — 사람은 악보를 보고 번호를 적지만,
+     모델은 곡명이 정확하고 번호를 자주 틀린다. 그래서 여기서는 "곡명 우선"으로 맞추고,
+     목록에 없는 번호는 지워서 틀린 번호가 주보·카톡으로 나가지 않게 한다.
+   목록을 아직 못 받았으면(오프라인 등) 손대지 않는다 — 작업을 막지 않는 것이 우선. */
+function hymnFixSync(v){
+  var s = cleanHymn(v); if (!s) return '';
+  var items = (typeof STUDY !== 'undefined' && STUDY && STUDY.hymnList) || null;
+  if (!items || !items.length) return s;
+  var m = s.match(/^(\d{1,3})\s*장\s*(.*)$/);
+  var no = m ? m[1] : '', ttl = String(m ? m[2] : s).replace(/\s+/g, '');
+  if (ttl){
+    var exact = items.filter(function(h){ return String(h.title || '').replace(/\s+/g, '') === ttl; })[0];
+    if (exact) return exact.no + '장 ' + exact.title;
+    var part = items.filter(function(h){ return String(h.title || '').replace(/\s+/g, '').indexOf(ttl) >= 0; });
+    if (part.length === 1) return part[0].no + '장 ' + part[0].title;
+  }
+  if (no){
+    var byNo = items.filter(function(h){ return String(h.no) === no; })[0];
+    if (byNo) return byNo.no + '장 ' + byNo.title;
+    return (m && m[2] ? m[2].trim() : s);        /* 645장에 없는 번호는 떼어 내고 곡명만 남긴다 */
+  }
+  return s;
+}
 function sanitizeHymns(opts){
   (opts || []).forEach(function(o){
-    if (o && o['찬송'] != null) o['찬송'] = cleanHymn(o['찬송']);
+    if (o && o['찬송'] != null) o['찬송'] = hymnFixSync(o['찬송']);
   });
   return opts;
 }
@@ -19244,6 +19302,7 @@ async function aiSeriesDawn(noteOverride){
       days = days.concat(pd);
     }
     if (!days.length) throw new Error('응답 형식 오류');
+    try { await studyLoadHymns(); } catch (he) {}      /* 찬송 번호·제목 대조용 목록 확보(v548) */
     S.sermon = { m: Date.now(), weeks: days.map(function(d, di){
       var sched1 = (m['일정'] || [])[di] || {};
       var opts = sanitizeHymns(d['선택지'] || []);
@@ -19346,7 +19405,7 @@ var P_TOPIC = [
 '대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 3개, 같은 방향으로 성큼성큼. 대지마다 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나의 실존에 동일하게 말 걸어 마음의 변화와 결단을 끌어내는 설교적 한 문장. 외적 과제·행사 나열 금지.',
 '★적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·캠페인·실천과제 목록이 아니다. 본문이 1차 독자에게 일으킨 내면의 전환이 오늘 나에게 동일하게 일어나도록 부르는 한 문장이어야 한다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
-'예배구분(대학부·수련회·선교 등)과 배경설명의 청중·정황을 반드시 반영한다. 요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE;
+'예배구분(대학부·수련회·선교 등)과 배경설명의 청중·정황을 반드시 반영한다. 요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE;
 
 /* ── 직결 생성 ── */
 async function aiSeriesTopic(noteOverride){
@@ -19423,6 +19482,7 @@ async function aiRegenWeek(wi, btn){
       }), 16000, aiTick('새벽 설교 선택지'));
       var days = aiJson(out);
       if (!Array.isArray(days) || !days.length) throw new Error('응답 형식 오류');
+      try { await studyLoadHymns(); } catch (he) {}    /* 찬송 번호·제목 대조용 목록 확보(v548) */
       opts = sanitizeHymns(days[0]['선택지'] || []);
     } else {
       /* 묵상 없는 일반 시리즈(시트 복원 시 S.devo=null)에서도 재생성이 동작하게 — null 접근 가드 */
