@@ -74,6 +74,13 @@
 - 여는 키는 `illBlockLibKey(b)` — ①`srcKey`(도서관에서 삽입한 블록의 정본) ②없으면 **제목 완전일치 폴백**. 저장했다 다시 연 원고는 `editSermonFill`→`parseFreeToStructure` 가 원고 텍스트에서 블록을 다시 만들어 `srcKey` 가 없기 때문에 폴백이 없으면 버튼이 사라진다. 우연 일치("살아계신 하나님" 류)는 `illStoryOverlap` 으로 걸러낸다 — `illComposeUsedLibIds` 와 같은 규칙이며, 제목 색인은 두 함수가 `illNormIdx()` 로 공유한다.
 - 전문(story)은 샤드에 있으므로 `illustLoadFull()` 을 기다린 뒤 `illUnified()` 로 다시 찾는다(부팅 직후 색인만 있는 상태에서 빈 본문이 뜨지 않게). `arc:` 키는 `illArcLoad()` 에서 찾는다.
 
+## 미리보기 쪽번호 — v552
+
+미리보기 종이 페이지마다 **아래 여백 한가운데에 `현재 / 전체` 쪽번호**를 찍는다(창보기·전체화면 공통, 인쇄에도 그대로 나감).
+- `.pv-pgno`(CSS) + `openPreview()` 페이지 조립 루프에서 `.pv-page` 안 마지막에 삽입. **본문 흐름 밖 절대배치**라 다단(column) 폭 계산·줄바꿈·페이지 수에 영향을 주지 않는다 — 이 원칙을 깨고 흐름 안에 넣으면 미리보기와 내보내기 결과가 어긋난다.
+- 위치·크기는 페이지 규격에서 계산한다: `noFs=11px`, `bottom = max(4, pb/2 - noFs/2)` → 아래 여백(10mm·12.5mm 둘 다) 한가운데. `.pv-page` 가 이미 `position:relative` 라 별도 처리 불필요하고, `transform:scale(k)` 를 같이 받아 확대·축소해도 비율이 유지된다.
+- 전체화면에서 잠깐 뜨는 floating 배지 `#pvPageNo` 는 **그대로 둔다** — 페이지가 화면보다 길면 종이 아래쪽 쪽번호가 시야 밖이라 빠르게 넘길 때는 배지가 여전히 필요하다. 인쇄 CSS의 `#pvPageNo{display:none}` 은 배지(id)만 가리며 `.pv-pgno`(class)와 무관하다.
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
