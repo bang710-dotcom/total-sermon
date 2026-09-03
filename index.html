@@ -4557,6 +4557,55 @@ function renderIllLib(){
   });
 })();
 
+/* ── 삽입 예화 원본 보기 (v550) ──
+   작성 창 예화 블록의 [📖 도서관] 버튼 → 도서관에 있는 원본(전문·출처·연결 본문·사용 이력)을 모달로 확인.
+   도서관에서 삽입한 블록만 srcKey(lib:/inbox:/arc:)를 갖고 있어 그 블록에만 버튼이 붙는다. */
+function illViewClose(){ var ov = $('#illViewOv'); if (!ov) return; ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); }
+function illViewFind(key){
+  if (/^arc:/.test(key)) return illArcLoad().then(function(items){
+    var hit = null; (items || []).forEach(function(x){ if (x.key === key) hit = x; });
+    return hit || illByKey(key);
+  }).catch(function(){ return illByKey(key); });
+  /* 샤드 병합을 기다린 뒤 다시 만들어 전문(story)·출처까지 갖춘 항목을 쓴다 */
+  return illustLoadFull().then(function(){
+    var all = illUnified();
+    for (var i = 0; i < all.length; i++) if (all[i].key === key) return all[i];
+    return illByKey(key);
+  }).catch(function(){ return illByKey(key); });
+}
+function illViewHtml(it){
+  var used = illUsedInSermons(it), refs = (it.refs || []).filter(Boolean);
+  return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' + illGrade(it.sourceConf)
+    + '<span class="badge ' + (it.src === 'inbox' ? 'b-state' : 'b-idea') + '">' + esc(it.category || '') + '</span>'
+    + '<b style="font-size:15px">' + esc(it.title || '') + '</b></div>'
+    + (it.message ? '<div style="margin-top:5px;color:var(--accent);font-weight:600">▶ ' + esc(it.message) + '</div>' : '')
+    + illSeedBadges(it) + illLayerBadges(it)
+    + '<div class="fulltext" style="margin-top:9px">' + esc(it.story || '') + '</div>'
+    + (refs.length ? '<div style="margin-top:7px;font-size:12px;color:var(--dim)">📖 ' + refs.map(function(r){ return linkifyRefs(r); }).join(' · ') + '</div>' : '')
+    + illSrc(it.source, it.sourceConf, it.sourceNote)
+    + (it.src === 'arc' ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">↩ 출처: ' + esc(it.date || '날짜 미상') + ' 「' + esc(it.sermonTitle || it.sid || '') + '」</div>' : '')
+    + (used.length ? '<div style="margin-top:6px;font-size:12px;color:var(--accent2)">↩ 사용된 설교 ' + used.length + '편: '
+        + used.slice(0, 5).map(function(s){ return esc(String(s['날짜'] || '').slice(0, 7)) + ' 「' + esc(s['제목'] || '') + '」'; }).join(' · ')
+        + (used.length > 5 ? ' 외' : '') + '</div>' : '');
+}
+function illViewOpen(key){
+  key = String(key || ''); if (!key) return;
+  var ov = $('#illViewOv'), body = $('#illViewBody'); if (!ov || !body) return;
+  body.innerHTML = '<div class="cnt" style="margin:6px 2px">예화를 불러오는 중…</div>';
+  ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  illViewFind(key).then(function(it){
+    if (!ov.classList.contains('on')) return;   /* 불러오는 동안 닫았으면 그대로 둔다 */
+    body.innerHTML = it ? illViewHtml(it)
+      : '<div class="cnt" style="margin:6px 2px">도서관에서 이 예화를 찾지 못했습니다. 원본이 지워졌거나 아직 이 기기에 내려오지 않았을 수 있습니다.</div>';
+  }).catch(function(){ body.innerHTML = '<div class="cnt" style="margin:6px 2px">예화를 불러오지 못했습니다.</div>'; });
+}
+(function(){
+  var ov = $('#illViewOv'); if (!ov) return;
+  ov.addEventListener('click', function(e){
+    if (e.target === ov || (e.target.closest && e.target.closest('#illViewClose'))) illViewClose();
+  });
+})();
+
 /* ===================== 오늘의 서랍 (매일 3편 로테이션 — 반복 노출로 서랍과 친해지기) =====================
    규칙: 같은 날은 언제 열어도 같은 3편(날짜 시드 결정적 셔플) · 미노출분 우선(한 바퀴 돌면 리셋) ·
    카테고리 분산 · 오늘 묵상 본문과 겹치는 편이 있으면 1편 우선 포함. 노출 기록은 localStorage. 무AI. */
@@ -9098,6 +9147,7 @@ function renderPoints(){
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
           '<span class="blkTag illTag" title="길게 눌러 타입 변경">ex)</span>' + _gIco +
           '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
+          (b.srcKey ? '<button class="ptIllLib" type="button" data-illkey="' + esc(b.srcKey) + '" title="예화 도서관에서 보기 — 원본 내용·출처 확인">📖 도서관</button>' : '') +
           '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="필요한 예화를 설명하면 그에 맞춰 추천·생성">AI</button></div>';
       }
       var role = blockRole(b), field = blockField(b);
@@ -9167,6 +9217,9 @@ $('#pointList').addEventListener('click', async function(e){
       return;
     }
   }
+  /* ⑤ 도서관에서 삽입한 예화 → 원본 보기 모달 */
+  var ilv = e.target.closest('.ptIllLib');
+  if (ilv) { illViewOpen(ilv.getAttribute('data-illkey')); return; }
   /* ⑥ 예화 위치 맞춤 AI 추천·생성 — 왼쪽 구조화 창은 "필요한 예화 설명"을 먼저 입력받는다 */
   var iai = e.target.closest('.ptIllAi');
   if (iai) { aiIllustrationAsk(+iai.dataset.i, +iai.dataset.bi); return; }
@@ -23765,7 +23818,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v549';
+var APP_VER = 'v550';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
