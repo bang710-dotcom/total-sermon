@@ -440,8 +440,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 .brefHd .x.on{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:700}   /* 오른쪽 패널 접힘 상태 표시 */
 .brefBody{padding:14px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .brefBody .verse{margin-bottom:7px;line-height:1.7}
-#illOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
-#illOv.on{display:flex;animation:fade .12s ease}
+#illOv,#illViewOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+#illOv.on,#illViewOv.on{display:flex;animation:fade .12s ease}
 #illReqOv{position:fixed;inset:0;z-index:341;display:none;align-items:center;justify-content:center;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
 #illReqOv.on{display:flex;animation:fade .12s ease}
 #illReqOv textarea{width:100%;box-sizing:border-box;resize:vertical}
@@ -742,6 +742,8 @@ input[type=date]{cursor:pointer}
 .ptRow .ptBlk .applyTag{color:#9a6fd0;background:rgba(154,111,208,.14);border:1px solid rgba(154,111,208,.42)}
 .ptRow .ptBlk .ptIllAi{flex:0 0 auto;background:var(--card2);border:1px solid var(--accent);color:var(--accent);border-radius:6px;font-size:11px;font-weight:700;padding:4px 7px;cursor:pointer;font-family:inherit}
 .ptRow .ptBlk .ptIllAi:hover{background:var(--accent);color:#fff}
+.ptRow .ptBlk .ptIllLib{flex:0 0 auto;background:var(--card2);border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;font-size:11px;font-weight:700;padding:4px 7px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.ptRow .ptBlk .ptIllLib:hover{background:var(--accent2);color:#fff}
 .ptRow .ptBlk input{flex:1;min-width:0;padding:6px 9px;font-size:13px}
 .ptRow .ptBlk .blkHint{flex:1;color:var(--dim);font-size:12px;font-style:italic}
 .ptRow .ptBlk .blkBodyPrev{flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2111,6 +2113,12 @@ body.uiDlgOpen{overflow:hidden}
     </div>
   </div>
 </div>
+<div id="illViewOv" aria-hidden="true">
+  <div class="illBox" role="dialog" aria-modal="true" aria-label="예화 도서관 원본">
+    <div class="brefHd"><span class="t" id="illViewTitle">예화 도서관 — 원본 보기</span><button class="x" id="illViewClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="illOvBody" id="illViewBody"></div>
+  </div>
+</div>
 <div id="studyOv" aria-hidden="true">
   <div class="studyBox" role="dialog" aria-modal="true" aria-label="본문 원어 연구">
     <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x" id="studySideBtn" type="button" aria-label="오른쪽 패널 접기/펴기" title="오른쪽 패널 접기/펴기">⇔</button><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
@@ -2223,7 +2231,7 @@ function anyOverlayOpen(){
     var r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1;
   }
-  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'calOv', 'uiDlgOv', 'penPad'];
+  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'illViewOv', 'calOv', 'uiDlgOv', 'penPad'];
   for (var i = 0; i < ids.length; i++){ if (vis(document.getElementById(ids[i]))) return true; }
   return false;
 }
