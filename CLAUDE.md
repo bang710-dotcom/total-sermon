@@ -65,6 +65,14 @@
 - 창을 좁히면 `resize` 에서 다시 가두되 **저장값은 건드리지 않는다** — 넓은 화면으로 돌아오면 원래 위치가 복원된다. 복원은 `fmRestorePrefs()` 안에서.
 - 툴바의 위치 버튼은 `@media (max-width:900px)` 에서 숨긴다(옮길 여백이 없는 화면에선 의미가 없다).
 
+## 삽입 예화 원본 보기 — v550
+
+작성 화면 왼쪽 예화 블록의 제목 칸 오른쪽에 **[📖 도서관]** 버튼이 붙고, 누르면 도서관 원본(전문·강조메시지·주제/층위 배지·연결 본문·출처·사용된 설교)이 모달로 뜬다.
+
+- 모달: `#illViewOv`(마크업) + `illViewOpen/illViewFind/illViewHtml/illViewClose`. `#illOv` 와 같은 CSS·z-index(340)를 쓰므로 모달 안의 성구 링크(`#brefOv`, 350)가 그 위에 정상적으로 뜬다. `anyOverlayOpen()` 목록에도 등록.
+- 여는 키는 `illBlockLibKey(b)` — ①`srcKey`(도서관에서 삽입한 블록의 정본) ②없으면 **제목 완전일치 폴백**. 저장했다 다시 연 원고는 `editSermonFill`→`parseFreeToStructure` 가 원고 텍스트에서 블록을 다시 만들어 `srcKey` 가 없기 때문에 폴백이 없으면 버튼이 사라진다. 우연 일치("살아계신 하나님" 류)는 `illStoryOverlap` 으로 걸러낸다 — `illComposeUsedLibIds` 와 같은 규칙이며, 제목 색인은 두 함수가 `illNormIdx()` 로 공유한다.
+- 전문(story)은 샤드에 있으므로 `illustLoadFull()` 을 기다린 뒤 `illUnified()` 로 다시 찾는다(부팅 직후 색인만 있는 상태에서 빈 본문이 뜨지 않게). `arc:` 키는 `illArcLoad()` 에서 찾는다.
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
