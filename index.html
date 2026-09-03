@@ -214,6 +214,8 @@ label{display:block;font-size:12.5px;color:var(--dim);margin:12px 0 5px}
 .anDrillHd small{color:var(--dim);font-weight:400;font-size:13px}
 /* 미리보기 종이 페이지(DOCX 규격 고정 픽셀 레이아웃 — 스케일만 변함, 줄바꿈 불변) */
 .pv-page{box-sizing:border-box;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,0.5);overflow:hidden;position:relative}
+/* 종이 아래 여백 한가운데 찍히는 쪽번호 — 페이지와 같이 scale되고 인쇄에도 그대로 나간다 */
+.pv-pgno{position:absolute;left:0;right:0;text-align:center;font-family:'함초롬바탕','나눔명조',serif;color:#666;line-height:1;pointer-events:none;-webkit-user-select:none;user-select:none}
 /* 미리보기 인쇄: 종이 페이지(.pv-page)만 페이지 단위로 출력, 앱 UI·툴바 숨김 */
 @media print {
   body.previewing > *:not(#prevOv){ display:none !important; }
@@ -23581,13 +23583,17 @@ function openPreview(contentHtml, exportFn, pageMm){
   var n = Math.max(1, Math.round((meas.firstChild.scrollWidth + PV_COLGAP) / (g.CW + PV_COLGAP)));
   meas.remove();
   var pagesHtml = '';
+  /* 쪽번호는 본문 흐름 밖(아래 여백 한가운데)에 절대배치 — 줄바꿈·페이지 수에 영향을 주지 않는다 */
+  var noFs = 11, noBottom = Math.max(4, Math.round(g.pb / 2 - noFs / 2));
   for (var i = 0; i < n; i++) {
     pagesHtml += '<div class="pv-slide" style="position:relative"><div class="pv-pgwrap" style="position:absolute;left:0;top:0">' +
       '<div class="pv-page" style="width:' + g.W + 'px;height:' + g.H + 'px;' +
       'padding:' + g.pt + 'px ' + g.pr + 'px ' + g.pb + 'px ' + g.pl + 'px;transform-origin:0 0">' +
       '<div style="width:' + g.CW + 'px;height:' + g.CH + 'px;overflow:hidden">' +
       '<div style="' + flowCss + (i ? 'margin-left:-' + (i * (g.CW + PV_COLGAP)) + 'px' : '') + '">' + contentHtml + '</div>' +
-      '</div></div></div></div>';
+      '</div>' +
+      '<div class="pv-pgno" style="bottom:' + noBottom + 'px;font-size:' + noFs + 'px">' + (i + 1) + ' / ' + n + '</div>' +
+      '</div></div></div>';
   }
   document.getElementById('pvScale').innerHTML = pagesHtml;
   window._pv = { g: g, n: n, k: 1 };
@@ -23833,7 +23839,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v551';
+var APP_VER = 'v552';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
