@@ -3912,15 +3912,14 @@ function illStoryOverlap(storyN, hayN){
 /* compose의 예화 블록 → 라이브러리(json) 예화 id 역해석.
    srcKey(lib:) = 확실. 제목 폴백은 (a) 정규화 완전일치(본문 있으면 유사성까지 확인),
    (b) 포함일치는 블록 본문이 story와 실제로 겹칠 때만 — 성경 어구형 제목 오탐 차단. */
-function illComposeUsedLibIds(points){
-  if (!(ILLUST && ILLUST.items && ILLUST.items.length)) return [];
-  var seen = {}, out = [];
-  var norm = ILLUST._normIdx;
-  /* ★ 색인 무효화에 "전문(story) 병합 여부"를 함께 넣는다 (v547).
-     v444 샤드 분리 뒤로 부팅 직후에는 story 가 비어 있는데, 그때 만든 색인을 항목 수가
-     같다는 이유로 계속 재사용해 story 검증이 영원히 실패했다 → 서랍에서 삽입하지 않은
-     (srcKey 없는) 예화가 사용 기록에 전혀 남지 않았고, 홈의 [지난 설교 예화 회고]도 뜨지 않았다. */
-  var storyOn = !!(ILLUST._storyDone);
+/* 라이브러리 제목 정규화 색인(제목→id, 제목→story) — 제목 폴백 매칭이 공유한다.
+   ★ 색인 무효화에 "전문(story) 병합 여부"를 함께 넣는다 (v547).
+   v444 샤드 분리 뒤로 부팅 직후에는 story 가 비어 있는데, 그때 만든 색인을 항목 수가
+   같다는 이유로 계속 재사용해 story 검증이 영원히 실패했다 → 서랍에서 삽입하지 않은
+   (srcKey 없는) 예화가 사용 기록에 전혀 남지 않았고, 홈의 [지난 설교 예화 회고]도 뜨지 않았다. */
+function illNormIdx(){
+  if (!(ILLUST && ILLUST.items && ILLUST.items.length)) return null;
+  var norm = ILLUST._normIdx, storyOn = !!(ILLUST._storyDone);
   if (!norm || norm._n !== ILLUST.items.length || norm._s !== storyOn){
     norm = { _n: ILLUST.items.length, _s: storyOn, map: {}, story: {} };
     ILLUST.items.forEach(function(x){
@@ -3929,6 +3928,22 @@ function illComposeUsedLibIds(points){
     });
     ILLUST._normIdx = norm;
   }
+  return norm;
+}
+/* 예화 블록 → 도서관 키. srcKey(도서관에서 삽입)가 정본이고, 없으면 제목 완전일치로 되찾는다
+   — 저장했다 다시 연 원고는 원고 텍스트에서 블록을 다시 만들어 srcKey 가 없기 때문.
+   제목만 같고 내용이 다른 우연 일치는 story 대조로 걸러낸다(illComposeUsedLibIds와 같은 규칙). */
+function illBlockLibKey(b){
+  var sk = String((b && b.srcKey) || ''); if (sk) return sk;
+  var norm = illNormIdx(); if (!norm) return '';
+  var t = illNormT((b && b.ill) || ''); if (t.length < 4 || !norm.map[t]) return '';
+  var bodyN = illNormT((b && b.illBody) || '');
+  return (!bodyN || illStoryOverlap(norm.story[t], bodyN)) ? 'lib:' + norm.map[t] : '';
+}
+function illComposeUsedLibIds(points){
+  if (!(ILLUST && ILLUST.items && ILLUST.items.length)) return [];
+  var seen = {}, out = [];
+  var norm = illNormIdx();
   (points || state.compose.points || []).forEach(function(p){
     pBlocks(p).forEach(function(b){
       if (b.type !== 'ill') return;
@@ -9147,7 +9162,7 @@ function renderPoints(){
         return '<div class="ptBlk illBlk" data-i="' + i + '" data-bi="' + bi + '">' + handle +
           '<span class="blkTag illTag" title="길게 눌러 타입 변경">ex)</span>' + _gIco +
           '<input type="text" class="ptIllT" data-i="' + i + '" data-bi="' + bi + '" value="' + esc(b.ill) + '" placeholder="예화 제목 (선택)">' +
-          (b.srcKey ? '<button class="ptIllLib" type="button" data-illkey="' + esc(b.srcKey) + '" title="예화 도서관에서 보기 — 원본 내용·출처 확인">📖 도서관</button>' : '') +
+          (function(_lk){ return _lk ? '<button class="ptIllLib" type="button" data-illkey="' + esc(_lk) + '" title="예화 도서관에서 보기 — 원본 내용·출처 확인">📖 도서관</button>' : ''; })(illBlockLibKey(b)) +
           '<button class="ptIllAi" type="button" data-i="' + i + '" data-bi="' + bi + '" title="필요한 예화를 설명하면 그에 맞춰 추천·생성">AI</button></div>';
       }
       var role = blockRole(b), field = blockField(b);
