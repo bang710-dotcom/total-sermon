@@ -17167,11 +17167,25 @@ function transTableHtml(table, meta){
         '<div style="font-size:12.5px;color:var(--dim);margin-top:2px">↳ ' + esc(String(e.a || '').slice(0, 46)) + '</div>' +
       '</div></div>';
   }).join('');
-  return '<div class="cnt" style="margin-bottom:8px">표지 #1 제외 <b>' + table.length + '개 컷</b> · 일반 ' + gen + ' · 본문 ' + (table.length - gen) +
+  return transStaleHtml(meta) +
+    '<div class="cnt" style="margin-bottom:8px">표지 #1 제외 <b>' + table.length + '개 컷</b> · 일반 ' + gen + ' · 본문 ' + (table.length - gen) +
     ' <span style="opacity:.7">(총 ' + (table.length + 1) + '장)</span></div>' + rows +
     '<div class="cnt" style="margin-top:10px">↳ 아래 글은 그 전환이 들어갈 원고 지점(앵커)입니다. <b>예화(ex) 앞에 컷이 서 있는지</b> 확인해 보세요.</div>';
 }
 
+/* 이 표를 만든 뒤 원고가 바뀌었는가 — 모르면(기록 없음) false. manuscriptChanged 와 달리 "확실할 때만" true. */
+function transStale(meta){
+  var id = meta && meta['ID']; if (!id) return false;
+  var s = findSermon(id); if (!s) return false;
+  var stored = null; try { stored = (JSON.parse(s['파일맵'] || '{}') || {}).transSig; } catch (e) { return false; }
+  if (!stored) return false;
+  return stored !== manuscriptSig(meta);
+}
+function transStaleHtml(meta){
+  if (!transStale(meta)) return '';
+  return '<div class="cnt" style="margin-bottom:10px;padding:8px 10px;border:1px solid var(--warn);border-radius:8px;color:var(--warn);line-height:1.6">'
+    + '⚠ 이 표를 잡은 뒤 <b>원고가 바뀌었습니다.</b><br>컷 번호·이미지를 그대로 두고 위치만 새 문장에 맞추려면 <b>[♻ 원고 수정 반영]</b>, 표를 처음부터 새로 잡으려면 위 <b>[🔄 다시 잡기]</b>를 누르세요.</div>';
+}
 async function transTableOpen(){
   var id = state.editing || '';
   var meta = (typeof collectCompose === 'function') ? collectCompose() : {};
@@ -20735,6 +20749,10 @@ $$('#composeMeta [data-casc]').forEach(function(b){
   b.addEventListener('click', function(){
     var m = collectCompose();
     if (state.editing) m['ID'] = state.editing;
+    /* ★ 전환표: 이미 만들어 둔 표가 있으면 캐스케이드를 타지 않고 창만 즉시 연다 (v554).
+       캐스케이드는 오버레이·폴더 확인에 더해 끝에서 pullData(시트 델타 동기화)까지 기다리므로
+       "표를 보려고 눌렀는데 한참 기다리는" 상태가 됐다. 수정(다시 잡기·되읽기)은 창 안에서 한다. */
+    if (b.dataset.casc === 'transtable' && state.editing && sermonTrans(state.editing)) { transTableOpen(); return; }
     runCascade(b.dataset.casc, state.editing || '', m);
   });
 });
