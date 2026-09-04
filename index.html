@@ -21747,7 +21747,7 @@ function printDevoBooklet(S, opts){
 }
 /* ===== 2단계: 설교 1편 전 컷 자동 생성 (이미지자료.docx → 프록시 + 본문 파생) ===== */
 function loadImgEl(src){ return new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = function(){ rej(new Error('이미지 로드 실패')); }; im.src = src; }); }
-function canvasToBlob(cv){ return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, 'image/png'); }); }
+function canvasToBlob(cv, type, q){ return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, type || 'image/png', q); }); }
 /* 표준 비네트: 타원 [w*.13,h*.10,w*.87,h*.95] 안쪽만 남기고 바깥은 순수 검정, 가장자리 블러 w*.075 (PIL 스펙 복제) */
 function applyVignette(srcImg){
   var w = srcImg.naturalWidth || 1536, h = srcImg.naturalHeight || 864;
@@ -21865,7 +21865,7 @@ async function drawScriptureText(ctx, w, h, ref, verse){
 /* 본문 이미지 = 보정된 직전 일반 이미지의 파생본: 채도x0.4·밝기x0.55·블러 3px(1920px 기준 비례).
    cut(ref·verse)이 주어지면 성구 텍스트까지 자동 합성해 완성본으로 만든다(수동 글자 작업 불필요).
    cut이 없으면(일반 컷 폴백 등) 기존처럼 배경만. */
-async function deriveScriptureBg(srcCanvas, cut){
+async function deriveScriptureBg(srcCanvas, cut, fmt){
   var w = srcCanvas.width, h = srcCanvas.height;
   var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   var ctx = cv.getContext('2d');
@@ -21877,7 +21877,7 @@ async function deriveScriptureBg(srcCanvas, cut){
     try { await drawScriptureText(ctx, w, h, String(cut.ref || '').trim(), verse); }
     catch (e) { /* 텍스트 합성 실패 시 배경만이라도 저장(기존 동작) */ }
   }
-  return canvasToBlob(cv);
+  return canvasToBlob(cv, fmt && fmt.type, fmt && fmt.q);
 }
 /* ── 표지(#1) 텍스트 합성: 중앙 여백에 설교 제목(굵게, 1~2줄 균형 분할) + 본문 장절 ── */
 var _covFontFam = null;
@@ -21955,7 +21955,7 @@ async function coverBookLabel(meta){
   } catch (e) { return ''; }
 }
 /* 표지 완성본 = 생성 배경(원본 보존) 복제 + 상단 영문 책 라벨 + 제목·부제·본문 합성 → blob */
-async function composeCoverBlob(srcCanvas, meta){
+async function composeCoverBlob(srcCanvas, meta, fmt){
   var w = srcCanvas.width, h = srcCanvas.height;
   var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   var ctx = cv.getContext('2d');
@@ -21974,7 +21974,7 @@ async function composeCoverBlob(srcCanvas, meta){
     }
     await drawCoverText(ctx, w, h, meta['제목'], meta['본문']);
   } catch (e) { /* 합성 실패 시 배경만이라도 */ }
-  return canvasToBlob(cv);
+  return canvasToBlob(cv, fmt && fmt.type, fmt && fmt.q);
 }
 /* 이미지자료 docx 텍스트 → 컷 배열 [{n, scripture, prompt}] */
 function parseImageDoc(text){
