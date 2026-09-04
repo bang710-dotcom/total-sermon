@@ -1576,6 +1576,7 @@ body.uiDlgOpen{overflow:hidden}
         <div class="desktop-only">
           <button class="linkbtn" id="cascToggle" style="margin:6px 0">▾ 중간 단계 펼치기</button>
           <div id="cascMid" style="display:none">
+            <div class="cascitem" style="margin-bottom:8px"><button class="btn sub" data-casc="transtable" style="width:100%"><span class="blab">🔀 이미지 전환표 생성/수정</span><small class="bpath">카드·전환표시·이미지가 공유하는 단일 기준표</small></button><span class="cascsw" data-cascsel="transtable" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 · 끄면 전환표 없이 생성 (이미지 가지를 켜면 자동으로 켜집니다)"></span></div>
             <div style="display:flex;gap:8px">
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">카드 가지</div>
@@ -20422,9 +20423,8 @@ function exportManuscriptDocx(meta){
   var prefix = state.compose.style === '카드원고' ? '카드원고_' : '';
   var p = exportDocxParas(meta, parasFromCompose(meta, state.compose), prefix);
   saveComposeFinal(meta);                 /* 최종본 시트 반영 + 상태 승격 */
-  /* ★ 기본원고 내보낼 때 이미지 전환표(단일 소스)도 함께 확정·동봉(원고가 바뀌었으면 갱신).
-     이후 카드원고·이미지컷·전환표시본이 모두 이 표만 따른다. */
-  if (meta && meta['ID']) p = Promise.resolve(p).then(function(){ return ensureTransTable(meta['ID'], meta); });
+  /* ★ v552: 전환표는 여기서 만들지 않는다 — [🔀 이미지 전환표] 독립 단계(또는 그 표가 필요한 가지)에서만 만든다.
+     원고는 내보낸 뒤에도 계속 고쳐지므로, "이미지를 쓰기로 확정한 시점"의 원고로 한 번만 잡는 편이 맞다. */
   return p;                               /* 파일 저장 완료를 기다릴 수 있게 프라미스 반환 */
 }
 /* 원고 서명 — 전환표·카드·이미지컷이 '어느 원고' 기준으로 만들어졌는지 비교용.
@@ -20546,7 +20546,8 @@ function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov)
    (파일을 결과함에 계속 쌓아두지 않아도 기록으로 안다. 실제 재생성 여부는 아래 모달로 사용자가 결정.) */
 function cascDone(id){
   var dt = (id && typeof doneTypes === 'function') ? doneTypes(id) : {};
-  return { docx: !!dt['원고DOCX'], card: !!dt['카드원고'], cardpdf: !!dt['카드PDF'], cardpptx: !!dt['카드PPTX'],
+  var tt = false; try { tt = !!(id && sermonTrans(id)); } catch (e) {}   /* 전환표는 시트 산출물이 아니라 파일맵 보유 여부로 판정 */
+  return { docx: !!dt['원고DOCX'], transtable: tt, card: !!dt['카드원고'], cardpdf: !!dt['카드PDF'], cardpptx: !!dt['카드PPTX'],
            trans: !!dt['이미지전환표시본'], imgdata: !!dt['이미지프롬프트'], bgimg: !!dt['이미지생성'],
            transpdf: !!dt['이미지전환표시PDF'] };
 }
@@ -20558,9 +20559,9 @@ function manuscriptChanged(id, meta){
   return stored !== manuscriptSig(meta);
 }
 /* 버튼별 산출물 키 — 이 키들이 모두 '만든 적 있음'이면 다시 만들지 묻는다. */
-var CASC_TARGET_KEYS = { docx: ['docx'], card: ['card'], cardpdf: ['card', 'cardpdf'], cardpptx: ['card', 'cardpptx'],
+var CASC_TARGET_KEYS = { docx: ['docx'], transtable: ['transtable'], card: ['card'], cardpdf: ['card', 'cardpdf'], cardpptx: ['card', 'cardpptx'],
   trans: ['trans'], imgdata: ['imgdata'], bgimg: ['bgimg'], transpdf: ['transpdf'],
-  total: ['docx', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'] };
+  total: ['docx', 'transtable', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'] };
 /* 이미 만든 적 있을 때: 결과물 보기 / 다시 생성하기 / 닫기 — 선택을 Promise로 반환 */
 function askCascRegen(){
   return new Promise(function(resolve){
@@ -20720,9 +20721,13 @@ $$('#composeMeta [data-casc]').forEach(function(b){
   });
 })();
 /* ===== Total 포함 토글(가지 6개) — 선택·종속관계·기억 ===== */
-var CASC_SEL_KEYS = ['card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'];
-var CASC_DEPS = { cardpdf: ['card'], cardpptx: ['card'] };   /* 켤 때 함께 켜질 필수 하위 소스 */
-var CASC_DEPENDENTS = { card: ['cardpdf', 'cardpptx'] };       /* 끌 때 함께 꺼질 상위(이 소스가 필요함) */
+var CASC_SEL_KEYS = ['transtable', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'];
+/* 켤 때 함께 켜질 필수 하위 소스 — 이미지 가지 4종은 전환표가 없으면 만들 수 없다(카드 가지는 선택). */
+var CASC_DEPS = { cardpdf: ['card'], cardpptx: ['card'],
+  trans: ['transtable'], imgdata: ['transtable'], bgimg: ['transtable'], transpdf: ['transtable'] };
+/* 끌 때 함께 꺼질 상위(이 소스가 필요함) */
+var CASC_DEPENDENTS = { card: ['cardpdf', 'cardpptx'],
+  transtable: ['trans', 'imgdata', 'bgimg', 'transpdf'] };
 function cascSwEl(k){ return document.querySelector('#composeMeta .cascsw[data-cascsel="' + k + '"]'); }
 function cascSwSet(k, on){ var el = cascSwEl(k); if (el) { el.classList.toggle('on', !!on); el.setAttribute('aria-checked', on ? 'true' : 'false'); } }
 function cascSwOn(k){ var el = cascSwEl(k); return !!(el && el.classList.contains('on')); }
@@ -20731,6 +20736,7 @@ function cascSwSave(){ try { var o = {}; CASC_SEL_KEYS.forEach(function(k){ o[k]
 function cascSel(){
   var s = {}; CASC_SEL_KEYS.forEach(function(k){ s[k] = cascSwOn(k); });
   if (s.cardpdf || s.cardpptx) s.card = true;   /* PDF/PPTX는 카드 원고를 소스로 필요 */
+  if (s.trans || s.imgdata || s.bgimg || s.transpdf) s.transtable = true;   /* 이미지 가지는 전환표가 필수 */
   return s;
 }
 function cascSelAny(s){ return CASC_SEL_KEYS.some(function(k){ return s[k]; }); }
@@ -20746,6 +20752,7 @@ function cascSwToggle(k){
   var o = {}; try { o = JSON.parse(localStorage.getItem('cascSel') || '{}') || {}; } catch (e) {}
   CASC_SEL_KEYS.forEach(function(k){ cascSwSet(k, !!o[k]); });
   if (cascSwOn('cardpdf') || cascSwOn('cardpptx')) cascSwSet('card', true);   /* 저장값 종속 보정 */
+  if (cascSwOn('trans') || cascSwOn('imgdata') || cascSwOn('bgimg') || cascSwOn('transpdf')) cascSwSet('transtable', true);
   sw.forEach(function(el){
     el.addEventListener('click', function(ev){ ev.stopPropagation(); ev.preventDefault(); cascSwToggle(el.dataset.cascsel); });
     el.addEventListener('keydown', function(ev){ if (ev.key === ' ' || ev.key === 'Enter') { ev.stopPropagation(); ev.preventDefault(); cascSwToggle(el.dataset.cascsel); } });
