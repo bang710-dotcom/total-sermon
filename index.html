@@ -11472,7 +11472,7 @@ function buildImgDataParas(meta, cuts){
   P('· 표지(#1): 주제 상징 배경(중앙 여백 구도)을 자동 생성하고, 중앙에 설교 제목·본문을 합성합니다.');
   P('· 일반 이미지 ' + (gen.length - 1) + '장: ' + gen.filter(function(c){ return c.n !== 1; }).map(function(c){ return '#' + c.n; }).join(' '));
   P('· 본문 이미지 ' + scr.length + '장: ' + scr.map(function(c){ return '#' + c.n; }).join(' ') + ' — 새로 생성하지 않고 직전 일반 이미지의 파생본(채도↓·밝기↓·블러)');
-  P('· LED 처리 공통: 좌우 완전 페이드 + 네 모서리 비네트 + 중앙 집중, 깊은 검정 배경, 16:9.');
+  P(screenNoteKo());
   P('');
   cuts.forEach(function(c){
     P((c.type === '본문' ? '본문 이미지 #' : '이미지 #') + c.n, { b: 1 });
@@ -11485,7 +11485,7 @@ function buildImgDataParas(meta, cuts){
     } else {
       var en = String(c.en || '').trim();
       if (en && !/[.]$/.test(en)) en += '.';
-      P((en ? en + ' ' : '') + LED_TAIL);
+      P((en ? en + ' ' : '') + screenTail());
     }
     P('');
   });
@@ -15301,7 +15301,35 @@ window.requestCardPdf = function(){
 };
 
 /* ===================== 인앱 이미지자료(프롬프트 DOCX) 생성 (2단계) ===================== */
-var LED_TAIL = 'Strong dark vignette on all edges, left and right sides fading completely into pure black with smooth gradient, all bright elements concentrated in the central area, edges seamlessly dissolving into the surrounding darkness so the image appears intentionally framed within a larger black space. Deep black background. Widescreen 16:9.';
+/* ── 화면 지시문(프롬프트 꼬리) — 설정한 강단 스크린 규격을 그대로 따라간다 (v560) ──
+   예전 LED_TAIL 은 "네 모서리 강한 비네트 + 좌우를 순수 검정으로 완전 페이드 + 더 큰 검은 공간 안에
+   놓인 것처럼 + Widescreen 16:9" 를 지시했다. 16:9 한 장을 전면 와이드 스크린에 띄우며
+   좌우 검은 여백과의 경계를 감추던 시절의 규칙이다. v556부터 화면마다 제 비율로 뽑으므로
+   그림은 프레임을 가득 채워야 하고, 비율도 설정(imgScreens)을 따라 바뀌어야 한다.
+   ★'두 벌 모두'일 때만 "가운데 16:9 영역 안에 주제를 두라"고 덧붙인다 — 사이드용이 가운데를
+     잘라 쓰는 판이라, 주제가 좌우 끝에 몰리면 사이드에서 잘려 나가기 때문. */
+/* 이미지자료 문서에 넣는 한국어 화면 안내 — 위 프롬프트와 같은 기준을 사람 말로 (v560) */
+function screenNoteKo(){
+  var m = (typeof imgScreens === 'function') ? imgScreens() : 'both';
+  var size = (m === 'wide') ? '가운데 초광각 4160×1620 한 벌'
+           : (m === 'side') ? '사이드 16:9(1920×1080) 한 벌'
+           : '가운데 초광각 4160×1620 + 사이드 16:9(1920×1080) 두 벌 — 같은 그림의 좌우 크롭본';
+  var note = '· 화면 규격: ' + size + '. 그림은 화면을 가득 채우며 검은 여백·레터박스·비네트 없음.';
+  if (m === 'both') note += ' 주제와 가장 밝은 빛은 가운데 16:9 영역 안에 두어야 사이드에서 잘리지 않습니다.';
+  if (typeof imgVignette === 'function' && imgVignette()) note += ' (설정에서 가장자리 비네팅을 켜 두어, 생성 후 앱이 가장자리를 어둡게 처리합니다.)';
+  return note;
+}
+function screenTail(){
+  var m = (typeof imgScreens === 'function') ? imgScreens() : 'both';
+  var fill = 'The scene fills the whole frame edge to edge, with no black bars, no letterboxing and no vignette.';
+  var safe = (m === 'both')
+    ? ' Keep the main subject and the brightest light inside the central 16:9 region, letting the far left and right thirds carry only atmosphere, because a centre-cropped 16:9 version of this same image is also used.'
+    : '';
+  var ar = (m === 'side')
+    ? ' Widescreen 16:9.'
+    : ' Ultra-wide cinemascope framing, aspect ratio about 2.57:1 (4160x1620).';
+  return fill + safe + ar;
+}
 /* ★ 이미지 생성 안전 제약 — ★긍정형으로만 표현(부정문 금지).
    이유: Flux는 부정문("no corpses/no water")을 무시하거나 오히려 그 단어에 반응해 역효과를 내고,
    "corpse·dead·drowned" 같은 단어는 이미지 프록시·엔진의 콘텐츠 필터를 건드려 생성 자체가 차단될 수 있다(번호 누락의 원인).
@@ -15321,17 +15349,17 @@ function buildBgPrompt(c, engine){
   var en = String((c && c.en) || '').trim();
   var sc = styleCueEn(c && c.style);
   if (engine === 'gemini') {
-    return [ en, 'Render this as a ' + sc + '.', 'Cinematic painterly background with dramatic chiaroscuro lighting and rich atmosphere; keep faces out of view and include no lettering.', IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+    return [ en, 'Render this as a ' + sc + '.', 'Cinematic painterly background with dramatic chiaroscuro lighting and rich atmosphere; keep faces out of view and include no lettering.', IMG_SAFETY, screenTail() ].filter(Boolean).join(' ');
   }
   /* flux */
-  return [ en, sc + ', cinematic painterly, dramatic chiaroscuro, faceless figures, no lettering.', IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+  return [ en, sc + ', cinematic painterly, dramatic chiaroscuro, faceless figures, no lettering.', IMG_SAFETY, screenTail() ].filter(Boolean).join(' ');
 }
 /* 생성 실패(콘텐츠 필터 등) 시 단계적으로 더 안전·추상적인 폴백 프롬프트 — 번호 누락 방지용 */
 function safeFallbackPrompts(c){
   var sc = styleCueEn(c && c.style);
   return [
-    'Abstract symbolic cinematic background, soft directional light and deep shadow, ' + sc + ', a quiet reverent mood, no human figures, no lettering. ' + LED_TAIL,
-    'A single soft warm glow at the center of a vast deep black space, calm minimal cinematic atmosphere, no human figures, no lettering. ' + LED_TAIL
+    'Abstract symbolic cinematic background, soft directional light and deep shadow, ' + sc + ', a quiet reverent mood, no human figures, no lettering. ' + screenTail(),
+    'A single soft warm glow at the center of a vast deep black space, calm minimal cinematic atmosphere, no human figures, no lettering. ' + screenTail()
   ];
 }
 /* ★ 표지(#1) 전용 프롬프트: 주제 상징 요소를 가장자리·주변부에 배치하고
@@ -15341,9 +15369,9 @@ function buildCoverPrompt(c, engine){
   var en = String((c && c.en) || '').trim();
   var sc = styleCueEn(c && c.style);
   if (engine === 'gemini') {
-    return [ en, 'Render this as a ' + sc + '.', COVER_SPACE, 'Cinematic painterly background with dramatic chiaroscuro lighting and rich atmosphere; keep faces out of view and include no lettering.', IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+    return [ en, 'Render this as a ' + sc + '.', COVER_SPACE, 'Cinematic painterly background with dramatic chiaroscuro lighting and rich atmosphere; keep faces out of view and include no lettering.', IMG_SAFETY, screenTail() ].filter(Boolean).join(' ');
   }
-  return [ en, sc + ', cinematic painterly, dramatic chiaroscuro, faceless figures, no lettering.', COVER_SPACE, IMG_SAFETY, LED_TAIL ].filter(Boolean).join(' ');
+  return [ en, sc + ', cinematic painterly, dramatic chiaroscuro, faceless figures, no lettering.', COVER_SPACE, IMG_SAFETY, screenTail() ].filter(Boolean).join(' ');
 }
 var P_IMGDATA = [
   '너는 영락교회 대학부 설교의 "설교 이미지 자료(컷별 LED 배경 프롬프트)"를 만든다. 입력(설교 원고+메타)을 받아 컷 목록을 JSON으로만 출력한다. 설명·코드펜스 금지.',
@@ -15475,7 +15503,7 @@ function buildImgDataDocx(D, meta, cuts){
   ch.push(P('· 표지(#1): 주제 상징 배경(중앙 여백 구도)을 자동 생성하고, 중앙에 설교 제목·본문을 합성합니다.', { size: 22, color: '215E99' }));
   ch.push(P('· 일반 이미지 ' + (gen.length - 1) + '장: ' + gen.filter(function(c){ return c.n !== 1; }).map(function(c){ return '#' + c.n; }).join(' '), { size: 22 }));
   ch.push(P('· 본문 이미지 ' + scr.length + '장: ' + scr.map(function(c){ return '#' + c.n; }).join(' ') + ' — 새로 생성하지 않고 직전 일반 이미지의 파생본(채도↓·밝기↓·블러)', { size: 22 }));
-  ch.push(P('· LED 처리 공통: 좌우 완전 페이드 + 네 모서리 비네트 + 중앙 집중, 깊은 검정 배경, 16:9.', { size: 22 }, 160));
+  ch.push(P(screenNoteKo(), { size: 22 }, 160));
   cuts.forEach(function(c){
     ch.push(P((c.type === '본문' ? '본문 이미지 #' : '이미지 #') + c.n, { bold: true, size: 26 }, 20));
     ch.push(P('【역할】 ' + (c.role || ''), { bold: true, size: 22 }, 10));
@@ -15487,7 +15515,7 @@ function buildImgDataDocx(D, meta, cuts){
     } else {
       var en = String(c.en || '').trim();
       if (en && !/[.]$/.test(en)) en += '.';
-      ch.push(P((en ? en + ' ' : '') + LED_TAIL, { size: 20 }, 140));
+      ch.push(P((en ? en + ' ' : '') + screenTail(), { size: 20 }, 140));
     }
   });
   function mm(v){ return Math.round(v * 56.6929); }
