@@ -1592,7 +1592,6 @@ body.uiDlgOpen{overflow:hidden}
                 <div class="cascitem"><button class="btn sub" data-casc="transpdf" style="width:100%"><span class="blab">전환 표시 PDF</span><small class="bpath">전환표시본 + 생성 이미지 삽입</small></button><span class="cascsw" data-cascsel="transpdf" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (생성해 둔 배경 이미지가 있어야 만들어집니다)"></span></div>
               </div>
             </div>
-            <button class="btn sub" id="btnTransTable" style="width:100%;margin-top:8px"><span class="blab">🔎 이미지 전환표 보기 · 다시 잡기</span><small class="bpath">카드·전환표시·이미지가 공유하는 단일 기준표</small></button>
             <button class="btn sub" id="btnImgRegen" style="width:100%;margin-top:6px"><span class="blab">🖼 이미지 낱장 재생성</span><small class="bpath">번호별 · 엔진 선택 · 뒤따르는 본문 컷 자동 포함</small></button>
             <button class="btn sub" id="btnRetrans" style="width:100%;margin-top:6px"><span class="blab">♻ 원고 수정 반영 (전환표·이미지 유지)</span><small class="bpath">고친 문장에 전환 지점만 다시 맞춰 전환표시본 · 전환 PDF 재생성</small></button>
           </div>
@@ -14650,10 +14649,13 @@ function buildCardDocx(D, meta, items){
      - 한 이미지 내용이 한 페이지를 넘으면 자연히 쪼개지고, 그 경우 페이지 상단이 전환 바가 아닐 수도 있다.
      - 본문 이미지 바는 직전 이미지에 귀속되므로 같은 덩어리 안에 있다(덩어리 경계는 '일반' 전환 바만). */
   function isGenTrans(it){ return it && it.t === 'trans' && String(it.x || '').indexOf('본문') < 0; }
-  var children = [new D.Paragraph({ keepNext: true, spacing: { line: 360 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 40 })] })];
+  /* ★ 전환 바가 하나도 없는 카드원고(전환표 토글 끔 — v553)는 덩어리 경계가 없다.
+     이때 keepNext 를 걸면 문서 전체가 한 덩어리로 묶여 쪽나눔이 망가지므로, 자연 흐름으로 흘린다. */
+  var hasTrans = (items || []).some(isGenTrans);
+  var children = [new D.Paragraph({ keepNext: hasTrans, spacing: { line: 360 }, children: [new D.TextRun({ text: titleLine, bold: true, size: 40 })] })];
   items.forEach(function(it, idx){
     var x = String(it.x || '');
-    var segEnd = (idx === items.length - 1) || isGenTrans(items[idx + 1]);   /* 다음이 새 이미지(일반 전환)면 여기서 덩어리 끝 → 끊김 허용 */
+    var segEnd = !hasTrans || (idx === items.length - 1) || isGenTrans(items[idx + 1]);   /* 다음이 새 이미지(일반 전환)면 여기서 덩어리 끝 → 끊김 허용 */
     var keep = !segEnd;
     if (it.t === 'trans') {
       children.push(new D.Paragraph({
@@ -14723,16 +14725,22 @@ async function ensureCardArr(id, meta){
   if (id) { setSermonFileMap(id, 'cardArr', arr); setSermonFileMap(id, 'cardSig', sig); }
   return arr;
 }
+/* 전환표 토글을 끄고 카드 가지를 돌린 실행인가 — 그렇다면 카드류에서 이미지 표식을 뺀다(v553).
+   저장본(파일맵 cardArr)은 전환 바를 그대로 품고 있고, "내보낼 때만" 걸러낸다.
+   → 나중에 이미지를 쓰기로 하고 다시 뽑으면 같은 카드에 바가 그대로 살아난다(캐시 오염 없음). */
+function cardNoTrans(){ return !!window._cascNoTrans; }
+function stripCardTrans(arr){ return (arr || []).filter(function(b){ return b && b.t !== 'trans'; }); }
 async function aiCardScript(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim() && !String(meta['대지'] || '').trim()) { toast('초고나 대지를 먼저 작성해 주세요.'); return; }
     toast('Opus가 카드원고를 집필합니다 — 수 분 걸릴 수 있습니다');
     var arr = await ensureCardArr(id, meta);   /* ★ 단일 소스(저장본 재사용 또는 신규 집필+저장) */
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
-    meta['_카드원고'] = cardArrToText(arr);   /* 같은 실행 내 디자인 PDF가 이 텍스트를 그대로 쓰게 보관 */
+    meta['_카드원고'] = cardArrToText(arr);   /* 같은 실행 내 디자인 PDF가 이 텍스트를 그대로 쓰게 보관(이미 trans 제외) */
+    var arrOut = cardNoTrans() ? stripCardTrans(arr) : arr;   /* 전환표 끔 → 빨간 전환 바 없이 (v553) */
     var D = await ensureDocxLib();
-    var blob = (outFmt() === 'hwpx') ? await hwpxBuild(hwpxCard(meta, arr))
-                                      : await D.Packer.toBlob(buildCardDocx(D, meta, arr));
+    var blob = (outFmt() === 'hwpx') ? await hwpxBuild(hwpxCard(meta, arrOut))
+                                      : await D.Packer.toBlob(buildCardDocx(D, meta, arrOut));
     await saveBlobToResults(blob, sermonFileBase(meta, '카드원고') + outExt());   /* 결과함에 저장 — 설교 폴더엔 기본원고만 */
     if (id) {
       await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '카드원고', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
@@ -14913,6 +14921,7 @@ async function aiCardDeck(meta){
   var deck = aiJson(out);
   /* 표지 설교 분류는 원고에 입력한 예배구분을 그대로 사용(Opus 임의값 무시) */
   if (deck && deck.meta) deck.meta.series = String(meta['예배구분'] || deck.meta.series || '대학부');
+  if (deck && cardNoTrans()) deck.noImgBadge = true;   /* 전환표 끔 → 카드 모서리 이미지 번호(#N) 배지 숨김 (v553) */
   return deck;
 }
 var CARD_CSS = ".cdk-card{width:1240px;height:840px;position:relative;overflow:hidden;font-family:'Gothic A1',sans-serif;background:#F4ECDD}"
@@ -14975,7 +14984,7 @@ function renderCardDeckHtml(deck){
   var m = deck.meta || {}, foot = esc(CARD_FOOTER), html = '';
   /* 우상단 이미지 번호 배지: 표지=#1, 전환·본문 카드마다 +1, 계속은 직전 번호 유지 */
   var imgN = 1;
-  function badge(n, dark, cover){ return '<span class="imgbadge' + (dark ? ' dark' : '') + (cover ? ' coverbadge' : '') + '">#' + n + '</span>'; }
+  function badge(n, dark, cover){ if (deck && deck.noImgBadge) return ''; return '<span class="imgbadge' + (dark ? ' dark' : '') + (cover ? ' coverbadge' : '') + '">#' + n + '</span>'; }
   (deck.cards || []).forEach(function(c){
     var bg = c.bg || {};
     if (c.type === 'cover') imgN = 1;
@@ -17717,8 +17726,6 @@ function bulletinDraftOpen(id, text, fresh, sig){
     b.dataset.busy = '1'; b.disabled = true;
     Promise.resolve(bulletinKakao()).catch(function(){}).then(function(){ b.dataset.busy = ''; b.disabled = false; });
   });
-  var tb = $('#btnTransTable');
-  if (tb) tb.addEventListener('click', function(){ transTableOpen(); });
   var ib = $('#btnImgRegen');
   if (ib) ib.addEventListener('click', function(){ imgRegenOpen(); });
   var rb = $('#btnRetrans');
@@ -20718,6 +20725,9 @@ async function runCascade(target, id, meta){
     else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
   }
   finally { window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; window._cascNoTrans = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
+  /* 전환표 단독 실행은 끝나고 표를 바로 펼쳐 보여 준다 — 옛 [🔎 보기·다시 잡기] 버튼을 이 버튼 하나로 합쳤다(v553).
+     그 창 안에 [🔄 다시 잡기]·[📂 이전 전환표 되읽기]가 그대로 있다. */
+  if (target === 'transtable' && !window._cascAbort) { try { await transTableOpen(); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
   b.addEventListener('click', function(){
