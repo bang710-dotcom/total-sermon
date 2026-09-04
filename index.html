@@ -20639,7 +20639,9 @@ async function runCascade(target, id, meta){
   window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false;   /* 강제 재생성 플래그 초기화 */
   /* 이미 만든 적 있고 원고가 그대로면 — 다시 만들지 묻는다(결과물 보기 / 다시 생성하기 / 닫기).
      원고가 바뀌었으면 묻지 않고 새로 만든다. */
-  if (id && !manuscriptChanged(id, meta)) {
+  /* 전환표 단독 실행은 "이미 있어요?" 3지선다를 건너뛴다 — 있으면 그대로 쓰고 바로 표를 펼쳐 보여 주는 게
+     이 버튼의 목적(옛 [🔎 보기·다시 잡기] 대체). 새로 잡기·되읽기는 그 창 안에 있다. (v553) */
+  if (id && target !== 'transtable' && !manuscriptChanged(id, meta)) {
     var keys = sel ? ['docx'].concat(CASC_SEL_KEYS.filter(function(k){ return sel[k]; })) : (CASC_TARGET_KEYS[target] || []);
     var dmap = cascDone(id);
     /* ★ 하나라도 이미 만든 산출물이 있으면 묻는다(전혀 없으면 바로 생성).
