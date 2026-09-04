@@ -22181,10 +22181,13 @@ async function genBgWithRetry(c, engine){
   }
   return null;
 }
-/* 표지(#1) 배경 생성: 핵심 컷 모델(background-hero 라우팅 — Flux는 max)로 중앙 여백 구도,
-   실패 시 안전 폴백(중앙 여백 규칙 유지). 텍스트 합성은 composeCoverBlob에서. */
+/* 표지(#1) 배경 생성: 일반 컷과 같은 모델(background 라우팅)로 중앙 여백 구도,
+   실패 시 안전 폴백(중앙 여백 규칙 유지). 텍스트 합성은 composeCoverBlob에서.
+   ★v557: 예전에는 표지만 background-hero(Flux=max)로 뽑았는데, 표지는 설교 시작에 잠깐만
+     띄우는 화면이라 그만한 품질·비용·시간이 필요 없다. 게다가 초광각으로 화소가 커지면서
+     그 느린 모델이 폴링 예산을 넘겨 #01에서 생성이 멈추는 원인이 됐다. 이제 일반 컷과 같다. */
 async function genCoverWithRetry(c, engine){
-  var rt = engineRoute('background-hero', engine);
+  var rt = engineRoute('background', engine);
   var prompts = [ buildCoverPrompt(c, engine) ].concat(safeFallbackPrompts(c).map(function(p){ return COVER_SPACE + ' ' + p; }));
   for (var k = 0; k < prompts.length; k++){
     if (window._cascAbort) throw new Error('__ABORT__');
@@ -22219,7 +22222,7 @@ async function generateImageSetFromCuts(id, meta, cuts){
           if (got.fallback) warn.push('#' + c.n + '(안전 폴백 프롬프트로 생성)');
         }
         else if (lastCanvas){ bg = lastCanvas; isDeriv = true; warn.push('#' + c.n + '(직전 이미지 파생으로 대체)'); }   /* 번호 누락 방지 */
-        else { fail.push('#' + c.n + '(생성 불가)'); continue; }   /* 첫 컷부터 전부 실패한 극단적 경우만 건너뜀 */
+        else { fail.push('#' + c.n + '(생성 불가' + (_imgLastErr ? ' — ' + _imgLastErr : '') + ')'); continue; }   /* 첫 컷부터 전부 실패한 극단적 경우만 건너뜀 */
       }
       /* ② 화면 규격마다 잘라 맞춘 뒤 각각 합성한다 — 제목·성구 텍스트는 규격별로 다시 앉혀야
          (초광각에 맞춘 글자를 나중에 자르면 좌우가 잘려 나가므로) 두 판 모두 온전하다. */
