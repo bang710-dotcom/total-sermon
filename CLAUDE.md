@@ -81,6 +81,17 @@
 - 위치·크기는 페이지 규격에서 계산한다: `noFs=11px`, `bottom = max(4, pb/2 - noFs/2)` → 아래 여백(10mm·12.5mm 둘 다) 한가운데. `.pv-page` 가 이미 `position:relative` 라 별도 처리 불필요하고, `transform:scale(k)` 를 같이 받아 확대·축소해도 비율이 유지된다.
 - 전체화면에서 잠깐 뜨는 floating 배지 `#pvPageNo` 는 **그대로 둔다** — 페이지가 화면보다 길면 종이 아래쪽 쪽번호가 시야 밖이라 빠르게 넘길 때는 배지가 여전히 필요하다. 인쇄 CSS의 `#pvPageNo{display:none}` 은 배지(id)만 가리며 `.pv-pgno`(class)와 무관하다.
 
+## 이미지 전환표 = 독립 단계 — v553
+
+전환표는 **원고 내보내기의 부산물이 아니라 스스로 하나의 단계**다. 중간 단계 맨 위(HWPX 원고 버튼 아래)의 **[🔀 이미지 전환표 생성/수정]**(`data-casc="transtable"` + 토글 `transtable`)에서 만든다.
+
+- **왜 옮겼나**: v552까지는 `exportManuscriptDocx()` 끝에서 무조건 `ensureTransTable` 을 불렀다. 진행 표시는 「원고 내보내는 중」인데 뒤에서 원고 전문을 넣은 **Opus 호출**이 돌았고(`cascStepList` 에도 없는 숨은 단계였다), 이미지를 안 쓰는 원고에서는 그대로 낭비였다. 원고는 내보낸 뒤에도 계속 고쳐지므로 **"이미지를 쓰기로 확정한 시점"의 원고로 한 번만** 잡는 편이 맞다.
+- **의존성(오류 방지)**: `CASC_DEPS` 로 이미지 가지 4종(`trans`·`imgdata`·`bgimg`·`transpdf`)을 켜면 `transtable` 이 **자동으로 켜지고**, `CASC_DEPENDENTS` 로 `transtable` 을 끄면 그 4종이 **함께 꺼진다**. `cascSel()`·저장값 로드에도 같은 보정이 있어 어느 경로로도 "전환표 없이 이미지 산출물" 조합은 나오지 않는다.
+- **카드 가지는 전환표를 강제하지 않는다** — 이미지 없이 카드원고만 뽑는 경우를 위해서다. 켜고 끄는 판정은 `cascWantTrans(target, sel, inA, inB)` 하나가 하고(`cascStepList`·`runCascade` 공용), 꺼진 채 카드를 뽑으면 `window._cascNoTrans` 가 서서 **`ensureTransTable` 이 있는 표는 쓰되 새 표는 만들지 않는다**(AI 호출 없음).
+  → ⚠ 이때 카드원고의 빨간 전환 바는 모델이 자체적으로 넣고 `renumberCardTransBars(arr, null)` 가 #2부터 순번만 매긴다. **바를 아예 빼려면 별도 처리가 필요하다**(현재는 넣는 쪽이 기본).
+- 완료 점(`cascDone.transtable`)은 시트 산출물이 아니라 **파일맵의 표 보유 여부**(`sermonTrans(id)`)로 판정한다.
+- 아래쪽 [🔎 이미지 전환표 보기 · 다시 잡기]는 그대로 — 새 버튼은 *생성 단계*, 그쪽은 *열람·다시 잡기·되읽기*.
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
