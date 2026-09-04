@@ -15314,17 +15314,40 @@ function screenNoteKo(){
   var size = (m === 'wide') ? '가운데 초광각 4160×1620 한 벌'
            : (m === 'side') ? '사이드 16:9(1920×1080) 한 벌'
            : '가운데 초광각 4160×1620 + 사이드 16:9(1920×1080) 두 벌 — 같은 그림의 좌우 크롭본';
-  var note = '· 화면 규격: ' + size + '. 그림은 화면을 가득 채우며 검은 여백·레터박스·비네트 없음.';
-  if (m === 'both') note += ' 주제와 가장 밝은 빛은 가운데 16:9 영역 안에 두어야 사이드에서 잘리지 않습니다.';
-  if (typeof imgVignette === 'function' && imgVignette()) note += ' (설정에서 가장자리 비네팅을 켜 두어, 생성 후 앱이 가장자리를 어둡게 처리합니다.)';
+  var vig = (typeof imgVignette === 'function') && imgVignette();
+  var note = '· 화면 규격: ' + size + '. 그림은 화면을 가득 채우며 검은 여백·레터박스 없음'
+    + (vig ? '' : '·비네트 없음') + '.';
+  var why = [];
+  if (m === 'both') why.push('사이드가 가운데를 잘라 쓰고');
+  if (vig) why.push('생성 후 앱이 가장자리를 어둡게 덮으므로');
+  if (m === 'both' && vig) note += ' ' + why.join(' ') + ', 주제와 가장 밝은 빛은 가운데 16:9 영역 안(대략 가로 70%·세로 80% 이내)에 두어야 잘리거나 묻히지 않습니다.';
+  else if (m === 'both') note += ' 사이드가 가운데를 잘라 쓰므로, 주제와 가장 밝은 빛은 가운데 16:9 영역 안에 두어야 잘리지 않습니다.';
+  else if (vig) note += ' 생성 후 앱이 가장자리를 어둡게 덮으므로, 주제와 가장 밝은 빛은 가운데(대략 가로 70%·세로 80% 이내)에 두어야 묻히지 않습니다.';
   return note;
 }
 function screenTail(){
   var m = (typeof imgScreens === 'function') ? imgScreens() : 'both';
-  var fill = 'The scene fills the whole frame edge to edge, with no black bars, no letterboxing and no vignette.';
-  var safe = (m === 'both')
-    ? ' Keep the main subject and the brightest light inside the central 16:9 region, letting the far left and right thirds carry only atmosphere, because a centre-cropped 16:9 version of this same image is also used.'
+  var vig = (typeof imgVignette === 'function') && imgVignette();
+  /* 비네팅을 켜면 앱이 나중에 가장자리를 죽인다(타원 x13~87%·y10~95%, 폭 7.5% 페더).
+     그래서 켠 경우에는 "주제를 그 안쪽에 두라"를 반드시 함께 지시해야 주제가 잘리지 않는다.
+     끈 경우에는 반대로 "비네트를 그리지 말라"고 못 박는다. */
+  var fill = 'The scene fills the whole frame edge to edge, with no black bars and no letterboxing.'
+    + (vig ? '' : ' Do not paint any vignette or darkened border.');
+  var crop = (m === 'both')
+    ? 'a centre-cropped 16:9 version of this same image is also used'
     : '';
+  var edge = vig
+    ? 'the outer edges of the frame are darkened afterwards'
+    : '';
+  var why = [crop, edge].filter(Boolean).join(' and ');
+  var safe = '';
+  if (m === 'both' && vig){
+    safe = ' Keep the main subject and the brightest light inside the central 16:9 region and well clear of the top and bottom edges — roughly the middle 70% of the width and 80% of the height — letting the outer margins carry only soft dark atmosphere, because ' + why + '.';
+  } else if (m === 'both'){
+    safe = ' Keep the main subject and the brightest light inside the central 16:9 region, letting the far left and right thirds carry only atmosphere, because ' + why + '.';
+  } else if (vig){
+    safe = ' Keep the main subject and the brightest light near the centre, well clear of all four edges — roughly the middle 70% of the width and 80% of the height — letting the outer margins carry only soft dark atmosphere, because ' + why + '.';
+  }
   var ar = (m === 'side')
     ? ' Widescreen 16:9.'
     : ' Ultra-wide cinemascope framing, aspect ratio about 2.57:1 (4160x1620).';
@@ -24092,7 +24115,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v560';
+var APP_VER = 'v561';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
