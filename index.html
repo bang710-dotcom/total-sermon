@@ -15600,9 +15600,12 @@ async function tpdfImgMap(meta){
   var map = {};
   var pack = await loadImgSetZip(meta);
   if (pack){
-    var names = Object.keys(pack.zip.files).filter(function(n){ return !pack.zip.files[n].dir && /(?:^|\/)\d{1,3}\.png$/i.test(n); });
+    /* 루트 = 기본 세트(초광각 또는 16:9), 하위 폴더 = 보조 세트. 썸네일은 루트만 쓴다(중복 방지). (v556) */
+    var all = Object.keys(pack.zip.files).filter(function(n){ return !pack.zip.files[n].dir && /(?:^|\/)\d{1,3}\.(?:png|jpe?g)$/i.test(n); });
+    var root = all.filter(function(n){ return n.indexOf('/') < 0; });
+    var names = root.length ? root : all;
     for (var i = 0; i < names.length; i++){
-      var n = +names[i].match(/(\d{1,3})\.png$/i)[1];
+      var n = +names[i].match(/(\d{1,3})\.(?:png|jpe?g)$/i)[1];
       try { map[n] = await tpdfThumb(await pack.zip.file(names[i]).async('blob')); } catch (e) {}
     }
   }
@@ -15611,7 +15614,7 @@ async function tpdfImgMap(meta){
       await xPerm();
       var pre = imgDataNames(meta).backstagePrefixes;
       await eachResultFile(async function(e){
-        var mm = e.name.match(/_재생성_(\d{1,3})\.png$/i);
+        var mm = e.name.match(/_재생성_(\d{1,3})\.(?:png|jpe?g)$/i);
         if (!mm || map[+mm[1]] || !_nfcInclAny(e.name, pre)) return;
         try { map[+mm[1]] = await tpdfThumb(await e.getFile()); } catch (x) {}
       });
@@ -22088,13 +22091,43 @@ async function saveImgDataArtifacts(id, meta, cuts){
 /* 일반/표지 배경 생성 — 엔진 맞춤 프롬프트로 시도하고, 실패(콘텐츠 필터 등) 시
    단계적으로 더 안전·추상적인 폴백 프롬프트로 재시도한다. 성공 캔버스 또는 null 반환.
    → 한 컷이 막혀도 번호가 비지 않게(7 다음 9 같은 누락 방지) 한다. */
+/* ══ 강단 스크린 규격 (v556) ═══════════════════════════════════════════════
+   강단 스크린은 셋 — 가운데 초광각(4160×1620) 1대 + 양옆 16:9 2대.
+   같은 그림을 두 화면에 억지로 늘려 쓰던 것을 고쳐, 한 번 생성한 배경에서
+   ①가운데용 초광각 원본 ②사이드용 좌우 크롭본(가운데 기준) 두 벌을 만든다.
+   ★가운데는 화소가 커서 PNG면 20장에 250MB를 넘는다(실측 13.2MB/장) → JPEG q0.94(1.7MB/장).
+     사이드는 기존과 같은 PNG 이므로 zip 루트를 읽던 코드가 그대로 동작한다. */
+var SCR_WIDE = { w: 4160, h: 1620, ar: '4160:1620', ext: '.jpg', type: 'image/jpeg', q: 0.94, label: '가운데 초광각 4160×1620' };
+var SCR_SIDE = { w: 1920, h: 1080, ar: '16:9',      ext: '.png', type: 'image/png',  q: undefined, label: '사이드 16:9 1920×1080' };
+var SIDE_DIR = 'side-1920x1080/';   /* zip 안 사이드 폴더 — 맥 NFD 문제를 피해 ASCII 이름 */
+/* 'both'(기본) = 두 벌 · 'wide' = 초광각만 · 'side' = 16:9만(예전 동작) */
+function imgScreens(){ var v = state.settings && state.settings.imgScreens; return (v === 'wide' || v === 'side') ? v : 'both'; }
+/* 이번 생성에서 만들 화면 목록. 첫 번째가 zip 루트(기본 세트), 나머지는 하위 폴더. */
+function imgScreenTargets(){
+  var m = imgScreens();
+  if (m === 'wide') return [ { s: SCR_WIDE, dir: '' } ];
+  if (m === 'side') return [ { s: SCR_SIDE, dir: '' } ];
+  return [ { s: SCR_WIDE, dir: '' }, { s: SCR_SIDE, dir: SIDE_DIR } ];
+}
+/* 생성 API에 요청할 비율 — 초광각을 쓰면 초광각으로 받아 두고 사이드는 그것을 잘라 만든다. */
+function imgGenAR(){ return imgScreens() === 'side' ? SCR_SIDE.ar : SCR_WIDE.ar; }
+/* src 를 w×h 로 맞춘 캔버스. 비율이 다르면 늘이지 않고 가운데 기준으로 잘라 채운다(cover). */
+function fitCanvasCover(src, w, h){
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  var ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  var sw = src.width, sh = src.height, k = Math.max(w / sw, h / sh);
+  var dw = sw * k, dh = sh * k;
+  ctx.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  return cv;
+}
 async function genBgWithRetry(c, engine){
   var rt = engineRoute('background', engine);
   var prompts = [ buildBgPrompt(c, engine) ].concat(safeFallbackPrompts(c));
   for (var k = 0; k < prompts.length; k++){
     if (window._cascAbort) throw new Error('__ABORT__');
     try {
-      var r = await genSermonImage({ jobType: 'background', prompt: prompts[k], aspectRatio: '16:9', provider: rt.provider, model: rt.model });
+      var r = await genSermonImage({ jobType: 'background', prompt: prompts[k], aspectRatio: imgGenAR(), provider: rt.provider, model: rt.model });
       if (r && r.b64) return { canvas: processGeneral(await loadImgEl(r.src)), fallback: k > 0 };
     } catch (e) { /* 다음(더 안전한) 폴백 프롬프트로 */ }
   }
@@ -22108,7 +22141,7 @@ async function genCoverWithRetry(c, engine){
   for (var k = 0; k < prompts.length; k++){
     if (window._cascAbort) throw new Error('__ABORT__');
     try {
-      var r = await genSermonImage({ jobType: 'background', prompt: prompts[k], aspectRatio: '16:9', provider: rt.provider, model: rt.model });
+      var r = await genSermonImage({ jobType: 'background', prompt: prompts[k], aspectRatio: imgGenAR(), provider: rt.provider, model: rt.model });
       if (r && r.b64) return { canvas: processGeneral(await loadImgEl(r.src)), fallback: k > 0 };
     } catch (e) { /* 다음(더 안전한) 폴백 프롬프트로 */ }
   }
@@ -22121,31 +22154,47 @@ async function generateImageSetFromCuts(id, meta, cuts){
   renumberCuts(cuts);   /* ★ 번호 #1=표지, #2부터 연속·고유(옛 사이드카 컷도 교정) */
   var eng = imgEngine();
   var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [], warn = [];
+  var targets = imgScreenTargets();   /* [0] = zip 루트(기본 세트), 나머지는 하위 폴더 */
   for (var i = 0; i < cuts.length; i++){
     if (window._cascAbort) { if (made) break; throw new Error('__ABORT__'); }   /* 사용자 중단 — 만든 것까지는 저장 */
     var c = cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
     var tag = ('0' + c.n).slice(-2);   /* 이미지 번호만 — 파인더 정렬·혼동 방지 */
     setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
     try {
-      var blob;
-      /* 본문 컷은 직전 일반 이미지의 파생본. 파생할 직전 이미지가 없으면 일반 컷처럼 새로 생성. */
-      if (isScr && lastCanvas){
-        blob = await deriveScriptureBg(lastCanvas, c);   /* 직전 일반 이미지를 어둡게·흐리게 + 성구(장절·본문) 자동 합성 */
-      } else {
+      /* ① 이 컷의 "텍스트 없는 배경" 한 장을 먼저 정한다(생성 비율 = 가운데 화면 기준) */
+      var bg = null, isDeriv = false;
+      if (isScr && lastCanvas){ bg = lastCanvas; isDeriv = true; }   /* 본문 컷 = 직전 일반 이미지의 파생본 */
+      else {
         var got = isCover ? await genCoverWithRetry(c, eng) : await genBgWithRetry(c, eng);
         if (got && got.canvas){
-          lastCanvas = got.canvas;   /* 표지도 "텍스트 없는 원본"을 파생 소스로 보관(합성본이 섞이지 않게) */
-          blob = isCover ? await composeCoverBlob(got.canvas, meta) : await canvasToBlob(got.canvas);
+          bg = lastCanvas = got.canvas;   /* 표지도 "텍스트 없는 원본"을 파생 소스로 보관(합성본이 섞이지 않게) */
           if (got.fallback) warn.push('#' + c.n + '(안전 폴백 프롬프트로 생성)');
         }
-        else if (lastCanvas){ blob = await deriveScriptureBg(lastCanvas); warn.push('#' + c.n + '(직전 이미지 파생으로 대체)'); }   /* 번호 누락 방지 */
+        else if (lastCanvas){ bg = lastCanvas; isDeriv = true; warn.push('#' + c.n + '(직전 이미지 파생으로 대체)'); }   /* 번호 누락 방지 */
         else { fail.push('#' + c.n + '(생성 불가)'); continue; }   /* 첫 컷부터 전부 실패한 극단적 경우만 건너뜀 */
       }
-      out.file(tag + '.png', blob); made++;
+      /* ② 화면 규격마다 잘라 맞춘 뒤 각각 합성한다 — 제목·성구 텍스트는 규격별로 다시 앉혀야
+         (초광각에 맞춘 글자를 나중에 자르면 좌우가 잘려 나가므로) 두 판 모두 온전하다. */
+      for (var t = 0; t < targets.length; t++){
+        var T = targets[t], base = fitCanvasCover(bg, T.s.w, T.s.h);
+        var b = isDeriv ? await deriveScriptureBg(base, isScr ? c : null, T.s)
+              : isCover ? await composeCoverBlob(base, meta, T.s)
+              : await canvasToBlob(base, T.s.type, T.s.q);
+        out.file(T.dir + tag + T.s.ext, b);
+      }
+      made++;
     } catch (e2) {
       if ((e2 && e2.message) === '__ABORT__') { if (made) break; throw e2; }
       /* 예외 시에도 가능하면 직전 이미지 파생으로 슬롯을 채워 번호 유지 */
-      try { if (lastCanvas) { out.file(tag + '.png', await deriveScriptureBg(lastCanvas)); made++; warn.push('#' + c.n + '(오류-직전 파생 대체)'); } else fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
+      try {
+        if (lastCanvas) {
+          for (var t2 = 0; t2 < targets.length; t2++){
+            var T2 = targets[t2];
+            out.file(T2.dir + tag + T2.s.ext, await deriveScriptureBg(fitCanvasCover(lastCanvas, T2.s.w, T2.s.h), null, T2.s));
+          }
+          made++; warn.push('#' + c.n + '(오류-직전 파생 대체)');
+        } else fail.push('#' + c.n + '(' + (e2.message || e2) + ')');
+      }
       catch (e3) { fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
     }
   }
@@ -22156,7 +22205,7 @@ async function generateImageSetFromCuts(id, meta, cuts){
   await saveBlobToResults(blobZ, nm.backstagePrefix + '_' + made + '장.zip');
   hideGenOverlay(); renderSyncState();
   if (id) { aiMarkDone(id, '이미지생성', '앱 직접 생성(' + made + '장)'); try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '이미지생성', '상태': '완료', '링크': '', '비고': '앱 직접 생성(' + made + '장)' } }); } catch (e) {} }
-  toast('이미지 세트 저장 완료 — ' + made + '장' + (warn.length ? (' · 폴백 ' + warn.length) : '') + (fail.length ? (' · 누락 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
+  toast('이미지 세트 저장 완료 — ' + made + '장 × ' + targets.length + '벌(' + targets.map(function(T){ return T.s.label; }).join(' + ') + ')' + (warn.length ? (' · 폴백 ' + warn.length) : '') + (fail.length ? (' · 누락 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
   if (warn.length) console.warn('이미지 폴백 컷:', warn);
   if (fail.length) console.warn('이미지 생성 누락 컷:', fail);
 }
@@ -22179,6 +22228,17 @@ function pngToCanvas(blob){
   });
 }
 /* 저장된 백스테이지 zip 찾기(가장 최근 것) */
+/* zip 에서 컷 번호 n 의 기본 세트(루트) 파일 — 확장자(png/jpg)와 무관하게 찾는다. (v556) */
+function zipCutFile(zip, n){
+  var tag = ('0' + n).slice(-2);
+  return zip.file(tag + '.png') || zip.file(tag + '.jpg') || zip.file(tag + '.jpeg') || null;
+}
+/* 컷 번호 n 의 모든 판(루트·하위 폴더·모든 확장자)을 zip 에서 제거 */
+function zipDropCut(zip, n){
+  var tag = ('0' + n).slice(-2);
+  var re = new RegExp('(?:^|/)' + tag + '\\.(?:png|jpe?g)$', 'i');
+  Object.keys(zip.files).forEach(function(k){ if (!zip.files[k].dir && re.test(k)) zip.remove(k); });
+}
 async function loadImgSetZip(meta){
   if (!canFolderSave()) return null;
   try { await xPerm(); } catch (e) { return null; }
@@ -22291,30 +22351,54 @@ async function imgRegenOne(n){
       var p = i - 1; while (p >= 0 && cuts[p].type === '본문') p--;
       if (p < 0) throw new Error('파생할 직전 일반 이미지를 찾지 못했습니다.');
       if (!pack) throw new Error('저장된 이미지 zip이 없어 파생할 원본이 없습니다 — 먼저 전체 생성을 해주세요.');
-      var pf = pack.zip.file(('0' + cuts[p].n).slice(-2) + '.png');
+      var pf = zipCutFile(pack.zip, cuts[p].n);
       if (!pf) throw new Error('zip에서 #' + cuts[p].n + ' 이미지를 찾지 못했습니다.');
       srcCanvas = await pngToCanvas(await pf.async('blob'));
-      made.push({ n: c.n, blob: await deriveScriptureBg(srcCanvas, c) });
+      made.push({ n: c.n, bg: srcCanvas, kind: 'scr', cut: c });
     } else {
       var got = isCover ? await genCoverWithRetry(c, eng) : await genBgWithRetry(c, eng);
       if (!got || !got.canvas) throw new Error('이미지 생성 실패(엔진 응답 없음) — 다른 엔진으로 시도해 보세요.');
       srcCanvas = got.canvas;
-      made.push({ n: c.n, blob: isCover ? await composeCoverBlob(srcCanvas, S.meta) : await canvasToBlob(srcCanvas) });
+      made.push({ n: c.n, bg: srcCanvas, kind: isCover ? 'cover' : 'bg' });
       /* ★ 뒤에 붙은 본문 컷들은 이 이미지의 파생본이므로 함께 다시 만든다 */
       for (var q = i + 1; q < cuts.length && cuts[q].type === '본문'; q++){
         irStage('본문 #' + cuts[q].n + ' 을(를) 새 이미지에서 다시 파생하는 중…', 'busy');
-        made.push({ n: cuts[q].n, blob: await deriveScriptureBg(srcCanvas, cuts[q]) });
+        made.push({ n: cuts[q].n, bg: srcCanvas, kind: 'scr', cut: cuts[q] });
+      }
+    }
+    /* 배경 → 화면 규격별 완성본. 전체 생성과 같은 규칙(규격마다 잘라 맞춘 뒤 텍스트 합성). (v556) */
+    var targets = imgScreenTargets();
+    for (var mi = 0; mi < made.length; mi++){
+      var M = made[mi]; M.files = [];
+      for (var ti = 0; ti < targets.length; ti++){
+        var T = targets[ti], base = fitCanvasCover(M.bg, T.s.w, T.s.h);
+        var b = M.kind === 'scr' ? await deriveScriptureBg(base, M.cut, T.s)
+              : M.kind === 'cover' ? await composeCoverBlob(base, S.meta, T.s)
+              : await canvasToBlob(base, T.s.type, T.s.q);
+        M.files.push({ dir: T.dir, ext: T.s.ext, blob: b });
+        if (ti === 0) M.blob = b;   /* 미리보기·낱장 저장은 기본 세트 */
       }
     }
     irStage('저장하는 중… (' + made.length + '장)', 'busy');
     /* 저장 — zip이 있으면 그 안의 번호만 교체해 덮어쓰기, 없으면 낱장 PNG */
     if (pack) {
-      for (var m = 0; m < made.length; m++) pack.zip.file(('0' + made[m].n).slice(-2) + '.png', made[m].blob);
+      for (var m = 0; m < made.length; m++){
+        var tg = ('0' + made[m].n).slice(-2);
+        zipDropCut(pack.zip, made[m].n);   /* 옛 확장자(png↔jpg)·옛 폴더 잔재를 지우고 새로 넣는다 */
+        made[m].files.forEach(function(f){ pack.zip.file(f.dir + tg + f.ext, f.blob); });
+      }
       var out = await pack.zip.generateAsync({ type: 'blob', compression: 'STORE' });
       var w = await pack.h.createWritable(); await w.write(out); await w.close();
     } else {
       var base = imgDataNames(S.meta).backstagePrefix;
-      for (var m2 = 0; m2 < made.length; m2++) await saveBlobToResults(made[m2].blob, base + '_재생성_' + ('0' + made[m2].n).slice(-2) + '.png');
+      for (var m2 = 0; m2 < made.length; m2++){
+        var tg2 = ('0' + made[m2].n).slice(-2);
+        var fs2 = made[m2].files;
+        for (var f2 = 0; f2 < fs2.length; f2++){
+          var suffix = fs2[f2].dir ? '_사이드' : '';
+          await saveBlobToResults(fs2[f2].blob, base + '_재생성_' + tg2 + suffix + fs2[f2].ext);
+        }
+      }
     }
     /* 결과 미리보기 — 어떤 그림이 나왔는지 바로 확인하고, 마음에 안 들면 다시 누른다 */
     window._irThumbs = window._irThumbs || [];
