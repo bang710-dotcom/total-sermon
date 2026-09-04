@@ -1967,6 +1967,7 @@ body.uiDlgOpen{overflow:hidden}
             <option value="text">제목 텍스트 (Nano Banana · 테스트용)</option>
           </select>
           <select id="imgProxyAR">
+            <option value="4160:1620">4160:1620 (강단 초광각)</option>
             <option value="16:9">16:9</option>
             <option value="9:16">9:16</option>
             <option value="1:1">1:1</option>
@@ -21377,6 +21378,13 @@ async function genSermonImage(opts){
                : '이미지를 길게 눌러 사진/파일로 저장하세요';
       out.innerHTML = '<div class="cnt">' + res0.provider + ' · ' + res0.model + ' — ' + note + '</div>';
       var img = document.createElement('img');
+      /* 받은 실제 픽셀 크기를 함께 보여 준다 — 초광각 요청이 워커에 반영됐는지 이걸로 확인한다 (v556).
+         예: "4160:1620" 요청에 2304×896(비율 2.57)이 오면 새 워커, 1536×864(1.78)면 아직 옛 워커. */
+      img.onload = function(){
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var head = out.querySelector('.cnt');
+        if (head) head.textContent += ' · 실제 ' + w + '×' + h + ' (비율 ' + (w / h).toFixed(2) + ')';
+      };
       img.src = res0.src; img.style.cssText = 'max-width:100%;border-radius:10px;margin-top:6px;display:block';
       img.alt = '생성된 설교 이미지 — ' + (prompt || jobType).slice(0, 80);
       out.appendChild(img);
@@ -24002,7 +24010,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v556';
+var APP_VER = 'v557';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
