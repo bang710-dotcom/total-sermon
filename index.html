@@ -17319,7 +17319,7 @@ async function ensureTransTable(id, meta){
   var stored = id ? sermonTrans(id) : null;
   var storedSig = null;
   if (s) { try { storedSig = (JSON.parse(s['파일맵'] || '{}') || {}).transSig; } catch (e) {} }
-  var force = !!(window._cascForce && !window._cascTableFresh);   /* [다시 생성] — 이번 실행 첫 호출에서 한 번만 새로, 이후 같은 표 재사용 */
+  var force = !!(window._cascForce && !window._cascTableFresh && !window._cascKeepTrans);   /* [다시 생성] — 이번 실행 첫 호출에서 한 번만 새로, 이후 같은 표 재사용. _cascKeepTrans = Total 에서 "기존 전환표 유지"를 고른 실행(v555) */
   window._transRealigned = false;
   if (!force && stored && stored.length && storedSig && storedSig === sig) return normalizeTransTable(stored);   /* 같은 원고 → 재사용(번호 정규화) */
   if (!txt) return stored ? normalizeTransTable(stored) : null;   /* 원고 없으면 계획 불가 — 기존 것 반환 */
@@ -20650,7 +20650,7 @@ async function runCascade(target, id, meta){
   /* ★ Total = 가지 토글에서 켜둔 산출물만 생성(원고 DOCX는 항상 포함). 단일 버튼은 sel=null. */
   var sel = (target === 'total') ? cascSel() : null;
   if (sel && !cascSelAny(sel)) { toast('생성할 산출물을 하나 이상 켜 주세요 — 각 가지 버튼 오른쪽 토글.'); return; }
-  window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false;   /* 강제 재생성 플래그 초기화 */
+  window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; window._cascKeepTrans = false;   /* 강제 재생성 플래그 초기화 */
   /* 이미 만든 적 있고 원고가 그대로면 — 다시 만들지 묻는다(결과물 보기 / 다시 생성하기 / 닫기).
      원고가 바뀌었으면 묻지 않고 새로 만든다. */
   /* 전환표 단독 실행은 "이미 있어요?" 3지선다를 건너뛴다 — 있으면 그대로 쓰고 바로 표를 펼쳐 보여 주는 게
@@ -20676,6 +20676,14 @@ async function runCascade(target, id, meta){
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg || sel.transpdf));
   var wantTrans = cascWantTrans(target, sel, inA, inB);
   window._cascNoTrans = !wantTrans;   /* 카드 가지가 안에서 부르는 ensureTransTable 이 새 표를 만들지 않도록 */
+  /* ★ Total 은 켜둔 산출물을 전부 새로 만들지만, 전환표만은 한 번 묻는다 (v555).
+     따로 잡아 둔 표에 맞춰 이미지를 이미 만들어 둔 경우가 많아, 말없이 새 표를 잡으면 번호·시점이 어긋난다.
+     취소(바깥 클릭·ESC 포함)는 "유지" 쪽으로 떨어진다 — 잃는 것이 없는 선택이 기본값. */
+  if (target === 'total' && wantTrans && id && sermonTrans(id)) {
+    var again = await uiConfirm('생성된 전환표가 있는데, 전환표부터 다시 생성할까요?\n\n[기존 전환표 유지]를 고르면 그 표를 그대로 두고 나머지 산출물만 새로 만듭니다 — 이미 만들어 둔 배경 이미지와 번호가 계속 맞습니다.',
+      { okText: '다시 생성', cancelText: '기존 전환표 유지' });
+    if (!again) window._cascKeepTrans = true;
+  }
   var k = 0;
   cascShow(cascStepList(target));
   var fails = [];   /* 한 단계가 실패해도 멈추지 않고 다음 단계로 — 무엇이 실패했는지 모아 알린다 */
@@ -20740,7 +20748,7 @@ async function runCascade(target, id, meta){
     if ((e && e.message) === '__ABORT__') { toast('생성을 중단했습니다 — 만들던 단계까지만 저장됩니다.'); var cna = $('#cascNow'); if (cna) cna.textContent = '⏹ 중단되었습니다.'; await new Promise(function(r){ setTimeout(r, 1500); }); }
     else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
   }
-  finally { window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; window._cascNoTrans = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
+  finally { window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; window._cascNoTrans = false; window._cascKeepTrans = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
   /* 전환표 단독 실행은 끝나고 표를 바로 펼쳐 보여 준다 — 옛 [🔎 보기·다시 잡기] 버튼을 이 버튼 하나로 합쳤다(v553).
      그 창 안에 [🔄 다시 잡기]·[📂 이전 전환표 되읽기]가 그대로 있다. */
   if (target === 'transtable' && !window._cascAbort) { try { await transTableOpen(); } catch (e) {} }
@@ -23890,7 +23898,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v554';
+var APP_VER = 'v555';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
