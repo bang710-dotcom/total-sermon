@@ -17319,6 +17319,9 @@ async function ensureTransTable(id, meta){
       return rows0;
     }
   }
+  /* ★ v553: 전환표 토글을 끄고 카드 가지만 뽑는 경우 — 있는 표는 쓰되(위 재사용·재정렬) 새 표는 만들지 않는다.
+     원고 전문을 넣는 Opus 호출이라, 이미지를 안 쓰는 원고에서는 이 한 번이 그대로 낭비가 된다. */
+  if (window._cascNoTrans) return stored ? normalizeTransTable(stored) : null;
   _transRegen = true;   /* 여기부터는 새로 생성(원고가 바뀌었거나 최초) */
   var out = await callClaude(P_TRANSPLAN, JSON.stringify({ 제목: meta['제목'], 본문: meta['본문'], 예배구분: meta['예배구분'], 원고: txt }), 16000, aiTick('이미지 전환표'));
   var j = aiJson(out);
@@ -20423,7 +20426,7 @@ function exportManuscriptDocx(meta){
   var prefix = state.compose.style === '카드원고' ? '카드원고_' : '';
   var p = exportDocxParas(meta, parasFromCompose(meta, state.compose), prefix);
   saveComposeFinal(meta);                 /* 최종본 시트 반영 + 상태 승격 */
-  /* ★ v552: 전환표는 여기서 만들지 않는다 — [🔀 이미지 전환표] 독립 단계(또는 그 표가 필요한 가지)에서만 만든다.
+  /* ★ v553: 전환표는 여기서 만들지 않는다 — [🔀 이미지 전환표] 독립 단계(또는 그 표가 필요한 가지)에서만 만든다.
      원고는 내보낸 뒤에도 계속 고쳐지므로, "이미지를 쓰기로 확정한 시점"의 원고로 한 번만 잡는 편이 맞다. */
   return p;                               /* 파일 저장 완료를 기다릴 수 있게 프라미스 반환 */
 }
@@ -20497,12 +20500,21 @@ async function saveImgDataDocxFile(meta, cuts){
 /* 캐스케이드 단계 목록(러너의 실행 순서와 동일).
    ★ 의존관계 기반: 요청한 산출물 + 그것이 필요로 하는 이전 단계만 — 형제 산출물은 만들지 않는다.
    (예: [배경 이미지]는 전환표·이미지 컷만 거쳐 이미지로 — 전환표시본·프롬프트는 건너뜀) */
+/* 이번 실행에서 전환표를 만들(갱신할) 것인가 — cascStepList·runCascade 공용 (v553).
+   ① [🔀 이미지 전환표] 자체 ② 이미지 가지(전환표 없이는 만들 수 없다 — 토글과 무관하게 켠다)
+   ③ Total 은 켜둔 토글 ④ 카드 가지 단독 실행은 전환표 토글을 따른다(이미지 없이 카드만 뽑는 경우 끄고 간다).
+   토글이 꺼진 채 카드를 뽑으면 이미 있는 표는 쓰되 새로 만들지는 않는다(_cascNoTrans). */
+function cascWantTrans(target, sel, inA, inB){
+  if (target === 'transtable') return true;
+  if (inB) return true;
+  return sel ? !!sel.transtable : (inA && cascSwOn('transtable'));
+}
 function cascStepList(target){
   var sel = (target === 'total') ? cascSel() : null;   /* Total은 켜둔 산출물만 단계로 표시 */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg || sel.transpdf));
   var s = [];
-  if (inA || inB) s.push({ label: '이미지 전환표' });
+  if (cascWantTrans(target, sel, inA, inB)) s.push({ label: '이미지 전환표' });
   if (target === 'docx' || target === 'total') s.push({ label: fmtTag() + ' 원고' });
   if (inA) {
     s.push({ label: '카드 원고' });
@@ -20639,14 +20651,16 @@ async function runCascade(target, id, meta){
   if (target === 'total') window._cascForce = true;   /* ★ Total Sermon = 켜둔 산출물 전체 재생성(이전 산출물 유무와 무관) */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
   var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg || sel.transpdf));
+  var wantTrans = cascWantTrans(target, sel, inA, inB);
+  window._cascNoTrans = !wantTrans;   /* 카드 가지가 안에서 부르는 ensureTransTable 이 새 표를 만들지 않도록 */
   var k = 0;
   cascShow(cascStepList(target));
   var fails = [];   /* 한 단계가 실패해도 멈추지 않고 다음 단계로 — 무엇이 실패했는지 모아 알린다 */
   function rec(label, e){ try { console.error('[Total Sermon] ' + label + ' 실패:', e); } catch (_) {} fails.push(label + '(' + ((e && e.message) || e) + ')'); }
   function ck(){ if (window._cascAbort) throw new Error('__ABORT__'); }   /* 단계 사이 중단 확인 */
   try {
-    /* 1) 단일 소스 전환표 — 카드·이미지 가지의 공통 이전 단계. (Total/[다시생성]이면 새로, 아니면 재사용) */
-    if (inA || inB) { ck(); cascStep(k++, '이미지 전환표 확인 중…'); try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); } }
+    /* 1) 단일 소스 전환표 — 독립 단계. 이미지 가지는 필수, 카드 가지는 토글을 따른다(v553). */
+    if (wantTrans) { ck(); cascStep(k++, '이미지 전환표 확인 중…'); try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); } }
 
     /* 2) 기본원고(HWPX/DOCX — 설정의 산출물 형식) — docx·Total에서만(다른 산출물의 이전 단계가 아니다).
        ★ 안내 문구는 fmtTag()로 뽑아 실제 만들어지는 형식과 항상 일치시킨다(v502). */
@@ -20703,7 +20717,7 @@ async function runCascade(target, id, meta){
     if ((e && e.message) === '__ABORT__') { toast('생성을 중단했습니다 — 만들던 단계까지만 저장됩니다.'); var cna = $('#cascNow'); if (cna) cna.textContent = '⏹ 중단되었습니다.'; await new Promise(function(r){ setTimeout(r, 1500); }); }
     else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
   }
-  finally { window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
+  finally { window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; window._cascNoTrans = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
 }
 $$('#composeMeta [data-casc]').forEach(function(b){
   b.addEventListener('click', function(){
@@ -23846,7 +23860,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v552';
+var APP_VER = 'v553';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
