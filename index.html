@@ -15315,14 +15315,13 @@ function screenNoteKo(){
            : (m === 'side') ? '사이드 16:9(1920×1080) 한 벌'
            : '가운데 초광각 4160×1620 + 사이드 16:9(1920×1080) 두 벌 — 같은 그림의 좌우 크롭본';
   var vig = (typeof imgVignette === 'function') && imgVignette();
-  var note = '· 화면 규격: ' + size + '. 그림은 화면을 가득 채우며 검은 여백·레터박스 없음'
-    + (vig ? '' : '·비네트 없음') + '.';
+  var note = '· 화면 규격: ' + size + '. 그림은 화면을 가득 채우며 검은 여백·레터박스'
+    + (vig ? '' : '·비네트') + ' 없음.';
   var why = [];
   if (m === 'both') why.push('사이드가 가운데를 잘라 쓰고');
   if (vig) why.push('생성 후 앱이 가장자리를 어둡게 덮으므로');
-  if (m === 'both' && vig) note += ' ' + why.join(' ') + ', 주제와 가장 밝은 빛은 가운데 16:9 영역 안(대략 가로 70%·세로 80% 이내)에 두어야 잘리거나 묻히지 않습니다.';
+  if (vig) note += ' ' + why.join(' ') + ', 주제와 가장 밝은 빛은 화면 가운데(가로·세로 각각 중앙 절반 이내)에 두어야 잘리거나 묻히지 않습니다. 비네팅이 강해 가로 70% 지점이면 이미 밝기가 절반 아래로 떨어집니다.';
   else if (m === 'both') note += ' 사이드가 가운데를 잘라 쓰므로, 주제와 가장 밝은 빛은 가운데 16:9 영역 안에 두어야 잘리지 않습니다.';
-  else if (vig) note += ' 생성 후 앱이 가장자리를 어둡게 덮으므로, 주제와 가장 밝은 빛은 가운데(대략 가로 70%·세로 80% 이내)에 두어야 묻히지 않습니다.';
   return note;
 }
 function screenTail(){
@@ -15341,12 +15340,13 @@ function screenTail(){
     : '';
   var why = [crop, edge].filter(Boolean).join(' and ');
   var safe = '';
-  if (m === 'both' && vig){
-    safe = ' Keep the main subject and the brightest light inside the central 16:9 region and well clear of the top and bottom edges — roughly the middle 70% of the width and 80% of the height — letting the outer margins carry only soft dark atmosphere, because ' + why + '.';
+  /* ★ 비네팅 켬일 때의 '중앙 50%' 는 실측값이다 — 마스크(타원 x13~87%·y10~95% + 폭 7.5% 블러)를
+     흰 판에 씌워 재 보면 원본 밝기의 80% 이상을 유지하는 구역이 가로 52%·세로 50% 뿐이다.
+     가로 70% 지점은 이미 43%까지 어두워진다. 이 숫자를 키우면 주제가 비네트에 묻힌다. */
+  if (vig){
+    safe = ' Keep the main subject and the brightest light in the middle of the frame — within roughly the central half of both the width and the height — letting the outer margins carry only soft dark atmosphere, because ' + why + '.';
   } else if (m === 'both'){
     safe = ' Keep the main subject and the brightest light inside the central 16:9 region, letting the far left and right thirds carry only atmosphere, because ' + why + '.';
-  } else if (vig){
-    safe = ' Keep the main subject and the brightest light near the centre, well clear of all four edges — roughly the middle 70% of the width and 80% of the height — letting the outer margins carry only soft dark atmosphere, because ' + why + '.';
   }
   var ar = (m === 'side')
     ? ' Widescreen 16:9.'
