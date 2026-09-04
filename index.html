@@ -20642,7 +20642,8 @@ function cascStep(i, detail){
   var cc = $('#cascCnt'); if (cc) cc.textContent = '';   /* 새 단계 시작 시 글자수 초기화 */
   var cn = $('#cascNow'); if (cn && detail !== undefined) cn.innerHTML = esc(String(detail).replace(/[.…]+$/, '')) + ' <span class="dots"><i>.</i><i>.</i><i>.</i></span>';
 }
-function cascHide(){ window._cascOn = false; var ov = $('#cascOverlay'); if (ov) ov.classList.remove('on'); }
+function cascHide(){ window._cascOn = false; try { stageStop(); } catch (e) {}   /* 진행 줄 경과 타이머도 함께 정지 (v562) */
+  var ov = $('#cascOverlay'); if (ov) ov.classList.remove('on'); }
 /* 카세이드 버튼 ● 표시 / "만든 적 있음" 판단 — 시트의 산출물 기록(doneTypes) 기준.
    (파일을 결과함에 계속 쌓아두지 않아도 기록으로 안다. 실제 재생성 여부는 아래 모달로 사용자가 결정.) */
 function cascDone(id){
@@ -21400,7 +21401,7 @@ async function genSermonImage(opts){
   /* ★ 타임아웃 (v557) — 예전엔 아무 제한이 없어, 프록시가 응답을 못 주면 생성 화면이 영원히 멈췄다.
      워커 자체 예산(Flux 폴링 120초)보다 넉넉히 위로 잡아 평소엔 워커의 오류 메시지가 그대로 온다. */
   var ac = new AbortController();
-  var to = setTimeout(function(){ ac.abort(); }, 210000);
+  var to = setTimeout(function(){ ac.abort(); }, 150000);
   var r;
   try {
     r = await fetch(c.url + '/generate', {
@@ -21410,7 +21411,7 @@ async function genSermonImage(opts){
     });
   } catch (eF) {
     clearTimeout(to);
-    throw new Error(ac.signal.aborted ? '프록시 응답 없음(210초 초과)' : ('프록시 연결 실패: ' + ((eF && eF.message) || eF)));
+    throw new Error(ac.signal.aborted ? '프록시 응답 없음(150초 초과)' : ('프록시 연결 실패: ' + ((eF && eF.message) || eF)));
   }
   clearTimeout(to);
   var j;
@@ -22245,11 +22246,29 @@ function fitCanvasCover(src, w, h){
 /* 이미지 생성 실패 원인을 남긴다 (v557) — 예전엔 전부 조용히 삼켜서, 폴백 프롬프트로
    재시도하는 동안 화면이 같은 자리에 멈춘 것처럼 보이고 무엇이 잘못됐는지 알 수 없었다. */
 var _imgLastErr = '';
+/* ── 진행 줄 실시간 표시 (v562) ─────────────────────────────────────────────
+   컷 하나가 최대 3번(기본+안전폴백 2)까지 시도되고 한 번에 150초까지 걸릴 수 있어,
+   글자가 고정돼 있으면 "멈췄다"고 오해하게 된다. 경과 초를 1초마다 갱신하고
+   시도 회차·직전 실패 사유를 같은 줄에 붙여, 기다리는 중인지 죽은 것인지 보이게 한다. */
+var _stageTick = null, _stageBase = '', _stageT0 = 0, _stageTry = 1;
+function stageRender(){
+  var s = _stageBase + ' · ' + Math.round((Date.now() - _stageT0) / 1000) + '초';
+  if (_stageTry > 1) s += ' · ' + _stageTry + '번째 시도';
+  if (_imgLastErr) s += ' · 직전 실패: ' + _imgLastErr.slice(0, 70);
+  setGenStage(s);
+}
+function stageStart(base){
+  _stageBase = base; _stageT0 = Date.now(); _stageTry = 1; _imgLastErr = '';
+  clearInterval(_stageTick); stageRender();
+  _stageTick = setInterval(stageRender, 1000);
+}
+function stageStop(){ clearInterval(_stageTick); _stageTick = null; }
 function imgNoteErr(where, k, e){
   var msg = (e && e.message) || String(e);
-  _imgLastErr = where + ': ' + msg;
+  _imgLastErr = msg;
+  _stageTry = k + 2;
   try { console.warn('[이미지 생성] ' + where + ' 시도 ' + (k + 1) + ' 실패 —', msg); } catch (x) {}
-  setGenStage(where + ' 재시도 ' + (k + 2) + '차 — 직전 실패: ' + msg.slice(0, 60));
+  if (_stageTick) stageRender(); else setGenStage(where + ' 재시도 ' + (k + 2) + '차 — 직전 실패: ' + msg.slice(0, 60));
 }
 async function genBgWithRetry(c, engine){
   var rt = engineRoute('background', engine);
@@ -22288,11 +22307,12 @@ async function generateImageSetFromCuts(id, meta, cuts){
   var eng = imgEngine();
   var out = new window.JSZip(), lastCanvas = null, made = 0, fail = [], warn = [];
   var targets = imgScreenTargets();   /* [0] = zip 루트(기본 세트), 나머지는 하위 폴더 */
+  try { stageStop(); } catch (e0) {}   /* 이전 실행의 타이머 잔재 정리 */
   for (var i = 0; i < cuts.length; i++){
     if (window._cascAbort) { if (made) break; throw new Error('__ABORT__'); }   /* 사용자 중단 — 만든 것까지는 저장 */
     var c = cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
     var tag = ('0' + c.n).slice(-2);   /* 이미지 번호만 — 파인더 정렬·혼동 방지 */
-    setGenStage('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
+    stageStart('이미지 생성 ' + (i + 1) + '/' + cuts.length + ' (#' + tag + ')');
     try {
       /* ① 이 컷의 "텍스트 없는 배경" 한 장을 먼저 정한다(생성 비율 = 가운데 화면 기준) */
       var bg = null, isDeriv = false;
@@ -22331,6 +22351,7 @@ async function generateImageSetFromCuts(id, meta, cuts){
       catch (e3) { fail.push('#' + c.n + '(' + (e2.message || e2) + ')'); }
     }
   }
+  stageStop();
   if (!made) throw new Error('생성 실패: ' + (fail.join(', ') || '알 수 없음'));
   setGenStage('압축·저장 중… (' + made + '장)');
   var nm = imgDataNames(meta);
@@ -24115,7 +24136,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v561';
+var APP_VER = 'v562';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
