@@ -1956,6 +1956,12 @@ body.uiDlgOpen{overflow:hidden}
           <option value="wide">가운데 초광각만 (4160×1620)</option>
           <option value="side">사이드 16:9만 (1920×1080)</option>
         </select>
+        <label style="margin-top:14px">🌑 가장자리 비네팅</label>
+        <select id="imgVignetteSel">
+          <option value="off">끔 (기본 · 권장)</option>
+          <option value="on">켬 (가장자리를 검게 페이드)</option>
+        </select>
+        <div class="cnt" style="margin-top:6px">예전에는 16:9 한 장을 전면 와이드 스크린에 띄우느라 <b>좌우 검은 여백과의 경계를 감추려고</b> 가장자리를 검게 흐렸습니다. 이제 전면·사이드를 각각 제 비율로 뽑아 여백 자체가 없으므로 <b>끄는 것이 기본</b>입니다. 화면 사정상 다시 필요하면 켜세요.</div>
         <div class="cnt" style="margin-top:6px">강단 스크린은 가운데 <b>4160×1620</b> 한 대와 양옆 <b>16:9</b> 두 대입니다. 「두 벌 모두」를 고르면 한 번 생성한 배경으로 <b>가운데용 초광각 원본</b>과 <b>사이드용 좌우 크롭본</b>을 함께 만들어, 어느 화면에서도 늘어난 그림이 나오지 않습니다. zip 루트에 가운데용(JPEG), <b>side-1920x1080</b> 폴더에 사이드용(PNG)이 들어갑니다. 생성 요청 자체가 초광각 비율로 나가므로 AI가 처음부터 넓은 화면을 구상합니다.</div>
         <div class="cnt" style="margin-top:6px">설교 이미지 세트(배경 컷)를 만들 때 사용할 AI 엔진입니다. <b>Flux</b>는 분위기·질감 배경, <b>Gemini</b>(Nano Banana)는 더 사실적이고 디테일한 배경, <b>Krea 2 Turbo</b>는 미감(aesthetic)·질감 중심의 회화적 배경에 강하고 장당 비용이 가장 낮습니다(약 $0.02). Gemini·Krea는 자동으로 fal.ai를 경유합니다. 선택은 즉시 저장되며 [배경 이미지 생성]·[전체 이미지 세트]에 그대로 적용됩니다.</div>
         <label style="margin-top:14px">🎨 설교 이미지 생성 (프록시 연결 테스트)</label>
@@ -21073,6 +21079,7 @@ $('#saveSettings').addEventListener('click', function(){
     memoKey: ($('#setMemoKey') ? $('#setMemoKey').value.trim() : (state.settings && state.settings.memoKey) || ''),
     imgEngine: ($('#imgEngineSel') ? $('#imgEngineSel').value : (state.settings && state.settings.imgEngine) || 'flux'),
     imgScreens: ($('#imgScreensSel') ? $('#imgScreensSel').value : (state.settings && state.settings.imgScreens) || 'both'),
+    imgVignette: ($('#imgVignetteSel') ? $('#imgVignetteSel').value === 'on' : !!(state.settings && state.settings.imgVignette)),
     fileFmt: ((state.settings && state.settings.fileFmt) === 'docx') ? 'docx' : 'hwpx' };
   STUDY._memoP = null;   /* 메모 설정 변경 → 다음 열람 때 새로 불러오기 */
   save(LS.settings, state.settings);
@@ -21110,7 +21117,7 @@ function xferDecode(code){
 }
 async function xferApply(o, srcLabel){
   var names = { url: 'API URL', token: 'API 토큰', claudeKey: 'Claude 키', laUrl: '리더스앱 URL', laToken: '리더스앱 토큰',
-    proxyUrl: '이미지 프록시', proxyToken: '프록시 토큰', vidProxyUrl: '유튜브 프록시', geminiKey: 'Gemini 키', memoUrl: '성경앱 메모 URL', memoKey: '성경앱 메모 키', imgEngine: '이미지 엔진', imgScreens: '강단 스크린 출력' };
+    proxyUrl: '이미지 프록시', proxyToken: '프록시 토큰', vidProxyUrl: '유튜브 프록시', geminiKey: 'Gemini 키', memoUrl: '성경앱 메모 URL', memoKey: '성경앱 메모 키', imgEngine: '이미지 엔진', imgScreens: '강단 스크린 출력', imgVignette: '비네팅' };
   var list = Object.keys(o).map(function(k){ return names[k] || k; }).join(' · ');
   if (!await uiConfirm((srcLabel || '설정 코드') + '에서 아래 항목을 이 기기에 적용할까요?\n\n' + list + '\n\n(비어 있지 않은 항목만 덮어씁니다)')) return false;
   state.settings = state.settings || {};
@@ -21122,6 +21129,7 @@ async function xferApply(o, srcLabel){
   Object.keys(f).forEach(function(k){ var el = $(f[k]); if (el && o[k] != null) el.value = o[k]; });
   if (o.imgEngine && $('#imgEngineSel')) $('#imgEngineSel').value = o.imgEngine;
   if (o.imgScreens && $('#imgScreensSel')) $('#imgScreensSel').value = o.imgScreens;
+  if ($('#imgVignetteSel')) $('#imgVignetteSel').value = o.imgVignette ? 'on' : 'off';
   toast('설정을 적용했습니다 — 연결을 확인합니다.');
   try { await api({ action: 'ping' }); toast('연결 성공! 동기화를 시작합니다.'); sync(); } catch (e){ toast(friendlyConnErr(e)); }
   return true;
@@ -21266,6 +21274,17 @@ async function bibPrefetch(from, to, btn){
     state.settings.imgScreens = sel.value;
     save(LS.settings, state.settings);
     toast('강단 스크린 출력: ' + (sel.value === 'wide' ? '가운데 초광각만' : sel.value === 'side' ? '사이드 16:9만' : '두 벌 모두'));
+  });
+})();
+/* 가장자리 비네팅: 변경 즉시 저장 */
+(function(){
+  var sel = document.getElementById('imgVignetteSel');
+  if (!sel) return;
+  sel.addEventListener('change', function(){
+    state.settings = state.settings || {};
+    state.settings.imgVignette = (sel.value === 'on');
+    save(LS.settings, state.settings);
+    toast('가장자리 비네팅: ' + (sel.value === 'on' ? '켬' : '끔'));
   });
 })();
 
@@ -21830,9 +21849,21 @@ function applyGammaSat(cv, gamma, satMul){
   }
   ctx.putImageData(img, 0, 0);
 }
-/* 일반/표지 후처리: 비네트 → 밝기보정(평균<25면 감마 적용). 처리된 canvas 반환(본문 파생의 원본) */
+/* 이미지 엘리먼트를 그대로 캔버스로(후처리 없이) */
+function imgToCanvas(srcImg){
+  var w = srcImg.naturalWidth || srcImg.width, h = srcImg.naturalHeight || srcImg.height;
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  cv.getContext('2d').drawImage(srcImg, 0, 0, w, h);
+  return cv;
+}
+/* 가장자리 비네팅 — 기본 끔 (v559).
+   원래는 16:9 한 장을 전면 와이드 스크린에 띄울 때 좌우 검은 여백과의 경계를 감추려던 처리였다.
+   v556부터 전면(초광각)·사이드(16:9)를 각각 제 비율로 뽑으므로 여백 자체가 없어져 필요가 없다.
+   화면 사정상 다시 필요하면 설정에서 켠다. */
+function imgVignette(){ return !!(state.settings && state.settings.imgVignette); }
+/* 일반/표지 후처리: (선택)비네트 → 밝기보정(평균<25면 감마 적용). 처리된 canvas 반환(본문 파생의 원본) */
 function processGeneral(srcImg){
-  var cv = applyVignette(srcImg);
+  var cv = imgVignette() ? applyVignette(srcImg) : imgToCanvas(srcImg);
   var mean = meanLuma(cv);
   if (mean > 0 && mean < 25){
     var gamma = Math.max(0.40, Math.min(1.0, Math.log(42 / 255) / Math.log(mean / 255)));
@@ -22198,7 +22229,7 @@ async function genCoverWithRetry(c, engine){
   }
   return null;
 }
-/* 컷 배열로 실제 이미지 세트 생성: 표지=중앙 여백 배경 생성+제목·본문 합성, 일반=선택 엔진(Flux/Gemini/Krea) 배경(+표준 비네트·밝기보정), 본문=직전 일반 이미지 파생+성구 합성 */
+/* 컷 배열로 실제 이미지 세트 생성: 표지=중앙 여백 배경 생성+제목·본문 합성, 일반=선택 엔진(Flux/Gemini/Krea) 배경(+밝기보정, 비네트는 설정 시에만), 본문=직전 일반 이미지 파생+성구 합성 */
 async function generateImageSetFromCuts(id, meta, cuts){
   if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
@@ -24033,7 +24064,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v558';
+var APP_VER = 'v559';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -24079,6 +24110,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if ($('#setMemoKey')) $('#setMemoKey').value = state.settings.memoKey || '';
   if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
   if ($('#imgScreensSel')) $('#imgScreensSel').value = state.settings.imgScreens || 'both';
+  if ($('#imgVignetteSel')) $('#imgVignetteSel').value = state.settings.imgVignette ? 'on' : 'off';
   try { renderSetBadges(); } catch (eSb){}       /* 연결 설정 그룹 상태 배지 (v478) */
   try { renderGateBox(); } catch (eGb){}         /* 저작권 자료 상태 갱신 */
   setTimeout(function(){ try { xferBootFromHash(); } catch (eXf){} }, 800);   /* 이전 링크(#tsa-setup=…) 설정 주입 — uiConfirm(3번째 블록) 파싱 후 실행 */
