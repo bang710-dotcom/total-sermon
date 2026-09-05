@@ -3847,14 +3847,31 @@ function illComposeUsedIdeaIds(){
   });
   return out;
 }
+/* 지금 작성창의 예화 구조를 사용 기록의 '정본'으로 믿어도 되는가 (v563).
+   구조에 예화 블록이 하나도 없는데 원고 본문에는 ex) 가 있으면 자유원고 파싱이 실패한 상태다.
+   그때 기록을 지우면 멀쩡한 사용 이력이 통째로 날아가므로, 추가만 하고 삭제는 하지 않는다. */
+function composeIllTrustworthy(){
+  var n = 0;
+  (state.compose.points || []).forEach(function(p){ pBlocks(p).forEach(function(b){ if (b && b.type === 'ill') n++; }); });
+  if (n > 0) return true;
+  return !/(^|\n)\s*(?:ex\)|\(예화\))/i.test(String(state.compose.free || ''));
+}
 function illRecordUsage(sermonId){
   sermonId = String(sermonId || '').trim(); if (!sermonId) return;
   var ids = illComposeUsedIdeaIds();
-  ids.forEach(function(iid){
-    var d = findIdea(iid); if (!d) return;
+  /* ★ v563: 예전에는 '누적'만 했다. 예화를 바꿔 저장해도 수정 전 예화에 이 설교 ID가 남아
+     [지난 설교 예화 회고]가 옛 예화를 보여 줬다. 이제 이 설교에 대해서는 지금 원고에 있는
+     예화만 남도록 맞춘다(없어진 예화에서는 이 설교 ID를 뺀다). */
+  var want = {}, prune = composeIllTrustworthy();
+  ids.forEach(function(i){ want[i] = 1; });
+  (state.data.ideas || []).forEach(function(d){
+    if (!d || d['유형'] !== '예화') return;
     var cur = String(d['사용설교ID'] || '').split(/[,;]\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
-    if (cur.indexOf(sermonId) >= 0) return;   /* 이미 기록됨 — 멱등 */
-    cur.push(sermonId); var val = cur.join(', ');
+    var has = cur.indexOf(sermonId) >= 0, need = !!want[d['ID']];
+    if (has === need) return;                 /* 이미 맞음 — 멱등 */
+    if (has && !prune) return;                /* 구조를 믿을 수 없으면 지우지 않는다 */
+    var next = need ? cur.concat([sermonId]) : cur.filter(function(x){ return x !== sermonId; });
+    var val = next.join(', ');
     d['사용설교ID'] = val;   /* 로컬 즉시 반영(역링크·중복체크 배지) */
     if (state.settings && state.settings.url && state.settings.token){
       apiPost({ action: 'update', sheet: 'ideas', data: { ID: d['ID'], '사용설교ID': val } }).catch(function(){});
@@ -3866,7 +3883,19 @@ function illRecordUsage(sermonId){
      기다렸다가 기록한다. 그 사이 작성창이 바뀌어도 되도록 지금의 대지 배열을 붙잡아 넘긴다. (v547) */
   try {
     var pts = state.compose.points;
-    var run = function(){ try { illComposeUsedLibIds(pts).forEach(function(lid){ illUseRecord(lid, sermonId); }); } catch (e){} };
+    var run = function(){
+      try {
+        var wantL = {};
+        illComposeUsedLibIds(pts).forEach(function(lid){ wantL[lid] = 1; illUseRecord(lid, sermonId); });
+        if (!prune) return;
+        var m0 = illUseStore();   /* 이 설교에 기록돼 있지만 지금 원고에 없는 라이브러리 예화 → 기록에서 뺀다 */
+        Object.keys(m0).forEach(function(lid){
+          if (wantL[lid] || /^INBOX_I\d+/.test(lid)) return;
+          if (String(m0[lid] || '').split(/[,;]\s*/).map(function(x){ return x.trim(); }).indexOf(sermonId) < 0) return;
+          illUseUnrecord(lid, sermonId);
+        });
+      } catch (e){}
+    };
     if (ILLUST && ILLUST._sharded && !ILLUST._storyDone && typeof illEnsureStories === 'function') illEnsureStories().then(run).catch(run);
     else run();
   } catch (e){}
@@ -3910,6 +3939,19 @@ function illUseRecord(libId, sermonId){
   if (cur.indexOf(sermonId) >= 0) return false;   /* 멱등 */
   cur.push(sermonId); m[libId] = cur.join(', ');
   illUseSave(m); illUsePush(libId, m[libId]);
+  return true;
+}
+/* 사용 기록에서 이 설교만 뺀다 (v563 — 원고에서 빠진 예화 정리용) */
+function illUseUnrecord(libId, sermonId){
+  libId = String(libId || ''); sermonId = String(sermonId || '').trim();
+  if (!libId || !sermonId) return false;
+  var m = illUseStore();
+  var cur = String(m[libId] || '').split(/[,;]\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+  var i = cur.indexOf(sermonId); if (i < 0) return false;
+  cur.splice(i, 1);
+  var val = cur.join(', ');
+  if (val) m[libId] = val; else delete m[libId];
+  illUseSave(m); illUsePush(libId, val);
   return true;
 }
 /* 제목 정규화 — 공백·문장부호를 걷어낸 뒤 비교(코워크 원고의 표기 차이 흡수). */
@@ -4724,6 +4766,17 @@ function renderIllRecap(){
       String(ids || '').split(/[,;]\s*/).forEach(function(x){ x = x.trim(); if (!hit && sidSet[x]) hit = sidSet[x]; });
       return hit;
     }
+    /* ★ v563: 사용 기록만 믿지 않고 그 설교의 '지금' 내용과 대조한다.
+       기록은 저장할 때마다 쌓이던 것이라(그리고 다른 기기에서 동기화되기도 해서) 예화를 바꾼 뒤에도
+       수정 전 예화가 남아 있을 수 있다. 그러면 회고가 실제로 전하지 않은 예화를 물어보게 된다.
+       대조할 내용(예화 요약·원고텍스트)이 아예 없으면 예전처럼 통과시킨다. */
+    function stillInSermon(it, s){
+      var nt = illNormT(it.title || '');
+      if (nt.length < 4) return true;
+      var sum = illNormT(String(s['예화'] || '')), txt = illNormT(String(s['원고텍스트'] || ''));
+      if (!sum && !txt) return true;
+      return (sum && sum.indexOf(nt) >= 0) || (txt && txt.indexOf(nt) >= 0);
+    }
     pool.forEach(function(it){
       if (seen[it.key] || ratedAlready(it.key)) return;
       var s = null;
@@ -4731,6 +4784,7 @@ function renderIllRecap(){
       if (iid){ var d = findIdea(iid); if (d) s = hitSermon(d['사용설교ID']); }
       if (!s && /^lib:/.test(it.key)) s = hitSermon(useMap[String(it.key).slice(4)]);
       if (!s) return;
+      if (!stillInSermon(it, s)) return;   /* 수정 전 예화 — 지금 원고에 없으면 회고에서 뺀다 */
       seen[it.key] = 1;
       items.push({ it: it, s: s });
     });
@@ -24136,7 +24190,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v562';
+var APP_VER = 'v563';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
