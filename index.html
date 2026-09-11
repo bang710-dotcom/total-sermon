@@ -5555,13 +5555,24 @@ function studyLoadFeatures(){
     .then(function(d){ STUDY.feats = d.features || {}; return STUDY.feats; });
 }
 function openFeat(id){
+  var ov = $('#featOv'), body = $('#featBody');
+  /* v566: 세션 첫 클릭엔 별항 파일(0.5MB)을 다 받은 뒤에야 창이 떠서 그동안 아무 반응이 없었다.
+     아직 안 받았으면 창부터 띄우고 「불러오는 중…」을 보여 준다. 받는 동안 사용자가 창을 닫았으면 다시 열지 않는다. */
+  var shown = !STUDY.feats;
+  if (shown){
+    $('#featTitle').textContent = 'Holman 별항';
+    body.innerHTML = '<div class="cnt" style="padding:18px 4px">별항을 불러오는 중…</div>';
+    ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  }
+  function msg(t){ if (shown && ov.classList.contains('on')) body.innerHTML = '<div class="cnt" style="padding:18px 4px">' + esc(t) + '</div>'; toast(t); }
   studyLoadFeatures().then(function(F){
-    var f = F[id]; if (!f){ toast('별항 내용을 찾을 수 없습니다.'); return; }
+    if (shown && !ov.classList.contains('on')) return;   /* 불러오는 사이 닫음 */
+    var f = F[id]; if (!f){ msg('별항 내용을 찾을 수 없습니다.'); return; }
     $('#featTitle').textContent = f.t || '';
-    $('#featBody').innerHTML = hbRenderBody(f.b || '');
-    $('#featBody').scrollTop = 0;
-    var ov = $('#featOv'); ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
-  }).catch(function(e){ toast('별항을 불러올 수 없습니다: ' + e.message); });
+    body.innerHTML = hbRenderBody(f.b || '');
+    body.scrollTop = 0;
+    ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  }).catch(function(e){ msg('별항을 불러올 수 없습니다: ' + e.message); });
 }
 function studyRenderHolman(d){
   if (!d || !d.chapters || !d.chapters[0] || !d.chapters[0][0]) return '<div class="cnt">이 책의 Holman 핸드북 내용이 없습니다.</div>';
@@ -6229,6 +6240,11 @@ function studyCopyNote(){
   else toast('이 브라우저는 클립보드 복사를 지원하지 않습니다.');
 }
 /* 본문연구 AI 정리 → 성경앱 [노트]. 강단·심방 중 휴대폰 성경앱에서 그 본문을 열면 바로 보인다. */
+/* 「📖 성경앱 노트로」 가속 (v566) — 성경앱 메모 시트 서버(_rowFor)는 createdAt 이 비면 지금 시각으로
+   덮어쓰므로, 기존 노트의 작성일을 지키려면 studyToBible 이 메모 목록을 먼저 알아야 한다(서버 수정 없이는 생략 불가).
+   그 목록을 AI 정리가 화면에 뜨는 순간 미리 받아 두면 사용자가 결과를 읽는 동안 받아지고, 버튼을 누를 땐
+   upsert 1회만 기다린다. tsaMemoLoad 가 프라미스를 캐시하므로 받는 중에 눌러도 같은 요청을 이어받는다. */
+function studyPrefetchMemos(){ try { if (tsaMemoCfg()) tsaMemoLoad().catch(function(){}); } catch (e){} }
 function studyToBible(){
   var j = studyAiGet(studyRangeKey());
   if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
@@ -6733,7 +6749,7 @@ function studyRenderPane(){
   if (STUDY.tab === 'ai'){
     var j = studyAiGet(studyRangeKey());
     var _sst = saiStamp(studyRangeKey());
-    if (j){ pane.innerHTML = (_sst ? '<div class="stSaved">\ud83d\udcbe 저장본 \u00b7 ' + esc(_sst) + ' 생성 \u2014 다시 열 때 그대로 표시됩니다</div>' : '') + renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button">📖 성경앱 노트로</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; return; }
+    if (j){ pane.innerHTML = (_sst ? '<div class="stSaved">\ud83d\udcbe 저장본 \u00b7 ' + esc(_sst) + ' 생성 \u2014 다시 열 때 그대로 표시됩니다</div>' : '') + renderStudyAi(j) + '<div class="stPipe"><button class="btn gold mini stPipeCompose" type="button">📝 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button">📋 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button">📖 성경앱 노트로</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; studyPrefetchMemos(); return; }
     if (STUDY._aiProbing === studyRangeKey()){   /* 저장본 확인 중 — 생성 버튼 대신 안내 */
       pane.innerHTML = '<div class="cnt">\ud83d\udcbe 저장된 본문연구 정리를 불러오는 중\u2026</div>';
       return;
@@ -21309,7 +21325,7 @@ function renderQueueView(){
   btn.addEventListener('click', function(){ box._open = !box._open; btn.textContent = box._open ? '접기' : '보기·관리'; renderQueueView(); });
   box.addEventListener('click', async function(e){
     var f = e.target.closest && e.target.closest('#qFlushNow');
-    if (f){ toast('대기열 전송 시도 중…'); try { await flushQueue(); } catch (e2){} renderSyncState(); renderQueueView(); return; }
+    if (f){ await withBusy(f, '전송 중…', function(){ return flushQueue().catch(function(){}); })(); renderSyncState(); renderQueueView(); return; }   /* v566: 토스트만 뜨고 버튼은 살아 있던 것 → 끝날 때까지 비활성 */
     var b = e.target.closest && e.target.closest('.qDrop'); if (!b) return;
     var i = +b.getAttribute('data-i');
     var item = state.queue[i]; if (!item) return;
@@ -24199,7 +24215,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v565';
+var APP_VER = 'v566';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
