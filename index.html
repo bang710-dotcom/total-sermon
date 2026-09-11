@@ -6242,7 +6242,10 @@ function studyToBible(){
   var id = 'study-' + (BM_USFM[R.idx] || 'unk') + bmPad2(c.startChap) + bmPad2(c.startVerse)
          + '-' + bmPad2(c.endChap) + bmPad2(c.endVerse);
   var themes = (j.신학주제 && j.신학주제.length) ? j.신학주제.slice(0, 5) : [];
-  tsaMemoLoad().catch(function(){ return []; }).then(function(all){
+  /* v565: 프라미스를 돌려준다 — 예전엔 버리고 끝나서 버튼이 완료를 기다릴 수 없었다(무반응처럼 보인 원인).
+     ⏳ 느린 이유: 기존 노트의 createdAt 을 보존하려고 성경앱 메모 전체를 먼저 받아 온 뒤(tsaMemoLoad)
+     upsert 한다 — Apps Script 왕복 2번. */
+  return tsaMemoLoad().catch(function(){ return []; }).then(function(all){
     var prev = (all || []).filter(function(x){ return String(x.id) === id; })[0];
     return bmUpsert({
       id: id, kind: '노트', ref: refShort, title: '본문연구 · ' + refShort,
@@ -6851,7 +6854,7 @@ function fillConc(code){
     }
     var pc = e.target.closest && e.target.closest('.stPipeCompose'); if (pc){ studyToCompose(); return; }
     var py = e.target.closest && e.target.closest('.stPipeCopy'); if (py){ studyCopyNote(); return; }
-    var pb = e.target.closest && e.target.closest('.stPipeBible'); if (pb){ studyToBible(); return; }
+    var pb = e.target.closest && e.target.closest('.stPipeBible'); if (pb){ withBusy(pb, '보내는 중…', studyToBible)(); return; }
     var ck = e.target.closest && e.target.closest('#stCalvinKo'); if (ck){ studyCalvinKo(); return; }
     var mc = e.target.closest && e.target.closest('.stMapCell');
     if (mc){
@@ -20286,12 +20289,14 @@ function withBusy(btn, label, fn){
   return async function(){
     if (btn.dataset.busy) return;
     btn.dataset.busy = '1';
-    var old = btn.innerHTML;
+    var old = btn.innerHTML, wasDis = btn.disabled;
     btn.innerHTML = '<span class="spin"></span>' + label;
     btn.classList.add('busy');
+    btn.disabled = true;   /* v565: 흐리게만이 아니라 실제로 비활성화(키보드 Enter 재실행도 차단) */
     try { await fn(); } finally {
       delete btn.dataset.busy;
       btn.classList.remove('busy');
+      btn.disabled = wasDis;
       btn.innerHTML = old;
     }
   };
