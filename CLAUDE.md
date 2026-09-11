@@ -130,6 +130,20 @@
 - **표시 단계 안전망** — `renderIllRecap` 의 `stillInSermon(it, s)` 가 후보를 그 설교의 **현재 `예화`·`원고텍스트`** 와 대조해 없으면 뺀다. 이미 쌓인 옛 기록과 **다른 기기에서 동기화돼 들어온 기록**까지 걸러 준다(대조할 내용이 아예 없으면 예전처럼 통과).
 - ⚠ 남은 한계: `illUsePull` 이 기기 간 기록을 **합집합**으로 병합하므로, 다른 기기가 옛 기록을 갖고 있으면 로컬에서 지운 것이 다시 살아날 수 있다. 표시 단계 안전망이 그 경우를 가려 주지만, 근본 해결은 툼스톤이 필요하다.
 
+## 버튼 작동 중 표시 — `withBusy` (v565)
+
+「본문연구 → AI 정리 → 📖 성경앱 노트로」가 성경앱 시트 입력이 끝날 때까지 **아무 반응이 없었다**. 두 가지가 겹쳤다 — ① `studyToBible()` 이 프라미스를 **돌려주지 않아** 버튼이 완료를 기다릴 수 없었고 ② 느린 이유는 기존 노트의 `createdAt` 을 보존하려고 **성경앱 메모 전체를 먼저 받아 온 뒤**(`tsaMemoLoad`) upsert 하기 때문(Apps Script 왕복 2번).
+
+- 공용 헬퍼 **`withBusy(btn, label, fn)`** — 스피너 + 라벨 교체 + `.busy` + **`disabled`**(v565에서 추가, 키보드 Enter 재실행까지 차단) + `dataset.busy` 연타 방지, 끝나면 원래대로 복원. **fn 은 반드시 프라미스를 돌려줘야** 한다(안 돌려주면 즉시 풀린다). 위임 클릭에서는 `withBusy(clickedEl, '…중', fn)()` 처럼 즉시 호출.
+- 이미 쓰는 곳: `#checkInbox`·`#outRefresh`(이번에 disabled 도 함께 받음)·`.stPipeBible`.
+- **이미 자체 피드백이 있는 경로**(여기엔 `withBusy` 불필요): `submit()`→`showWaitOverlay`(시트 저장 전반) · `callClaude()`→`showGenOverlay`(AI 전반) · `runCascade`→캐스케이드 오버레이 · `loadSermonThen`→`showLoad` · `devoMigrateToBible`/`bmPushAllSermons`→`showWaitOverlay`.
+- **전수 조사(2026-09-11) 결과 — 아직 피드백 없이 기다리는 버튼**(정적 분석 270개 트리거 → 후보 29 → 코드 확인):
+  1. Holman 별항 링크(`.hbFeat`→`openFeat`) — 세션 첫 클릭 때 `holman_features.json` 을 받은 **뒤에야** 모달이 뜬다. 로딩 표시 없음.
+  2. 동기화 대기열 「지금 전송 시도」(`#qFlushNow`) — 2.4초 토스트뿐, 버튼 활성 유지, 순차 전송이라 더 오래 걸릴 수 있음(`_flushing` 가드로 중복 전송은 없음).
+  3. 이달의 묵상 ◀ ▶ 오늘 — 화면은 즉시 바뀌지만 성경앱 노트 칸이 나중에 조용히 채워짐(경미).
+  4. 시리즈 「요청 결과」 — 로컬 폴더 스캔만 기다림(대개 즉시, 경미).
+  → 나머지 25건은 오탐(fire-and-forget 푸시 · 모달이 먼저 뜨고 「불러오는 중…」 표시 · OS 폴더 선택창 자체가 피드백).
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
