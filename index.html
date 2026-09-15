@@ -1597,7 +1597,7 @@ body.uiDlgOpen{overflow:hidden}
           </div>
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
         </div>
-        <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab">📮 주보내용 카톡 초안</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 고쳐서 카카오·메시지로 바로 보내기</small></button>
+        <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab">📮 주보내용 공유하기</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 카카오·메시지로 바로 공유</small></button>
         <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(설교 원고 파일은 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
         <div class="cnt" id="dirState" style="margin-top:10px"></div>
         <button class="linkbtn" id="pickDir">설교 기본원고 저장 폴더 지정</button>
@@ -17706,9 +17706,12 @@ $$('#composeMeta [data-req]').forEach(function(b){
   });
 });
 
-/* ----- 주보내용 카톡 초안 (v542, v543에서 바로 보내기 추가) -----
+/* ----- 주보내용 공유하기 (v542, v543에서 바로 보내기 추가, v567에서 초안 모달 제거) -----
    저장된 설교의 제목·본문·결단찬양·GBS 질문(LTC 교재의 gbs)을 모아
-   ★ 초안 모달로 띄운다 — 그 자리에서 고치고, 기기 공유 시트로 바로 보낸다.
+   ★ 곧장 기기 공유 시트로 보낸다.
+   ※ v566까지는 앱 안 초안 모달에서 고친 뒤 [보내기]를 눌렀는데, 카카오톡을 고르면
+     카카오톡 공유 창이 한 번 더 내용 수정 칸을 보여 줘서 수정 과정이 두 번이었다.
+     → 앱 모달을 없애고, 수정은 공유 대상 앱(카카오톡 등)의 창에서 한 번만 한다.
 
    ※ v541까지는 백엔드(action=kakaoSend)로 '나와의 채팅'에 바로 보냈는데,
      카카오 텍스트 템플릿 한도(200자) 때문에 한 주보가 4~6통으로 쪼개져 도착했다.
@@ -17717,9 +17720,8 @@ $$('#composeMeta [data-req]').forEach(function(b){
        알림톡이 아니라 일반 대화 전송이라 길이 제한이 없고, 받는 사람도 그 자리에서 고른다.
        발송 코드(splitKakao·kakaoSend)와 백엔드는 그대로 두었다(다른 경로에서 다시 쓸 수 있게).
 
-   결단찬양은 예전처럼 파일맵.hymn에 저장해 기기 간 공유·재사용하고,
-   손으로 고친 초안은 파일맵.bulletin{sig,text}에 담아 다시 열어도 그대로 살아난다
-   (sig = 그때 자동 생성된 원문의 서명 — 제목·찬양·GBS가 바뀌면 초안을 새로 만든다). */
+   결단찬양은 예전처럼 파일맵.hymn에 저장해 기기 간 공유·재사용한다.
+   (v566까지 쓰던 파일맵.bulletin{sig,text}(고친 초안 보관)은 더 이상 읽지도 쓰지도 않는다.) */
 function splitKakao(text, limit){
   limit = limit || 200;
   var out = [], cur = '';
@@ -17786,97 +17788,30 @@ async function bulletinKakao(){
     });
   }
   var full = lines.join('\n');
-  var sig = bulletinSig(full);
-  /* 지난번 손으로 고친 초안이 있고, 그 뒤로 제목·찬양·GBS가 그대로면 고친 것을 이어서 쓴다 */
-  var saved = (fm.bulletin && fm.bulletin.sig === sig) ? String(fm.bulletin.text || '') : '';
-  bulletinDraftOpen(id, saved || full, full, sig);
+  bulletinShare(full);
+  try { setSermonFileMap(id, 'kakaoAt', nowLocalStr_()); } catch (e) {}   /* 주간 대시보드 '주보카톡' 체크용 */
 }
-/* 자동 생성 원문의 서명 — 내용이 바뀌었는지 판별용(공백 정규화 후 길이+간이해시) */
-function bulletinSig(t){
-  var s = String(t || '').replace(/\s+/g, ' ').trim();
-  var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return s.length + ':' + (h >>> 0).toString(36);
-}
-/* 주보내용 초안 모달 — 그 자리에서 고치고, 한 번에 복사한다.
-   text=처음 보여줄 내용(고친 초안이 있으면 그것) / fresh=방금 자동 생성한 원문 / sig=fresh의 서명 */
-function bulletinDraftOpen(id, text, fresh, sig){
-  var ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
-  var box = document.createElement('div');
-  box.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;padding:18px;box-shadow:0 14px 44px rgba(0,0,0,.4);max-height:88vh;display:flex;flex-direction:column';
-  box.innerHTML = '<div style="font-size:15px;font-weight:800;margin-bottom:4px">📮 주보내용 카톡 초안</div>'
-    + '<div style="font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:10px">고칠 곳이 있으면 아래에서 바로 고치신 뒤 <b>[보내기]</b>를 누르세요. 공유 시트에서 카카오톡·메시지를 골라 <b>원하는 분에게 길이 제한 없이 한 통으로</b> 갑니다. 고친 내용은 저장되어 다시 열어도 그대로입니다.</div>';
-  var ta = document.createElement('textarea');
-  ta.value = text;
-  ta.spellcheck = false;
-  ta.style.cssText = 'width:100%;flex:1;min-height:42vh;resize:vertical;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-family:inherit;font-size:14px;line-height:1.7;box-sizing:border-box';
-  box.appendChild(ta);
-  var info = document.createElement('div');
-  info.style.cssText = 'font-size:11px;color:var(--dim);margin-top:6px;min-height:15px';
-  function tick(){ info.textContent = ta.value.length + '자 · ' + ta.value.split('\n').length + '줄'; }
-  tick(); ta.addEventListener('input', tick);
-  box.appendChild(info);
-  function mkBtn(label, primary){
-    var b = document.createElement('button');
-    b.type = 'button'; b.textContent = label;
-    b.style.cssText = 'flex:1;padding:11px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;'
-      + (primary ? 'background:var(--accent);color:#fff;border:1px solid var(--accent)'
-                 : 'background:transparent;color:var(--dim);border:1px solid var(--line)');
-    return b;
-  }
-  var lastSaved = text;   /* 시트 왕복을 아끼려 실제로 달라졌을 때만 저장 */
-  function persist(){   /* 고친 초안 보관 — 자동 생성 원문과 같으면 굳이 저장하지 않는다 */
-    try {
-      if (!id || ta.value === lastSaved) return;
-      lastSaved = ta.value;
-      if (ta.value.trim() === String(fresh || '').trim()) setSermonFileMap(id, 'bulletin', null);
-      else setSermonFileMap(id, 'bulletin', { sig: sig, text: ta.value });
-    } catch (e) {}
-  }
-  function close(){ persist(); if (ov.parentNode) document.body.removeChild(ov); }
-  function stamp(){ try { if (id) setSermonFileMap(id, 'kakaoAt', nowLocalStr_()); } catch (e) {} }   /* 주간 대시보드 '주보카톡' 체크용 */
-  /* ★ 바로 보내기 — 설교 상세의 [↗ 공유 (카카오·메시지)]와 같은 길(navigator.share).
-     기기 공유 시트가 떠서 카카오톡·메시지 등 원하는 앱, 원하는 사람에게 곧장 보낸다.
-     카카오 알림톡(200자 한도)이 아니라 일반 대화 전송이라 길이 제한이 없다.
-     title 은 비운다 — 넣으면 일부 앱이 본문 앞에 제목을 한 번 더 붙인다.
-     공유를 지원하지 않는 브라우저면 shareContent 가 알아서 클립보드 복사로 떨어진다. */
-  var sendB = mkBtn('↗ 보내기 (카카오·메시지)', true);
-  sendB.addEventListener('click', function(){
-    var v = ta.value;
-    if (!v.trim()) { toast('보낼 내용이 없습니다.'); return; }
-    persist(); stamp();
-    shareContent({ title: '', text: v });   /* 사용자 제스처 안에서 바로 호출(iOS 권한) */
+/* 기기 공유 시트로 보낸다(title 은 비운다 — 넣으면 일부 앱이 본문 앞에 제목을 한 번 더 붙인다).
+   찬송가 목록·성경 색인을 받느라 시간이 걸리면 iOS/macOS Safari 가 사용자 동작 만료로 share()를
+   거부(NotAllowedError)하므로, 그때만 [공유하기] 탭을 한 번 더 받아 그 탭으로 다시 부른다.
+   공유 미지원 브라우저는 shareContent 가 클립보드 복사로 떨어진다. */
+function bulletinShare(text){
+  if (!navigator.share) { shareContent({ title: '', text: text }); return; }
+  navigator.share({ text: text }).catch(function(e){
+    if (e && e.name === 'AbortError') return;
+    if (!e || e.name !== 'NotAllowedError') { toast('공유 실패: ' + ((e && e.message) || e)); return; }
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML = '<div style="background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;max-width:340px;width:100%;padding:20px;text-align:center">'
+      + '<div style="font-weight:800;font-size:15px;margin-bottom:14px">📮 주보내용 준비 완료</div>'
+      + '<button type="button" data-go style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">↗ 공유하기 (카카오·메시지)</button>'
+      + '<button type="button" data-x style="width:100%;padding:10px;margin-top:8px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:13px;cursor:pointer;font-family:inherit">취소</button></div>';
+    function close(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }
+    ov.querySelector('[data-go]').onclick = function(){ close(); shareContent({ title: '', text: text }); };
+    ov.querySelector('[data-x]').onclick = close;
+    ov.addEventListener('click', function(ev){ if (ev.target === ov) close(); });
+    document.body.appendChild(ov);
   });
-  var copyB = mkBtn('📋 전체 복사');
-  copyB.addEventListener('click', function(){
-    var v = ta.value;
-    var done = function(ok){
-      if (!ok) { toast('자동 복사가 막혔습니다 — 위 칸을 길게 눌러 직접 복사해 주세요.'); return; }
-      copyB.textContent = '복사됨 ✓';
-      setTimeout(function(){ copyB.textContent = '📋 전체 복사'; }, 1600);
-      toast('주보내용을 복사했습니다 — 카톡에 붙여넣으세요.');
-      persist(); stamp();
-    };
-    ta.focus(); ta.select();
-    if (navigator.clipboard && navigator.clipboard.writeText)
-      navigator.clipboard.writeText(v).then(function(){ done(true); }, function(){ done(!!(document.execCommand && document.execCommand('copy'))); });
-    else done(!!(document.execCommand && document.execCommand('copy')));
-  });
-  var resetB = mkBtn('↺ 자동 생성본으로');
-  resetB.addEventListener('click', function(){ ta.value = fresh; tick(); ta.focus(); });
-  var closeB = mkBtn('닫기');
-  closeB.addEventListener('click', close);
-  var row1 = document.createElement('div');
-  row1.style.cssText = 'display:flex;margin-top:10px';
-  row1.appendChild(sendB);
-  var row2 = document.createElement('div');
-  row2.style.cssText = 'display:flex;gap:8px;margin-top:8px';
-  row2.appendChild(copyB); row2.appendChild(resetB); row2.appendChild(closeB);
-  box.appendChild(row1); box.appendChild(row2);
-  ov.appendChild(box);
-  ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
-  document.body.appendChild(ov);
-  ta.focus();
 }
 (function(){
   var b = $('#c_kakao');
@@ -24215,7 +24150,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v566';
+var APP_VER = 'v567';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
