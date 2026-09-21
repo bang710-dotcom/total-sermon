@@ -13812,9 +13812,13 @@ async function ytTranscribeInApp(rawUrl, serviceType, key){
          '영상 전체 길이(초)와, 실제 말씀이 시작·끝나는 시각(초)을 알려 주세요.',
          '전사문은 출력하지 마세요. 시각만 필요합니다.',
          '반드시 아래 JSON 하나만 출력: {"start_sec":0,"end_sec":number,"duration_sec":number}'].join('\n');
+    /* 스캔에서는 사고를 켠다(v569) — 긴 영상에서 설교 시작·끝 시각을 집어내는 일은 모델이
+       가장 약한 축이라, thinkingBudget:0 으로 끄면 엉뚱한 구간을 답한다(2026-09-20 사례:
+       예배 맨 앞 몇 분만 전사돼 사도신경·찬양 622자가 나왔다). 사고 토큰도 maxOutputTokens
+       에서 함께 빠지므로 한도를 2048 → 8192 로 올려 JSON 이 잘리지 않게 한다. */
     var sd = await gemVideo(model, [vpart(null), { text: sp }],
-      { temperature: 0, maxOutputTokens: 2048, responseMimeType: 'application/json',
-        mediaResolution: 'MEDIA_RESOLUTION_LOW', thinkingConfig: { thinkingBudget: 0 } }, key);
+      { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'application/json',
+        mediaResolution: 'MEDIA_RESOLUTION_LOW' }, key);
     var st = gemText(sd).trim(), pj = null;
     try { pj = JSON.parse(st); } catch (e) { var mm = st.match(/\{[\s\S]*?\}/); if (mm) pj = JSON.parse(mm[0]); }
     if (pj) {
@@ -13824,6 +13828,11 @@ async function ytTranscribeInApp(rawUrl, serviceType, key){
       if (!(end > start)) { start = 0; end = dur; }
       if (dur > 0) end = Math.min(end, dur);
       if (!(end > start) || !isFinite(end)) { start = 0; end = 0; }
+      /* 상식 검사(v569) — 설교가 12분보다 짧게 잡혔으면 스캔이 빗나간 것으로 본다.
+         예전에는 '끝 > 시작' 만 봤기 때문에 「0초~5분」 같은 답도 그대로 통과해,
+         예배 맨 앞(사도신경·찬양)만 전사하고 끝났다. 스캔 실패로 돌리면 아래 ③에서
+         영상을 처음부터 훑으므로 설교를 놓치지 않는다. */
+      else if (serviceType === 'full' && (end - start) < 720) { start = 0; end = 0; }
       else if (serviceType === 'full') { start = Math.max(0, start - 15); end = end + 15; }   /* 앞뒤 15초 여유 */
       /* 「설교만 있는 영상」은 처음부터 끝까지가 다 설교다 — 모델이 찍어준 시작 시각을 믿고
          앞을 잘라내면 도입부가 통째로 사라진다. 시작은 항상 0초. */
@@ -13873,8 +13882,10 @@ async function ytTranscribeInApp(rawUrl, serviceType, key){
      길이·끝시각은 믿지 않는다(Gemini가 영상 길이를 실제보다 짧게 답하는 일이 잦아, 그대로
      쓰면 전사문이 중간에서 끊긴다 — 실제 증상). 마지막 창 다음부터 창을 이어 붙여 한 물결이
      통째로 비면(=영상 끝) 멈춘다. 예배 전체 영상은 설교 구간만 필요하므로 확장하지 않되,
-     스캔이 실패해 구간을 모를 때는 종류와 상관없이 이 방식으로 훑는다. */
-  if (serviceType !== 'full' || !(end > start)) {
+     ★ v569부터는 「예배 전체」도 함께 훑는다 — 예전에는 이 모드만 빠져 있어서, 스캔이 구간을
+   잘못 잡으면 바로잡을 길이 아예 없었다(2026-09-20 사례). 설교 뒤 축도·광고·찬양은 전사
+   프롬프트가 걸러 내 빈 창이 되므로, 한 물결이 통째로 비면 거기서 멈춘다. */
+  {
     var t0 = wins.length ? wins[wins.length - 1].end : 0;
     while (wins.length < CAP) {
       var wave = [];
@@ -13972,6 +13983,14 @@ async function aiYouTubeSummarize(id){
     }
     var trans = String(j.transcript || '').trim();
     if (!trans) { toast('전사 결과가 비어 있습니다 — 영상이 공개인지, 설교 구간이 있는지 확인해 주세요.'); return; }
+    /* 분량 상식 검사(v569) — 설교 30분이면 보통 1만 자 안팎이다. 턱없이 짧으면 설교 구간을
+       놓친 것이라, 시트(전사문·원고텍스트)에 쓰기 전에 먼저 묻는다. 예전에는 조용히 저장하고
+       요약까지 넘어가 엉뚱한 전사문이 시트에 남았다. */
+    if (trans.length < 2000) {
+      var short = await uiChoose('전사문이 ' + trans.length + '자뿐입니다 — 설교 구간을 제대로 찾지 못했을 수 있습니다.\n(설교 30분이면 보통 1만 자 안팎입니다)',
+        { okText: '버리고 다시 시도', extraText: '그래도 저장하고 요약', cancelText: '닫기' });
+      if (short !== 'extra') return;
+    }
     if (j.truncated) toast('⚠ 전사문 일부가 길이 제한으로 잘렸을 수 있습니다 — 요약본을 확인해 주세요.');
     /* 구간 실패는 조용히 넘기지 않는다 — 가운데가 빠진 전사문으로 요약하면 내용이 어긋난다. */
     if (j.failCnt) toast('⚠ ' + j.failCnt + '개 구간(약 ' + (j.failCnt * 10) + '분)을 받아쓰지 못했습니다' + (j.failMsg ? ' — ' + j.failMsg : '') + '. 잠시 후 다시 시도하면 채워집니다.');
@@ -24166,7 +24185,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v568';
+var APP_VER = 'v569';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
