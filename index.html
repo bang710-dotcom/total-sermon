@@ -11647,7 +11647,13 @@ function refQuoteTracker(){
     var re = refAnyRe(), m;
     re.lastIndex = pos;
     while (pos < t.length && (m = re.exec(t))){
-      var s0 = m.index + m[1].length, c3 = closeAt(t, m.index + m[0].length);
+      var s0 = m.index + m[1].length, c3 = closeAt(t, m.index + m[0].length), nx;
+      /* 한 성구에 인용이 여럿 이어지면(「행 1:6-7 "…?" / "…"」) 뒤 인용까지 한 구간으로 */
+      while (c3 >= 0 && (nx = /^\s*[\/,]?\s*["“”]/.exec(t.slice(c3 + 1)))) {
+        var c4 = closeAt(t, c3 + 1 + nx[0].length);
+        if (c4 < 0) break;
+        c3 = c4;
+      }
       if (c3 >= 0) { rs.push([s0, c3 + 1]); pos = re.lastIndex = c3 + 1; }
       else { rs.push([s0, t.length]); pos = t.length; open = true; }
     }
@@ -11658,7 +11664,7 @@ function refQuoteTracker(){
       out.push([t.slice(r[0], r[1]), true]); k = r[1];
     });
     if (k < t.length) { out.push([t.slice(k), false]); rest += t.slice(k); }
-    return rest.replace(/[\s.,;:!?…·]/g, '') ? out : true;
+    return rest.replace(/[\s.,;:!?…·」』)）]/g, '') ? out : true;
   };
 }
 /* 정경 약어 얻기 (BOOKS = 전체이름66 + 약어66) */
