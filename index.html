@@ -11587,11 +11587,41 @@ var DOCX_STYLES = {
 };
 var EX_BLUE = '4C94D8';
 var REF_RED = 'EE0000';   /* 성경 인용 — 빨간 볼드(카드원고 quote 색과 동일) */
-/* 본문 인용 줄 판별: 「약어 장:절[-끝], "…"」 형식(맨 앞 성구 표기 + 쉼표 + 큰따옴표) */
+/* 본문 인용 줄 판별: 「약어 장:절[-끝] "…"」 형식(맨 앞 성구 표기 + 큰따옴표).
+   v570 — 쉼표를 선택으로 바꾸고(「수 1:5-9 “…」처럼 쉼표 없이 쓰신 원고가 더 많다),
+   닫는 따옴표(”)로 여는 오타·장을 넘는 범위(수 5:13-6:7)도 받는다. 책 이름을 뺀
+   「7:11 “…」, 절만 쓴 「1절, “…」·「11-12절, “…」도 인용 줄로 본다. 예전에는 쉼표가
+   필수라 2026년 원고의 성경 인용 40여 줄이 검정으로 나왔다. */
 var _refQuoteRe = null;
+var REF_SPAN = '\\s*\\d+\\s*[:장]\\s*\\d+[a-zA-Z]?(?:\\s*[-~]\\s*(?:\\d+\\s*[:장]\\s*)?\\d+[a-zA-Z]?)?';
 function refQuoteRe(){
-  if (!_refQuoteRe) _refQuoteRe = new RegExp('^\\s*(' + BOOKS + ')\\s*\\d+\\s*[:장]\\s*\\d+[a-zA-Z]?(?:\\s*[-~]\\s*\\d+[a-zA-Z]?)?\\s*,\\s*["“]');
+  if (!_refQuoteRe) _refQuoteRe = new RegExp('^\\s*(?:(?:(' + BOOKS + ')\\s*)?' + REF_SPAN +
+    '|\\d+[a-zA-Z]?(?:\\s*[-~]\\s*\\d+[a-zA-Z]?)?\\s*절)\\s*,?\\s*["“”]');
   return _refQuoteRe;
+}
+/* 성구 표기만 있는 줄(「대상 12:32」) — 다음 줄이 따옴표로 시작하면 그 줄이 인용이다 */
+var _bareRefRe = null;
+function bareRefRe(){
+  if (!_bareRefRe) _bareRefRe = new RegExp('^\\s*(' + BOOKS + ')' + REF_SPAN + '\\s*$');
+  return _bareRefRe;
+}
+function quoteOpen(s){ return ((String(s).match(/["“”]/g) || []).length % 2) === 1; }   /* 따옴표 홀수 개 = 여닫힘이 바뀜 */
+/* 줄 단위 성경 인용 판별기(v570) — 원고를 위에서부터 한 줄씩 넣으면 인용 줄이면 true.
+   ① 「약어 장:절 "…」 로 시작하는 줄 ② 성구만 있는 줄 바로 다음의 따옴표로 시작하는 줄
+   ③ 위 인용이 닫히지 않았을 때 이어지는 줄 — 절 번호(「6 강하고…」)로 시작하거나 닫는
+      따옴표가 있는 줄만 잇는다. 둘 다 아니면(닫는 따옴표를 빠뜨린 원고) 거기서 끊어
+      설교 본문 전체가 빨갛게 번지지 않게 한다. 빈 줄은 모든 상태를 지운다. */
+function refQuoteTracker(){
+  var open = false, afterRef = false;
+  return function(l){
+    var t = String(l || '').trim();
+    if (!t) { open = afterRef = false; return false; }
+    var start = refQuoteRe().test(t) || (afterRef && /^["“”]/.test(t));
+    var cont = !start && open && (/^\d{1,3}\s/.test(t) || quoteOpen(t));
+    open = start ? quoteOpen(t) : cont ? !quoteOpen(t) : false;
+    afterRef = bareRefRe().test(t);
+    return start || cont;
+  };
 }
 /* 정경 약어 얻기 (BOOKS = 전체이름66 + 약어66) */
 var _bookAbbrArr = null;
@@ -11676,10 +11706,10 @@ function parasFromText(meta, bodyText, style){
   function lastBlank(){ return !paras.length || String(paras[paras.length - 1].text || '').trim() === ''; }
   function trailBlanks(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
   function ensureBlanks(n){ while (trailBlanks() < n) paras.push({ text: '' }); }
-  var inConc = false, headNo = 0;
+  var inConc = false, headNo = 0, refTrk = refQuoteTracker();
   String(bodyText || '').split('\n').forEach(function(line){
     var l = line.trim();
-    if (!l) { paras.push({ text: '' }); return; }      /* 빈 줄은 그대로 유지(간격) */
+    if (!l) { refTrk(''); paras.push({ text: '' }); return; }      /* 빈 줄은 그대로 유지(간격) */
     if (/^▶.*◀$/.test(l)) { paras.push({ text: l, bar: true }); return; }   /* 이미지 전환 바(전환표시본 전용 — 원고 양식은 그대로, 띠만 추가) */
     /* 마크다운 볼드(**…**) 대응: 줄 전체가 감싸이면 굵게, 줄 안 표기는 기호만 제거 */
     var mdBold = /^\*\*[^*]+\*\*$/.test(l);
@@ -11706,7 +11736,7 @@ function parasFromText(meta, bodyText, style){
       var conv = toLeadRefQuote(l);                 /* 옛 형식(후행 괄호) → 새 형식으로 강제 */
       if (conv !== l) l = conv.trim();
     }
-    var isQuote = !isHead && !isConc && !isEx && refQuoteRe().test(l);   /* 성경 인용 → 빨간 볼드 */
+    var isQuote = !isHead && !isConc && !isEx ? refTrk(l) : refTrk('');   /* 성경 인용 → 빨간 볼드(여러 줄 인용 포함, v570) */
     /* 본문 대지 앞엔 두 줄 띄기, 결론 표지 앞엔 한 줄. 결론 안의 대지 재열은 띄우지 않음 */
     if (isConc) { ensureBlanks(1); inConc = true; }
     else if ((isHead || /^\[대지/.test(l)) && !inConc) ensureBlanks(2);
@@ -11727,6 +11757,7 @@ function parasFromCompose(meta, c){
   var paras = base.paras.slice(0);
   while (paras.length && !String(paras[paras.length - 1].text || '').trim()) paras.pop(); /* 끝 빈줄 정리 */
   paras.push({ text: '' }); /* 제목부 뒤 한 줄 */
+  var refTrk = refQuoteTracker();
   function push(t, b, col, ind){
     t = String(t);
     if (/^\*\*[^*]+\*\*$/.test(t.trim())) { t = t.trim().slice(2, -2).trim(); b = true; ind = false; } /* **…** 줄 → 굵게 */
@@ -11734,11 +11765,11 @@ function parasFromCompose(meta, c){
     if (!b && col == null){
       var cv = toLeadRefQuote(String(t).trim());           /* 옛 형식 → 새 형식 강제 */
       if (cv !== String(t).trim()) { t = cv; }
-      if (refQuoteRe().test(String(t).trim())) { b = true; col = REF_RED; ind = false; }  /* 본문 인용 자동 빨간 볼드 */
-    }
+      if (refTrk(t)) { b = true; col = REF_RED; ind = false; }  /* 본문 인용 자동 빨간 볼드(여러 줄 인용 포함, v570) */
+    } else refTrk('');
     paras.push({ text: t, bold: !!b, color: col, ind: !!ind });
   }
-  function blank(){ if (!paras.length || String(paras[paras.length - 1].text || '').trim()) paras.push({ text: '' }); } /* 섹션 사이 한 줄 (중복 빈줄 방지) */
+  function blank(){ refTrk(''); if (!paras.length || String(paras[paras.length - 1].text || '').trim()) paras.push({ text: '' }); } /* 섹션 사이 한 줄 (중복 빈줄 방지) */
   function trailB(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
   function blank2(){ while (trailB() < 2) paras.push({ text: '' }); } /* 대지 위 두 줄 띄기 */
   /* 서론 */
@@ -24184,7 +24215,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v569';
+var APP_VER = 'v570';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
