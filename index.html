@@ -9552,7 +9552,8 @@ function structHeadProp(l){
   if (/^\s*\(대지\)\s*/.test(s)) return s.replace(/^\s*\(대지\)\s*/, '').trim();
   return s.replace(/^\s*\d+\s*[.)]\s*/, '').trim();
 }
-function isStructConc(l){ var s = stripBoldEnds(l); return s.indexOf('말씀을 정리') >= 0 || /^\s*\(결론\)/.test(s); }
+/* 결론 머리는 줄머리 패턴만 본다(v572) — 예전엔 줄 어디든 "말씀을 정리"가 있으면(본문 속 "…이 말씀을 정리하면") 거기부터 결론이 됐다. */
+function isStructConc(l){ var s = stripBoldEnds(l); return /^\s*(?:\(결론\)|(?:이제\s*|오늘\s*)?(?:이\s*)?말씀을\s*정리)/.test(s); }
 /* 내보내기용: 줄 맨 앞 구조화 코드 토큰만 제거(내용은 보존). 서식 판단은 호출부에서 따로. */
 function stripStructCode(l){
   return String(l).replace(/^\s*\((?:서론|대지|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론)\)\s*/, '');
@@ -9589,8 +9590,8 @@ function parseFreeToStructure(){
   function closePoint(){ if (cur) { flushBody(); flushIll(); flushApply(); if (!cur.blocks.length) cur.blocks = [newBodyBlock('')]; pts.push(cur); } cur = null; bodyAcc = []; curIll = null; applyAcc = []; mode = 'body'; bodyRole = '주해근거'; }
   for (var j = firstHead; j < bodyEnd; j++) {
     var l = lines[j];
-    if (isStructHead(l)) { closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue; }
-    if (/^\s*(▶|【)/.test(l)) continue; /* 이미지 전환 바 등은 건너뜀 */
+    /* 첫 대지 이후의 "N)" 는 번호가 이어질 때(다음 대지 번호)만 머리로 본다(v572) — 본문 속 "1) 2)" 소목록이 대지로 승격되지 않게. */
+    if (isStructHead(l) && !(cur && /^\s*\d+\s*\)/.test(stripBoldEnds(l)) && parseInt(stripBoldEnds(l), 10) !== pts.length + 2)) { closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue; }
     var exm = l.match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
     if (exm) { flushBody(); flushIll(); flushApply(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
     var cm = l.match(/^\s*\((?:주해|근거|대지\s*내용|내용)\)\s*(.*)$/);
@@ -10571,7 +10572,10 @@ function assembleText(){
   var concPts = concPointsOut(c); if (concPts.trim()) concPts.split('\n').forEach(function(l){ if (l.trim()) L.push(l.trim()); });
   if (c.concBody.trim()) { L.push(''); L.push(c.concBody.trim()); }
   var msg = $('#c_msg').value.trim();
-  if (msg) L.push(msg);
+  /* 끝 줄이 이미 핵심메시지면 다시 붙이지 않는다(v572) — 결론 없이 파싱된 원고는 마지막 대지 본문 끝에 그 줄이 남아 있어
+     저장할 때마다 원고 끝에 핵심메시지가 한 줄씩 늘어났다. */
+  var lastL = ''; for (var li = L.length - 1; li >= 0; li--) { if (String(L[li]).trim()) { lastL = String(L[li]).trim(); break; } }
+  if (msg && lastL !== msg) L.push(msg);
   return L.join('\n');
 }
 function collectCompose(){
