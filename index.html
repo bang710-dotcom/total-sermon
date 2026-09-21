@@ -9597,7 +9597,9 @@ function parseFreeToStructure(){
     /* 첫 대지 이후의 번호 머리("N." "N)")는 첫 대지와 같은 구분자이면서 번호가 이어질 때(다음 대지 번호)만 대지로 본다(v572) —
        본문 속 "1) 2)"·"1. 2." 소목록이 새 대지로 승격되지 않게. (대지) 코드는 번호와 무관하게 항상 머리. */
     if (isStructHead(l) && !(cur && isNumHead(l) && (parseInt(stripBoldEnds(l), 10) !== pts.length + 2 || (headDelim && numHeadDelim(l) !== headDelim)))) {
-      if (!cur && isNumHead(l)) headDelim = numHeadDelim(l); closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue; }
+      if (!cur && isNumHead(l)) headDelim = numHeadDelim(l);
+      closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue;
+    }
     var exm = l.match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
     if (exm) { flushBody(); flushIll(); flushApply(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
     var cm = l.match(/^\s*\((?:주해|근거|대지\s*내용|내용)\)\s*(.*)$/);
