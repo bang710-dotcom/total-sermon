@@ -180,6 +180,15 @@ v570은 문단 단위로만 칠해서 ①「수 6:18a "…". 어떤 것이든지
 - 원격 초안 [초안 불러오기] 전 `confirmDiscardCompose`, `restoreComposeDraft` 시작 때 `remoteConflict=null`. ⌘S 는 `e.code==='KeyS'` 도 본다(한글 자판). 집중모드 Esc 는 IME 조합 중·확인창(`body.uiDlgOpen`)일 때 무시.
 - **회귀 테스트**: `Dropbox/total-sermon/tools/roundtrip_test.py`(smoke.sh ④가 자동 실행) — `sermons_import.json` 1,121편을 파싱→재조립. 「구조로 열림 중 불일치」가 0이 아니면 실패. smoke.sh 는 node 가 없으면 jsc `checkSyntax` 로 폴백하고, 고아 예화 샤드를 나열한다.
 
+## 원고 버전 이력 — v573 (수정계획 2단계)
+
+작성 화면 [저장] 줄의 **[🕘 이전 버전]**(`#c_hist` → `#histOv`). 원고가 통째로 바뀌는 순간마다 작성 버퍼(`state.compose` 전체 + 메타 칸 + `assembleText()`)를 **이 기기 IndexedDB `tsa/kv` 의 `hist:<설교ID>`**(새 설교는 `hist:_new`)에 남긴다. 시트로는 보내지 않는다.
+- 스냅샷 지점: 저장 성공 뒤(`histAfterSave` — 저장·새 설교로 저장·검토본 저장, 내용은 **저장 데이터를 모은 순간**의 `histCapture`) · `aiManuscript` 반영 직전 · 대화창 [작성칸에 반영] 직전 · 원격 초안 [초안 불러오기]·`loadRemoteConflict`·`reconcileCleanDraftWithSheet` 자동 교체 직전 · 되돌리기 직전.
+- 규칙: 설교당 최근 10개(`HIST_MAX`) · 직전과 같은 내용(`histSig` = 메타·형식·조립 텍스트)은 건너뜀 · 30일 지난 것은 부팅 30초 뒤 `histPruneAll()` 이 정리 · 새 설교가 첫 저장으로 ID를 받으면 `hist:_new` 를 그 ID로 흡수(`histAdoptNew`).
+- ★ 이력 쓰기는 **기다리지 않고 실패를 삼킨다** — 저장을 막거나 늦추면 안 된다(IDB 쓰기 실패 주입 시험: 저장은 정상 완료).
+- 되돌리기(`histRestore`)는 작성창만 바꾸고 `savedSig` 는 두므로 "미저장" 상태가 된다 — [저장]해야 시트 반영.
+- 비교는 AI 없는 줄 단위 LCS(`histDiff`/`histDiffHtml`, 앞뒤 공통 줄을 걷고 가운데만, 400만 칸 초과 시 통째로 '바뀜'). ⚠ 계획서의 "`cmpHtml` 재사용"은 틀렸다 — `cmpHtml` 은 「준비 원고 vs 실제 설교」 AI 분석 결과 렌더러다.
+
 ## 유튜브 전사 — 「예배 전체」가 설교를 놓치던 문제 (v569)
 
 예배 실황 전체를 넣었는데 **사도신경·찬양 622자만 전사되고 끝났다**(2026-09-20, S1332). 원인은 「예배 전체」 모드만 **스캔 결과를 검증 없이 믿고, 끝까지 훑는 안전장치에서 빠져 있던 것**이다.
