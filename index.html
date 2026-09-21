@@ -11464,6 +11464,7 @@ function hwpxParasToBlocks(paras){
     if (p.bar) return { role: 'bar', text: t };        /* 이미지 전환 바 → 빨간 띠·흰 글씨 */
     var c = String(p.color || '').toUpperCase();
     if (c === REF_RED) return { role: 'scripture', text: t };
+    if (p.spans) return { role: 'normal', runs: p.spans.map(function(x){ return [x[1] ? 'red' : 'normal', x[0]]; }) };   /* 문단 일부 성경 인용(v571) */
     if (c === EX_BLUE || c === '215E99') return { role: 'illustration', text: t };
     if (p.bold) return { role: (p.size && p.size >= 30) ? 'heading' : 'bold', text: t };
     return { role: 'normal', text: t };
@@ -11606,21 +11607,58 @@ function bareRefRe(){
   return _bareRefRe;
 }
 function quoteOpen(s){ return ((String(s).match(/["“”]/g) || []).length % 2) === 1; }   /* 따옴표 홀수 개 = 여닫힘이 바뀜 */
-/* 줄 단위 성경 인용 판별기(v570) — 원고를 위에서부터 한 줄씩 넣으면 인용 줄이면 true.
-   ① 「약어 장:절 "…」 로 시작하는 줄 ② 성구만 있는 줄 바로 다음의 따옴표로 시작하는 줄
-   ③ 위 인용이 닫히지 않았을 때 이어지는 줄 — 절 번호(「6 강하고…」)로 시작하거나 닫는
-      따옴표가 있는 줄만 잇는다. 둘 다 아니면(닫는 따옴표를 빠뜨린 원고) 거기서 끊어
-      설교 본문 전체가 빨갛게 번지지 않게 한다. 빈 줄은 모든 상태를 지운다. */
+/* 줄 안 어디서든 「성구 표기 + 여는 따옴표」 — 앞 글자가 한글·영문·숫자면 낱말의 일부로 보고 건너뛴다 */
+var _refAnyRe = null;
+function refAnyRe(){
+  if (!_refAnyRe) _refAnyRe = new RegExp('(^|[^0-9A-Za-z가-힣])((?:(?:' + BOOKS + ')\\s*)?' + REF_SPAN +
+    '|\\d+[a-zA-Z]?(?:\\s*[-~]\\s*\\d+[a-zA-Z]?)?\\s*절)\\s*,?\\s*["“”]', 'g');
+  return _refAnyRe;
+}
+/* 줄 단위 성경 인용 판별기(v570, v571에서 부분 색칠) — 원고를 위에서부터 한 줄씩 넣으면
+     null  = 인용 없음
+     true  = 줄 전체가 인용(남는 것이 공백·문장부호뿐) → 예전처럼 문단 전체 빨간 볼드
+     [[글, 인용?], …] = 문단 안 일부만 인용 → 그 구간만 빨간 볼드
+   인용 구간은 「성구 표기」부터 「닫는 따옴표」까지다. v570까지는 문단 단위로만 칠해서
+   ①「수 6:18a "…". 어떤 것이든지…」처럼 인용 뒤 설명까지 통째로 빨갛고 ②문장 중간의
+   「…보십시오. 수 7:11a "…". 아간…」은 아예 칠하지 못했다(2026-09-21 제보).
+   ① 성구 표기 + 따옴표 인용 — 줄 어디에 있든, 한 줄에 여럿이어도 잡는다
+   ② 성구만 있는 줄(「대상 12:32」) 바로 다음의 따옴표로 시작하는 줄
+   ③ 닫히지 않은 인용의 이어지는 줄 — 절 번호(「6 강하고…」)로 시작하거나 닫는 따옴표가
+      있는 줄만 잇는다(닫는 따옴표가 있으면 거기까지만). 둘 다 아니면 끊어서 설교 본문
+      전체가 빨갛게 번지지 않게 한다. 빈 줄은 모든 상태를 지운다. */
 function refQuoteTracker(){
   var open = false, afterRef = false;
+  function closeAt(t, from){ var re = /["“”]/g; re.lastIndex = from; var r = re.exec(t); return r ? r.index : -1; }
   return function(l){
     var t = String(l || '').trim();
-    if (!t) { open = afterRef = false; return false; }
-    var start = refQuoteRe().test(t) || (afterRef && /^["“”]/.test(t));
-    var cont = !start && open && (/^\d{1,3}\s/.test(t) || quoteOpen(t));
-    open = start ? quoteOpen(t) : cont ? !quoteOpen(t) : false;
+    if (!t) { open = afterRef = false; return null; }
+    var rs = [], pos = 0;
+    if (open){
+      var c = closeAt(t, 0);
+      if (c >= 0) { rs.push([0, c + 1]); pos = c + 1; open = false; }
+      else if (/^\d{1,3}\s/.test(t)) { rs.push([0, t.length]); pos = t.length; }
+      else open = false;
+    } else if (afterRef && /^["“”]/.test(t)){
+      var c2 = closeAt(t, 1);
+      if (c2 >= 0) { rs.push([0, c2 + 1]); pos = c2 + 1; }
+      else { rs.push([0, t.length]); pos = t.length; open = true; }
+    }
     afterRef = bareRefRe().test(t);
-    return start || cont;
+    var re = refAnyRe(), m;
+    re.lastIndex = pos;
+    while (pos < t.length && (m = re.exec(t))){
+      var s0 = m.index + m[1].length, c3 = closeAt(t, m.index + m[0].length);
+      if (c3 >= 0) { rs.push([s0, c3 + 1]); pos = re.lastIndex = c3 + 1; }
+      else { rs.push([s0, t.length]); pos = t.length; open = true; }
+    }
+    if (!rs.length) return null;
+    var out = [], k = 0, rest = '';
+    rs.forEach(function(r){
+      if (r[0] > k) { out.push([t.slice(k, r[0]), false]); rest += t.slice(k, r[0]); }
+      out.push([t.slice(r[0], r[1]), true]); k = r[1];
+    });
+    if (k < t.length) { out.push([t.slice(k), false]); rest += t.slice(k); }
+    return rest.replace(/[\s.,;:!?…·]/g, '') ? out : true;
   };
 }
 /* 정경 약어 얻기 (BOOKS = 전체이름66 + 약어66) */
@@ -11662,7 +11700,9 @@ function buildDocxParas(D, paras, st){
     var opts = {
       alignment: D.AlignmentType.JUSTIFIED,   /* 본문 양쪽 정렬 — 미리보기(종이 페이지)와 동일 */
       spacing: { line: st.line },
-      children: [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
+      children: p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) */
+        ? p.spans.map(function(x){ return new D.TextRun({ text: x[0], bold: x[1] || !!p.bold, color: x[1] ? REF_RED : p.color, size: p.size }); })
+        : [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
     };
     if (p.just) { /* 완성 원고 본문: 양쪽 정렬 + 첫 줄 들여쓰기 2자 */
       opts.alignment = D.AlignmentType.JUSTIFIED;
@@ -11736,13 +11776,14 @@ function parasFromText(meta, bodyText, style){
       var conv = toLeadRefQuote(l);                 /* 옛 형식(후행 괄호) → 새 형식으로 강제 */
       if (conv !== l) l = conv.trim();
     }
-    var isQuote = !isHead && !isConc && !isEx ? refTrk(l) : refTrk('');   /* 성경 인용 → 빨간 볼드(여러 줄 인용 포함, v570) */
+    var qs = !isHead && !isConc && !isEx ? refTrk(l) : refTrk('');   /* 성경 인용 → 빨간 볼드(여러 줄 인용 포함, v570) */
+    var isQuote = qs === true, qSpans = Array.isArray(qs) ? qs : null;   /* 문단 일부만 인용이면 그 구간만(v571) */
     /* 본문 대지 앞엔 두 줄 띄기, 결론 표지 앞엔 한 줄. 결론 안의 대지 재열은 띄우지 않음 */
     if (isConc) { ensureBlanks(1); inConc = true; }
     else if ((isHead || /^\[대지/.test(l)) && !inConc) ensureBlanks(2);
     var isBold = isHead || isConc || isEx || isQuote || mdBold || isMark || isLabel;
     paras.push({ text: l, bold: isBold, color: isEx ? EX_BLUE : isQuote ? REF_RED : undefined,
-      ind: !!(allowInd && !isBold) /* 일반 단락만 첫 줄 들여쓰기 */ });
+      ind: !!(allowInd && !isBold) /* 일반 단락만 첫 줄 들여쓰기 */, spans: qSpans || undefined });
   });
   return { paras: paras, st: st };
 }
@@ -11760,14 +11801,17 @@ function parasFromCompose(meta, c){
   var refTrk = refQuoteTracker();
   function push(t, b, col, ind){
     t = String(t);
+    var sp = null;
     if (/^\*\*[^*]+\*\*$/.test(t.trim())) { t = t.trim().slice(2, -2).trim(); b = true; ind = false; } /* **…** 줄 → 굵게 */
     else if (t.indexOf('**') > -1) t = t.replace(/\*\*([^*]+)\*\*/g, '$1');
     if (!b && col == null){
       var cv = toLeadRefQuote(String(t).trim());           /* 옛 형식 → 새 형식 강제 */
       if (cv !== String(t).trim()) { t = cv; }
-      if (refTrk(t)) { b = true; col = REF_RED; ind = false; }  /* 본문 인용 자동 빨간 볼드(여러 줄 인용 포함, v570) */
+      var qs = refTrk(t);
+      if (qs === true) { b = true; col = REF_RED; ind = false; }  /* 본문 인용 자동 빨간 볼드(여러 줄 인용 포함, v570) */
+      else if (qs) { sp = qs; t = t.trim(); }                     /* 문단 일부만 인용 → 그 구간만(v571) */
     } else refTrk('');
-    paras.push({ text: t, bold: !!b, color: col, ind: !!ind });
+    paras.push({ text: t, bold: !!b, color: col, ind: !!ind, spans: sp || undefined });
   }
   function blank(){ refTrk(''); if (!paras.length || String(paras[paras.length - 1].text || '').trim()) paras.push({ text: '' }); } /* 섹션 사이 한 줄 (중복 빈줄 방지) */
   function trailB(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
@@ -15979,7 +16023,10 @@ function tpdfBlocks(paras, imgMap){
     if (p.bold) cls.push('tp-b');
     if (p.ind || p.just) cls.push('tp-ind');
     var col = p.color ? (p.color === EX_BLUE ? '#0000FF' : p.color === REF_RED ? '#FF0000' : '#' + p.color) : '';
-    out.push('<p' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + (col ? ' style="color:' + col + '"' : '') + '>' + esc(t) + '</p>');
+    var inner = p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) */
+      ? p.spans.map(function(x){ return x[1] ? '<b style="color:#FF0000">' + esc(x[0]) + '</b>' : esc(x[0]); }).join('')
+      : esc(t);
+    out.push('<p' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + (col ? ' style="color:' + col + '"' : '') + '>' + inner + '</p>');
   });
   return out;
 }
@@ -23906,7 +23953,10 @@ function paraPreviewHtml(meta, built){
     if (p.just) s += 'text-align:justify;text-indent:2em;';
     else if (p.ind) s += 'text-indent:1em;';
     if (!t.trim()) { h += '<div style="' + s + '">&nbsp;</div>'; return; } /* 빈 단락 = 한 줄 */
-    h += '<div style="' + s + '">' + esc(t) + '</div>';
+    var inner = p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) */
+      ? p.spans.map(function(x){ return x[1] ? '<b style="color:#' + REF_RED + '">' + esc(x[0]) + '</b>' : esc(x[0]); }).join('')
+      : esc(t);
+    h += '<div style="' + s + '">' + inner + '</div>';
   });
   return h + '</div>';
 }
@@ -24215,7 +24265,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v570';
+var APP_VER = 'v571';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
