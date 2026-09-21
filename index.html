@@ -8769,6 +8769,287 @@ function auditComposeRefs(){
   var r = $('#refAuditBtn'); if (r) r.addEventListener('click', auditComposeRefs);
 })();
 
+/* ===================== 원고 자체 점검 (v575, 수정계획 A) =====================
+   설교 작성 원리의 "내보내기 전 자체 점검"을 AI 없이 앱이 직접 센다(v548 검증 게이트와 같은 발상 —
+   AI 답을 AI에게 다시 묻지 않고 확정 데이터와 기계적으로 대조).
+   ① 반복어(5장 16번: "자리" 전체 3회·대지당 1회, 상투어 4회 이상 재검토 — 성경 인용문은 셈에서 뺀다)
+   ② 성경 인용 전문(9장: 절 단위 전문 — bible/bNN.json 개역개정과 대조해 부분 발췌·중략·글자 차이)
+   ③ 대지 마무리(3-1·4장: 명제→근거→예화→적용→실천→대지정리, 정리는 권면으로, 갈무리 표현은 대지마다 다르게)
+   ④ 분량(분당 300자 — 리허설 타이머와 같은 기준)·결론 단문 ⑤ 긴 문장(60자 초과, 만연체).
+   작성 버퍼는 건드리지 않는다 — 자유원고는 composeFreePoints 와 같은 방식의 임시 파싱본으로 대지를 읽는다. */
+var SA_WORDS_DEF = '자리:3/1, 머물:3, 붙들:3, 그 순간:3, 무너:3';
+var SA_LONG = 60;
+var SA_LAST = { needles: [] };
+function saWordsCfg(){
+  var s = SA_WORDS_DEF;
+  try { var v = localStorage.getItem('tsa.saWords'); if (v != null && v.trim()) s = v; } catch (e){}
+  return s.split(/[,，\n]/).map(function(x){
+    var m = x.trim().match(/^(.+?)\s*(?::\s*(\d+)(?:\s*\/\s*(\d+))?)?$/);
+    return m ? { w: m[1].trim(), max: m[2] ? +m[2] : 3, per: m[3] ? +m[3] : 0 } : null;
+  }).filter(function(x){ return x && x.w; });
+}
+/* 대지 구조 보기: 구조 모드면 작성 버퍼 그대로, 자유원고면 임시 파싱본(실패 시 null) */
+function saStructView(){
+  var c = state.compose;
+  if (!c || c.style !== '자유원고') return c;
+  var tmp = newCompose(); tmp.style = '자유원고'; tmp.free = String(c.free || '');
+  state.compose = tmp;
+  try { return parseFreeToStructure() ? tmp : null; } catch (e){ return null; } finally { state.compose = c; }
+}
+function saCloseQuote(t, from){ var re = /["“”]/g; re.lastIndex = from; var r = re.exec(t); return r ? r.index : -1; }
+/* 원고 안의 「성구 표기 + 따옴표 인용」 전부 → [{ref, start, end, quote}] (refQuoteTracker 와 같은 판별) */
+function saFindQuotes(t){
+  var out = [], re = refAnyRe(), m;
+  re.lastIndex = 0;
+  while ((m = re.exec(t))){
+    var s0 = m.index + m[1].length, q0 = m.index + m[0].length, end, parts = [];
+    var c = saCloseQuote(t, q0);
+    if (c < 0 || c - q0 > 2000) {   /* 닫히지 않은 인용 — 빈 줄까지만 */
+      end = t.indexOf('\n\n', q0); if (end < 0 || end - q0 > 2000) end = Math.min(t.length, q0 + 2000);
+      parts.push(t.slice(q0, end));
+    } else {
+      parts.push(t.slice(q0, c)); end = c + 1;
+      var nx;   /* 한 성구에 이어지는 인용(「행 1:6-7 "…?" / "…"」)은 한 인용으로 */
+      while ((nx = /^\s*[\/,]?\s*["“”]/.exec(t.slice(end, end + 12)))) {
+        var c2 = saCloseQuote(t, end + nx[0].length); if (c2 < 0 || c2 - end > 2000) break;
+        parts.push(t.slice(end + nx[0].length, c2)); end = c2 + 1;
+      }
+    }
+    out.push({ ref: t.slice(s0, q0).replace(/\s*,?\s*["“”]$/, '').replace(/\s+/g, ' ').trim(), start: s0, end: end, quote: parts.join(' ') });
+    re.lastIndex = end;
+  }
+  return out;
+}
+/* 인용 표기 → parseRange 가 읽는 「책 장:절[-끝]」. 책이 없으면 작성 화면 본문의 책, 「N절」은 본문이 한 장일 때만. */
+function saRefStr(ref, base){
+  var m = ref.match(/^(.*?)\s*(\d+)\s*[:장]\s*(\d+)([a-zA-Z]?)(?:\s*[-~]\s*(?:(\d+)\s*[:장]\s*)?(\d+)([a-zA-Z]?))?$/);
+  if (m) {
+    var book = m[1].trim() || (base && base.book); if (!book) return null;
+    return { str: book + ' ' + m[2] + ':' + m[3] + (m[6] ? '-' + (m[5] ? m[5] + ':' : '') + m[6] : ''), part: !!(m[4] || m[7]) };
+  }
+  var v = ref.match(/^(\d+)([a-zA-Z]?)(?:\s*[-~]\s*(\d+)([a-zA-Z]?))?\s*절$/);
+  if (v && base && base.c1 === base.c2) return { str: base.book + ' ' + base.c1 + ':' + v[1] + (v[3] ? '-' + v[3] : ''), part: !!(v[2] || v[4]) };
+  return null;
+}
+function saNormQ(s){ return String(s || '').replace(/\[[GHgh]\d+\]/g, '').replace(/(^|\s)\d{1,3}(?=\s)/g, ' ').replace(/[^가-힣A-Za-z0-9]/g, ''); }
+function saNormV(s){ return String(s || '').replace(/\[[GHgh]\d+\]/g, '').replace(/[^가-힣A-Za-z0-9]/g, ''); }
+async function saCheckQuote(q, base){
+  var r = saRefStr(q.ref, base);
+  if (!r) return { q: q, st: 'skip', why: '장·절을 알 수 없어 대조하지 않았습니다' };
+  var full;
+  try { full = await fullVerseText(r.str); } catch (e){ full = null; }
+  if (!full || !full.text) return { q: q, st: 'bad', why: '앱의 개역개정에서 이 절을 찾지 못했습니다' };
+  var nq = saNormQ(q.quote), nv = saNormV(full.text);
+  if (!nq) return { q: q, st: 'skip', why: '인용문이 비어 있습니다' };
+  if (/…|\.\.\.|중략/.test(q.quote)) return { q: q, st: 'bad', why: '중략(…)이 있습니다 — 절 전문으로 인용해 주세요', v: full };
+  if (nq === nv) return { q: q, st: 'ok' };
+  if (nv.indexOf(nq) >= 0) return { q: q, st: r.part ? 'part' : 'bad', why: (r.part ? 'a/b 표기 부분 인용' : '절 일부만 인용') + ' — 전문 ' + nv.length + '자 중 ' + nq.length + '자', v: full };
+  var sim = similarity(q.quote, full.text);
+  if (sim >= 0.8) return { q: q, st: 'bad', why: '개역개정과 글자가 다릅니다(일치도 ' + Math.round(sim * 100) + '%)', v: full };
+  return { q: q, st: 'bad', why: '개역개정과 다릅니다 — 다른 번역·의역이거나 장절 표기가 틀렸습니다(일치도 ' + Math.round(sim * 100) + '%)', v: full };
+}
+function saCount(t, w){ var n = 0, i = -1; if (!w) return 0; while ((i = t.indexOf(w, i + 1)) >= 0) n++; return n; }
+function saBlank(t, qs){   /* 인용 구간을 같은 길이의 공백으로 — 위치는 유지하고 셈에서만 뺀다 */
+  var a = t.split('');
+  qs.forEach(function(q){ for (var i = q.start; i < q.end && i < a.length; i++) if (a[i] !== '\n') a[i] = ' '; });
+  return a.join('');
+}
+function saLen(s){ return String(s || '').replace(/\s+/g, '').length; }
+function saPointText(p){
+  return [p.text].concat(pBlocks(p).map(function(b){ return [b.body, b.apply, b.ill, b.illBody].filter(Boolean).join('\n'); })).concat(p.apply ? [p.apply] : []).join('\n');
+}
+function saSentences(t){
+  var out = [];
+  t.split('\n').forEach(function(line){
+    var l = line.replace(/^\s*(?:ex\)|\((?:주해|적용|강화|정리|실천|예화|서론|결론)\))\s*/i, '');
+    (l.match(/[^.?!。]+[.?!。]*/g) || []).forEach(function(s){ s = s.trim(); if (s) out.push(s); });
+  });
+  return out;
+}
+var SA_ROLES = ['주해근거', '예화', '대지적용', '대지실천', '대지정리'];
+var SA_EXHORT = /(바랍니다|바래요|원합니다|축복합니다|되기를|되시기를|하시기를|가시기를)/;
+var SA_STOP = ('여러분 우리 저희 저는 제가 그리고 그런데 그러나 하지만 그래서 그러면 그렇다면 하나님 예수님 예수 주님 그리스도 성령 말씀 오늘 이렇게 그렇게 어떻게 무엇 바로 정말 다시 모두 함께 그것 이것 저것 있습니다 없습니다 합니다 됩니다 입니다 하는 있는 없는 되는 같은 않습니다 하십니다 때문 것입니다 수 것 때 더 또 한 그 이 저 안 못 잘 주해 적용 강화 정리 실천 예화 서론 결론 ex').split(' ');
+function saTopWords(t, skip){
+  var cnt = {}, stop = {};
+  SA_STOP.concat(skip).forEach(function(w){ stop[w] = 1; });
+  t.split(/[^가-힣A-Za-z0-9]+/).forEach(function(w){
+    if (!w || /^\d+$/.test(w)) return;
+    var s = w.replace(/(으로서|으로써|에서는|에게서|이라는|으로|에서|에게|께서|부터|까지|처럼|보다|라는|이란|이며|이고|에는|과|와|은|는|이|가|을|를|의|도|에|로|만)$/, '');
+    if (s.length < 2) s = w;
+    if (s.length < 2 || stop[s] || stop[w]) return;
+    cnt[s] = (cnt[s] || 0) + 1;
+  });
+  return Object.keys(cnt).filter(function(k){ return cnt[k] >= 6; })
+    .sort(function(a, b){ return cnt[b] - cnt[a]; }).slice(0, 8).map(function(k){ return [k, cnt[k]]; });
+}
+async function selfAuditCompose(){
+  var host = $('#ptSelfAudit'); if (!host) return;
+  var c = state.compose;
+  var full = c.style === '자유원고' ? String(c.free || '') : assembleText();
+  if (!saLen(full)) { host.innerHTML = '<div class="vfOk" style="color:var(--dim)">점검할 원고가 없습니다.</div>'; return; }
+  var sv = saStructView();
+  var base = null; try { base = parseRange(String($('#c_ref').value || '').trim()); } catch (e){}
+  var needles = [], bad = 0;
+  function jump(label, needle){ needles.push(needle); return '<button type="button" class="saJump" data-sai="' + (needles.length - 1) + '">' + esc(label) + '</button>'; }
+  var qs = saFindQuotes(full), plain = saBlank(full, qs);
+  var h = '';
+
+  /* ① 반복어 */
+  var cfg = saWordsCfg(), wr = [];
+  cfg.forEach(function(x){
+    var n = saCount(plain, x.w), per = [];
+    if (x.per && sv) (sv.points || []).forEach(function(p, i){
+      var k = saCount(saBlank(saPointText(p), saFindQuotes(saPointText(p))), x.w);
+      if (k > x.per) per.push((i + 1) + '대지 ' + k + '회');
+    });
+    var over = n > x.max || per.length;
+    if (over) bad++;
+    wr.push('<div class="saRow">' + (over ? '<span class="saBad">⚠</span> ' : '<span class="saOk">✓</span> ')
+      + (n ? jump('「' + x.w + '」', x.w) : '「' + esc(x.w) + '」') + ' ' + n + '회'
+      + ' <span class="saDim">(전체 ' + x.max + '회까지' + (x.per ? ' · 대지당 ' + x.per + '회' : '') + ')</span>'
+      + (per.length ? ' — <span class="saBad">' + esc(per.join(', ')) + '</span>' : '') + '</div>');
+  });
+  var top = saTopWords(plain, cfg.map(function(x){ return x.w; }));
+  h += '<div class="saSec"><h5>반복어 <span class="saDim">— 성경 인용문은 세지 않습니다 · 누르면 원고에서 차례로 찾아갑니다</span></h5>' + wr.join('')
+    + (top.length ? '<div class="saRow saDim" style="margin-top:4px">자주 쓴 말(참고): ' + top.map(function(x){ return jump(x[0], x[0]) + ' ' + x[1]; }).join(' · ') + '</div>' : '')
+    + '</div>';
+
+  /* ② 성경 인용 전문 */
+  var qr = [];
+  for (var i = 0; i < qs.length; i++) qr.push(await saCheckQuote(qs[i], base));
+  var qOk = qr.filter(function(x){ return x.st === 'ok'; }).length;
+  var qBad = qr.filter(function(x){ return x.st === 'bad'; });
+  var qPart = qr.filter(function(x){ return x.st === 'part'; });
+  var qSkip = qr.filter(function(x){ return x.st === 'skip'; });
+  bad += qBad.length;
+  function qRow(x, cls){
+    var snip = x.q.quote.replace(/\s+/g, ' ').trim();
+    return '<div class="saRow"><span class="' + cls + '">' + (cls === 'saBad' ? '⚠' : '·') + '</span> '
+      + jump(x.q.ref, full.slice(x.q.start, Math.min(x.q.end, x.q.start + 30)).split('\n')[0]) + ' — ' + esc(x.why)
+      + (x.v ? '<span class="saQ">원고: ' + esc(snip.length > 90 ? snip.slice(0, 90) + '…' : snip) + '<br>개역개정 ' + esc(x.v.ref) + ': ' + esc(x.v.text.length > 160 ? x.v.text.slice(0, 160) + '…' : x.v.text) + '</span>' : '')
+      + '</div>';
+  }
+  h += '<div class="saSec"><h5>성경 인용 전문 <span class="saDim">— 인용 ' + qs.length + '곳 · 전문 일치 ' + qOk + '곳</span></h5>'
+    + (qs.length ? '' : '<div class="saRow saDim">「약어 장:절 "…"」 형식의 인용이 없습니다.</div>')
+    + qBad.map(function(x){ return qRow(x, 'saBad'); }).join('')
+    + qPart.map(function(x){ return qRow(x, 'saDim'); }).join('')
+    + (qSkip.length ? '<div class="saRow saDim">대조하지 못함 ' + qSkip.length + '곳: ' + qSkip.map(function(x){ return esc(x.q.ref) + '(' + esc(x.why) + ')'; }).join(', ') + '</div>' : '')
+    + (qs.length && !qBad.length ? '<div class="saRow saOk">✓ 전문과 어긋난 인용이 없습니다.</div>' : '')
+    + '</div>';
+
+  /* ③ 대지 마무리 */
+  var pr = [];
+  if (!sv) pr.push('<div class="saRow saDim">대지 번호(1. 2. …)가 없어 대지별 점검은 건너뛰었습니다.</div>');
+  else {
+    var pts = (sv.points || []).filter(pHasContent), gal = [];
+    (sv.points || []).forEach(function(p, i){
+      if (!pHasContent(p)) return;
+      var has = {}, last = '', summ = '';
+      pBlocks(p).forEach(function(b){
+        var txt = [b.body, b.apply, b.ill, b.illBody].filter(Boolean).join(' ').trim(); if (!txt) return;
+        var r = blockRole(b); has[r] = 1; last = r; if (r === '대지정리') summ = txt;
+      });
+      if (String(p.apply || '').trim()) has['대지실천'] = 1;
+      var miss = SA_ROLES.filter(function(r){ return !has[r]; }), notes = [];
+      if (!String(p.text || '').trim()) notes.push('명제 없음');
+      if (miss.length) notes.push('빠진 칸: ' + miss.join('·'));
+      if (summ && last !== '대지정리') notes.push('대지정리 뒤에 ' + last + '이(가) 옵니다 — 대지는 정리(권면)로 닫습니다');
+      if (summ && !SA_EXHORT.test(summ)) notes.push('대지정리에 권면("~되기를 바랍니다")이 없습니다');
+      if (summ) gal.push([i, (summ.match(/[^.?!]+[.?!]*/g) || []).filter(function(s){ return !SA_EXHORT.test(s); }).join(' ') || summ]);
+      if (notes.length) bad++;
+      var label = (i + 1) + '대지' + (p.text ? ' ' + String(p.text).trim().slice(0, 24) : '');
+      pr.push('<div class="saRow">' + (notes.length ? '<span class="saBad">⚠</span> ' : '<span class="saOk">✓</span> ')
+        + (p.text ? jump(label, String(p.text).trim().slice(0, 30)) : esc(label))
+        + (notes.length ? ' — ' + esc(notes.join(' / ')) : ' — 명제·근거·예화·적용·실천·정리(권면) 갖춤') + '</div>');
+    });
+    for (var a = 0; a < gal.length; a++) for (var b2 = a + 1; b2 < gal.length; b2++) {
+      var sm = similarity(gal[a][1], gal[b2][1]);
+      if (sm >= 0.55) { bad++; pr.push('<div class="saRow"><span class="saBad">⚠</span> ' + (gal[a][0] + 1) + '대지·' + (gal[b2][0] + 1) + '대지의 갈무리 표현이 비슷합니다(' + Math.round(sm * 100) + '%) — 대지마다 다르게</div>'); }
+    }
+    if (!pts.length) pr.push('<div class="saRow saDim">작성된 대지가 없습니다.</div>');
+  }
+  h += '<div class="saSec"><h5>대지 마무리</h5>' + pr.join('') + '</div>';
+
+  /* ④ 분량 */
+  var tot = saLen(full), mins = Math.max(1, Math.round(tot / 300)), parts = [];
+  if (sv) {
+    var pl = [], pn = [];
+    (sv.points || []).forEach(function(p, i){ if (pHasContent(p)) { pl.push(saLen(saPointText(p))); pn.push(i + 1); } });
+    var concT = [sv.concBody].join('\n');
+    parts.push('서론 ' + saLen(sv.intro).toLocaleString() + '자');
+    pl.forEach(function(n, i){ parts.push(pn[i] + '대지 ' + n.toLocaleString() + '자'); });
+    parts.push('결론 ' + saLen(concT).toLocaleString() + '자');
+    var ln = [];
+    if (pl.length >= 2) {
+      var mx = Math.max.apply(null, pl), mn = Math.min.apply(null, pl);
+      if (mn && mx / mn > 1.8) { bad++; ln.push('<div class="saRow"><span class="saBad">⚠</span> 대지 분량 편차가 큽니다 — 가장 긴 대지가 가장 짧은 대지의 ' + (mx / mn).toFixed(1) + '배</div>'); }
+    }
+    var cs = saSentences(String(sv.concBody || ''));
+    if (cs.length > 6) { bad++; ln.push('<div class="saRow"><span class="saBad">⚠</span> 결론 본문이 ' + cs.length + '문장입니다 — 단문 3~4개 + 축복 선언으로 짧게</div>'); }
+  }
+  h += '<div class="saSec"><h5>분량 <span class="saDim">— 공백 제외 · 분당 300자 기준</span></h5>'
+    + '<div class="saRow">전체 <b>' + tot.toLocaleString() + '자</b> · 약 <b>' + mins + '분</b>' + (parts.length ? '<br><span class="saDim">' + esc(parts.join(' · ')) + '</span>' : '') + '</div>'
+    + (ln ? ln.join('') : '') + '</div>';
+
+  /* ⑤ 긴 문장 */
+  /* 인용을 비운 자리(연속 공백)는 한 칸으로 줄여 길이를 재고, 찾아가기 검색어는 비운 자리 앞 토막에서 뗀다 */
+  var longs = saSentences(plain).map(function(s){ return { s: s.replace(/\s{2,}/g, ' ').trim(), n: s.split(/\s{2,}/)[0].trim().slice(0, 30) }; })
+    .filter(function(x){ return x.s.length > SA_LONG; })
+    .sort(function(x, y){ return y.s.length - x.s.length; });
+  if (longs.length) bad++;
+  h += '<div class="saSec"><h5>긴 문장 <span class="saDim">— ' + SA_LONG + '자 초과 · 성경 인용 제외 · 긴 순</span></h5>'
+    + (longs.length ? longs.slice(0, 12).map(function(x){
+        return '<div class="saRow"><span class="saDim">' + x.s.length + '자</span> ' + jump(x.s.length > 70 ? x.s.slice(0, 70) + '…' : x.s, x.n) + '</div>';
+      }).join('') + (longs.length > 12 ? '<div class="saRow saDim">… 외 ' + (longs.length - 12) + '문장</div>' : '')
+      : '<div class="saRow saOk">✓ ' + SA_LONG + '자를 넘는 문장이 없습니다.</div>')
+    + '</div>';
+
+  var cfgV = ''; try { cfgV = localStorage.getItem('tsa.saWords') || ''; } catch (e){}
+  SA_LAST.needles = needles; SA_LAST.hit = {};
+  var now = new Date();
+  host.innerHTML = '<div class="saBox"><div class="saHd">✍ 원고 자체 점검<small>' + ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2) + ' 기준 · 원고를 고쳤으면 다시 누르세요</small></div>'
+    + '<div class="saSum">' + (bad ? '<span class="saBad">손볼 곳 ' + bad + '건</span>' : '<span class="saOk">✓ 손볼 곳이 없습니다</span>') + '</div>'
+    + h
+    + '<div class="saCfg">점검 단어 <input type="text" id="saWordsIn" value="' + esc(cfgV || SA_WORDS_DEF) + '" title="단어:전체 허용 횟수/대지당 허용 횟수 — 쉼표로 구분 (이 기기에 저장)"><button type="button" class="btn sub mini" id="saWordsSave" style="flex:0 0 auto">저장 후 다시 점검</button></div>'
+    + '</div>';
+}
+/* 원고에서 찾아가기 — 작성칸(자유원고·구조 블록)을 화면 순서대로 뒤져 n번째 위치를 선택하고 그 자리로 스크롤 */
+function saJumpTo(needle, nth){
+  var tas = Array.prototype.slice.call(document.querySelectorAll('#editorPane textarea, #editorPane input[type="text"]'));
+  var hits = [];
+  tas.forEach(function(ta){ var v = ta.value || '', i = -1; while ((i = v.indexOf(needle, i + 1)) >= 0) hits.push([ta, i]); });
+  if (!hits.length) { toast('작성칸에서 찾지 못했습니다 — 원고가 바뀌었으면 다시 점검해 주세요.'); return; }
+  var h = hits[nth % hits.length], ta = h[0];
+  ta.focus({ preventScroll: true });
+  try { ta.setSelectionRange(h[1], h[1] + needle.length); } catch (e){}
+  var frac = h[1] / Math.max(1, ta.value.length);
+  if (ta.scrollHeight > ta.clientHeight + 4) ta.scrollTop = Math.max(0, frac * ta.scrollHeight - ta.clientHeight / 3);
+  var sc = ta.parentElement;
+  while (sc && sc !== document.body && !(sc.scrollHeight > sc.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+  var r = ta.getBoundingClientRect(), y = r.top + (ta.scrollHeight > ta.clientHeight + 4 ? ta.clientHeight / 3 : frac * r.height);
+  if (!sc || sc === document.body) window.scrollBy(0, y - innerHeight / 3);
+  else sc.scrollTop += y - (sc.getBoundingClientRect().top + sc.clientHeight / 3);
+  if (hits.length > 1) toast((nth % hits.length + 1) + ' / ' + hits.length + ' — 다시 누르면 다음 위치');
+}
+(function(){
+  var btn = $('#selfAuditBtn');
+  if (btn) btn.addEventListener('click', function(){
+    withBusy(btn, '점검 중…', function(){
+      return selfAuditCompose().catch(function(e){ toast('자체 점검 실패: ' + (e && e.message || e)); });
+    })();
+  });
+  var host = $('#ptSelfAudit');
+  if (host) host.addEventListener('click', function(e){
+    var j = e.target.closest && e.target.closest('.saJump');
+    if (j) { var k = +j.getAttribute('data-sai'); SA_LAST.hit[k] = (SA_LAST.hit[k] || 0); saJumpTo(SA_LAST.needles[k], SA_LAST.hit[k]++); return; }
+    if (e.target.id === 'saWordsSave') {
+      var v = String(($('#saWordsIn') || {}).value || '').trim();
+      try { if (!v || v === SA_WORDS_DEF) localStorage.removeItem('tsa.saWords'); else localStorage.setItem('tsa.saWords', v); } catch (eS){}
+      if (btn) btn.click();
+    }
+  });
+})();
+
 /* ===================== 적용 강화: 세대별 결단 (AI) ===================== */
 var P_APPLY = [
 '당신은 영락교회 담임 설교자(목사님)의 설교에서 "적용"과 "실천"을 벼리는 비서다. 설교 구조는 [메시지(대지) → 근거 → 적용 → 실천]이다.',
@@ -24598,7 +24879,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v574';
+var APP_VER = 'v575';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
