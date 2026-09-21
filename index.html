@@ -8841,7 +8841,8 @@ async function saCheckQuote(q, base){
   if (!full || !full.text) return { q: q, st: 'bad', why: '앱의 개역개정에서 이 절을 찾지 못했습니다' };
   var nq = saNormQ(q.quote), nv = saNormV(full.text);
   if (!nq) return { q: q, st: 'skip', why: '인용문이 비어 있습니다' };
-  if (/…|\.\.\.|중략/.test(q.quote)) {
+  var el = /…|\.\.\.|중략/.test(q.quote);
+  if (el) {
     /* 말줄임이 곧 중략은 아니다 — 앞뒤 조각이 절 안에서 실제로 건너뛴 곳이 있을 때만 중략.
        「나사렛에서 … 나사렛에서 무슨 선한 것이」처럼 되뇌는 반복 강조는 겹치거나 이어진다. */
     var segs = q.quote.split(/…|\.{3,}|중략/).map(saNormQ).filter(Boolean), prev = -1, gap = false, inside = true, cov = {};
@@ -8863,8 +8864,8 @@ async function saCheckQuote(q, base){
   if (nq.indexOf(nv) >= 0) return { q: q, st: 'part', why: '전문 인용 뒤(앞)에 덧붙인 말이 있습니다 — 반복 강조라면 그대로 두셔도 됩니다', v: full };
   if (nv.indexOf(nq) >= 0) return { q: q, st: r.part ? 'part' : 'bad', why: (r.part ? 'a/b 표기 부분 인용' : '절 일부만 인용') + ' — 전문 ' + nv.length + '자 중 ' + nq.length + '자', v: full };
   var sim = similarity(q.quote, full.text);
-  if (sim >= 0.8) return { q: q, st: 'bad', why: '개역개정과 글자가 다릅니다(일치도 ' + Math.round(sim * 100) + '%)', v: full };
-  return { q: q, st: 'bad', why: '개역개정과 다릅니다 — 다른 번역·의역이거나 장절 표기가 틀렸습니다(일치도 ' + Math.round(sim * 100) + '%)', v: full };
+  if (sim >= 0.8) return { q: q, st: 'bad', why: (el ? '말줄임(…)이 있고 ' : '') + '개역개정과 글자가 다릅니다(일치도 ' + Math.round(sim * 100) + '%)', v: full };
+  return { q: q, st: 'bad', why: (el ? '말줄임(…)이 있고 ' : '') + '개역개정과 다릅니다 — 다른 번역·의역이거나 장절 표기가 틀렸습니다(일치도 ' + Math.round(sim * 100) + '%)', v: full };
 }
 function saCount(t, w){ var n = 0, i = -1; if (!w) return 0; while ((i = t.indexOf(w, i + 1)) >= 0) n++; return n; }
 function saBlank(t, qs){   /* 인용 구간을 같은 길이의 공백으로 — 위치는 유지하고 셈에서만 뺀다 */
