@@ -13909,7 +13909,15 @@ async function aiYouTubeSummarize(id){
     var s = findSermon(id); if (!s) { toast('설교 기록을 찾지 못했습니다.'); return; }
     var gk = geminiKey();                 /* 있으면 앱에서 Gemini 직접 호출(지역 차단 회피) */
     var c = vidProxyCfg();
-    if (!gk && (!c.url || !c.token)) { toast('설정 탭에서 Gemini API 키(권장) 또는 영상분석 프록시 URL·토큰을 먼저 입력해 주세요.'); showPage('settings'); return; }
+    /* 키가 없으면 프록시 워커로 폴백하는데, 그 길은 워커 출구(해외 엣지)를 구글이 막아
+       'User location is not supported'로 거의 늘 실패한다. 헛걸음 대신 먼저 알린다(v568). */
+    if (!gk) {
+      if (!c.url || !c.token) { toast('설정 탭에서 Gemini API 키를 먼저 입력해 주세요 — 유튜브 전사에 필요합니다.'); showPage('settings'); return; }
+      var noKey = await uiChoose('이 기기에 Gemini API 키가 없습니다.\n키 없이 프록시 워커로 전사하면 해외 서버라 「User location is not supported」 지역 차단으로 실패할 가능성이 큽니다.',
+        { okText: '⚙ 설정에서 키 넣기', extraText: '그래도 프록시로 시도', cancelText: '취소' });
+      if (noKey === 'ok') { showPage('settings'); return; }
+      if (noKey !== 'extra') return;
+    }
     if (!aiKey()) { toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 요약본을 만들 수 있습니다.'); return; }
     if (String(s['실제요약본'] || '').trim() &&
         !await uiConfirm('이미 「실제 설교 요약본」이 있습니다. 다시 만들어 교체할까요?\n(원고 요약본은 그대로 둡니다)')) return;
@@ -13952,7 +13960,15 @@ async function aiYouTubeSummarize(id){
         return;
       }
       hideGenOverlay();
-      if (!j.ok) { toast('전사 실패: ' + (j.error || ('HTTP ' + r.status))); return; }
+      if (!j.ok) {
+        /* 워커는 구글 오류를 그대로 돌려준다 — 지역 차단이면 앱 직접 호출과 같은 안내로 바꾼다(v568). */
+        var werr = String(j.error || ('HTTP ' + r.status));
+        if (/User location is not supported/i.test(werr)) {
+          toast('전사 실패: 프록시 워커(해외 서버)를 Gemini가 막았습니다 — 설정에 Gemini API 키를 넣으면 이 기기에서 바로 전사합니다.');
+          showPage('settings'); return;
+        }
+        toast('전사 실패: ' + werr); return;
+      }
     }
     var trans = String(j.transcript || '').trim();
     if (!trans) { toast('전사 결과가 비어 있습니다 — 영상이 공개인지, 설교 구간이 있는지 확인해 주세요.'); return; }
@@ -24150,7 +24166,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v567';
+var APP_VER = 'v568';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
