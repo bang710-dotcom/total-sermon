@@ -3828,7 +3828,7 @@ function illSrcKeyToIdeaId(key){
 }
 function illComposeUsedIdeaIds(){
   var seen = {}, out = [];
-  (state.compose.points || []).forEach(function(p){
+  composeEffectivePoints().forEach(function(p){
     pBlocks(p).forEach(function(b){
       if (b.type !== 'ill') return;
       var id = illSrcKeyToIdeaId(b.srcKey || '');
@@ -3852,7 +3852,9 @@ function illComposeUsedIdeaIds(){
    그때 기록을 지우면 멀쩡한 사용 이력이 통째로 날아가므로, 추가만 하고 삭제는 하지 않는다. */
 function composeIllTrustworthy(){
   var n = 0;
-  (state.compose.points || []).forEach(function(p){ pBlocks(p).forEach(function(b){ if (b && b.type === 'ill') n++; }); });
+  /* v572: 자유원고인데 임시 파싱이 실패했으면 구조가 원고를 대변하지 못한다 → 삭제하지 않는다 */
+  if (state.compose.style === '자유원고' && String(state.compose.free || '').trim() && !composeFreePoints()) return false;
+  composeEffectivePoints().forEach(function(p){ pBlocks(p).forEach(function(b){ if (b && b.type === 'ill') n++; }); });
   if (n > 0) return true;
   return !/(^|\n)\s*(?:ex\)|\(예화\))/i.test(String(state.compose.free || ''));
 }
@@ -3882,7 +3884,7 @@ function illRecordUsage(sermonId){
      저장 시점엔 전문이 아직 안 붙어 있는 경우가 많아 조용히 아무것도 기록되지 않았다 → 전문을
      기다렸다가 기록한다. 그 사이 작성창이 바뀌어도 되도록 지금의 대지 배열을 붙잡아 넘긴다. (v547) */
   try {
-    var pts = state.compose.points;
+    var pts = composeEffectivePoints();
     var run = function(){
       try {
         var wantL = {};
@@ -9590,8 +9592,9 @@ function parseFreeToStructure(){
   function closePoint(){ if (cur) { flushBody(); flushIll(); flushApply(); if (!cur.blocks.length) cur.blocks = [newBodyBlock('')]; pts.push(cur); } cur = null; bodyAcc = []; curIll = null; applyAcc = []; mode = 'body'; bodyRole = '주해근거'; }
   for (var j = firstHead; j < bodyEnd; j++) {
     var l = lines[j];
-    /* 첫 대지 이후의 "N)" 는 번호가 이어질 때(다음 대지 번호)만 머리로 본다(v572) — 본문 속 "1) 2)" 소목록이 대지로 승격되지 않게. */
-    if (isStructHead(l) && !(cur && /^\s*\d+\s*\)/.test(stripBoldEnds(l)) && parseInt(stripBoldEnds(l), 10) !== pts.length + 2)) { closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue; }
+    /* 첫 대지 이후의 번호 머리("N." "N)")는 번호가 이어질 때(다음 대지 번호)만 대지로 본다(v572) —
+       본문 속 "1) 2)"·"1. 2." 소목록이 새 대지로 승격되지 않게. (대지) 코드는 번호와 무관하게 항상 머리. */
+    if (isStructHead(l) && !(cur && /^\s*\d+\s*[.)]/.test(stripBoldEnds(l)) && parseInt(stripBoldEnds(l), 10) !== pts.length + 2)) { closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue; }
     var exm = l.match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
     if (exm) { flushBody(); flushIll(); flushApply(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
     var cm = l.match(/^\s*\((?:주해|근거|대지\s*내용|내용)\)\s*(.*)$/);
@@ -9695,6 +9698,8 @@ $$('#c_style .chip').forEach(function(ch){
         return;
       }
     }
+    var wasDirty = composeDirty();   /* v572: 전환 전에 미저장이었으면 전환 뒤에도 미저장으로 남긴다 */
+    var takeSnap = false;
     if (from === '자유원고' && to !== '자유원고') {
       /* 자유원고 → 구조: 자유원고 내용을 파싱 규칙에 맞춰 구조(서론·대지·결론)로 반영.
          실패(번호 대지 없음)하면 기존 구조를 보존하고, 비어 있으면 요약본 뼈대를 시도. */
@@ -9706,9 +9711,7 @@ $$('#c_style .chip').forEach(function(ch){
         parseSummaryToStructure();
       }
       renderPoints();
-      /* 원본 자유원고와 '방금 파싱된 구조'의 서명을 보관 → 왕복 시 무손실 복원에 사용 */
-      c._freeSnap = c.free;
-      c._structSnapSig = structSig();
+      takeSnap = true;   /* 스냅샷은 renderEditor() 뒤에(결론 칸 시드가 서명을 바꾸므로) */
     } else if (to === '자유원고' && from !== '자유원고') {
       /* 구조 → 자유: 자유원고에서 넘어온 뒤 구조를 '손대지 않았다면' 원본 자유원고를 그대로 복원(무손실).
          구조를 수정했다면(서명 변경) 구조 내용을 자유원고로 다시 조립한다.
@@ -9726,9 +9729,13 @@ $$('#c_style .chip').forEach(function(ch){
       state.compose.style = to;
     }
     setStyleChips(); renderEditor();
+    /* 원본 자유원고와 '방금 파싱된 구조'의 서명을 보관 → 왕복 시 무손실 복원에 사용 */
+    if (takeSnap) { c._freeSnap = c.free; c._structSnapSig = structSig(); }
     /* 토글 자체의 형식 변환은 '편집'이 아니므로 기준 서명을 새로 잡는다.
-       이렇게 해야 실제 타이핑 변경이 없는 한 다음 토글에서 다시 저장되지 않는다. */
-    state.savedSig = composeSig();
+       이렇게 해야 실제 타이핑 변경이 없는 한 다음 토글에서 다시 저장되지 않는다.
+       ★ v572: 단, 전환 전에 이미 미저장이었다면(제목 없어 자동 저장을 건너뛴 경우·같은 계열 전환) 그대로 둔다 —
+       예전엔 여기서 무조건 다시 잡아 "미저장"이 "저장됨"으로 바뀌고, [새 설교]·다른 설교 열기가 확인 없이 버퍼를 버렸다. */
+    if (!wasDirty) state.savedSig = composeSig();
   });
 });
 
@@ -10578,10 +10585,42 @@ function assembleText(){
   if (msg && lastL !== msg) L.push(msg);
   return L.join('\n');
 }
+/* ── 왕복 가드(v572) ──
+   저장된 원고를 구조(기본원고)로 열었다가 그대로 저장하면 assembleText() 가 원고를 다시 조립한다.
+   파서가 원문을 온전히 담지 못한 원고(결론 머리가 없음·소목록·볼드 머리글 등)는 그 순간 본문이 바뀌므로,
+   "파싱 → 재조립" 결과가 원문과 같을 때만 구조로 연다. 비교는 줄 앞뒤 공백·빈 줄·예화 표기(ex)/(예화)) 차이만 무시한다. */
+function rtNorm(t){
+  return String(t == null ? '' : t).replace(/\r/g, '').split('\n')
+    .map(function(l){ return l.trim().replace(/^(?:ex\)|\(예화\))\s*/i, 'ex) '); })
+    .filter(Boolean).join('\n');
+}
+function structRoundTripOk(free){
+  var c = state.compose, st = c.style;
+  c.style = '기본원고';
+  try { return rtNorm(assembleText()) === rtNorm(free); } catch (e) { return false; } finally { c.style = st; }
+}
+/* 자유원고 저장 때 쓸 대지 구조(v572) — 자유원고의 state.compose.points 는 열 때(또는 마지막 구조 전환 때)의
+   낡은 값이라, 그걸로 `대지`·`예화` 컬럼과 예화 사용 기록을 만들면 자유원고에서 고친 내용이 반영되지 않았다.
+   지금 원고를 작성 버퍼를 건드리지 않는 임시 파싱본으로 읽는다. 파싱 실패(대지 마커 없음)면 null. */
+var _freePtsMemo = { k: null, v: null };
+function composeFreePoints(){
+  var c = state.compose;
+  if (!c || c.style !== '자유원고') return null;
+  var mEl = $('#c_msg'), key = (mEl ? mEl.value.trim() : '') + '\u0000' + String(c.free || '');
+  if (_freePtsMemo.k === key) return _freePtsMemo.v;
+  var tmp = newCompose(), v = null;
+  tmp.style = '자유원고'; tmp.free = String(c.free || '');
+  state.compose = tmp;
+  try { if (parseFreeToStructure()) v = tmp.points; } catch (e) { v = null; } finally { state.compose = c; }
+  _freePtsMemo = { k: key, v: v };
+  return v;
+}
+/* 저장·기록용 대지 배열: 자유원고면 임시 파싱본, 파싱이 안 되면(대지 마커 없는 원고) 열 때 시트 컬럼에서 만든 구조 그대로 */
+function composeEffectivePoints(){ return composeFreePoints() || state.compose.points || []; }
 function collectCompose(){
   var data = {};
   Object.keys(C_META).forEach(function(k){ data[k] = $('#' + C_META[k]).value.trim(); });
-  var pts = state.compose.points;
+  var pts = composeEffectivePoints();
   data['대지'] = pts.filter(function(p){ return (p.text || '').trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n');
   data['예화'] = pts.map(function(p){ return pIllTitles(p).join(' / '); }).filter(Boolean).join('; ');
   data['원고텍스트'] = assembleText();
@@ -10660,8 +10699,10 @@ function editSermonFill(id, noNav){
      구조도 미리 파싱해 채워, [기본원고]로 전환하면 세부내용(내용·예화·적용)까지 바로 보이게 한다.
      번호/대지 마커가 없어 파싱이 실패하면 컬럼(대지·예화) 기반 구조를 유지한다. */
   if (c.free.trim()) {
-    /* 원칙: 구조화된 설교는 기본원고로 연다. 번호/대지 마커가 없는(가져오기 DOCX 등) 미구조 텍스트만 자유원고로. */
-    c.style = parseFreeToStructure() ? '기본원고' : '자유원고';
+    /* 원칙: 구조화된 설교는 기본원고로 연다. 번호/대지 마커가 없는(가져오기 DOCX 등) 미구조 텍스트만 자유원고로.
+       ★ v572 왕복 가드: 파싱은 됐어도 다시 조립한 원고가 원문과 다르면(결론 머리 없음·소목록·볼드 머리글 등)
+       구조로 열었다 저장하는 순간 본문이 바뀐다 → 그런 원고는 자유원고로 연다(본문 보존 우선). */
+    c.style = (parseFreeToStructure() && structRoundTripOk(c.free)) ? '기본원고' : '자유원고';
   }
   /* 풀텍스트가 없고 요약본만 있으면 기본원고 뼈대로 연다. */
   else if (String(c.sum || '').trim() && parseSummaryToStructure()) {
@@ -10676,6 +10717,9 @@ function editSermonFill(id, noNav){
     if (_jeok) c.intro = _jeok;
   }
   setStyleChips(); renderPoints(); renderEditor(); updateComposeBadge(); refreshReqBtns();
+  /* 구조로 연 원고도 '원본 자유원고 + 방금 파싱된 구조 서명'을 잡아 둔다(v572) — 구조를 손대지 않고 [자유원고]로
+     바꾸면 원문이 그대로 돌아온다. 서명은 renderEditor()(결론 칸 시드 등) 뒤에 잡아야 어긋나지 않는다. */
+  if (c.style !== '자유원고' && String(c.free || '').trim()) { c._freeSnap = c.free; c._structSnapSig = structSig(); }
   renderRefPast(); renderMssWarn(); renderRefIllust();
   clearAiPanels();   /* ★ 이전 설교의 강해 검증·대지 보강·실천 강화 결과를 남기지 않는다 */
   state.savedSig = composeSig();
