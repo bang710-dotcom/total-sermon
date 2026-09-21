@@ -2264,6 +2264,7 @@ function idbSet(key, val){ return idb().then(function(db){ return new Promise(fu
   var tx = db.transaction('kv', 'readwrite');
   tx.objectStore('kv').put(val, key);
   tx.oncomplete = res; tx.onerror = function(){ rej(tx.error); };
+  tx.onabort = function(){ rej(tx.error || new Error('IndexedDB 쓰기가 중단되었습니다(저장공간 부족?)')); };   /* v576: 쿼터 초과는 커밋 시점 abort 로 끝나 onerror 없이 프라미스가 영영 안 끝났다 */
 });});}
 function idbGet(key){ return idb().then(function(db){ return new Promise(function(res, rej){
   var tx = db.transaction('kv', 'readonly');
@@ -2485,7 +2486,8 @@ function _maybeFlagConflict(incomingRow, baseRow){
     /* 복원된 초안으로 편집 중일 때: 목록 필드가 모두 같아도(=원고 본문만 변경) 초안 기준 시점(_draftBaseMod)보다
        새 저장이 들어오면 충돌로 표시 — 본문만 고친 다른 기기 변경도 놓치지 않는다.
        (_draftBaseMod는 초안 복원 시에만 설정되고 저장 성공·새 편집 시작 시 해제되므로, 내 저장 에코로는 켜지지 않는다.) */
-    var _draftNewer = state._draftBaseMod && _im && _im > String(state._draftBaseMod);
+    var _baseMod = state._draftBaseMod || state._bufMod;   /* v576: 열 때의 시트 수정일도 기준 — 본문만 바뀐 다른 기기 저장도 잡는다 */
+    var _draftNewer = _baseMod && _im && _im > String(_baseMod);
     if (_sigEq && !_draftNewer) return;   /* 의미있는 변경 없음(자기 저장 에코 등) */
     /* 오탐 방지: 들어온 행이 기준본보다 '더 최신'(수정일 큰 값)일 때만 충돌로 본다.
        같은 분이거나 더 오래된 델타(내 저장 에코·뒤늦게 도착한 옛 버전)는 충돌이 아니다. */
@@ -2496,7 +2498,44 @@ function _maybeFlagConflict(incomingRow, baseRow){
     if (isNew) { try { toast('이 설교가 다른 기기에서 수정되었습니다 — 저장 전에 덮어쓰기 여부를 확인합니다.'); } catch(e){} }
   } catch(e){}
 }
+/* ── 편집 중이라 보류한 원격 변경 (v576, 수정계획 3단계 1번) ──
+   mergeDelta 는 미저장 편집 중인 설교의 원격 행·삭제를 로컬에 반영하지 않는다(편집 보호). 그런데 syncAt 은 전진하므로
+   그 변경은 다음 델타에 다시 오지 않는다 — 예전엔 편집을 버리거나(새 설교·다른 설교 열기) 검토본으로 저장해도 그 설교의
+   로컬 행이 옛 내용으로 남아, 나중에 옛 본문으로 이어 쓰다 다른 기기의 저장을 덮었다.
+   이제 보류분을 state._held 에 두고(IndexedDB 'heldRows' 에도 — 앱을 닫았다 열어도 잃지 않게) 보호가 풀리는 순간 적용한다.
+   내가 덮어써 저장해 로컬이 더 최신이면 버린다. force = 작성 버퍼를 버리는 경로(새 설교·다른 설교 열기)라 보호 무시. */
+function heldSave(){ if (_dataLoaded) idbSet('heldRows', state._held || {}).catch(function(){}); }
+function heldPut(id, row, del){
+  state._held = state._held || {};
+  state._held[String(id)] = { row: row || null, del: !!del };
+  heldSave();
+}
+function heldApply(force){
+  var H = state._held; if (!H) return false;
+  var ids = Object.keys(H); if (!ids.length) return false;
+  var guard = force ? null : _editingGuardId(), changed = false;
+  ids.forEach(function(id){
+    if (guard && guard === id) return;
+    var h = H[id], arr = state.data.sermons = state.data.sermons || [];
+    var loc = arr.filter(function(r){ return String(r['ID']) === id; })[0];
+    if (h.del) {
+      if (!force && String(state.editing) === id) return;   /* 깨끗하게 열어 둔 설교의 원격 삭제는 작성창을 떠날 때 반영 */
+      state.data.sermons = arr.filter(function(r){ return String(r['ID']) !== id; });
+    } else if (h.row && (!loc || String(h.row['수정일'] || '') > String(loc['수정일'] || ''))) {
+      var r = Object.assign({}, h.row);
+      /* 목록 행엔 원고 본문이 없다 — 받아 둔 본문은 옛 스탬프(_txtAt)째 보존해 열람 때 ensureText 가 새로 받게 한다 */
+      if (loc && !String(r['원고텍스트'] || '').trim() && String(loc['원고텍스트'] || '').trim()) {
+        r['원고텍스트'] = loc['원고텍스트']; if (loc._txt) r._txt = loc._txt; if (loc._txtAt) r._txtAt = loc._txtAt;
+      }
+      upsertById(arr, [r]);
+    }
+    delete H[id]; changed = true;
+  });
+  if (changed) heldSave();
+  return changed;
+}
 function mergeDelta(d){
+  heldApply();   /* v576: 보호가 풀린 보류분 먼저(같은 델타에 더 새 행이 있으면 아래 upsert 가 이긴다) */
   var keepId = _editingGuardId();
   DELTA_KEYS.forEach(function(k){
     if (!d[k]) return;
@@ -2512,7 +2551,15 @@ function mergeDelta(d){
     /* 편집 중인 설교 행은 원격 변경분에서 제외(로컬 편집본 유지) — 단, 다른 기기가 바꿨으면 충돌로 표시 */
     if (k === 'sermons' && keepId) {
       var incRow = d[k].filter(function(r){ return String(r['ID']) === keepId; })[0];
-      if (incRow) _maybeFlagConflict(incRow);
+      if (incRow) {
+        bufModAdopt(incRow);   /* v576: 저장 직후 첫 에코면 기준으로 받는다(충돌 판정보다 먼저) */
+        _maybeFlagConflict(incRow);
+        heldPut(keepId, incRow);   /* v576: 버리지 않고 보류 */
+      }
+    }
+    if (k === 'sermons' && !keepId) {
+      var edRow = state.editing && d[k].filter(function(r){ return String(r['ID']) === String(state.editing); })[0];
+      if (edRow) bufModAdopt(edRow);
     }
     var inc = (k === 'sermons' && keepId) ? d[k].filter(function(r){ return String(r['ID']) !== keepId; }) : d[k];
     if (k === 'sermons') {
@@ -2533,7 +2580,7 @@ function mergeDelta(d){
     upsertById(state.data[k], inc);
   });
   (d.deletes || []).forEach(function(x){
-    if (keepId && x.sheet === 'sermons' && String(x.id) === keepId) return; /* 편집 중인 행 삭제 무시 */
+    if (keepId && x.sheet === 'sermons' && String(x.id) === keepId) { heldPut(keepId, null, true); return; } /* 편집 중인 행 삭제는 보류(v576) */
     var arr = state.data[x.sheet];
     if (Array.isArray(arr)) state.data[x.sheet] = arr.filter(function(r){ return String(r['ID']) !== String(x.id); });
   });
@@ -2579,6 +2626,7 @@ function _pullData(opts){
     if (d.delta) {                 /* 신 백엔드: 변경분만 머지 */
       mergeDelta(d);
     } else {                       /* 전체 응답(첫 동기화·구 백엔드): 통째 교체 */
+      state._held = {}; heldSave();   /* v576: 전체 목록이 곧 최신 — 옛 보류분은 필요 없다(편집 중인 행은 아래에서 다시 보류) */
       d.outputs = d.outputs || [];
       d.devo = d.devo || [];
       d.devonotes = d.devonotes || [];
@@ -2589,7 +2637,8 @@ function _pullData(opts){
         var localRow = (state.data.sermons || []).filter(function(r){ return String(r['ID']) === keepId; })[0];
         if (localRow) {
           var incRowF = (d.sermons || []).filter(function(r){ return String(r['ID']) === keepId; })[0];
-          if (incRowF) _maybeFlagConflict(incRowF, localRow);   /* 전체로드에서도 다른 기기 변경 감지 */
+          if (incRowF) { bufModAdopt(incRowF); _maybeFlagConflict(incRowF, localRow); heldPut(keepId, incRowF); }   /* 전체로드에서도 다른 기기 변경 감지 + 보류(v576) */
+          else heldPut(keepId, null, true);   /* v576: 전체 목록에 없으면 다른 기기에서 삭제된 것 — 보류해 두었다 작성창을 떠날 때 반영 */
           d.sermons = (d.sermons || []).filter(function(r){ return String(r['ID']) !== keepId; }); d.sermons.push(localRow);
         }
       }
@@ -2648,6 +2697,7 @@ window.fullResync = fullResync;
    5대 기기를 오가며 한 작업을 이어갈 때 다른 기기의 최신 변경을 자동 반영한다. ── */
 var _lastFocusSync = 0;
 function focusSync(){
+  if (!_dataLoaded) return;   /* v576: 캐시 로드 전 포커스 동기화는 빈 상태로 전체 조회하거나 옛 data·새 syncAt 을 짝지었다 */
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine || document.hidden) return;
   if (Date.now() - _lastFocusSync < 8000) return;   /* 과도한 호출 억제 */
@@ -11007,6 +11057,7 @@ function clearAiPanels(){
   });
 }
 function clearCompose(){
+  if (heldApply(true)) saveData();   /* v576: 버리는 버퍼의 보류분 반영 */
   state.editing = null;
   state.versionOf = null;
   state.remoteConflict = null;
@@ -11024,11 +11075,13 @@ function clearCompose(){
   clearComposeDraft();
 }
 function editSermonFill(id, noNav){
+  if (heldApply(true)) saveData();   /* v576: 이전 버퍼의 보류분(과 이 설교의 더 새 원격본) 반영 */
   var s = findSermon(id);
-  if (!s) return;
+  if (!s) { toast('설교를 찾지 못했습니다 — 다른 기기에서 삭제되었을 수 있습니다.'); return; }
   state.remoteConflict = null;   /* 새 설교를 편집 시작 → 이전 충돌 표시 해제(기준본이 새로 잡힘) */
   state._draftBaseMod = null;    /* 초안 기준 시점도 해제 — 방금 불러온 행이 새 기준본 */
   state._draftAt = 0;
+  state._bufMod = String(s['수정일'] || '') || null;   /* v576: 이 버퍼가 기반한 시트 저장 시점 */
   /* 수정하기: 원본을 직접 불러와 수정 — [저장]하면 같은 행 업데이트(원본 갱신).
      원본을 보존하고 사본을 만들려면 작성화면의 [새 설교로 저장]을 쓴다. */
   state.editing = id;
@@ -11092,6 +11145,24 @@ window.loadRemoteConflict = function(){
    더 새로 저장했으면 — 오래된 캐시 초안 대신 시트 최신본을 작성창에 자동으로 불러온다.
    (미저장 편집이 있으면(dirty) 손실 방지를 위해 자동 교체하지 않고 기존 remoteConflict 배너 경로를 유지한다.
     깨끗한 초안은 이미 저장된 옛 버전의 사본일 뿐이라, 더 최신 저장본으로 교체해도 잃을 것이 없다.) */
+/* v576 — 기준 시점(_bufMod) 관리.
+   열 때 행의 수정일로 잡고(editSermonFill), 저장하면 비운다(clearComposeDraft) — 저장 직후엔 내 저장의 시트 에코(서버 수정일)가
+   다음 기준이다. 동기화로 들어온 행은 서버 값이므로 비어 있을 때 그대로 받는다. 복원 초안(_draftBaseMod·_draftAt)이면 건드리지 않는다. */
+function bufModAdopt(row){
+  try {
+    if (!row || !state.editing || String(row['ID']) !== String(state.editing)) return;
+    if (state._bufMod || state._draftBaseMod || state._draftAt) return;
+    if (row['수정일']) state._bufMod = String(row['수정일']);
+  } catch (e) {}
+}
+/* 작성창의 내용(메타 칸 + 조립 원고)이 시트 행과 같은가 */
+function composeSameAsRow(row){
+  try {
+    if (!row) return false;
+    if (rtNorm(String(row['원고텍스트'] || '')) !== rtNorm(assembleText())) return false;
+    return Object.keys(C_META).every(function(k){ var el = $('#' + C_META[k]); return String(row[k] == null ? '' : row[k]).trim() === String(el ? el.value : '').trim(); });
+  } catch (e) { return false; }
+}
 function reconcileCleanDraftWithSheet(){
   try {
     var id = state.editing;
@@ -11101,7 +11172,7 @@ function reconcileCleanDraftWithSheet(){
     if (!row) return;
     var rm = String(row['수정일'] || '');
     if (!rm) return;
-    var base = state._draftBaseMod ? String(state._draftBaseMod) : '';
+    var base = state._draftBaseMod ? String(state._draftBaseMod) : (state._bufMod ? String(state._bufMod) : '');   /* v576: 열어 둔 설교도 */
     var newer = false;
     if (base) {
       newer = rm > base;                     /* 'yyyy-MM-dd HH:mm' 은 사전식 = 시간순 */
@@ -11116,6 +11187,8 @@ function reconcileCleanDraftWithSheet(){
         state.remoteConflict = row; try { updateComposeBadge(); } catch (e) {}
         return;
       }
+      /* v576: 내용이 지금 작성창과 같으면(내 저장 에코·시계 차이) 기준만 옮기고 조용히 넘어간다 — 작성창을 다시 그리면 커서가 튄다 */
+      if (composeSameAsRow(findSermon(id) || row)) { state._bufMod = rm; if (state._draftBaseMod) state._draftBaseMod = rm; return; }
       histSnap('자동 최신본 반영 전');        /* v573 */
       editSermonFill(id, true);              /* noNav=true — 보고 있는 화면은 바꾸지 않고 버퍼만 최신본으로 */
       state._draftBaseMod = rm; state._draftAt = 0;
@@ -11211,7 +11284,7 @@ function saveComposeDraft(){
 }
 var saveComposeDraftSoon = debounce(saveComposeDraft, 700);
 /* deep=true — 시트 [저장]으로 이 원고가 확정된 경우: 이 기기 캐시에 없는 다른 기기 초안 행까지 시트에서 훑어 정리(v539) */
-function clearComposeDraft(deep){ try { state._draftBaseMod = null; state._draftAt = 0; idbSet('composeDraft', null).catch(function(){}); dropComposeDraftRemote(deep); } catch (e) {} }
+function clearComposeDraft(deep){ try { state._draftBaseMod = null; state._draftAt = 0; state._bufMod = null; idbSet('composeDraft', null).catch(function(){}); dropComposeDraftRemote(deep); } catch (e) {} }
 function restoreComposeDraft(){
   return idbGet('composeDraft').then(function(d){
     if (!d || !d.compose) return false;
@@ -11233,6 +11306,7 @@ function restoreComposeDraft(){
        이 초안이 기반한 행(baseMod) 이후에 다른 기기가 같은 설교를 저장했으면, 조용한 덮어쓰기가 되지 않도록
        기존 충돌 UI(작성칸 상단 경고 + 저장 시 확인 대화상자)를 켠다. 수정일 비교라 본문만 바뀐 경우도 잡힌다. */
     state._draftBaseMod = null;
+    state._bufMod = null;   /* v576: 복원한 초안의 기준은 초안에 든 baseMod(_draftBaseMod) */
     state.remoteConflict = null;   /* v572: 이전 설교의 충돌 표시가 복원한 초안에 따라붙지 않게(아래에서 필요하면 다시 켠다) */
     try {
       if (d.editing) {
@@ -24901,7 +24975,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v575';
+var APP_VER = 'v576';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -25008,7 +25082,17 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     normalizeSermonStatuses(); promotePreachedByDate(); /* 캐시 데이터 정규화·승격(메모리) */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); cwRender();
     /* 델타 동기화 기준점 복원(없으면 bootLoad가 전체 조회) */
-    return idbGet('syncAt').then(function(v){ if (v) state.syncAt = v; }).catch(function(){});
+    /* v576: 기준점은 데이터와 같은 레코드에 든 fetchedAt 을 우선한다 — data 쓰기가 실패(쿼터)하고 syncAt 만 저장되면
+       그 사이 변경분을 영영 못 받았다. 둘 다 있으면 더 이른 쪽(다시 받는 건 멱등 upsert 라 무해), '' 는 전체 새로고침 요청. */
+    return Promise.all([
+      idbGet('syncAt').then(function(v){
+        var fa = String((state.data && state.data.fetchedAt) || '');
+        if (v === '') state.syncAt = '';
+        else if (v && fa) state.syncAt = fa < v ? fa : v;
+        else state.syncAt = v || fa || '';
+      }).catch(function(){}),
+      idbGet('heldRows').then(function(h){ if (h && typeof h === 'object') state._held = h; }).catch(function(){})
+    ]);
   }).then(function(){
     /* 미저장 작성 버퍼 복원(다른 기기/이전 세션에서 저장 안 하고 닫은 원고 되살리기) */
     return restoreComposeDraft();   /* 복원 완료(editing·기준시점 설정)까지 기다린 뒤 동기화 → 최신본 자동 반영 판정이 정확 */
