@@ -189,6 +189,15 @@ v570은 문단 단위로만 칠해서 ①「수 6:18a "…". 어떤 것이든지
 - 되돌리기(`histRestore`)는 작성창만 바꾸고 `savedSig` 는 두므로 "미저장" 상태가 된다 — [저장]해야 시트 반영.
 - 비교는 AI 없는 줄 단위 LCS(`histDiff`/`histDiffHtml`, 앞뒤 공통 줄을 걷고 가운데만, 400만 칸 초과 시 통째로 '바뀜'). ⚠ 계획서의 "`cmpHtml` 재사용"은 틀렸다 — `cmpHtml` 은 「준비 원고 vs 실제 설교」 AI 분석 결과 렌더러다.
 
+## 기기 간 덮어쓰기 방지 ① — v576 (수정계획 3단계 a: 1·2·6번)
+
+- **보류분(`state._held`)** — `mergeDelta`·전체 로드는 미저장 편집 중인 설교(`_editingGuardId`)의 원격 행·삭제를 반영하지 않는데 `syncAt` 은 전진한다. 예전엔 그 변경을 그냥 버려서, 편집을 버리거나(새 설교·다른 설교 열기) 검토본으로 저장한 뒤에도 그 설교의 로컬 행이 옛 내용으로 남았다(→ 옛 본문으로 이어 쓰다 다른 기기 저장을 덮음). 이제 `heldPut` 으로 보관하고 **IndexedDB `heldRows`** 에도 쓴다(앱을 닫아도 유지, 부팅 때 복원). `heldApply(force)` 가 보호가 풀린 보류분을 적용 — `mergeDelta` 맨 앞(비강제), `clearCompose`·`editSermonFill` 맨 앞(강제: 버퍼를 버리는 경로). 로컬 `수정일` 이 더 최신(내가 덮어써 저장)이면 버린다. 전체 로드는 보류분을 비우고 편집 중 행만 다시 보류하며, **전체 목록에 없는 편집 중 행은 원격 삭제로 보류**한다(예전엔 로컬 행을 되살렸다).
+- **기준 시점(`state._bufMod`)** — 깨끗한 작성창은 다른 기기 저장을 받지 못했다(`_draftBaseMod` 가 복원 초안에만 있어 `reconcileCleanDraftWithSheet` 가 늘 `newer=false`). 이제 `editSermonFill` 이 열 때 행의 `수정일` 을, 저장 성공(`clearComposeDraft`)이 null 을 넣고, 비어 있으면 동기화로 들어온 그 설교 행(서버 값)을 `bufModAdopt` 로 받는다(= 내 저장 에코). 복원 초안(`_draftBaseMod`·`_draftAt`)이 있으면 손대지 않는다.
+  → `reconcileCleanDraftWithSheet` 의 기준 = `_draftBaseMod || _bufMod`. 더 새 행이 오면 본문을 받아 **`composeSameAsRow`(메타 칸 + 조립 원고)가 같으면 기준만 옮기고 조용히 넘어간다** — 내 저장 에코·시계 차이로 작성창을 다시 그려 커서가 튀지 않게. ⚠ 이 동등 비교를 지우지 말 것.
+  → `_maybeFlagConflict` 도 `_draftBaseMod || _bufMod` 를 기준으로 삼아, 미저장 편집 중 **본문만 바뀐** 다른 기기 저장도 충돌로 표시한다. 저장 직후엔 `_bufMod` 가 비어 있고 에코를 먼저 `bufModAdopt` 하므로 자기 에코로는 켜지지 않는다.
+- **기준점 보호** — `idbSet` 에 `tx.onabort`(쿼터 초과는 onerror 없이 abort 로 끝나 프라미스가 안 끝났다). 부팅 때 `syncAt` 은 **`state.data.fetchedAt`(데이터와 같은 레코드)과 IDB `syncAt` 중 이른 쪽**, IDB 값이 `''` 이면 전체 새로고침 요청으로 존중. `focusSync` 는 `_dataLoaded` 전엔 돌지 않는다.
+- **검증 도구** — `Dropbox/total-sermon/tools/fake_sheet.py`(Code.gs 의 list/text/add/update/delete 를 분 단위 `수정일`·델타 규칙 그대로 흉내, `/_tick` 으로 시계 앞당김). 앱을 로컬 서버로 띄워 `127.0.0.1` 과 `localhost` 두 탭(저장소가 분리됨)을 두 기기로 쓴다. 로컬 서버에서는 이 브라우저가 서비스워커 등록을 거부해 콘솔 오류가 나는데 앱과 무관하다.
+
 ## 원고 자체 점검 — v575 (수정계획 11단계 A, 앞당김)
 
 작성 화면 「📕 성경 참조 전체 검증」 아래 **[✍ 원고 자체 점검]**(`#selfAuditBtn` → `#ptSelfAudit`). 설교 작성 원리의 "내보내기 전 자체 점검"을 **AI 없이** 센다(v548 검증 게이트와 같은 발상). 진입점 `selfAuditCompose()`.
