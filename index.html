@@ -8841,8 +8841,26 @@ async function saCheckQuote(q, base){
   if (!full || !full.text) return { q: q, st: 'bad', why: '앱의 개역개정에서 이 절을 찾지 못했습니다' };
   var nq = saNormQ(q.quote), nv = saNormV(full.text);
   if (!nq) return { q: q, st: 'skip', why: '인용문이 비어 있습니다' };
-  if (/…|\.\.\.|중략/.test(q.quote)) return { q: q, st: 'bad', why: '중략(…)이 있습니다 — 절 전문으로 인용해 주세요', v: full };
+  if (/…|\.\.\.|중략/.test(q.quote)) {
+    /* 말줄임이 곧 중략은 아니다 — 앞뒤 조각이 절 안에서 실제로 건너뛴 곳이 있을 때만 중략.
+       「나사렛에서 … 나사렛에서 무슨 선한 것이」처럼 되뇌는 반복 강조는 겹치거나 이어진다. */
+    var segs = q.quote.split(/…|\.{3,}|중략/).map(saNormQ).filter(Boolean), prev = -1, gap = false, inside = true, cov = {};
+    segs.forEach(function(g){
+      var p = nv.indexOf(g); if (p < 0) { inside = false; return; }
+      if (prev >= 0 && p > prev) gap = true;
+      prev = Math.max(prev, p + g.length);
+      for (var k = p; k < p + g.length; k++) cov[k] = 1;
+    });
+    if (inside && gap) return { q: q, st: 'bad', why: '중략(…)이 있습니다 — 절 전문으로 인용해 주세요', v: full };
+    if (inside) {
+      var covN = Object.keys(cov).length;
+      if (covN === nv.length) return { q: q, st: 'ok' };
+      return { q: q, st: r.part ? 'part' : 'bad', why: (r.part ? 'a/b 표기 부분 인용' : '절 일부만 인용') + ' — 전문 ' + nv.length + '자 중 ' + covN + '자', v: full };
+    }
+    nq = segs.join('');
+  }
   if (nq === nv) return { q: q, st: 'ok' };
+  if (nq.indexOf(nv) >= 0) return { q: q, st: 'part', why: '전문 인용 뒤(앞)에 덧붙인 말이 있습니다 — 반복 강조라면 그대로 두셔도 됩니다', v: full };
   if (nv.indexOf(nq) >= 0) return { q: q, st: r.part ? 'part' : 'bad', why: (r.part ? 'a/b 표기 부분 인용' : '절 일부만 인용') + ' — 전문 ' + nv.length + '자 중 ' + nq.length + '자', v: full };
   var sim = similarity(q.quote, full.text);
   if (sim >= 0.8) return { q: q, st: 'bad', why: '개역개정과 글자가 다릅니다(일치도 ' + Math.round(sim * 100) + '%)', v: full };
@@ -8861,6 +8879,7 @@ function saPointText(p){
 function saSentences(t){
   var out = [];
   t.split('\n').forEach(function(line){
+    if (/^\s*▶.*전환.*◀\s*$/.test(line)) return;   /* 카드원고의 이미지 전환 바 */
     var l = line.replace(/^\s*(?:ex\)|\((?:주해|적용|강화|정리|실천|예화|서론|결론)\))\s*/i, '');
     (l.match(/[^.?!。]+[.?!。]*/g) || []).forEach(function(s){ s = s.trim(); if (s) out.push(s); });
   });
@@ -8874,7 +8893,7 @@ var SA_STOP = ('여러분 우리 저희 저는 제가 그리고 그런데 그러
 function saTopWords(t, skip){
   var cnt = {}, stop = {};
   SA_STOP.concat(skip).forEach(function(w){ stop[w] = 1; });
-  t.split(/[^가-힣A-Za-z0-9]+/).forEach(function(w){
+  t.replace(/^\s*▶.*전환.*◀\s*$/gm, '').split(/[^가-힣A-Za-z0-9]+/).forEach(function(w){
     if (!w || /^\d+$/.test(w)) return;
     var s = w.replace(/(으로서|으로써|에서는|에게서|이라는|으로|에서|에게|께서|부터|까지|처럼|보다|라는|이란|이며|이고|에는|과|와|은|는|이|가|을|를|의|도|에|로|만)$/, '');
     if (s.length < 2) s = w;
