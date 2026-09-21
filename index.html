@@ -8866,6 +8866,8 @@ function saSentences(t){
   });
   return out;
 }
+/* 갈무리 비교 전에 지침이 권하는 공통 틀(재정의 「~이 아니라 ~입니다」 등)을 뺀다 — 틀이 같다고 비슷한 표현은 아니다 */
+function saGalNorm(s){ return String(s || '').replace(/것이\s*아니라|아니라|것입니다|입니다|합니다|그렇습니다|우리는|여러분/g, ' '); }
 var SA_ROLES = ['주해근거', '예화', '대지적용', '대지실천', '대지정리'];
 var SA_EXHORT = /(바랍니다|바래요|원합니다|축복합니다|되기를|되시기를|하시기를|가시기를)/;
 var SA_STOP = ('여러분 우리 저희 저는 제가 그리고 그런데 그러나 하지만 그래서 그러면 그렇다면 하나님 예수님 예수 주님 그리스도 성령 말씀 오늘 이렇게 그렇게 어떻게 무엇 바로 정말 다시 모두 함께 그것 이것 저것 있습니다 없습니다 합니다 됩니다 입니다 하는 있는 없는 되는 같은 않습니다 하십니다 때문 것입니다 수 것 때 더 또 한 그 이 저 안 못 잘 주해 적용 강화 정리 실천 예화 서론 결론 ex').split(' ');
@@ -8963,8 +8965,8 @@ async function selfAuditCompose(){
         + (notes.length ? ' — ' + esc(notes.join(' / ')) : ' — 명제·근거·예화·적용·실천·정리(권면) 갖춤') + '</div>');
     });
     for (var a = 0; a < gal.length; a++) for (var b2 = a + 1; b2 < gal.length; b2++) {
-      var sm = similarity(gal[a][1], gal[b2][1]);
-      if (sm >= 0.55) { bad++; pr.push('<div class="saRow"><span class="saBad">⚠</span> ' + (gal[a][0] + 1) + '대지·' + (gal[b2][0] + 1) + '대지의 갈무리 표현이 비슷합니다(' + Math.round(sm * 100) + '%) — 대지마다 다르게</div>'); }
+      var sm = similarity(saGalNorm(gal[a][1]), saGalNorm(gal[b2][1]));
+      if (sm >= 0.6) { bad++; pr.push('<div class="saRow"><span class="saBad">⚠</span> ' + (gal[a][0] + 1) + '대지·' + (gal[b2][0] + 1) + '대지의 갈무리 표현이 비슷합니다(' + Math.round(sm * 100) + '%) — 대지마다 다르게</div>'); }
     }
     if (!pts.length) pr.push('<div class="saRow saDim">작성된 대지가 없습니다.</div>');
   }
