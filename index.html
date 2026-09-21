@@ -447,6 +447,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 /* 원고 이전 버전(v573) */
 .histRow{display:flex;align-items:center;gap:6px;padding:9px 4px;border-bottom:1px solid var(--line)}
 .histRow .histInfo{flex:1;min-width:0}
+#c_save,#c_saveAs,#c_hist{flex:1 1 0;min-width:0;box-sizing:border-box}   /* 저장 줄 세 버튼 같은 크기(v574) */
+#c_save{border:1px solid transparent}   /* 옆 두 버튼(.sub)의 1px 테두리만큼 폭이 어긋나지 않게 */
 .histRow .btn,#histBody .toolrow .btn{flex:0 0 auto;width:auto;padding:7px 12px}
 .histWhy{font-size:12px;color:var(--accent2)}
 .hdGrid{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;font-size:13px;line-height:1.55}
@@ -1564,7 +1566,7 @@ body.uiDlgOpen{overflow:hidden}
         <div class="toolrow">
           <button class="btn" id="c_save">저장</button>
           <button class="btn sub" id="c_saveAs">새 설교로<br>저장</button>
-          <button class="btn sub" id="c_hist" type="button" title="이 기기에 남은 이전 버전 보기·비교·되돌리기" style="flex:0 0 auto">🕘 이전<br>버전</button>
+          <button class="btn sub" id="c_hist" type="button" title="이 기기에 남은 이전 버전 보기·비교·되돌리기">🕘 이전<br>버전</button>
         </div>
         <div class="toolrow">
           <button class="btn sub" id="c_preview">미리보기</button>
@@ -24579,7 +24581,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v573';
+var APP_VER = 'v574';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
