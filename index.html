@@ -783,6 +783,11 @@ input[type=date]{cursor:pointer}
 .ptRow .ptBlocks.cwSectActive{outline:2px dashed var(--accent);outline-offset:3px;border-radius:8px}
 .cwDropLine{height:0;border-top:2px solid var(--accent);margin:1px 0;border-radius:2px;pointer-events:none}
 .ptRow .ptAddRow{margin-top:7px;padding-left:11px}
+/* 서론·결론 상자(v580) — 대지 상자와 같은 모양, 머리에 섹션 이름 */
+.ptRow .ptSecTag{flex:0 0 auto;font-weight:800;font-size:13px;color:var(--accent);min-width:34px;text-align:center}
+.ptRow .ptBlk .ptMini{flex:0 0 26px;height:26px;background:var(--card2);border:1px solid var(--line);border-radius:6px;color:var(--dim);cursor:pointer;font-size:12px;padding:0;font-family:inherit}
+.ptRow .ptBlk .ptMini:hover{color:var(--text);border-color:var(--dim)}
+.ptRow .ptAddRow .addIntroBody{color:var(--accent2)}
 .ptRow .ptAddRow .linkbtn{margin-right:14px;white-space:nowrap}
 .ptRow .ptAddRow .addExeg{color:var(--accent2)}
 .ptRow .ptAddRow .addAppgen{color:#3aa17e}
@@ -1574,8 +1579,10 @@ body.uiDlgOpen{overflow:hidden}
           <span class="chip" data-v="자유원고">자유원고</span>
         </div>
         <label>대지 · 예화 (회색 ↑↓=대지 이동 · 파란 ↑↓=내부 순서 · ＋예화 추가)</label>
+        <div id="introBox"></div>
         <div id="pointList"></div>
         <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
+        <div id="concBox" style="margin-top:8px"></div>
         <div class="toolrow" style="margin-top:6px;gap:6px;flex-wrap:wrap"><button class="btn sub mini" id="ptExpoBtn" type="button" style="flex:0 0 auto">🔍 강해 검증 (본문지지·Big Idea·적용)</button><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:0 0 auto">✦ 대지 보강 (재정의·대조)</button><button class="btn sub mini" id="ptApplyBtn" type="button" style="flex:0 0 auto">✦ 실천 강화 (세대별)</button></div>
         <div id="ptExpo"></div>
         <div id="ptReframe"></div>
@@ -9615,7 +9622,67 @@ function pStructFilled(p){ return pBlocks(p).some(function(b){ return (b.body ||
 function pHasContent(p){ return p && ((p.text || '').trim() || pStructFilled(p)); }
 /* 구조(서론·대지·결론)에 작성된 내용이 하나라도 있는가 */
 function structHasContent(c){ return !!((c.intro || '').trim() || (c.concBody || '').trim() || (c.points || []).some(pHasContent)); }
-function newCompose(){ return { style: '기본원고', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', concBodySeeded: false, points: [newPoint()] }; }
+function newCompose(){ return { style: '기본원고', introTitle: '', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', concBodySeeded: false, points: [newPoint()] }; }
+/* ── 서론 조각 (v580) ──
+   서론은 여전히 문자열 c.intro 하나다(원고텍스트·내보내기·AI 등 기존 소비처가 모두 이걸 읽는다).
+   구조 창·작성창은 그 문자열을 [서론 내용 | 예화(ex) 제목 + 본문) | …] 조각으로 나눠 보여 주고, 고치면 다시 합쳐 c.intro 에 쓴다.
+   - 예화 조각 = 「ex) 제목」 줄 + 이어지는 줄. 예화 뒤에 서론 글을 다시 이으려면 「(서론)」 코드로 시작한다
+     (코드가 없으면 파서가 그 글을 예화 본문으로 본다 — 대지의 (주해) 마커와 같은 이유). 내보내기는 (서론) 코드를 찍지 않는다.
+   - c.introSegs 는 화면용 캐시다. 다른 경로(파싱·AI 수정·불러오기)가 c.intro 를 바꾸면 introSegs() 가 알아서 다시 나눈다.
+     비교는 빈 줄·앞뒤 공백을 무시하므로, 아직 비어 있는 새 예화 칸(합치면 사라짐)도 다음 렌더까지 살아 있다.
+   - 서론 제목(c.introTitle)은 구조 창 이름표일 뿐 원고에 찍지 않는다 — 그래서 c.intro 가 아니라 파일맵.introTitle 에 보관한다. */
+function introSegsParse(text){
+  var segs = [], cur = null;
+  String(text || '').replace(/\r/g, '').split('\n').forEach(function(l){
+    var ex = l.match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
+    if (ex) { cur = { k: 'ill', ill: ex[1].trim(), body: [] }; segs.push(cur); return; }
+    var sm = l.match(/^\s*\(서론\)\s*(.*)$/);
+    if (sm) { cur = { k: 'body', body: [] }; segs.push(cur); if (sm[1].trim()) cur.body.push(sm[1]); return; }
+    if (!cur) { cur = { k: 'body', body: [] }; segs.push(cur); }
+    cur.body.push(l);
+  });
+  segs.forEach(function(g){
+    var a = g.body; while (a.length && !a[0].trim()) a.shift(); while (a.length && !a[a.length - 1].trim()) a.pop();
+    g.body = a.join('\n');
+  });
+  segs = segs.filter(function(g, i){ return g.k === 'ill' || g.body.trim() || i === 0; });
+  if (!segs.some(function(g){ return g.k === 'body'; })) segs.unshift({ k: 'body', body: '' });
+  return segs;
+}
+function introSegsJoin(segs){
+  var out = [], prevIll = false;
+  (segs || []).forEach(function(g){
+    if (g.k === 'ill') {
+      if (!String(g.ill || '').trim() && !String(g.body || '').trim()) return;
+      out.push('ex) ' + String(g.ill || '').trim() + (String(g.body || '').trim() ? '\n' + String(g.body).trim() : ''));
+      prevIll = true;
+    } else {
+      if (!String(g.body || '').trim()) return;
+      out.push((prevIll ? '(서론) ' : '') + String(g.body).trim());
+      prevIll = false;
+    }
+  });
+  return out.join('\n\n');
+}
+function introNorm(t){ return String(t || '').split('\n').map(function(l){ return l.trim(); }).filter(Boolean).join('\n'); }
+function introSegs(c){
+  c = c || state.compose;
+  if (!Array.isArray(c.introSegs) || introNorm(introSegsJoin(c.introSegs)) !== introNorm(c.intro)) c.introSegs = introSegsParse(c.intro);
+  return c.introSegs;
+}
+function introCommit(c){ c = c || state.compose; c.intro = introSegsJoin(c.introSegs || []); }
+/* 서론 제목 — 저장된 설교의 파일맵에서 읽기 / 저장 뒤 바뀌었으면 쓰기(대기열 경유) */
+function sermonIntroTitle(s){ try { return String((JSON.parse((s && s['파일맵']) || '{}') || {}).introTitle || ''); } catch (e) { return ''; } }
+function introTitlePersist(id, title){
+  try {
+    var s = findSermon(id); title = String(title || '').trim();
+    if (!s || sermonIntroTitle(s) === title) return;
+    var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
+    if (title) fm.introTitle = title; else delete fm.introTitle;
+    s['파일맵'] = JSON.stringify(fm); saveData();
+    apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }).catch(function(){});
+  } catch (e) {}
+}
 /* 결론의 대지 요약: 기본은 대지 명제에서 자동 생성. 사용자가 결론칸에서 직접 고치면(concPtsEdited) 그 텍스트를 사용. */
 function concPointsDerived(c){ return (c.points || []).filter(function(p){ return (p.text || '').trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n'); }
 function concPointsOut(c){ var v = String(c.concPoints || '').trim(); return (c.concPtsEdited && v) ? v : concPointsDerived(c); }
@@ -9674,6 +9741,7 @@ function setStyleChips(){
 /* ----- 왼쪽: 대지·예화 동적 목록 ----- */
 function renderPoints(){
   var c = state.compose;
+  renderIntroConcBoxes();
   $('#pointList').innerHTML = c.points.map(function(p, i){
     p = normPoint(p); c.points[i] = p;
     var blk = p.blocks.map(function(b, bi){
@@ -9756,6 +9824,66 @@ $('#pointList').addEventListener('click', async function(e){
   /* ⑥ 예화 위치 맞춤 AI 추천·생성 — 왼쪽 구조화 창은 "필요한 예화 설명"을 먼저 입력받는다 */
   var iai = e.target.closest('.ptIllAi');
   if (iai) { aiIllustrationAsk(+iai.dataset.i, +iai.dataset.bi); return; }
+});
+/* ── 왼쪽 구조 창의 서론·결론 상자 (v580) ── */
+var _introBoxSoon = debounce(function(){ renderIntroConcBoxes(); }, 400);   /* 오른쪽에서 쓰는 동안 왼쪽 미리보기 갱신 */
+function renderIntroConcBoxes(){
+  var c = state.compose, ib = $('#introBox'), cb = $('#concBox');
+  if (!ib || !cb) return;
+  var segs = introSegs(c);
+  var illN = 0, illTot = segs.filter(function(g){ return g.k === 'ill'; }).length;
+  var rows = segs.map(function(g, si){
+    var ctl = '<button class="ptMini" type="button" data-iact="up" data-si="' + si + '" title="위로"' + (si === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button class="ptMini" type="button" data-iact="del" data-si="' + si + '" title="삭제">✕</button>';
+    if (g.k === 'ill') {
+      illN++;
+      return '<div class="ptBlk illBlk"><span class="blkTag illTag">ex)</span>' +
+        '<input type="text" class="introIllT" data-si="' + si + '" value="' + esc(g.ill) + '" placeholder="도입 예화 제목' + (illTot > 1 ? ' ' + illN : '') + '">' + ctl + '</div>';
+    }
+    var raw = String(g.body || '').replace(/\s+/g, ' ').trim();
+    return '<div class="ptBlk bodyBlk"><span class="blkTag bodyTag">서론</span>' +
+      (raw ? '<span class="blkBodyPrev">' + esc(stripStructCode(raw).slice(0, 30)) + (raw.length > 30 ? '…' : '') + '</span>'
+           : '<span class="blkHint">서론 내용 — 오른쪽에서 작성</span>') + ctl + '</div>';
+  }).join('');
+  ib.innerHTML = '<div class="ptRow"><div class="ptHead"><span class="ptSecTag">서론</span>' +
+    '<input type="text" id="cIntroTitle" value="' + esc(c.introTitle || '') + '" placeholder="서론 제목 (구조 창 이름표 — 원고에는 찍히지 않습니다)"></div>' +
+    '<div class="ptBlocks">' + rows + '</div>' +
+    '<div class="ptAddRow"><button class="linkbtn addIntroBody" type="button">＋ 서론 내용</button>' +
+    '<button class="linkbtn addIll addIntroIll" type="button">＋ 예화</button></div></div>';
+  var cRaw = String(c.concBody || '').replace(/\s+/g, ' ').trim();
+  cb.innerHTML = '<div class="ptRow"><div class="ptHead"><span class="ptSecTag">결론</span>' +
+    '<input type="text" id="cConcIntro" value="' + esc(c.concIntro || '') + '" placeholder="정리 문구 (예: 말씀을 정리합니다.)"></div>' +
+    '<div class="ptBlocks"><div class="ptBlk bodyBlk role-summ"><span class="blkTag bodyTag">결론</span>' +
+    (cRaw ? '<span class="blkBodyPrev">' + esc(cRaw.slice(0, 30)) + (cRaw.length > 30 ? '…' : '') + '</span>'
+          : '<span class="blkHint">결론 내용 — 오른쪽에서 작성</span>') + '</div></div></div>';
+}
+$('#introBox').addEventListener('input', function(e){
+  var t = e.target, c = state.compose;
+  if (t.id === 'cIntroTitle') { c.introTitle = t.value; updateAutoBits(); return; }
+  if (t.classList.contains('introIllT')) {
+    var g = introSegs(c)[+t.dataset.si];
+    if (g) { g.ill = t.value; introCommit(c); updateAutoBits(); }
+  }
+});
+$('#introBox').addEventListener('click', async function(e){
+  var c = state.compose, segs = introSegs(c);
+  if (e.target.closest('.addIntroIll')) { segs.push({ k: 'ill', ill: '', body: '' }); renderPoints(); renderEditor(); return; }
+  if (e.target.closest('.addIntroBody')) { segs.push({ k: 'body', body: '' }); renderPoints(); renderEditor(); return; }
+  var b = e.target.closest('[data-iact]'); if (!b) return;
+  var si = +b.dataset.si, g = segs[si]; if (!g) return;
+  if (b.dataset.iact === 'up' && si > 0) segs.splice(si - 1, 0, segs.splice(si, 1)[0]);
+  else if (b.dataset.iact === 'del') {
+    var has = String(g.body || '').trim() || (g.k === 'ill' && String(g.ill || '').trim());
+    if (has && !await uiConfirm((g.k === 'ill' ? '이 도입 예화를' : '이 서론 내용을') + ' 삭제할까요? 작성 내용도 사라집니다.', { danger: true, okText: '삭제' })) return;
+    segs.splice(si, 1);
+    if (!segs.some(function(x){ return x.k === 'body'; })) segs.unshift({ k: 'body', body: '' });
+  } else return;
+  introCommit(c); renderPoints(); renderEditor();
+});
+$('#concBox').addEventListener('input', function(e){
+  if (e.target.id !== 'cConcIntro') return;
+  state.compose.concIntro = e.target.value;
+  var r = $('#editorPane textarea[data-k="concIntro"]'); if (r && r !== document.activeElement) r.value = e.target.value;
 });
 $('#addPoint').addEventListener('click', function(){
   state.compose.points.push(newPoint());
@@ -10014,7 +10142,7 @@ function parseFreeToStructure(){
     while (a.length && !a[a.length - 1].trim()) a.pop();
     return a.join('\n');
   }
-  c.intro = jt(lines.slice(0, firstHead).map(function(l){ return l.replace(/^\s*\(서론\)\s*/, ''); }));
+  c.intro = jt(lines.slice(0, firstHead));   /* v580: (서론) 코드를 남긴다 — 서론 예화 뒤 서론 글의 경계 표시(introSegsParse). 내보내기는 코드를 찍지 않는다 */
   var pts = [], cur = null, bodyAcc = [], curIll = null, applyAcc = [], mode = 'body', bodyRole = '주해근거', headDelim = '';
   function isNumHead(x){ return /^\s*\d+\s*[.)]/.test(stripBoldEnds(x)); }
   function numHeadDelim(x){ var m = stripBoldEnds(x).match(/^\s*\d+\s*([.)])/); return m ? m[1] : ''; }
@@ -10266,7 +10394,19 @@ function renderEditor(){
       '</div>';
     html += FREE_PARSE_LEGEND;
   } else {
-    html += '<div class="edSec"><div class="edLabel">서론</div>' + ta('intro', 0, '', 5, '서론을 작성하세요', c.intro) + '</div>';
+    /* 서론 — 조각별로(v580): 서론 내용 칸 / 도입 예화(제목은 왼쪽 칸, 여기선 본문) */
+    var _isegs = introSegs(c), _iN = 0, _iTot = _isegs.filter(function(g){ return g.k === 'ill'; }).length, _bN = 0;
+    var _bTot = _isegs.filter(function(g){ return g.k === 'body'; }).length;
+    html += '<div class="edSec"><div class="edPointTitle" id="edIntroTitle"></div>' + _isegs.map(function(g, si){
+      var box = function(ph, val, rows){ return '<textarea class="edTa edIntroSeg" rows="' + rows + '" placeholder="' + esc(ph) + '" data-si="' + si + '">' + esc(val) + '</textarea>'; };
+      if (g.k === 'ill') {
+        _iN++;
+        return '<div class="edEx" data-ix="' + si + '"></div><div class="edLabel" style="margin-top:8px">도입 예화' + (_iTot > 1 ? ' ' + _iN : '') + '</div>' +
+          box('도입 예화 세부 내용 (제목은 왼쪽 칸)', g.body, 4);
+      }
+      _bN++;
+      return '<div class="edLabel" style="margin-top:8px">서론' + (_bTot > 1 ? ' ' + _bN : '') + '</div>' + box('서론을 작성하세요', g.body, 5);
+    }).join('') + '</div>';
     c.points.forEach(function(p, i){
       p = normPoint(p); c.points[i] = p;
       var roleCount = {};
@@ -10335,6 +10475,13 @@ function updateAutoBits(){
       if (x) { x.textContent = b.ill ? 'ex) ' + b.ill : ''; x.style.display = b.ill ? 'block' : 'none'; }
     });
   });
+  var iT = $('#edIntroTitle');   /* v580 서론 머리 + 도입 예화 제목 표시 */
+  if (iT) iT.textContent = '서론' + (String(c.introTitle || '').trim() ? ' · ' + c.introTitle.trim() : '');
+  if (Array.isArray(c.introSegs)) c.introSegs.forEach(function(g, si){
+    if (g.k !== 'ill') return;
+    var x = $('[data-ix="' + si + '"]');
+    if (x) { x.textContent = g.ill ? 'ex) ' + g.ill : ''; x.style.display = g.ill ? 'block' : 'none'; }
+  });
   var pane0 = $('#editorPane');
   var cl = pane0 && pane0.querySelector('textarea[data-k="concPoints"]');
   if (cl && !c.concPtsEdited && document.activeElement !== cl) cl.value = concPointsDerived(c);   /* 사용자가 고치기 전에는 대지에서 자동 반영 */
@@ -10342,7 +10489,14 @@ function updateAutoBits(){
 $('#editorPane').addEventListener('input', function(e){
   var t = e.target;
   if (!t.classList.contains('edTa')) return;
+  if (t.classList.contains('edIntroSeg')) {   /* v580 서론 조각 */
+    var _g = introSegs(state.compose)[+t.dataset.si];
+    if (_g) { _g.body = t.value; introCommit(state.compose); _introBoxSoon(); }
+    return;
+  }
+  if (t.dataset.k === 'concBody') _introBoxSoon();
   if (t.dataset.k) state.compose[t.dataset.k] = t.value;
+  if (t.dataset.k === 'concIntro') { var _ci = $('#cConcIntro'); if (_ci) _ci.value = t.value; }   /* 왼쪽 결론 정리 문구와 동기(v580) */
   if (t.dataset.k === 'concPoints') state.compose.concPtsEdited = true;   /* 결론 대지요약을 직접 수정 → 이후 자동 덮어쓰기 안 함 */
   else if (t.dataset.pi != null) {
     var p = state.compose.points[+t.dataset.pi];
@@ -11064,7 +11218,12 @@ function collectCompose(){
   return data;
 }
 /* 시트 저장본과 비교용 서명 — 토글 등에서 미저장 변경 감지 */
-function composeSig(){ try { return JSON.stringify(collectCompose()); } catch (e) { return ''; } }
+function composeSig(){
+  try {
+    var s = JSON.stringify(collectCompose()), it = String((state.compose && state.compose.introTitle) || '').trim();
+    return it ? s + '\u0001서론제목:' + it : s;   /* v580: 서론 제목은 원고텍스트 밖이라 따로 넣는다(없으면 예전 서명과 같다) */
+  } catch (e) { return ''; }
+}
 function composeDirty(){ return composeSig() !== state.savedSig; }
 /* 구조(서론·대지·예화·적용·결론)만의 서명 — 자유↔기본 왕복 시 '구조를 손댔는지' 판별용.
    pBlocks로 정규화해 렌더 시 추가되는 임시 필드 영향 없이 안정적으로 비교한다. */
@@ -11150,6 +11309,7 @@ function editSermonFill(id, noNav){
   } else {
     c.style = s['원고유형'] || '기본원고';
   }
+  c.introTitle = sermonIntroTitle(s);   /* v580 — 서론 제목은 파일맵에 있다 */
   /* 구상 단계(서론 미작성)면 주제근거를 서론의 바탕으로 채운다 */
   if (!String(c.intro || '').trim()) {
     var _jeok = ((String(s['비고'] || '').match(/주제 근거:\s*([\s\S]*?)(?:\s*\/\s*(?:주간묵상|상황):|$)/) || [])[1] || '').trim();
@@ -11685,6 +11845,7 @@ function histAdoptNew(id){
 function histAfterSave(cap, id, wasNew){
   try {
     if (!cap || !id || typeof id !== 'string') return;
+    introTitlePersist(id, cap.compose ? cap.compose.introTitle : (state.compose && state.compose.introTitle));   /* v580 서론 제목 → 파일맵 */
     (wasNew ? histAdoptNew(id) : Promise.resolve()).then(function(){ return histPush(histKey(id), cap); }).catch(function(){});
   } catch (e) {}
 }
@@ -12566,7 +12727,17 @@ function parasFromCompose(meta, c){
   function trailB(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
   function blank2(){ while (trailB() < 2) paras.push({ text: '' }); } /* 대지 위 두 줄 띄기 */
   /* 서론 */
-  if (c.intro.trim()) { c.intro.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
+  /* v580: 조각 단위 — 도입 예화 제목은 대지 예화처럼 파랑 굵게, (서론) 코드는 찍지 않는다 */
+  if (c.intro.trim()) {
+    introSegsParse(c.intro).forEach(function(g){
+      if (g.k === 'ill') {
+        if (!(String(g.ill || '').trim() || String(g.body || '').trim())) return;
+        if (String(g.ill || '').trim()) push('ex) ' + g.ill.trim(), true, EX_BLUE);
+        if (String(g.body || '').trim()) g.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
+        blank();
+      } else if (String(g.body || '').trim()) { g.body.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); }); blank(); }
+    });
+  }
   /* 대지 */
   c.points.forEach(function(p, i){
     if (!pHasContent(p)) return;
@@ -25388,7 +25559,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v579';
+var APP_VER = 'v580';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
