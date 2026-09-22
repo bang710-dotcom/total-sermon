@@ -2504,6 +2504,7 @@ function _maybeFlagConflict(incomingRow, baseRow){
    로컬 행이 옛 내용으로 남아, 나중에 옛 본문으로 이어 쓰다 다른 기기의 저장을 덮었다.
    이제 보류분을 state._held 에 두고(IndexedDB 'heldRows' 에도 — 앱을 닫았다 열어도 잃지 않게) 보호가 풀리는 순간 적용한다.
    내가 덮어써 저장해 로컬이 더 최신이면 버린다. force = 작성 버퍼를 버리는 경로(새 설교·다른 설교 열기)라 보호 무시. */
+var RESYNC_ONCE_KEY = 'tsa.resync577';   /* v577 1회 전체 새로고침 표시(기기별) */
 function heldSave(){ if (_dataLoaded) idbSet('heldRows', state._held || {}).catch(function(){}); }
 function heldPut(id, row, del){
   state._held = state._held || {};
@@ -2627,6 +2628,13 @@ function _pullData(opts){
       mergeDelta(d);
     } else {                       /* 전체 응답(첫 동기화·구 백엔드): 통째 교체 */
       state._held = {}; heldSave();   /* v576: 전체 목록이 곧 최신 — 옛 보류분은 필요 없다(편집 중인 행은 아래에서 다시 보류) */
+      /* v577: 목록엔 원고 본문이 없다 — 받아 둔 본문을 옛 스탬프(_txtAt)째 보존한다. 예전엔 전체 로드 한 번에 기기의
+         본문 캐시가 전부 사라져 오프라인 강단에서 설교를 열 수 없었다. 수정일이 바뀐 행은 _txtStale 이 열 때 다시 받는다. */
+      var _lt = {}; (state.data.sermons || []).forEach(function(r){ if (r && r['ID'] != null && String(r['원고텍스트'] || '').trim()) _lt[r['ID']] = r; });
+      (d.sermons || []).forEach(function(r){
+        var o = r && _lt[r['ID']]; if (!o || String(r['원고텍스트'] || '').trim()) return;
+        r['원고텍스트'] = o['원고텍스트']; if (o._txt) r._txt = o._txt; if (o._txtAt) r._txtAt = o._txtAt;
+      });
       d.outputs = d.outputs || [];
       d.devo = d.devo || [];
       d.devonotes = d.devonotes || [];
@@ -2647,6 +2655,7 @@ function _pullData(opts){
     /* 동기화 기준점(state.syncAt)과 함께, 화면 좌측 하단 "동기화: …" 표시값(state.data.fetchedAt)도
        매 동기화마다 갱신한다. (예전엔 전체 로드 때만 state.data=d로 갱신돼, 델타만 도는 동안 표시가 멈춰 보였다.) */
     if (d.fetchedAt) { state.syncAt = d.fetchedAt; state.data.fetchedAt = d.fetchedAt; idbSet('syncAt', d.fetchedAt).catch(function(){}); }
+    if (!d.delta) { try { localStorage.setItem(RESYNC_ONCE_KEY, '1'); } catch (eR){} }   /* v577: 1회 전체 새로고침 완료 */
     normalizeSermonStatuses(!d.delta); promotePreachedByDate(!d.delta); _dedupReconcileCopies(); saveData();  /* 전체 로드 때만 시트도 정리·승격 */
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
@@ -11127,7 +11136,7 @@ function editSermonFill(id, noNav){
   if (!noNav) showPage('compose');   /* noNav=true면 현재 보고 있는 화면을 바꾸지 않음(자동 최신본 반영용) */
 }
 /* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
-window.editSermon = function(id){ if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 불러올까요?')) return; loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
+window.editSermon = function(id){ if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 불러올까요?')) return; if (heldApply(true)) saveData(); /* v577: 보류분을 본문 받기 전에 반영해야 새 행 기준으로 본문을 다시 받는다 */ loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
 /* 충돌(문제 4) 시: 다른 기기에서 저장된 최신본을 불러온다(현재 작성분은 버림).
    목록 응답엔 원고텍스트가 없으므로 loadSermonThen으로 전문까지 받아 채운다. */
 window.loadRemoteConflict = function(){
@@ -11216,6 +11225,7 @@ function fmtSheetSaved(v){
 /* 설교를 직접 수정 모드로 불러와 이어 작업 (저장 시 같은 행 업데이트) */
 window.resumeSermon = function(id, el){
   if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 이어쓸까요?')) return;
+  if (heldApply(true)) saveData();   /* v577 — editSermon 과 같은 이유 */
   loadSermonThen(id, el, '설교를 불러오는 중…', function(){
     editSermonFill(id);             /* 내용 로드 (+ compose 화면 전환) */
     state.editing = id; state.versionOf = null;  /* 새버전이 아니라 직접 수정으로 */
@@ -24975,7 +24985,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v576';
+var APP_VER = 'v577';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -25092,7 +25102,12 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         else state.syncAt = v || fa || '';
       }).catch(function(){}),
       idbGet('heldRows').then(function(h){ if (h && typeof h === 'object') state._held = h; }).catch(function(){})
-    ]);
+    ]).then(function(){
+      /* v577: 기기마다 한 번 전체를 다시 받는다 — v576 이전 코드는 편집 중인 설교의 원격 변경을 버리고 기준점만 옮겨서,
+         그렇게 빠진 행(2026-09-22 S1141 제목 사례)은 델타로는 영영 돌아오지 않는다. 성공하면 _pullData 가 표시를 남긴다. */
+      var done = ''; try { done = localStorage.getItem(RESYNC_ONCE_KEY) || ''; } catch (eR){}
+      if (!done && (state.data.sermons || []).length) state.syncAt = '';
+    });
   }).then(function(){
     /* 미저장 작성 버퍼 복원(다른 기기/이전 세션에서 저장 안 하고 닫은 원고 되살리기) */
     return restoreComposeDraft();   /* 복원 완료(editing·기준시점 설정)까지 기다린 뒤 동기화 → 최신본 자동 반영 판정이 정확 */
