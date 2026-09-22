@@ -1700,6 +1700,8 @@ body.uiDlgOpen{overflow:hidden}
         <input type="url" id="zone_src" placeholder="https://www.youtube.com/watch?v=… 또는 https://www.youngnak.net/…" autocomplete="off">
         <div class="cnt" style="margin-top:4px;font-size:12.5px;color:var(--dim)">원고 이미지나 PDF 파일이 있으면 링크 대신 직접 올려도 됩니다.</div>
         <input type="file" id="zone_srcFile" accept="image/*,.pdf,application/pdf" multiple style="margin-top:4px">
+        <label>주일 설교 본문 — 구역권찰 설교도 이 범위 그대로 씁니다</label>
+        <input type="text" id="zone_ref" placeholder="예) 마태복음 27:45-54 (유튜브는 자동으로 채워집니다)" autocomplete="off">
         <label>② 소그룹 교재 — HWPX · DOCX · PDF</label>
         <input type="file" id="zone_guideFile" accept=".hwpx,.docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
         <div class="toolrow"><button class="btn sub" id="zone_read" type="button">📥 자료 읽기</button></div>
@@ -18121,7 +18123,8 @@ async function zoneRead(){
         title = dm ? dm[0] : '홈페이지 원고';
       } else { toast('유튜브 링크나 설교원고 홈페이지 주소(https://…)를 넣어 주세요.'); return; }
       if (!String(text || '').trim()) throw new Error('읽은 내용이 비어 있습니다.');
-      Z.sermon = String(text).trim(); Z.src = srcKey; Z.srcTitle = title; Z.srcRef = ref; did = true;
+      Z.sermon = String(text).trim(); Z.src = srcKey; Z.srcTitle = title; did = true;
+      if (ref) { Z.srcRef = ref; $('#zone_ref').value = ref; }   /* 유튜브 제목에서 뽑은 본문 — 홈페이지·파일은 직접 입력하거나 구상 때 잡힌다 */
       zoneSaveNow(); renderZonePane();
       toast('주일 설교 자료를 읽었습니다(' + Z.sermon.length.toLocaleString() + '자) — 오른쪽에서 확인한 뒤 [초안 생성]을 누르세요.');
     } catch (e) { renderSyncState(); toast('주일 설교 읽기 실패: ' + e.message); return; }
@@ -18139,14 +18142,26 @@ var P_ZONE = [
 '"변화"는 대지를 다 세운 뒤 그 대지가 결과적으로 어떤 변화인지 붙이는 이름표일 뿐이다. 유형을 먼저 정해 놓고 대지를 끼워 맞추지 않는다. 같은 유형이 두세 번 나와도 되고 세 유형을 다 쓰지 않아도 된다.',
 '출력은 반드시 JSON 배열(길이 3)만: [{"제목":"...","본문":"책 장:절-절","핵심메시지":"...","주제근거":"...","대지":[{"문":"청중이 붙들 변화의 지침 한 문장","변화":"관점 전환|행동 변화|새 이해 중 이 대지에 해당하는 것","근거":"...","적용":"..."},{"문":"...","변화":"...","근거":"...","적용":"..."},{"문":"...","변화":"...","근거":"...","적용":"..."}]}]',
 '목표: 주일 설교를 되풀이하거나 요약하지 않는다. 같은 본문에서 주일 설교의 핵심 메시지를 붙들고 한 걸음 더 깊고 넓게 발전시켜, 구역장·권찰이 먼저 은혜를 받고 그 은혜로 소그룹을 인도하게 한다.',
-'원칙: ①본문은 주일 설교와 같은 본문(필요하면 그 안의 핵심 단락)으로 한다 — 세 선택지는 본문이 아니라 접근 갈래가 서로 달라야 한다 ②핵심메시지는 주일 설교의 중심 메시지와 같은 방향이되, 구역장·권찰의 삶(돌봄·섬김·인도·중보)에서 새롭게 들리도록 한 문장 명제로 재진술한다 ③대지는 정확히 3개 — 주일 설교의 대지를 그대로 옮기지 말고 본문에서 다시 길어 올리되, 본문을 정리하는 문장이 아니라 구역장·권찰이 붙들 변화의 지침(사고·관점의 전환 / 행동의 변화 / 새로운 이해)으로 쓴다 ④소그룹 교재가 있으면 교재의 질문·나눔 방향과 맞물리게 해서, 설교를 들은 구역장이 모임에서 그 질문을 자연스럽게 이끌 수 있게 한다 ⑤주제근거에는 주일 설교와 이 설교가 어떻게 이어지는지(주일 설교의 무엇을 붙들고 어디로 한 걸음 더 가는지)를 함께 적는다 — 입력에 없는 말을 담임목사님 말로 지어내지 않는다 ⑥청중은 장년 평신도 리더다 — 대학부·청년 문화 소재는 피한다.'
+'원칙: ①본문(필수·예외 없음): 세 선택지의 "본문"은 모두 주일 설교 본문과 똑같은 범위다. 입력 주일설교.본문이 있으면 그 표기를 글자 그대로 쓴다 — 범위를 줄이거나 넓히거나 앞뒤 절을 더하지 않는다. 비어 있으면 전문에서 주일 설교 본문을 찾아 세 선택지에 똑같이 쓴다. 세 선택지는 본문 범위가 아니라 같은 본문 안에서 접근 갈래가 달라야 하고, 대지 근거로 짚는 절도 이 범위 안에서만 고른다 ②핵심메시지는 주일 설교의 중심 메시지와 같은 방향이되, 구역장·권찰의 삶(돌봄·섬김·인도·중보)에서 새롭게 들리도록 한 문장 명제로 재진술한다 ③대지는 정확히 3개 — 주일 설교의 대지를 그대로 옮기지 말고 본문에서 다시 길어 올리되, 본문을 정리하는 문장이 아니라 구역장·권찰이 붙들 변화의 지침(사고·관점의 전환 / 행동의 변화 / 새로운 이해)으로 쓴다 ④소그룹 교재가 있으면 교재의 질문·나눔 방향과 맞물리게 해서, 설교를 들은 구역장이 모임에서 그 질문을 자연스럽게 이끌 수 있게 한다 ⑤주제근거에는 주일 설교와 이 설교가 어떻게 이어지는지(주일 설교의 무엇을 붙들고 어디로 한 걸음 더 가는지)를 함께 적는다 — 입력에 없는 말을 담임목사님 말로 지어내지 않는다 ⑥청중은 장년 평신도 리더다 — 대학부·청년 문화 소재는 피한다.'
 ].join('\n') + '\n' + P_OCC.split('\n').filter(function(l){ return !/^(당신은 |출력은 반드시|선택지 3세트는)/.test(l); }).join('\n');
 
 /* [✍ 3대지 설교 구상] */
 async function aiZoneGen(){
   var Z = state.zone;
   Z.date = $('#zone_date').value;
+  Z.srcRef = $('#zone_ref').value.trim();
   if (!Z.sermon.trim()) { toast('먼저 주일 설교 자료를 읽어 주세요 — [📥 자료 읽기]'); return; }
+  /* 본문을 모르면(홈페이지·파일 원고) 구상 전에 확인받는다 — 원고 앞부분에서 찾은 성구를 기본값으로 */
+  if (!Z.srcRef) {
+    var guess = '';
+    try {
+      var gm = Z.sermon.slice(0, 2000).match(new RegExp('(' + BOOKS + ')\\s*(\\d+)\\s*(?:장|:)\\s*(\\d+)(?:\\s*절)?(?:\\s*[-~–]\\s*(\\d+)\\s*절?)?'));
+      if (gm) guess = gm[1] + ' ' + gm[2] + ':' + gm[3] + (gm[4] ? '-' + gm[4] : '');
+    } catch (e) {}
+    var ans = await uiPrompt('주일 설교 본문을 확인해 주세요.\n구역권찰 설교 선택지 셋 모두 이 범위를 그대로 씁니다.', guess, { placeholder: '예) 마태복음 27:45-54' });
+    if (ans === null) return;
+    Z.srcRef = String(ans).trim(); $('#zone_ref').value = Z.srcRef; zoneSaveSoon();
+  }
   if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
   if (!Z.guide.trim() && !await uiConfirm('소그룹 교재 없이 주일 설교만으로 구상할까요?', { okText: '교재 없이 구상' })) return;
   if (Z.opts && Z.opts.length && !await uiConfirm('선택지 3세트를 새로 만들까요? 지금 선택지는 사라집니다.', { okText: '새로 구상' })) return;
@@ -18163,6 +18178,13 @@ async function aiZoneGen(){
     e['변화'] = (Array.isArray(x['대지']) ? x['대지'] : []).map(function(d){ return String((d && d['변화']) || '').trim(); });   /* 대지별 변화 유형(카드 배지용) */
     return e;
   });
+  /* 본문은 주일 설교 본문 그대로(v584) — 프롬프트로만 막으면 선택지마다 단락을 줄이거나 넓혀 왔다(범위 밖 절까지).
+     입력한 본문이 있으면 그걸로 덮어쓰고, 없으면 첫 선택지가 찾은 본문을 주일 본문으로 삼아 셋을 맞춘다. */
+  var fixRef = Z.srcRef || String((Z.opts[0] && Z.opts[0]['본문']) || '').trim();
+  if (fixRef) {
+    Z.opts.forEach(function(o){ o['본문'] = fixRef; });
+    if (!Z.srcRef) { Z.srcRef = fixRef; $('#zone_ref').value = fixRef; toast('주일 설교 본문을 「' + fixRef + '」로 잡았습니다 — 다르면 왼쪽 [주일 설교 본문]을 고친 뒤 다시 구상해 주세요.'); }
+  }
   Z.at = nowLocalStr_();
   delete Z.draft;   /* v579 의 완성 원고 초안(옛 형식)은 버린다 */
   zoneSaveNow(); renderZonePane(); renderSyncState();
@@ -18264,7 +18286,7 @@ $('#zone_new').addEventListener('click', async function(){
   var Z = state.zone;
   if ((Z.sermon || Z.guide || (Z.opts && Z.opts.length)) && !await uiConfirm('읽어 둔 자료와 개요 선택지를 모두 비울까요?', { okText: '비우기', danger: true })) return;
   state.zone = zoneBlank(); state.zone.date = zoneNextFriday();
-  $('#zone_date').value = state.zone.date; $('#zone_src').value = '';
+  $('#zone_date').value = state.zone.date; $('#zone_src').value = ''; $('#zone_ref').value = '';
   $('#zone_srcFile').value = ''; $('#zone_guideFile').value = '';
   zoneSaveNow(); renderZonePane();
 });
@@ -18283,6 +18305,7 @@ $('#zonePane').addEventListener('input', function(e){
   }
 });
 $('#zone_date').addEventListener('change', function(){ state.zone.date = this.value; zoneSaveSoon(); });
+$('#zone_ref').addEventListener('input', function(){ state.zone.srcRef = this.value.trim(); zoneSaveSoon(); });
 $('#zone_src').addEventListener('change', function(){ state.zone.srcInput = this.value.trim(); zoneSaveSoon(); });
 
 /* ===================== 클로드 요청함 ===================== */
@@ -25606,7 +25629,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v583';
+var APP_VER = 'v584';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -25675,6 +25698,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     state.zone = Object.assign(zoneBlank(), o);
     if (o.date) $('#zone_date').value = o.date; else state.zone.date = $('#zone_date').value;
     if (o.srcInput) $('#zone_src').value = o.srcInput;
+    if (o.srcRef) $('#zone_ref').value = o.srcRef;
     renderZonePane();
   }).catch(function(){});
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();

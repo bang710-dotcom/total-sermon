@@ -220,6 +220,7 @@ v570은 문단 단위로만 칠해서 ①「수 6:18a "…". 어떤 것이든지
 - **주일 설교 입력**: 유튜브 → `ytTranscribeInApp`(Gemini 키 필수, 워커 폴백 안 씀) + oEmbed 제목에서 제목·본문 추출(`zoneYtMeta`) / 홈페이지 → `zoneFindPageImgs` / 이미지·PDF 파일 직접 업로드.
   → ⚠ youngnak.net 은 **CORS 가 없어** 앱이 페이지·이미지를 읽을 수 없다. 그래서 이미지 주소를 **파일명 규칙** `/wp-content/uploads/<게시 연/월>/<설교일 YYYYMMDD>_001.jpg…` 으로 만들고 `<img>` 로드로 존재만 확인한 뒤, Claude 에 `source:{type:'url'}` 로 넘겨 **Anthropic 서버가 가져가게** 한다(`zoneOcr`, Sonnet 5). 교회가 파일명 규칙을 바꾸면 여기가 깨진다 — 그때는 파일 업로드로 우회.
 - **교재**: HWPX·DOCX → `zipDocParas` / PDF → pdf.js 3.11.174(cdnjs) 글자층, 글자층이 없는 스캔 PDF 만 Claude `document` 블록. HWP(옛 한글)는 거절 안내.
+- **v584: 본문 = 주일 설교 본문 그대로.** 프롬프트에 「필요하면 그 안의 핵심 단락」을 허용했더니 선택지마다 범위가 달라지고 주일 본문 밖 절까지 넣었다. 지금은 ①왼쪽 **[주일 설교 본문]** 칸(`#zone_ref` ↔ `Z.srcRef`, 유튜브 제목에서 자동 채움) ②비어 있으면 구상 전에 `uiPrompt` 로 확인(원고 앞 2,000자에서 `BOOKS` 성구를 찾아 기본값) ③프롬프트 ①번 「글자 그대로, 줄이거나 넓히지 않는다」 ④**생성 뒤 코드가 세 선택지의 `본문` 을 그 값으로 덮어쓴다**(프롬프트만으로는 못 막는다 — 이 덮어쓰기를 지우지 말 것).
 - 선택지마다 `refAudit` 로 대지·주제근거의 성경 절 실재성 검사. `msArrToFree`(v579에서 `aiManuscript` 에서 뽑아낸 공용 변환)는 이제 `aiManuscript` 만 쓴다.
 
 ## 전체 새로고침 타임아웃 — v578
