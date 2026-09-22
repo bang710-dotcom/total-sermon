@@ -197,6 +197,16 @@ v570은 문단 단위로만 칠해서 ①「수 6:18a "…". 어떤 것이든지
 - **열기 순서** — `window.editSermon`·`resumeSermon` 은 확인창 통과 직후 `heldApply(true)` 를 먼저 한다. v576 은 `loadSermonThen`(=`ensureText`)이 옛 행 기준으로 "본문 최신"이라 판단한 **뒤에** `editSermonFill` 안에서 보류분을 적용해, 다시 연 설교가 **제목은 새것·본문은 옛것**이었다. 미리보기·내보내기처럼 버퍼를 버리지 않는 `loadSermonThen` 호출에는 넣지 않는다(편집 중인 설교의 기준 행을 바꾸면 충돌 판정이 틀어진다).
 - 검증(가짜 시트): 변경을 놓친 상태를 IndexedDB 로 재현 → v577 첫 실행이 `since=''` 로 한 번 받고 제목 복구 · 열 때 새 본문 수신 · 다른 설교 본문 캐시 유지 · 두 번째 실행은 델타 · 보류분 있는 설교 재열기 시 제목·본문 모두 새것.
 
+## 구역권찰 설교 구상 — v579
+
+금요 구역장·권찰 예배 설교(3대지) 초안. 기초 자료 = 지난 주일 담임목사님(영락교회) 설교 + 그 설교로 **소그룹 사역 전담 사역자들이 만든** 구역장용 소그룹 교재(대학부 LTC 와 형식·내용이 다르다 — 교재 형식을 가정하는 파싱을 넣지 말 것, 통째 텍스트로 넘긴다). 메뉴 `data-page="zone"`, 페이지 `#page-zone`(`#zoneMeta`/`#zonePane`), 상태 `state.zone` → IndexedDB `zoneDraft`.
+- **두 단계**: [📥 자료 읽기](`zoneRead`) → 오른쪽에 고칠 수 있는 텍스트로 남김 → [✍ 3대지 초안 생성](`aiZoneGen`, `P_ZONE`). 전사·이미지 인식은 느리고 비용이 드므로 재생성 때 다시 읽지 않게 나눴다.
+- **주일 설교 입력**: 유튜브 → `ytTranscribeInApp`(Gemini 키 필수, 워커 폴백 안 씀) + oEmbed 제목에서 제목·본문 추출(`zoneYtMeta`) / 홈페이지 → `zoneFindPageImgs` / 이미지·PDF 파일 직접 업로드.
+  → ⚠ youngnak.net 은 **CORS 가 없어** 앱이 페이지·이미지를 읽을 수 없다. 그래서 이미지 주소를 **파일명 규칙** `/wp-content/uploads/<게시 연/월>/<설교일 YYYYMMDD>_001.jpg…` 으로 만들고 `<img>` 로드로 존재만 확인한 뒤, Claude 에 `source:{type:'url'}` 로 넘겨 **Anthropic 서버가 가져가게** 한다(`zoneOcr`, Sonnet 5). 교회가 파일명 규칙을 바꾸면 여기가 깨진다 — 그때는 파일 업로드로 우회.
+- **교재**: HWPX·DOCX → `zipDocParas` / PDF → pdf.js 3.11.174(cdnjs) 글자층, 글자층이 없는 스캔 PDF 만 Claude `document` 블록. HWP(옛 한글)는 거절 안내.
+- **문체**: `P_ZONE` 은 `P_MS`(완성 원고) 규칙 줄을 그대로 끌어다 붙인다(첫 줄·출력형식·분량 줄만 제외) — 원고 규칙을 고치면 자동으로 따라온다. 분량 4,000~5,500자(추정치 — 실제 설교 시간에 맞춰 조정할 것).
+- [설교 작성으로 보내기](`zonePick`) = `clearCompose` → 메타(예배구분 `구역권찰`) → `msArrToFree`(v579에서 `aiManuscript` 에서 뽑아낸 공용 변환) → `parseFreeToStructure`. 초안·작성창 모두 `refAudit` 로 성경 절 실재성 검사.
+
 ## 전체 새로고침 타임아웃 — v578
 
 [전체 새로고침]이 「timeout: 시트 응답이 없어 중단했습니다」로 자주 실패했다. 모든 시트 요청이 30초(`SHEET_TIMEOUT_MS`)에 끊기는데, 전체 목록(`list&sheet=all`, `since` 없음)은 설교 전 행의 `파일맵`(전환표·카드원고·LTC JSON)·요약본에 묵상·산출물·**대화기록 전체**까지 읽어 직렬화한 뒤에야 응답이 시작되기 때문(Apps Script 콜드 스타트가 겹치면 초과).
