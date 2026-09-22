@@ -783,6 +783,30 @@ input[type=date]{cursor:pointer}
 .ptRow .ptBlocks.cwSectActive{outline:2px dashed var(--accent);outline-offset:3px;border-radius:8px}
 .cwDropLine{height:0;border-top:2px solid var(--accent);margin:1px 0;border-radius:2px;pointer-events:none}
 .ptRow .ptAddRow{margin-top:7px;padding-left:11px}
+/* 구역권찰 개요 선택지 카드(v582) */
+.zvHd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.zvChip{flex:0 0 auto;font-size:12px;font-weight:800;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:3px 10px}
+.zvTitle{flex:1 1 240px;min-width:0;font-size:19px;font-weight:800;line-height:1.35;color:var(--text)}
+.zvRef{flex:0 0 auto;font-size:12.5px;font-weight:700;color:var(--accent2);background:rgba(224,182,92,.12);border:1px solid rgba(224,182,92,.4);border-radius:999px;padding:3px 10px}
+.zvHd .zonePickBtn{flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px;margin-left:auto}
+.zvMsg{margin-top:12px;padding:11px 14px;border-left:4px solid var(--accent);background:var(--card2);border-radius:0 10px 10px 0;font-size:15.5px;font-weight:700;line-height:1.55;color:var(--text)}
+.zvPts{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.zvPt{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.zvPtHd{display:flex;align-items:center;gap:8px}
+.zvNo{flex:0 0 26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:13.5px;display:flex;align-items:center;justify-content:center}
+.zvType{font-size:11.5px;font-weight:800;border-radius:6px;padding:3px 8px;color:var(--dim);border:1px solid var(--line)}
+.zvType.zvT1{color:#5b9bd5;background:rgba(91,155,213,.14);border-color:rgba(91,155,213,.42)}
+.zvType.zvT2{color:#3aa17e;background:rgba(58,161,126,.14);border-color:rgba(58,161,126,.42)}
+.zvType.zvT3{color:#c98a3a;background:rgba(201,138,58,.14);border-color:rgba(201,138,58,.42)}
+.zvProp{font-size:15px;font-weight:800;line-height:1.5;color:var(--text)}
+.zvRow{display:flex;gap:7px;font-size:13px;line-height:1.55;color:var(--dim)}
+.zvRow.zvAp{color:var(--text)}
+.zvLbl{flex:0 0 auto;font-size:11px;font-weight:800;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:1px 6px;height:fit-content;margin-top:2px}
+.zvAp .zvLbl{color:var(--accent);border-color:var(--accent)}
+.zvWhy{margin-top:12px;font-size:13px;line-height:1.6;color:var(--dim)}
+.zvWhy .zvLbl{margin-right:7px}
+.zvEdit{margin-top:12px}
+.zvEdit summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--accent)}
 /* 서론·결론 상자(v580) — 대지 상자와 같은 모양, 머리에 섹션 이름 */
 .ptRow .ptSecTag{flex:0 0 auto;font-weight:800;font-size:13px;color:var(--accent);min-width:34px;text-align:center}
 .ptRow .ptBlk .ptMini{flex:0 0 26px;height:26px;background:var(--card2);border:1px solid var(--line);border-radius:6px;color:var(--dim);cursor:pointer;font-size:12px;padding:0;font-family:inherit}
@@ -1670,7 +1694,7 @@ body.uiDlgOpen{overflow:hidden}
     <!-- ============ 구역권찰 설교 구상 (v579) ============ -->
     <section class="page" id="page-zone">
       <div id="zoneMeta">
-        <div class="cnt" style="margin-bottom:8px">주일 담임목사님 설교와 소그룹 교재를 바탕으로 금요 구역권찰 예배 설교(3대지) 초안을 만듭니다.</div>
+        <div class="cnt" style="margin-bottom:8px">주일 담임목사님 설교와 소그룹 교재를 바탕으로 금요 구역권찰 예배 설교(3대지) 개요를 구상합니다.</div>
         <label style="margin-top:0">설교일</label><input type="date" id="zone_date">
         <label>① 주일 설교 — 유튜브 링크 또는 설교원고 홈페이지 주소</label>
         <input type="url" id="zone_src" placeholder="https://www.youtube.com/watch?v=… 또는 https://www.youngnak.net/…" autocomplete="off">
@@ -1680,7 +1704,8 @@ body.uiDlgOpen{overflow:hidden}
         <input type="file" id="zone_guideFile" accept=".hwpx,.docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
         <div class="toolrow"><button class="btn sub" id="zone_read" type="button">📥 자료 읽기</button></div>
         <div class="cnt" style="margin-top:6px;font-size:12.5px;color:var(--dim)">유튜브는 Gemini로 받아쓰고(수 분), 홈페이지 원고 이미지는 Claude가 읽습니다. 읽은 내용은 오른쪽에서 확인·수정할 수 있습니다.</div>
-        <div class="toolrow"><button class="btn" id="zone_gen" type="button">✍ 3대지 설교 초안 생성</button></div>
+        <div class="cnt" style="margin-top:10px;font-size:12.5px;color:var(--dim)">[3대지 설교 구상]은 개요 선택지 3세트를 만듭니다. 하나를 골라 [이 개요로 설교 작성]을 누르면 설교 작성 탭에서 원고를 이어 씁니다.</div>
+        <div class="toolrow"><button class="btn" id="zone_gen" type="button">✍ 3대지 설교 구상</button></div>
         <button class="btn sub" id="zone_new" type="button" style="width:100%;margin-top:14px">✚ 새로 시작하기</button>
       </div>
       <div id="zonePane"><div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [📥 자료 읽기]를 눌러 주세요.</div></div>
@@ -17889,7 +17914,7 @@ window.addEventListener('pagehide', occSaveNow);
    ② 소그룹 교재: HWPX·DOCX → zipDocParas / PDF → pdf.js 글자층, 글자층이 없는 스캔 PDF 만 Claude 가 읽는다.
    초안 문체·구조 규칙은 P_MS(완성 원고)를 그대로 가져다 쓴다 — 작성창으로 넘길 때 msArrToFree + parseFreeToStructure 가
    그 구조 코드를 기대하기 때문이다. */
-function zoneBlank(){ return { date: '', src: '', srcTitle: '', srcRef: '', sermon: '', guideName: '', guide: '', draft: null, at: '' }; }
+function zoneBlank(){ return { date: '', src: '', srcTitle: '', srcRef: '', sermon: '', guideName: '', guide: '', opts: [], at: '' }; }
 state.zone = zoneBlank();
 var zoneSaveSoon = debounce(function(){ idbSet('zoneDraft', state.zone).catch(function(){}); }, 600);
 function zoneSaveNow(){ try { idbSet('zoneDraft', state.zone).catch(function(){}); } catch(e){} }
@@ -18104,79 +18129,66 @@ async function zoneRead(){
   if (!did) toast(Z.sermon.trim() ? '이미 읽어 둔 자료입니다 — 바꾸려면 링크나 파일을 새로 넣어 주세요.' : '주일 설교 링크나 원고 파일을 넣어 주세요.');
 }
 
+/* v582 — [3대지 설교 구상]은 다른 구상 탭(상황 설교·시리즈)처럼 "개요 선택지 3세트"만 만든다.
+   완성 원고는 만들지 않는다 — 하나를 골라 [이 개요로 설교 작성]으로 넘긴 뒤 작성 탭에서 평소처럼 이어 쓴다.
+   공통 원리(주제근거·대지 원리·1차 독자·강해·적용 주의·제목)는 P_OCC 의 줄을 그대로 끌어다 쓴다(상황 설교 전용 줄만 뺀다). */
 var P_ZONE = [
-'당신은 영락교회 교구 목회자의 설교 원고 집필 비서다. 이 목회자는 매주 금요일 구역장·권찰(구역 소그룹 리더) 모임의 예배에서, 지난 주일 담임목사님의 설교를 기초로 다시 설교한다. 예배 뒤 구역장들은 그 주일 설교로 만든 소그룹 교재로 모임을 하고, 이어서 각 구역 소그룹을 인도한다.',
+'당신은 영락교회 교구 목회자의 설교 기획 비서다. 이 목회자는 매주 금요일 구역장·권찰(구역 소그룹 리더) 모임의 예배에서, 지난 주일 담임목사님의 설교를 기초로 다시 설교한다. 예배 뒤 구역장들은 그 주일 설교로 만든 소그룹 교재로 모임을 하고, 이어서 각 구역 소그룹을 인도한다.',
 '입력(JSON): 설교일, 주일설교(제목·본문·전문 — 전사문 또는 원고), 소그룹교재(전문 — 없을 수 있음).',
+'할 일: 이 금요 설교의 개요 선택지 3세트를 만든다. 완성 원고는 쓰지 않는다.',
+'출력은 반드시 JSON 배열(길이 3)만: [{"제목":"...","본문":"책 장:절-절","핵심메시지":"...","주제근거":"...","대지":[{"문":"청중이 붙들 변화의 지침 한 문장","변화":"관점 전환|행동 변화|새 이해 중 하나","근거":"...","적용":"..."},{"문":"...","변화":"...","근거":"...","적용":"..."},{"문":"...","변화":"...","근거":"...","적용":"..."}]}]',
 '목표: 주일 설교를 되풀이하거나 요약하지 않는다. 같은 본문에서 주일 설교의 핵심 메시지를 붙들고 한 걸음 더 깊고 넓게 발전시켜, 구역장·권찰이 먼저 은혜를 받고 그 은혜로 소그룹을 인도하게 한다.',
-'원칙: ①본문은 주일 설교와 같은 본문(필요하면 그 안의 핵심 단락)으로 한다 ②핵심메시지는 주일 설교의 중심 메시지와 같은 방향이되, 구역장·권찰의 삶(돌봄·섬김·인도·중보)에서 새롭게 들리도록 한 문장 명제로 재진술한다 ③대지는 정확히 3개 — 주일 설교의 대지를 그대로 옮기지 말고 본문에서 다시 길어 올리되, 본문을 정리하는 문장이 아니라 구역장·권찰이 붙들 변화의 지침(사고·관점의 전환 / 행동의 변화 / 새로운 이해)으로 쓴다(아래 「대지 = 변화의 지침」 원칙) ④소그룹 교재가 있으면 교재의 질문·나눔 방향과 맞물리게 해서, 설교를 들은 구역장이 모임에서 그 질문을 자연스럽게 이끌 수 있게 한다(교재 문항을 그대로 읽어 주지는 않는다) ⑤주일 설교의 인상 깊은 표현·예화는 "주일에 담임목사님께서 …" 하고 출처를 밝혀 한두 번 되살릴 수 있다 — 입력에 없는 말을 담임목사님 말로 지어내지 않는다 ⑥새 예화는 실존 인물·사건의 일화를 지어내지 말고, 사실 확인이 필요 없는 일상·목회 장면으로 쓴다 ⑦청중은 장년 평신도 리더다 — 대학부·청년 문화 소재는 피한다.',
-'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
-'출력은 반드시 JSON 객체 하나만: {"제목":"...","본문":"책 장:절-절","핵심메시지":"명제 한 문장","주제근거":"이 본문에서 이 메시지를 길어 올린 이유와 주일 설교와의 연결 2~3문장","대지":[{"문":"청중이 붙들 변화의 지침 한 문장","근거":"본문 절과 그 의미 한 문장","적용":"구역장·권찰에게 말 거는 한 문장"},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}],"원고":[{"t":"p|head|ex|ap|pr|su|quote","x":"문단 텍스트"}]}',
-'"원고"는 서론부터 결론·축복까지 순서대로 쓴 완성 설교문이며 아래 [원고 규칙]을 모두 따른다. 대지 선언(t=head)은 "1. ", "2. ", "3. "으로 시작하고 "대지" 배열의 "문"과 같은 문장으로 쓴다. [원고 규칙]에서 말하는 "초고"는 주일 설교가 아니라 이 설교의 "대지" 배열을 뜻한다.',
-'',
-'[원고 규칙]'
-].join('\n') + '\n' + P_MS.split('\n').filter(function(l){ return !/^(당신은 |출력은 반드시|분량:)/.test(l); }).join('\n') +
-'\n분량: 원고 전체 4,000~5,500자.';
+'원칙: ①본문은 주일 설교와 같은 본문(필요하면 그 안의 핵심 단락)으로 한다 — 세 선택지는 본문이 아니라 접근 갈래가 서로 달라야 한다 ②핵심메시지는 주일 설교의 중심 메시지와 같은 방향이되, 구역장·권찰의 삶(돌봄·섬김·인도·중보)에서 새롭게 들리도록 한 문장 명제로 재진술한다 ③대지는 정확히 3개 — 주일 설교의 대지를 그대로 옮기지 말고 본문에서 다시 길어 올리되, 본문을 정리하는 문장이 아니라 구역장·권찰이 붙들 변화의 지침(사고·관점의 전환 / 행동의 변화 / 새로운 이해)으로 쓴다 ④소그룹 교재가 있으면 교재의 질문·나눔 방향과 맞물리게 해서, 설교를 들은 구역장이 모임에서 그 질문을 자연스럽게 이끌 수 있게 한다 ⑤주제근거에는 주일 설교와 이 설교가 어떻게 이어지는지(주일 설교의 무엇을 붙들고 어디로 한 걸음 더 가는지)를 함께 적는다 — 입력에 없는 말을 담임목사님 말로 지어내지 않는다 ⑥청중은 장년 평신도 리더다 — 대학부·청년 문화 소재는 피한다.'
+].join('\n') + '\n' + P_OCC.split('\n').filter(function(l){ return !/^(당신은 |출력은 반드시|선택지 3세트는)/.test(l); }).join('\n');
 
-/* [✍ 초안 생성] */
+/* [✍ 3대지 설교 구상] */
 async function aiZoneGen(){
   var Z = state.zone;
   Z.date = $('#zone_date').value;
   if (!Z.sermon.trim()) { toast('먼저 주일 설교 자료를 읽어 주세요 — [📥 자료 읽기]'); return; }
   if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
-  if (!Z.guide.trim() && !await uiConfirm('소그룹 교재 없이 주일 설교만으로 초안을 만들까요?', { okText: '교재 없이 생성' })) return;
-  if (Z.draft && !await uiConfirm('이미 만든 초안이 있습니다. 새로 생성할까요? 지금 초안은 사라집니다.', { okText: '새로 생성' })) return;
+  if (!Z.guide.trim() && !await uiConfirm('소그룹 교재 없이 주일 설교만으로 구상할까요?', { okText: '교재 없이 구상' })) return;
+  if (Z.opts && Z.opts.length && !await uiConfirm('선택지 3세트를 새로 만들까요? 지금 선택지는 사라집니다.', { okText: '새로 구상' })) return;
+  toast('Opus가 구역권찰 설교 개요 3세트를 구상합니다 — 1~2분');
   var out = await callClaude(P_ZONE, JSON.stringify({
     '설교일': Z.date,
     '주일설교': { '제목': Z.srcTitle || '', '본문': Z.srcRef || '', '전문': Z.sermon.slice(0, 40000) },
     '소그룹교재': Z.guide.slice(0, 20000)
-  }), 32000, aiTick('구역권찰 설교 초안'));
-  var j = aiJson(out);
-  if (!j || !Array.isArray(j['원고']) || !j['원고'].length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
-  Z.draft = { '제목': j['제목'] || '', '본문': j['본문'] || Z.srcRef || '', '핵심메시지': j['핵심메시지'] || '',
-    '주제근거': j['주제근거'] || '', '대지': djSer(j['대지']), '원고': j['원고'] };
+  }), 32000, aiTick('구역권찰 설교 개요'));
+  var arr = aiJson(out);
+  if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+  Z.opts = arr.slice(0, 3).map(function(x){
+    var e = optEdit(x);
+    e['변화'] = (Array.isArray(x['대지']) ? x['대지'] : []).map(function(d){ return String((d && d['변화']) || '').trim(); });   /* 대지별 변화 유형(카드 배지용) */
+    return e;
+  });
   Z.at = nowLocalStr_();
+  delete Z.draft;   /* v579 의 완성 원고 초안(옛 형식)은 버린다 */
   zoneSaveNow(); renderZonePane(); renderSyncState();
-  try {
-    var bad = refAudit(msArrToFree(Z.draft['원고']));
-    if (bad.length) toast('⚠ 없는 성경 절 ' + bad.length + '곳 — 초안 위 [성경 참조] 알림을 확인해 주세요.');
-    else toast('3대지 초안이 도착했습니다 — 검토 후 [설교 작성으로 보내기]를 누르세요.');
-  } catch (e) {}
+  toast('개요 3세트 도착 — 다듬은 뒤 하나를 골라 [이 개요로 설교 작성]을 누르세요.');
 }
 
-function zoneMsHtml(arr){
-  var TAG = { ap: '적용', pr: '실천', su: '정리' };
-  return (arr || []).map(function(p){
-    var t = p.t || 'p', x = esc(String(p.x || '').trim());
-    if (!x) return '';
-    if (t === 'head') return '<div style="font-weight:800;margin:14px 0 6px">' + x + '</div>';
-    if (t === 'quote') return '<div style="color:#e03030;font-weight:700;margin:6px 0">' + x + '</div>';
-    if (t === 'ex') return '<div style="color:#4C94D8;font-weight:700;margin:8px 0 4px">' + (/^ex\)/i.test(x) ? x : 'ex) ' + x) + '</div>';
-    return '<p style="margin:0 0 8px;line-height:1.7">' + (TAG[t] ? '<span class="cnt" style="font-size:11.5px;color:var(--dim);margin-right:6px">[' + TAG[t] + ']</span>' : '') + x + '</p>';
-  }).join('');
-}
 function renderZonePane(){
   var box = $('#zonePane'); if (!box) return;
-  var Z = state.zone;
-  if (!Z.sermon && !Z.guide && !Z.draft) { box.innerHTML = '<div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [📥 자료 읽기]를 눌러 주세요.</div>'; return; }
+  var Z = state.zone, opts = Z.opts || [];
+  if (!Z.sermon && !Z.guide && !opts.length) { box.innerHTML = '<div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [📥 자료 읽기]를 눌러 주세요.</div>'; return; }
   var n = function(t){ return String(t || '').length.toLocaleString() + '자'; };
   var h = '';
-  if (Z.draft) {
-    var d = Z.draft, bad = [];
-    try { bad = refAudit(msArrToFree(d['원고'])); } catch (e) {}
-    h += '<div class="edPoint" id="zoneDraftBox">' +
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:15.5px">3대지 설교 초안</b>' +
-      '<span class="cnt">' + (Z.at ? '생성 ' + esc(Z.at) + ' · ' : '') + '원고 ' + n(msArrToFree(d['원고'])) + '</span>' +
-      '<button class="btn sub" id="zoneRegen" style="flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px">다시 생성</button>' +
-      '<button class="btn" id="zonePick" style="margin-left:auto;flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px">설교 작성으로 보내기</button></div>' +
-      (bad.length ? '<div style="margin-top:8px">' + refAuditHtml(bad, '초안') + '</div>' : '') +
-      '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="zoneD" data-f="제목" value="' + esc(d['제목'] || '') + '"></div>' +
-      '<div><label>본문</label><input type="text" class="zoneD" data-f="본문" value="' + esc(d['본문'] || '') + '"></div></div>' +
-      '<label>핵심메시지</label><input type="text" class="zoneD" data-f="핵심메시지" value="' + esc(d['핵심메시지'] || '') + '">' +
-      (d['주제근거'] ? '<div class="cnt" style="margin-top:8px">주제 근거 — ' + esc(d['주제근거']) + '</div>' : '') +
-      '<label>대지</label><div style="white-space:pre-wrap;font-size:13.5px;line-height:1.6">' + esc(d['대지'] || '') + '</div>' +
-      '<details style="margin-top:10px" open><summary style="cursor:pointer;font-weight:700">원고 미리보기</summary>' +
-      '<div style="margin-top:8px;font-size:14px">' + zoneMsHtml(d['원고']) + '</div></details>' +
-      '<div class="cnt" style="margin-top:8px;font-size:12.5px;color:var(--dim)">원고 본문은 [설교 작성으로 보내기] 뒤 작성 화면에서 고칩니다. 제목·본문·핵심메시지는 여기서 고쳐도 함께 넘어갑니다.</div></div>';
+  if (opts.length) {
+    h += '<div class="card"><b>설교 개요 선택지 ' + opts.length + '세트</b><div class="cnt" style="margin-top:4px">' +
+      (Z.at ? '생성 ' + esc(Z.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [✏ 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div></div>';
+    h += opts.map(function(o, i){
+      return '<div class="edPoint zvOpt" id="zoneOpt' + i + '">' +
+        '<div id="zoneVis' + i + '">' + zoneVisHtml(o, i) + '</div>' +
+        '<details class="zvEdit"><summary>✏ 개요 다듬기</summary>' +
+        '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="zoneO" data-i="' + i + '" data-f="제목" value="' + esc(o['제목'] || '') + '"></div>' +
+        '<div><label>본문</label><input type="text" class="zoneO" data-i="' + i + '" data-f="본문" value="' + esc(o['본문'] || '') + '"></div></div>' +
+        '<label>핵심메시지 (주제)</label><input type="text" class="zoneO" data-i="' + i + '" data-f="핵심메시지" value="' + esc(o['핵심메시지'] || '') + '">' +
+        '<label>주제 근거</label><textarea class="zoneO edTa" rows="3" data-i="' + i + '" data-f="주제근거">' + esc(o['주제근거'] || '') + '</textarea>' +
+        '<label>대지 3개 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="zoneO edTa" rows="10" data-i="' + i + '" data-f="대지">' + esc(o['대지'] || '') + '</textarea>' +
+        '</details></div>';
+    }).join('');
+    h += '<div class="toolrow"><button class="btn sub" id="zoneRegen" type="button">개요 재구상 — 선택지가 모두 마음에 안 들 때</button></div>';
   }
   h += '<div class="edPoint"><b style="font-size:15px">① 주일 설교</b> <span class="cnt">' +
     esc([Z.srcTitle, Z.srcRef].filter(Boolean).join(' · ') || '아직 읽지 않음') + (Z.sermon ? ' · ' + n(Z.sermon) : '') + '</span>' +
@@ -18187,30 +18199,55 @@ function renderZonePane(){
   box.innerHTML = h;
 }
 
-window.zonePick = function(){
-  var Z = state.zone, d = Z.draft;
-  if (!d) return;
-  if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 초안으로 시작할까요?')) return;
+/* 선택지 한 장을 한눈에 — 제목·본문 / 핵심메시지 / 대지 카드 3장(변화 유형 배지·근거·적용) / 주제 근거 */
+var ZV_TYPE = { '관점 전환': 'zvT1', '행동 변화': 'zvT2', '새 이해': 'zvT3' };
+function zoneVisHtml(o, i){
+  var dj = djParse(o['대지']), types = o['변화'] || [], bad = [];
+  try { bad = refAudit(String(o['대지'] || '') + '\n' + String(o['주제근거'] || '')); } catch (e) {}
+  var cards = dj.map(function(d, k){
+    var ty = String(types[k] || '').replace(/\s+/g, ' ').trim(), cls = ZV_TYPE[ty] || '';
+    return '<div class="zvPt"><div class="zvPtHd"><span class="zvNo">' + (k + 1) + '</span>' +
+      (ty ? '<span class="zvType ' + cls + '">' + esc(ty) + '</span>' : '') + '</div>' +
+      '<div class="zvProp">' + esc(d['문'] || '') + '</div>' +
+      (d['근거'] ? '<div class="zvRow"><span class="zvLbl">근거</span><span>' + esc(d['근거']) + '</span></div>' : '') +
+      (d['적용'] ? '<div class="zvRow zvAp"><span class="zvLbl">적용</span><span>' + esc(d['적용']) + '</span></div>' : '') + '</div>';
+  }).join('');
+  return '<div class="zvHd"><span class="zvChip">선택지 ' + (i + 1) + '</span>' +
+      '<div class="zvTitle">' + esc(o['제목'] || '(제목 없음)') + '</div>' +
+      (o['본문'] ? '<span class="zvRef">' + esc(o['본문']) + '</span>' : '') +
+      '<button class="btn zonePickBtn" type="button" data-i="' + i + '">이 개요로 설교 작성</button></div>' +
+    (o['핵심메시지'] ? '<div class="zvMsg">' + esc(o['핵심메시지']) + '</div>' : '') +
+    (bad.length ? '<div style="margin-top:8px">' + refAuditHtml(bad, '선택지 ' + (i + 1)) + '</div>' : '') +
+    '<div class="zvPts">' + cards + '</div>' +
+    (o['주제근거'] ? '<div class="zvWhy"><span class="zvLbl">주제 근거</span>' + esc(o['주제근거']) + '</div>' : '');
+}
+
+/* 선택지 → 설교 작성 (occPick 과 같은 방식: 주제근거 → 서론 바탕, 대지 → 구조 창) */
+window.zonePick = function(i){
+  var Z = state.zone, o = (Z.opts || [])[i];
+  if (!o) return;
+  if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 개요로 시작할까요?')) return;
   clearCompose();
   $('#c_date').value = Z.date || todayLocal_();
   $('#c_service').value = '구역권찰';
-  $('#c_title').value = d['제목'] || '';
-  $('#c_ref').value = d['본문'] || '';
-  $('#c_msg').value = d['핵심메시지'] || '';
-  $('#c_note').value = ('주일 설교 기반' + (Z.srcTitle ? ': ' + Z.srcTitle : '') + (Z.guideName ? ' / 교재: ' + Z.guideName : '')).slice(0, 300);
-  var c = state.compose;
-  c.free = msArrToFree(d['원고']);
-  var ok = (c.style === '자유원고') ? true : parseFreeToStructure();
+  $('#c_title').value = o['제목'] || '';
+  $('#c_ref').value = o['본문'] || '';
+  $('#c_msg').value = o['핵심메시지'] || '';
+  $('#c_note').value = (((o['주제근거'] ? '주제 근거: ' + o['주제근거'] + ' / ' : '') + '주일 설교 기반' + (Z.srcTitle ? ': ' + Z.srcTitle : '') + (Z.guideName ? ' / 교재: ' + Z.guideName : ''))).slice(0, 400);
+  if (o['주제근거']) state.compose.intro = o['주제근거'];
+  var dj = djParse(o['대지']);
+  if (dj.length) state.compose.points = dj.map(function(d){
+    return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '' });
+  });
   renderPoints(); renderEditor();
-  try { var rh = $('#ptRefAudit'); if (rh) rh.innerHTML = refAuditHtml(refAudit(c.free), '구역권찰 설교 초안'); } catch (e) {}
   updateComposeBadge(); refreshReqBtns();
   showPage('compose');
-  toast(ok ? '초안을 설교 작성으로 옮겼습니다 — 다듬은 뒤 [저장]해 주세요.' : '번호 대지를 찾지 못해 자유원고 텍스트로 불러왔습니다 — [자유원고] 칩에서 확인하세요.');
+  toast('개요를 설교 작성으로 옮겼습니다 — 평소처럼 원고를 이어 쓰세요.');
 };
 
 $('#zone_read').addEventListener('click', withBusy($('#zone_read'), '읽는 중…', function(){ return zoneRead(); }));
-$('#zone_gen').addEventListener('click', withBusy($('#zone_gen'), '생성 중…', function(){
-  return aiZoneGen().catch(function(e){ renderSyncState(); toast('초안 생성 실패: ' + e.message); });
+$('#zone_gen').addEventListener('click', withBusy($('#zone_gen'), '구상 중…', function(){
+  return aiZoneGen().catch(function(e){ renderSyncState(); toast('개요 구상 실패: ' + e.message); });
 }));
 /* 교재는 고르는 즉시 읽는다(AI 없이 끝나는 경우가 대부분) */
 $('#zone_guideFile').addEventListener('change', function(){
@@ -18224,21 +18261,25 @@ $('#zone_guideFile').addEventListener('change', function(){
 });
 $('#zone_new').addEventListener('click', async function(){
   var Z = state.zone;
-  if ((Z.sermon || Z.guide || Z.draft) && !await uiConfirm('읽어 둔 자료와 초안을 모두 비울까요?', { okText: '비우기', danger: true })) return;
+  if ((Z.sermon || Z.guide || (Z.opts && Z.opts.length)) && !await uiConfirm('읽어 둔 자료와 개요 선택지를 모두 비울까요?', { okText: '비우기', danger: true })) return;
   state.zone = zoneBlank(); state.zone.date = zoneNextFriday();
   $('#zone_date').value = state.zone.date; $('#zone_src').value = '';
   $('#zone_srcFile').value = ''; $('#zone_guideFile').value = '';
   zoneSaveNow(); renderZonePane();
 });
 $('#zonePane').addEventListener('click', function(e){
-  if (e.target.closest('#zonePick')) window.zonePick();
+  var pk = e.target.closest('.zonePickBtn');
+  if (pk) { window.zonePick(+pk.dataset.i); return; }
   var rg = e.target.closest('#zoneRegen');
-  if (rg) withBusy(rg, '생성 중…', function(){ return aiZoneGen().catch(function(er){ renderSyncState(); toast('초안 생성 실패: ' + er.message); }); })();
+  if (rg) withBusy(rg, '구상 중…', function(){ return aiZoneGen().catch(function(er){ renderSyncState(); toast('개요 구상 실패: ' + er.message); }); })();
 });
 $('#zonePane').addEventListener('input', function(e){
   var t = e.target, Z = state.zone;
   if (t.classList.contains('zoneF')) { Z[t.dataset.f] = t.value; zoneSaveSoon(); }
-  else if (t.classList.contains('zoneD') && Z.draft) { Z.draft[t.dataset.f] = t.value; zoneSaveSoon(); }
+  else if (t.classList.contains('zoneO')) {   /* 선택지 다듬기 → 위 카드에 바로 반영 */
+    var o = (Z.opts || [])[+t.dataset.i];
+    if (o) { o[t.dataset.f] = t.value; zoneSaveSoon(); var v = $('#zoneVis' + t.dataset.i); if (v) v.innerHTML = zoneVisHtml(o, +t.dataset.i); }
+  }
 });
 $('#zone_date').addEventListener('change', function(){ state.zone.date = this.value; zoneSaveSoon(); });
 $('#zone_src').addEventListener('change', function(){ state.zone.srcInput = this.value.trim(); zoneSaveSoon(); });
@@ -25564,7 +25605,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v581';
+var APP_VER = 'v582';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
