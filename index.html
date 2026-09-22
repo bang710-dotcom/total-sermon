@@ -2356,13 +2356,17 @@ function _netRun(fn){
    모아두고 (a) 타임아웃 시 자동 중단 (b) 오버레이 [취소]로 사용자가 중단할 수 있게 한다.
    중단(AbortError)은 '일시 통신 오류'로 표준화돼 _isTransientNetErr→대기열 보관 경로로 흐른다. */
 var SHEET_TIMEOUT_MS = 30000;
+/* v578: 전체 목록(list, since 없음)은 설교 전 행의 파일맵(전환표·카드원고·LTC)·요약본에 묵상·산출물·대화기록까지
+   읽어 JSON 으로 만든 뒤에야 응답이 시작된다 — Apps Script 가 식어 있으면 30초를 자주 넘겨 전체 새로고침이 실패했다.
+   그 요청만 제한을 넉넉히 준다(델타·저장은 그대로 30초). */
+var SHEET_FULL_TIMEOUT_MS = 120000;
 var _netAborts = [];
-function _sheetFetch(url, opts){
+function _sheetFetch(url, opts, ms){
   opts = opts || {};
   var ctrl = new AbortController();
   opts.signal = ctrl.signal;
   _netAborts.push(ctrl);
-  var to = setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, SHEET_TIMEOUT_MS);
+  var to = setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, ms || SHEET_TIMEOUT_MS);
   function done(){ clearTimeout(to); var i = _netAborts.indexOf(ctrl); if (i >= 0) _netAborts.splice(i, 1); }
   return fetch(url, opts).then(function(r){ done(); return r; }, function(e){
     done();
@@ -2371,12 +2375,12 @@ function _sheetFetch(url, opts){
   });
 }
 function _cancelSheetReqs(){ _netAborts.slice().forEach(function(c){ try { c.abort(); } catch(e){} }); }
-function api(params){
+function api(params, ms){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
   var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
   return _netRun(function(){
-    return _sheetFetch(s.url + '?token=' + encodeURIComponent(s.token) + '&' + qs)
+    return _sheetFetch(s.url + '?token=' + encodeURIComponent(s.token) + '&' + qs, null, ms)
       .then(function(r){ return r.json(); })
       .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
   });
@@ -2622,7 +2626,7 @@ function _pullData(opts){
   return flushQueue().then(function(){
     var params = { action: 'list', sheet: 'all' };
     if (since) params.since = since;
-    return api(params);
+    return api(params, since ? 0 : SHEET_FULL_TIMEOUT_MS);   /* v578: 전체 로드만 긴 제한 */
   }).then(function(d){
     if (d.delta) {                 /* 신 백엔드: 변경분만 머지 */
       mergeDelta(d);
@@ -2694,10 +2698,11 @@ function sync(opts){
     renderSyncState(); toast('동기화 실패: ' + e.message);
   }).then(function(){ hideWaitOverlay(); });
 }
-/* 전체 새로고침: 동기화 기준점을 비워 처음부터 다시 받는다(델타 누락·드리프트 의심 시). */
+/* 전체 새로고침: 처음부터 다시 받는다(델타 누락·드리프트 의심 시).
+   v578: 기준점을 미리 비워 저장하지 않는다 — 예전엔 전체 요청이 타임아웃으로 실패하면 기준점이 빈 채 남아
+   이후 포커스 동기화·다음 실행까지 매번 무거운 전체 요청을 보냈다. 성공하면 _pullData 가 기준점을 새로 잡는다. */
 function fullResync(){
   return (_pullInflight || Promise.resolve()).then(function(){
-    state.syncAt = ''; idbSet('syncAt', '').catch(function(){});
     return sync({ full: true });
   });
 }
@@ -24985,7 +24990,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v577';
+var APP_VER = 'v578';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
