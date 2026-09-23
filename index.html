@@ -2899,6 +2899,44 @@ function _queuePermErr_(item, e){
   if (notFound && item.action === 'update') return { drop: true };   /* 비설교 행 update: 대상이 삭제됨 → 폐기 */
   return { drop: false };   /* 그 외(토큰·시트 설정 오류 등): 항목 보존 — 설정을 고치면 다음 동기화 때 전송 */
 }
+/* ── 대기열의 '원고 통째 저장'이 남의 새 저장을 덮지 않게 (v585) ──
+   대기열 항목은 기준 시점이 없어 전송될 때 시트를 무조건 덮어썼다. 사무실에서 저장이 통신 오류로 대기열에 들어간 뒤
+   집에서 이어 쓰고 저장하면, 다음날 사무실이 [동기화]만 눌러도 집 최종본이 조용히 사라졌다(2026-09-23 재현).
+   이제 보낼 때 시트를 먼저 확인한다 — 그대로면 전송 / 이미 같은 내용이면 건너뜀(타임아웃이었지만 실제로는 저장된 경우)
+   / 다른 기기가 더 새로 저장했으면 덮지 않고 「검토본」 행으로 올린다(둘 다 보존). */
+function qIsManuscriptUpdate_(it){
+  return !!(it && it.action === 'update' && it.sheet === 'sermons' && it.data && it.data.ID && it.data['원고텍스트'] != null);
+}
+function qStampBase_(body){
+  try {
+    if (!qIsManuscriptUpdate_(body)) return;
+    var row = findSermon(body.data.ID);
+    body._base = String(state._bufMod || (row && row['수정일']) || '');
+  } catch (e) {}
+}
+/* 돌려주는 값: 보낼 body(그대로 또는 검토본) / null = 보낼 필요 없음(이미 반영됨) */
+async function qGuardBody_(item){
+  if (!qIsManuscriptUpdate_(item)) return item;
+  var id = String(item.data.ID), base = String(item._base || '');
+  var row = null;
+  try {
+    var params = { action: 'list', sheet: 'sermons' };
+    if (base) params.since = base;
+    var d = await api(params);
+    row = ((d && d.sermons) || []).filter(function(r){ return String(r['ID']) === id; })[0] || null;
+  } catch (e) { return item; }   /* 확인 실패 — 예전처럼 전송(통신 오류면 다시 대기열로 돌아온다) */
+  if (base && (!row || String(row['수정일'] || '') <= base)) return item;   /* 시트가 그때 그대로 → 안전 */
+  if (!row) return item;                                                   /* 행이 없어졌다 — submit 의 재등록 경로가 처리 */
+  var cur = '';
+  try { cur = String((await api({ action: 'text', id: id }) || {})['원고텍스트'] || ''); } catch (e) { return item; }
+  if (rtNorm(cur) === rtNorm(String(item.data['원고텍스트'] || ''))) return null;   /* 응답만 유실됐고 저장은 됐다 */
+  var d2 = Object.assign({}, item.data);
+  delete d2.ID; delete d2['로컬ID'];
+  d2['충돌원본'] = id;
+  if (!/검토본/.test(String(d2['제목'] || ''))) d2['제목'] = (d2['제목'] || '(제목 없음)') + ' (검토본)';
+  d2['로컬ID'] = stableLid_(['RECON', id]);   /* 재시도·양 기기 동시 생성도 서버에서 한 행으로 */
+  return { action: 'add', sheet: 'sermons', data: d2, _wasConflict: id };
+}
 function flushQueue(){
   if (!state.queue.length || _flushing) return Promise.resolve();
   _flushing = true;
@@ -2909,12 +2947,20 @@ function flushQueue(){
     chain = chain.then(function(){
       if (stopped) return;
       if (state.queue.indexOf(item) < 0) return;   /* 전송 사이에 입양(adopt)으로 대체·제거된 항목은 건너뜀 */
-      return apiPost(item).then(function(id){
+      return qGuardBody_(item).then(function(send){
+      if (!send) {   /* 이미 시트에 같은 내용이 있다 — 조용히 대기열에서 뺀다 */
+        var i0 = state.queue.indexOf(item);
+        if (i0 >= 0) { state.queue.splice(i0, 1); save(LS.queue, state.queue); }
+        toast('대기 중이던 저장은 이미 시트에 반영돼 있어 건너뛰었습니다.');
+        return;
+      }
+      return apiPost(send).then(function(id){
         /* 위치(shift) 대신 처리한 항목 자체를 제거 — 전송 중 submit이 새 항목을 push해도 잘못 제거되지 않음 */
         var i = state.queue.indexOf(item);
         if (i >= 0) state.queue.splice(i, 1);
         save(LS.queue, state.queue);
-        _linkFlushedAdd_(item, id);
+        _linkFlushedAdd_(send, id);
+        if (send._wasConflict) toast('대기 중이던 저장이 다른 기기의 더 새 저장과 겹쳐, 덮어쓰지 않고 「검토본」으로 올렸습니다 — 검색에서 비교해 주세요.');
       }, function(e){
         if (_isTransientNetErr(e)) { stopped = true; kept++; return; }   /* 통신 오류 — 이번 라운드 중단, 다음 동기화 때 이어서 */
         var r = _queuePermErr_(item, e);
@@ -2924,6 +2970,7 @@ function flushQueue(){
           if (r.replace) state.queue.splice(i2 >= 0 ? i2 : state.queue.length, 0, r.replace);   /* 재등록분은 다음 flush에서 전송 */
           save(LS.queue, state.queue);
         } else { kept++; }   /* 내용 보존이 필요한 항목(add 등) — 유지하되 뒤 항목은 계속 전송 */
+      });
       });
     });
   });
@@ -2982,6 +3029,7 @@ function submit(body, okMsg, onResult, opts){
     return pullData().catch(function(){}).then(function(){ return id; });
   }).catch(function(e){
     if (_isTransientNetErr(e)) {
+      qStampBase_(body);   /* v585: 이 저장이 어느 시점 행을 기반으로 했는지 — 전송 때 덮어쓰기 판정용 */
       state.queue.push(body); save(LS.queue, state.queue); renderStats();
       toast('오프라인/통신 오류 — 대기열에 저장했습니다. 다음 동기화 때 전송됩니다.');
       ok(true);   /* 대기열에 durable 보관됨 → 저장된 것으로 처리 */
@@ -25637,7 +25685,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v584';
+var APP_VER = 'v585';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
