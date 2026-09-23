@@ -14246,6 +14246,12 @@ $('#devoDate').addEventListener('change', function(){ if (!this.value) return; i
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
    키가 없으면 기존 요청함 흐름으로 자동 폴백. */
 var AI_MODEL = 'claude-opus-5';
+/* 모델별 추가 요청 파라미터 (v586).
+   Claude Opus 5.5 는 기본 effort 가 medium 으로, Opus 5(=high)보다 한 단계 낮다 → 설교용 글은 high 로 못 박는다.
+   effort 는 Haiku 4.5 등 옛 모델에서 400 을 내므로 그 모델에는 붙이지 않는다. */
+function modelExtra(m){
+  return /^claude-opus-5-5/.test(String(m || '')) ? { output_config: { effort: 'high' } } : {};
+}
 function realKey(){ return String(state.settings.claudeKey || '').trim(); }
 /* aiKey(): 브라우저 에이전트 모드가 켜져 있으면 키 유무와 무관하게 센티널 '__AGENT__' 반환
    → 생성은 항상 브리지(구독)가 우선(과금 방지), 모든 aiKey() 게이트·AI_DIRECT 라우팅은 열린 채 유지.
@@ -14269,9 +14275,9 @@ async function callClaude(system, user, maxTokens, onTick, modelOverride){
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
-    body: JSON.stringify({ model: modelOverride || AI_MODEL, max_tokens: maxTokens || 8000, stream: true,
+    body: JSON.stringify(Object.assign({ model: modelOverride || AI_MODEL, max_tokens: maxTokens || 8000, stream: true,
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: user }] })
+      messages: [{ role: 'user', content: user }] }, modelExtra(modelOverride || AI_MODEL)))
   });
   if (!res.ok) {
     var et = '';
@@ -15779,7 +15785,7 @@ async function aiIdeaImages(imgs){
       var out = await callClaude(P_OCR, [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
         { type: 'text', text: '이 이미지의 예화를 정리해 주세요.' }
-      ], 8000, aiTick('예화 인식'), 'claude-haiku-4-5-20251001');
+      ], 8000, aiTick('예화 인식'), 'claude-haiku-4-5');
       var j = aiJson(out);
       if (!j['내용']) throw new Error('형식 오류');
       if (aiKey()) toast('예화 강화 중… (' + (i + 1) + '/' + imgs.length + ')');
@@ -25693,7 +25699,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v585';
+var APP_VER = 'v586';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -26267,8 +26273,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     <span class="sp"></span>
     <select id="aiModel" title="모델 선택">
       <option value="claude-opus-5">Opus 5 · 최고 성능</option>
+      <option value="claude-opus-5-5">Opus 5.5 · 최신</option>
       <option value="claude-sonnet-5">Sonnet 5 · 균형</option>
-      <option value="claude-haiku-4-5-20251001">Haiku 4.5 · 빠름</option>
+      <option value="claude-haiku-4-5">Haiku 4.5 · 빠름</option>
     </select>
     <button class="nu" id="aiResetW" type="button" title="대화창 너비 초기화" aria-label="대화창 너비 초기화">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 7 4 12 9 17"/><polyline points="15 7 20 12 15 17"/></svg>
@@ -26752,9 +26759,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body: JSON.stringify({ model: model, max_tokens: 4000, stream: true,
+      body: JSON.stringify(Object.assign({ model: model, max_tokens: 4000, stream: true,
         system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-        messages: withCachedTail(messages) })
+        messages: withCachedTail(messages) }, (window.modelExtra ? modelExtra(model) : {})))
     });
     if (!res.ok){
       var et = ''; try { et = (await res.json()).error.message; } catch(e){ et = 'HTTP ' + res.status; }
@@ -27137,7 +27144,45 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   ctxOn.addEventListener('change', refreshCtxTag);
   /* 닫기는 [닫기] 버튼 또는 다른 메뉴로 이동할 때만 — 작성창 클릭/Esc로는 닫히지 않음 */
   /* 구모델명 자동 승격 — 저장값이 목록에 없으면 select.value가 빈 값이 되어 모델 선택이 깨진다 */
-  var AI_MODEL_MIGRATE = { 'claude-sonnet-4-6': 'claude-sonnet-5', 'claude-opus-4-8': 'claude-opus-5', 'claude-opus-4-1-20250805': 'claude-opus-5' };
+  var AI_MODEL_MIGRATE = { 'claude-sonnet-4-6': 'claude-sonnet-5', 'claude-opus-4-8': 'claude-opus-5', 'claude-opus-4-1-20250805': 'claude-opus-5',
+    'claude-haiku-4-5-20251001': 'claude-haiku-4-5' };
+  /* ── 모델 목록 자동 갱신 (v586) ──
+     목록이 코드에 박혀 있어 새 모델이 나와도 고르지 못했다(Opus 5.5 제보). 이제 Models API(GET /v1/models)로
+     계정이 실제로 쓸 수 있는 모델을 받아, 목록에 없는 것을 뒤에 덧붙인다. 하루 한 번만 조회(localStorage 캐시)하고,
+     키가 없거나(브라우저 에이전트 모드) 실패하면 조용히 박힌 목록 그대로 쓴다.
+     날짜 스냅샷 ID(…-20251001)와 옛 세대(claude-3 등)는 감춘다 — 고를 일이 없고 목록만 길어진다. */
+  var MODELS_CACHE_KEY = 'tsa.modelsCache';
+  function aiModelsApply(list){
+    try {
+      var have = {};
+      Array.prototype.forEach.call(modelSel.options, function(o){ have[o.value] = 1; });
+      (list || []).forEach(function(m){
+        if (!m || !m.id || have[m.id]) return;
+        if (!/^claude-(opus|sonnet|haiku|fable|mythos)-\d/.test(m.id)) return;   /* 현행 세대만 */
+        if (/-\d{8}$/.test(m.id)) return;                                        /* 날짜 스냅샷 제외 */
+        var o = document.createElement('option');
+        o.value = m.id; o.textContent = (m.name || m.id) + ' · 새 모델';
+        modelSel.appendChild(o);
+      });
+    } catch (e) {}
+  }
+  function aiModelsSync(){
+    try {
+      var c = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || 'null');
+      if (c && c.list && (Date.now() - (+c.at || 0)) < 86400000) { aiModelsApply(c.list); return; }
+    } catch (e) {}
+    var key = (window.realKey ? realKey() : '');
+    if (!key) return;
+    fetch('https://api.anthropic.com/v1/models?limit=100', { headers: {
+      'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true'
+    } }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+      var list = ((j && j.data) || []).map(function(m){ return { id: m.id, name: m.display_name || m.id }; });
+      if (!list.length) return;
+      try { localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ at: Date.now(), list: list })); } catch (e) {}
+      aiModelsApply(list);
+    }).catch(function(){});
+  }
+  aiModelsSync();
   try {
     var mv = localStorage.getItem('tsa.aiModel') || AI_MODEL;
     mv = AI_MODEL_MIGRATE[mv] || mv;
