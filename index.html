@@ -2907,6 +2907,9 @@ function _queuePermErr_(item, e){
 function qIsManuscriptUpdate_(it){
   return !!(it && it.action === 'update' && it.sheet === 'sermons' && it.data && it.data.ID && it.data['원고텍스트'] != null);
 }
+function qHasPendingManuscript_(id){
+  try { return (state.queue || []).some(function(q){ return qIsManuscriptUpdate_(q) && String(q.data.ID) === String(id); }); } catch (e) { return false; }
+}
 function qStampBase_(body){
   try {
     if (!qIsManuscriptUpdate_(body)) return;
@@ -11465,6 +11468,11 @@ function reconcileCleanDraftWithSheet(){
     } else if (state._draftAt) {             /* 옛 초안(기준 스탬프 없음) 폴백: 시트 수정일이 초안 시각보다 1분 이상 뒤면 */
       var rmMs = new Date(rm.replace(' ', 'T')).getTime();
       newer = !!rmMs && rmMs > (+state._draftAt + 60000);
+    } else {
+      /* v585: 기준 시점이 아예 없는 상태(옛 버전에서 넘어온 버퍼 등). 버퍼가 깨끗하다 = 이미 저장된 내용이므로
+         시트 행을 정본으로 본다. 단 이 설교의 미전송 대기분이 있으면(= 시트가 내 최신보다 옛것) 손대지 않는다.
+         아래 ensureText 뒤 composeSameAsRow 검사가 '같으면 기준만 갱신'하므로 공연히 다시 그리지 않는다. */
+      newer = !qHasPendingManuscript_(id);
     }
     if (!newer) return;                      /* 시트가 더 최신이 아님 → 캐시 초안 유지(현행 동작) */
     ensureText(id).then(function(){
