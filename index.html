@@ -11378,11 +11378,19 @@ window.loadRemoteConflict = function(){
 /* v576 — 기준 시점(_bufMod) 관리.
    열 때 행의 수정일로 잡고(editSermonFill), 저장하면 비운다(clearComposeDraft) — 저장 직후엔 내 저장의 시트 에코(서버 수정일)가
    다음 기준이다. 동기화로 들어온 행은 서버 값이므로 비어 있을 때 그대로 받는다. 복원 초안(_draftBaseMod·_draftAt)이면 건드리지 않는다. */
+/* 기준 시점이 비어 있을 때 들어온 행의 '수정일'을 내 버퍼 기준으로 받는다(= 내 저장 에코).
+   ⚠ v585: 예전엔 어떤 행이든 받아서, 저장 뒤 동기화 전에 다른 기기가 저장하면 **그 새 행을 내 기준으로 삼아**
+   「시트가 더 최신」 판정(reconcileCleanDraftWithSheet·_maybeFlagConflict)이 영영 서지 않았다 — 작성창이 옛 내용
+   그대로 남고 경고도 없었다(2026-09-23 재현). 이제 저장 성공이 기준 시점을 직접 찍고(위 clearComposeDraft 뒤 _bufMod),
+   여기서는 내용이 같은 에코만 서버 값으로 정정한다. */
 function bufModAdopt(row){
   try {
     if (!row || !state.editing || String(row['ID']) !== String(state.editing)) return;
     if (state._bufMod || state._draftBaseMod || state._draftAt) return;
-    if (row['수정일']) state._bufMod = String(row['수정일']);
+    if (!row['수정일']) return;
+    if (composeDirty()) return;            /* 미저장 편집 중이면 남의 저장일 수 있다 — 받지 않는다 */
+    if (!composeSameAsRow(row)) return;    /* 내용이 다르면 내 에코가 아니다 */
+    state._bufMod = String(row['수정일']);
   } catch (e) {}
 }
 /* 작성창의 내용(메타 칸 + 조립 원고)이 시트 행과 같은가 */
@@ -11787,7 +11795,7 @@ async function _doSaveComposeInner(){
     if (!origId) { stampLocalId_(body); state.pendingAddLid = body.data['로컬ID']; }   /* 이 작성 세션의 add 멱등키 기억 */
     /* 저장한 내용의 서명(수집 직후 스냅샷 _sig0) — durable 보관된 경우에만 '깨끗함'으로 표시(진짜 실패 시 dirty 유지).
        잘라서 저장했으면(_cut) 뒷부분이 초안에만 있으므로 미저장·초안을 그대로 둔다. */
-    return submit(body, origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { _hOk = true; if (!_cut) { state.savedSig = _sig0; clearComposeDraft(true); } state.remoteConflict = null; } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+    return submit(body, origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { _hOk = true; if (!_cut) { state.savedSig = _sig0; clearComposeDraft(true); state._bufMod = nowLocalStr_(); } state.remoteConflict = null; } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
       /* 신규 add거나, 삭제→재등록으로 새 ID가 돌아온 경우 그 ID로 전환(이후 [저장]은 새 행을 갱신) */
       if (id && typeof id === 'string' && (!origId || id !== origId)) {
         state.editing = id;
@@ -11821,7 +11829,7 @@ function saveReconcileCopy(data, origId, o){
                       : { action: 'add', sheet: 'sermons', data: d };
   var _sig = o.sig != null ? o.sig : composeSig();
   var _hOk = false;
-  return submit(body, '내 작업을 검토본으로 저장했습니다 (원본·다른 기기 내용 모두 보존)', function(okv){ if (okv) { _hOk = true; if (!o.cut) { state.savedSig = _sig; clearComposeDraft(true); } state.remoteConflict = null; } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+  return submit(body, '내 작업을 검토본으로 저장했습니다 (원본·다른 기기 내용 모두 보존)', function(okv){ if (okv) { _hOk = true; if (!o.cut) { state.savedSig = _sig; clearComposeDraft(true); state._bufMod = nowLocalStr_(); } state.remoteConflict = null; } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     var nid = existing ? existing['ID'] : id;
     if (nid && typeof nid === 'string') { state.editing = nid; state.versionOf = null; updateComposeBadge(); refreshReqBtns(); }
     if (_hOk && o.hcap) { o.hcap.reason = '검토본으로 저장'; histAfterSave(o.hcap, nid, false); }
@@ -12066,7 +12074,7 @@ async function _doSaveAsNewInner(){
   var _un = _lockSaveBtns();
   var _body = { action: 'add', sheet: 'sermons', data: data };
   stampLocalId_(_body); state.pendingAddLid = _body.data['로컬ID'];   /* 오프라인 보관 후 이어지는 [저장]이 같은 행으로 upsert되게 */
-  return submit(_body, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { _hOk = true; if (!_cut) { state.savedSig = _sig0; clearComposeDraft(true); } state.remoteConflict = null; } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+  return submit(_body, '새 설교로 저장 완료 (원본 유지)', function(okv){ if (okv) { _hOk = true; if (!_cut) { state.savedSig = _sig0; clearComposeDraft(true); state._bufMod = nowLocalStr_(); } state.remoteConflict = null; } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
     if (id && typeof id === 'string') { state.editing = id; state.versionOf = null; state.pendingAddLid = null; updateComposeBadge(); refreshReqBtns(); }
     if (_hOk && id && typeof id === 'string') histAfterSave(_hcap, id, _hNew);
     try { illRecordUsage(state.editing || (typeof id === 'string' ? id : '')); } catch (eR){}
