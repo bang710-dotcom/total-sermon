@@ -10232,14 +10232,27 @@ function parseFreeToStructure(){
   function flushIll(){ if (cur && curIll) { curIll.illBody = jt(curIll._b); delete curIll._b; cur.blocks.push(curIll); } curIll = null; }
   function flushApply(){ if (cur) { var t = jt(applyAcc); if (t) cur.blocks.push(newApplyBlock(t)); } applyAcc = []; }
   function closePoint(){ if (cur) { flushBody(); flushIll(); flushApply(); if (!cur.blocks.length) cur.blocks = [newBodyBlock('')]; pts.push(cur); } cur = null; bodyAcc = []; curIll = null; applyAcc = []; mode = 'body'; bodyRole = '주해근거'; }
+  /* 대지 안 번호 목록 추적(v587) — 대지 1 본문에 「1. 라합과… / 2. 성과…」 같은 목록이 있으면, v572 규칙은 「1.」은
+     본문으로 두지만 「2.」는 마침 다음 대지 번호(2)와 같아 **대지 2로 승격**시켰다(이후 대지가 한 칸씩 밀리고, 진짜 대지 2는
+     본문으로 삼켜짐 — 2026-09-25 제보). 대지로 안 본 번호 줄이 나오면 목록이 열린 것으로 보고, 그 다음 번호가
+     빈 줄 없이 이어지면 목록 항목으로 둔다. 실측(원고 1,121편): 본문 속 목록 78편 중 「2.」가 뒤따르는 65편 모두
+     항목 사이에 빈 줄이 없었다 — 반면 대지 머리는 늘 빈 줄 뒤에 온다. 그래서 빈 줄 바로 뒤의 「다음 대지 번호」는 대지로 본다. */
+  var subNext = 0;
+  var CODE_LINE = /^\s*(?:ex\)|\((?:주해|근거|대지\s*내용|내용|적용|강화|정리|실천|예화|서론|결론)\))/i;
   for (var j = firstHead; j < bodyEnd; j++) {
     var l = lines[j];
+    var numL = isNumHead(l) ? parseInt(stripBoldEnds(l), 10) : 0;
+    var prevBlank = j > firstHead && !String(lines[j - 1]).trim();
+    /* 목록 닫힘: 빈 줄 뒤에 번호 없는 글이 오거나, 구조 코드 줄이 오면 */
+    if (subNext && String(l).trim() && !numL && (prevBlank || CODE_LINE.test(stripBoldEnds(l)))) subNext = 0;
+    var listItem = !!(cur && numL && subNext && numL === subNext && !(prevBlank && numL === pts.length + 2));
     /* 첫 대지 이후의 번호 머리("N." "N)")는 첫 대지와 같은 구분자이면서 번호가 이어질 때(다음 대지 번호)만 대지로 본다(v572) —
        본문 속 "1) 2)"·"1. 2." 소목록이 새 대지로 승격되지 않게. (대지) 코드는 번호와 무관하게 항상 머리. */
-    if (isStructHead(l) && !(cur && isNumHead(l) && (parseInt(stripBoldEnds(l), 10) !== pts.length + 2 || (headDelim && numHeadDelim(l) !== headDelim)))) {
+    if (!listItem && isStructHead(l) && !(cur && numL && (numL !== pts.length + 2 || (headDelim && numHeadDelim(l) !== headDelim)))) {
       if (!cur && isNumHead(l)) headDelim = numHeadDelim(l);
-      closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; continue;
+      closePoint(); cur = { text: structHeadProp(l), blocks: [] }; mode = 'body'; subNext = 0; continue;
     }
+    if (cur && numL) subNext = numL + 1;   /* 대지로 안 본 번호 줄 = 본문 속 목록(열림·이어짐) */
     var exm = l.match(/^\s*(?:ex\)|\(예화\))\s*(.*)$/i);
     if (exm) { flushBody(); flushIll(); flushApply(); curIll = newIllBlock(exm[1].trim(), ''); curIll._b = []; mode = 'ill'; continue; }
     var cm = l.match(/^\s*\((?:주해|근거|대지\s*내용|내용)\)\s*(.*)$/);
@@ -25699,7 +25712,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v586';
+var APP_VER = 'v587';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
