@@ -12361,8 +12361,41 @@ function hwpxP(pid, inner){
   return '<hp:p id="0" paraPrIDRef="' + pid + '" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">' + inner + '</hp:p>';
 }
 function hwpxTblId(){ return 1000000000 + Math.floor(Math.random() * 1000000000); }
-function hwpxBar(spec, text){
+/* ── 그림(hp:pic) — 한글이 직접 저장한 문서의 구조를 그대로 따른다(v588) ──
+   크기 단위는 HWPUNIT(1/7200인치). 원본 크기(orgSz)는 픽셀×75(=96dpi), 표시 크기(curSz·sz)는 cw×ch.
+   inline=true → 글자처럼 취급(문단 안 한 줄), false → 떠 있는 개체(글 앞으로·오른쪽 정렬). */
+function hwpxPicXml(o){
+  var ow = Math.max(1, Math.round(o.pw * 75)), oh = Math.max(1, Math.round(o.ph * 75));
+  var cw = Math.round(o.cw), ch = Math.round(o.ch);
+  var sx = (cw / ow).toFixed(6), sy = (ch / oh).toFixed(6);
+  var pos = o.inline
+    ? '<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+    : '<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="RIGHT" vertOffset="' + Math.round(o.vOff || 0) + '" horzOffset="0"/>';
+  return '<hp:pic id="' + hwpxTblId() + '" zOrder="' + (o.inline ? 0 : 1) + '" numberingType="PICTURE" textWrap="' + (o.inline ? 'TOP_AND_BOTTOM' : 'IN_FRONT_OF_TEXT') + '" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="' + hwpxTblId() + '" reverse="0">'
+    + '<hp:offset x="0" y="0"/><hp:orgSz width="' + ow + '" height="' + oh + '"/><hp:curSz width="' + cw + '" height="' + ch + '"/>'
+    + '<hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="' + Math.round(cw / 2) + '" centerY="' + Math.round(ch / 2) + '" rotateimage="1"/>'
+    + '<hp:renderingInfo><hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:scaMatrix e1="' + sx + '" e2="0" e3="0" e4="0" e5="' + sy + '" e6="0"/><hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/></hp:renderingInfo>'
+    + '<hc:img binaryItemIDRef="' + o.bin + '" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>'
+    + '<hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="' + ow + '" y="0"/><hc:pt2 x="' + ow + '" y="' + oh + '"/><hc:pt3 x="0" y="' + oh + '"/></hp:imgRect>'
+    + '<hp:imgClip left="0" right="' + ow + '" top="0" bottom="' + oh + '"/><hp:inMargin left="0" right="0" top="0" bottom="0"/>'
+    + '<hp:imgDim dimwidth="' + ow + '" dimheight="' + oh + '"/><hp:effects/>'
+    + '<hp:sz width="' + cw + '" widthRelTo="ABSOLUTE" height="' + ch + '" heightRelTo="ABSOLUTE" protect="0"/>' + pos
+    + '<hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>' + hwpxEsc(o.note || '그림') + '</hp:shapeComment></hp:pic>';
+}
+/* 전환 바 오른쪽 끝에 얹는 썸네일 폭 — 전환 표시 PDF 와 같은 본문 폭 21% */
+var HWPX_BAR_IMG_RATIO = 0.21;
+function hwpxBar(spec, text, img){
   var bar = spec.bar, st = spec.styles;
+  /* v588: 이미지가 있으면 PDF 처럼 바 오른쪽 끝에 그림을 얹는다. 그림이 바보다 높으면 표의 바깥 여백(위·아래)을
+     그만큼 늘려 자리를 만든다 → 그림(문단 위쪽에서 시작)이 정확히 바의 세로 가운데에 오고, 앞뒤 글을 덮지 않는다. */
+  var picRun = '', outMargin = bar.outMargin;
+  if (img && img.bin && img.pw && img.ph){
+    var cw = bar.width * HWPX_BAR_IMG_RATIO, ch = cw * img.ph / img.pw;
+    var m = Math.max(140, Math.round((ch - bar.height) / 2));
+    outMargin = 'left="0" right="0" top="' + m + '" bottom="' + m + '"';
+    var vOff = Math.max(0, Math.round((m * 2 + bar.height - ch) / 2));
+    picRun = '<hp:run charPrIDRef="' + st.normal + '">' + hwpxPicXml({ bin: img.bin, pw: img.pw, ph: img.ph, cw: cw, ch: ch, vOff: vOff, note: img.note }) + '</hp:run>';
+  }
   var cellP = hwpxP(bar.para, hwpxRun(st[bar.style], text) + '<hp:run charPrIDRef="' + bar.tailRun + '"/>');
   var tc = '<hp:tc name="" header="0" hasMargin="' + bar.hasMargin + '" protect="0" editable="0" dirty="0" borderFillIDRef="' + bar.cellFill + '">'
     + '<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="' + bar.vertAlign + '" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
@@ -12371,9 +12404,9 @@ function hwpxBar(spec, text){
   var tbl = '<hp:tbl id="' + hwpxTblId() + '" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="' + bar.repeatHeader + '" rowCnt="1" colCnt="1" cellSpacing="0" borderFillIDRef="' + bar.tblFill + '" noAdjust="0">'
     + '<hp:sz width="' + bar.width + '" widthRelTo="ABSOLUTE" height="' + bar.height + '" heightRelTo="ABSOLUTE" protect="0"/>'
     + '<hp:pos treatAsChar="' + bar.treatAsChar + '" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
-    + '<hp:outMargin ' + bar.outMargin + '/><hp:inMargin ' + bar.inMargin + '/><hp:tr>' + tc + '</hp:tr></hp:tbl>';
+    + '<hp:outMargin ' + outMargin + '/><hp:inMargin ' + bar.inMargin + '/><hp:tr>' + tc + '</hp:tr></hp:tbl>';
   var wrap = spec.roles.line || spec.roles.normal || spec.roles.body;
-  return hwpxP(wrap.para, '<hp:run charPrIDRef="' + st.normal + '">' + tbl + '</hp:run>');
+  return hwpxP(wrap.para, '<hp:run charPrIDRef="' + st.normal + '">' + tbl + '</hp:run>' + picRun);
 }
 function hwpxTable(spec, rows){
   var T = spec.table, st = spec.styles, cols = T.cols, body = '';
@@ -12405,7 +12438,12 @@ function hwpxBlocks(spec, blocks){
   var st = spec.styles, roles = spec.roles;
   return (blocks || []).map(function(b){
     var role = b.role || 'body';
-    if (role === 'bar' && spec.bar) return hwpxBar(spec, b.text || '');
+    if (role === 'bar' && spec.bar) return hwpxBar(spec, b.text || '', b.img);
+    if (role === 'pic' && b.img && b.img.bin){   /* 가운데 정렬 한 줄 그림(표지) — v588 */
+      var pw0 = (spec.bar && spec.bar.width) || 55532, cw0 = pw0 * (b.ratio || 0.24);
+      return hwpxP((spec.bar && spec.bar.para) || (roles.line || roles.normal).para,
+        '<hp:run charPrIDRef="' + st.normal + '">' + hwpxPicXml({ bin: b.img.bin, pw: b.img.pw, ph: b.img.ph, cw: cw0, ch: cw0 * b.img.ph / b.img.pw, inline: true, note: b.img.note }) + '</hp:run>');
+    }
     if (role === 'table' && spec.table) return hwpxTable(spec, b.rows || []);
     var r = roles[role] || roles.body || roles.normal || roles.line;
     var inner;
@@ -12440,15 +12478,31 @@ async function hwpxBuild(content){
   var zip = await window.JSZip.loadAsync(buf);
   var sec = await zip.file('Contents/section0.xml').async('string');
   sec = hwpxFillSlots(sec, content.slots || []);
+  /* v588: 블록에 붙은 그림(img.u = dataURL)을 BinData/imageN 으로 넣고 content.hpf 에 등록한다(한글 저장본과 같은 방식) */
+  var bins = [];
+  (content.blocks || []).forEach(function(b){
+    if (!b || !b.img || !b.img.u) return;
+    var mm = String(b.img.u).match(/^data:image\/(png|jpe?g);base64,(.+)$/i); if (!mm) return;
+    var ext = /png/i.test(mm[1]) ? 'png' : 'jpg';
+    b.img.bin = 'image' + (bins.length + 1);
+    bins.push({ id: b.img.bin, ext: ext, b64: mm[2] });
+  });
   sec = sec.replace('</hs:sec>', hwpxBlocks(spec, content.blocks) + '</hs:sec>');
+  var hpfName = 'Contents/content.hpf', hpf = null;
+  if (bins.length && zip.file(hpfName)){
+    hpf = await zip.file(hpfName).async('string');
+    var items = bins.map(function(x){ return '<opf:item id="' + x.id + '" href="BinData/' + x.id + '.' + x.ext + '" media-type="image/' + (x.ext === 'png' ? 'png' : 'jpeg') + '" isEmbeded="1"/>'; }).join('');
+    hpf = /<opf:item id="header"[^>]*\/>/.test(hpf) ? hpf.replace(/(<opf:item id="header"[^>]*\/>)/, '$1' + items) : hpf.replace('</opf:manifest>', items + '</opf:manifest>');
+  }
   var out = new window.JSZip();
   out.file('mimetype', await zip.file('mimetype').async('string'), { compression: 'STORE', createFolders: false });
   var names = Object.keys(zip.files).filter(function(n){ return n !== 'mimetype' && !zip.files[n].dir; });
   for (var i = 0; i < names.length; i++){
     var n = names[i];
-    var data = (n === 'Contents/section0.xml') ? sec : await zip.file(n).async('uint8array');
+    var data = (n === 'Contents/section0.xml') ? sec : (n === hpfName && hpf) ? hpf : await zip.file(n).async('uint8array');
     out.file(n, data, { compression: 'DEFLATE', createFolders: false });
   }
+  bins.forEach(function(x){ out.file('BinData/' + x.id + '.' + x.ext, x.b64, { base64: true, compression: 'STORE', createFolders: false }); });
   return out.generateAsync({ type: 'blob', mimeType: 'application/hwp+zip' });
 }
 /* hwpx → 순수 텍스트(문단 줄바꿈) — 저장해 둔 원고를 앱이 다시 읽을 때 */
@@ -12539,6 +12593,29 @@ function hwpxPlan(S, rowsData){
     blocks: [{ role: 'blank' }, { role: 'table', rows: rowsData }] };
 }
 /* 이미지 전환표시본·이미지자료 — 원고 문단 모델로 만들어 hwpx·docx 양쪽에서 공유 */
+/* 전환표시본 HWPX (v588) — 전환 표시 PDF 처럼 바마다 그 번호의 생성 이미지를 얹는다. 이미지가 하나도 없으면 예전 그대로.
+   이미지 출처는 PDF 와 같은 tpdfImgMap(백스테이지 zip 루트 + 낱장 재생성 보완)이라 두 산출물이 늘 같은 그림을 쓴다. */
+async function transHwpxBlob(meta, body){
+  var content = hwpxManuscript(buildTransParas(meta, body));
+  var imgMap = {};
+  try { imgMap = await tpdfImgMap(meta) || {}; } catch (e) { imgMap = {}; }
+  var used = 0;
+  content.blocks.forEach(function(b){
+    if (b.role !== 'bar') return;
+    var m = String(b.text || '').match(/#\s*(\d+)/);
+    var im = m && imgMap[+m[1]];
+    if (im) { b.img = { u: im.u, pw: im.w, ph: im.h, note: (/본문/.test(b.text) ? '본문 이미지 #' : '이미지 #') + m[1] }; used++; }
+  });
+  if (imgMap[1]){   /* 표지(#1)는 전환 바가 없다 — PDF 처럼 제목부 아래 첫 빈 줄 자리에 */
+    var at = 0;
+    for (var i = 0; i < content.blocks.length; i++) if (content.blocks[i].role === 'blank') { at = i; break; }
+    content.blocks.splice(at, 0, { role: 'pic', img: { u: imgMap[1].u, pw: imgMap[1].w, ph: imgMap[1].h, note: '표지 이미지 #1' } });
+    used++;
+  }
+  var blob = await hwpxBuild(content);
+  blob._imgCount = used;
+  return blob;
+}
 function buildTransParas(meta, body){
   var style = String(meta['원고유형'] || '').trim() || '기본원고';
   if (!DOCX_STYLES[style]) style = '기본원고';
@@ -16822,7 +16899,7 @@ async function generateTransDoc(id, meta){
     if (!body.trim()) throw new Error('전환표시본 본문 생성 실패');
     setGenStage('전환표시본 — 문서 저장 중…');
     var blob;
-    if (outFmt() === 'hwpx') blob = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body)));
+    if (outFmt() === 'hwpx') blob = await transHwpxBlob(meta, body);
     else { var Dx = await ensureDocxLib(); blob = await Dx.Packer.toBlob(buildTransDocx(Dx, meta, body)); }
     await saveBlobToResults(blob, imgDataNames(meta).trans);
     if (id) { try { setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) }); } catch (e) {} }   /* 이 본문이 어느 원고로 만들어졌는지 기록 */
@@ -18802,7 +18879,7 @@ async function applyRetrans(id, meta){
     setGenStage('전환표시본 다시 만드는 중…');
     var body = retransBody(m);
     var blob;
-    if (outFmt() === 'hwpx') blob = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body)));
+    if (outFmt() === 'hwpx') blob = await transHwpxBlob(meta, body);
     else { var Dx = await ensureDocxLib(); blob = await Dx.Packer.toBlob(buildTransDocx(Dx, meta, body)); }
     await saveBlobToResults(blob, imgDataNames(meta).trans);
     if (id) { try { await markOutput(id, '이미지전환표시본', '원고 수정 반영(전환표 유지)'); } catch (e) {} }
@@ -22371,9 +22448,11 @@ async function runCascade(target, id, meta){
       var doTransPdf = (target === 'transpdf' || !!(sel && sel.transpdf));
       var cuts = null;
       ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
-      if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await hwpxBuild(hwpxManuscript(buildTransParas(meta, body))); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); try { setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) }); } catch (e2) {} } } catch (e) { rec('전환표시본', e); } }
+      if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await transHwpxBlob(meta, body); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); try { setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) }); } catch (e2) {} } } catch (e) { rec('전환표시본', e); } }
       if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 ' + fmtTag() + ' 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
       if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
+      /* v588: 전환표시본은 이미지 생성보다 먼저 만들어지므로, 같은 실행에서 이미지를 만들었으면 그림을 넣어 다시 저장한다(본문 재사용·AI 호출 없음) */
+      if (doTrans && doBg && outFmt() === 'hwpx' && typeof body === 'string' && body.trim()) { try { await saveBlobToResults(await transHwpxBlob(meta, body), imgDataNames(meta).trans); } catch (e) { rec('전환표시본(이미지 넣기)', e); } }
       /* 전환 표시 PDF — 전환표시본 본문(방금 만들었으면 그대로 재사용) + 생성해 둔 배경 이미지 */
       if (doTransPdf) { ck(); cascStep(k++, '전환 표시 PDF(이미지 삽입) 조판 중…'); try { await saveTransPdf(id, meta, cuts, (typeof body === 'string' ? body : '')); } catch (e) { rec('전환 표시 PDF', e); } }
     }
@@ -25712,7 +25791,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v587';
+var APP_VER = 'v588';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
