@@ -578,6 +578,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:14px;padding:4px 0}
 /* ── 연구노트(아날로그 필기) 모드: 여백 페이지·형광펜·박스/원·메모·연결선·펜 잉크 (v452) ── */
 .snTBtn{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent2);border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12.5px;cursor:pointer}
 .snTBtn.on{background:var(--accent2);color:var(--bg);border-color:var(--accent2);font-weight:700}
+.snTBtn.dis{opacity:.45;cursor:not-allowed}            /* 구조 나누기 전 — 누르면 안내만 (v589) */
+.svzTBtn.lockNote{opacity:.5;cursor:not-allowed}       /* 노트를 켠 동안 구조 잠금 (v589) */
 .snBar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;position:sticky;top:34px;left:0;z-index:2;background:var(--card);padding:6px 0 8px;border-bottom:1px dashed var(--line);margin-bottom:10px;max-width:100vw}
 .snBar button{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;cursor:pointer}
 .snBar button.on{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:700}
@@ -5427,8 +5429,14 @@ function studyRenderText(){
   function opts(sel){ return TR_REG.map(function(r){ return '<option value="' + r.id + '"' + (r.id === sel ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join(''); }
   var bar = '<div class="stVerBar"><select class="stVerSel" data-vi="0">' + opts(STUDY.versions[0]) + '</select>';
   if (STUDY.split) bar += '<span class="stVerVs">↔</span><select class="stVerSel" data-vi="1">' + opts(STUDY.versions[1] || 'RNKSV') + '</select>';
-  bar += '<button class="snTBtn' + (SNS.on ? ' on' : '') + '" type="button" style="margin-left:auto">' + (SNS.on ? '✎ 노트 켜짐' : '✎ 노트') + '</button>'
-    + '<button class="svzTBtn' + (STUDY.structOn ? ' on' : '') + '" type="button" style="margin-left:0">' + (STUDY.structOn ? '▦ 구조 켜짐' : '▦ 구조') + '</button>'
+  /* 순서 = 작업 순서(v589): ① 구조 나누기 → ② 손글씨 노트.
+     노트의 잉크는 화면 좌표에 붙으므로, 노트를 먼저 그린 뒤 구조를 나누면 글씨 위치가 어긋난다. */
+  bar += '<button class="svzTBtn' + (STUDY.structOn ? ' on' : '') + (SNS.on ? ' lockNote' : '') + '" type="button" style="margin-left:auto"'
+    + ' title="' + (SNS.on ? '노트를 켠 동안에는 구조를 바꿀 수 없습니다 — 노트를 먼저 꺼 주세요' : '본문을 읽으며 ✂ 나누기·★ 주제절로 단락을 잡습니다') + '">'
+    + (STUDY.structOn ? '① ▦ 구조 켜짐' : '① ▦ 구조') + '</button>'
+    + '<button class="snTBtn' + (SNS.on ? ' on' : '') + ((SNS.on || STUDY.structOn) ? '' : ' dis') + '" type="button" style="margin-left:0"'
+    + ' title="' + ((SNS.on || STUDY.structOn) ? '본문 위에 펜슬로 필기합니다' : '① 구조를 먼저 켜고 나누기를 마친 뒤에 켜세요') + '">'
+    + (SNS.on ? '② ✎ 노트 켜짐' : '② ✎ 노트') + '</button>'
     + '<button class="stSplitBtn" type="button" style="margin-left:0">' + (STUDY.split ? '✕ 분할 해제' : '⊞ 2분할') + '</button></div>';
   var colsHtml = '<div class="stCols' + (STUDY.split ? ' split' : '') + '"><div class="stCol" data-vi="0"></div>' + (STUDY.split ? '<div class="stCol" data-vi="1"></div>' : '') + '</div>';
   host.innerHTML = bar
@@ -7044,15 +7052,20 @@ function fillConc(code){
   function studyDelegClick(e){
     if (ov && (e.target === ov || (e.target.closest && e.target.closest('#studyClose')))){ studyCloseOv(); return; }
     var sd = e.target.closest && e.target.closest('#studySideBtn'); if (sd){ var bd = ov.querySelector('.studyBody'); if (bd) studySetSide(!bd.classList.contains('noSide')); return; }
-    var nt = e.target.closest && e.target.closest('.snTBtn'); if (nt){ snToggle(); return; }
-    var zt = e.target.closest && e.target.closest('.svzTBtn'); if (zt){ svzToggle(); return; }
-    var zg = e.target.closest && e.target.closest('.svzGenBtn'); if (zg){ if (zg.getAttribute('data-regen')) svzGen(); else svzShowAi(); return; }
-    var zh = e.target.closest && e.target.closest('.svzHideAi'); if (zh){ svzHideAi(); return; }
+    var nt = e.target.closest && e.target.closest('.snTBtn');
+    if (nt){
+      /* v589: 구조 나누기를 마치기 전에는 노트를 켜지 않는다(켠 뒤 구조를 나누면 손글씨가 밀린다) */
+      if (!SNS.on && !STUDY.structOn){ toast('먼저 [① 구조]를 켜고 본문 나누기를 마쳐 주세요 — 노트를 그린 뒤에 구조를 나누면 손글씨 위치가 어긋납니다.'); return; }
+      snToggle(); return;
+    }
+    var zt = e.target.closest && e.target.closest('.svzTBtn'); if (zt){ if (svzLockedByNote()) return; svzToggle(); return; }
+    var zg = e.target.closest && e.target.closest('.svzGenBtn'); if (zg){ if (svzLockedByNote()) return; if (zg.getAttribute('data-regen')) svzGen(); else svzShowAi(); return; }
+    var zh = e.target.closest && e.target.closest('.svzHideAi'); if (zh){ if (svzLockedByNote()) return; svzHideAi(); return; }
     var zv = e.target.closest && e.target.closest('.svzVerify'); if (zv){ svzVerify(); return; }
-    var zR = e.target.closest && e.target.closest('.svzReset'); if (zR){ svzReset(); return; }
-    var zs = e.target.closest && e.target.closest('.svzStar'); if (zs){ svzSetTheme(+zs.getAttribute('data-cv')); return; }
-    var zc = e.target.closest && e.target.closest('.svzCut'); if (zc){ svzCutAt(+zc.getAttribute('data-cv')); return; }
-    var zm = e.target.closest && e.target.closest('.svzMerge'); if (zm){ svzMergeAt(+zm.getAttribute('data-cv')); return; }
+    var zR = e.target.closest && e.target.closest('.svzReset'); if (zR){ if (svzLockedByNote()) return; svzReset(); return; }
+    var zs = e.target.closest && e.target.closest('.svzStar'); if (zs){ if (svzLockedByNote()) return; svzSetTheme(+zs.getAttribute('data-cv')); return; }
+    var zc = e.target.closest && e.target.closest('.svzCut'); if (zc){ if (svzLockedByNote()) return; svzCutAt(+zc.getAttribute('data-cv')); return; }
+    var zm = e.target.closest && e.target.closest('.svzMerge'); if (zm){ if (svzLockedByNote()) return; svzMergeAt(+zm.getAttribute('data-cv')); return; }
     var zu = e.target.closest && e.target.closest('.svzUseSuggest'); if (zu){ openStudy(zu.getAttribute('data-ref')); return; }
     var sp = e.target.closest && e.target.closest('.stSplitBtn'); if (sp){ if (SNS.on){ toast('연구노트 모드에서는 2분할을 쓸 수 없습니다 — 노트를 먼저 꺼 주세요.'); return; } STUDY.split = !STUDY.split; if (STUDY.split && !STUDY.versions[1]) STUDY.versions[1] = (STUDY.versions[0] === 'RNKSV' ? 'NKRV' : 'RNKSV'); studyRenderText(); return; }
     var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }
@@ -7414,6 +7427,16 @@ function svzBannerHtml(){
   return h;
 }
 function svzPaintBanner(){ var el = $('#svzBanner'); if (el) el.innerHTML = svzBannerHtml(); }
+/* 노트를 켠 동안에는 단락 구조를 바꾸지 않는다(v589) — 단락이 바뀌면 본문 줄이 움직여 손글씨가 어긋난다. */
+function svzLockedByNote(){
+  if (!SNS.on) return false;
+  toast('노트를 켠 동안에는 구조를 바꿀 수 없습니다 — 손글씨 위치가 어긋납니다. [② 노트 켜짐]을 먼저 꺼 주세요.');
+  return true;
+}
+/* 지금 화면의 단락 구성 서명 — 노트 문서에 적어 두고, 나중에 구조가 바뀌었으면 알린다(v589) */
+function svzSigNow(){
+  try { return (svzAiOn() ? 'ai' : 'me') + ':' + svzBreaks(svzView(SVZ[studyRangeKey()])).join(','); } catch (e) { return ''; }
+}
 function svzToggle(){
   STUDY._userStruct = true;      /* 사용자가 직접 켜고 끔 — 동기화가 임의로 뒤집지 않게 */
   STUDY.structOn = !STUDY.structOn;
@@ -7532,7 +7555,7 @@ var SNS = { on: false, tool: 'sel', color: '#facc15', colMark: '#facc15', colPen
 var SND = null;                                   /* 현재 문서 */
 var SN_DIRTY = false, SN_NEEDPUSH = false, SN_TSAVE = null, SN_TPUSH = null, SN_REMOTE = '', SN_GEN = 0;
 function snUid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-function snNewDoc(){ return { key: studyRangeKey(), ver: STUDY.versions[0] || 'NKRV', updatedAt: new Date().toISOString(), marks: [], notes: [], ink: [] }; }
+function snNewDoc(){ return { key: studyRangeKey(), ver: STUDY.versions[0] || 'NKRV', svzSig: svzSigNow(), updatedAt: new Date().toISOString(), marks: [], notes: [], ink: [] }; }
 function snEmpty(d){ return !d || (!(d.marks || []).length && !(d.notes || []).length && !(d.ink || []).length); }
 function snNote(id){ var a = (SND && SND.notes) || []; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
 function snR1(v){ return Math.round(v * 10) / 10; }
@@ -7689,6 +7712,10 @@ function snEnable(){
   if (!SND) SND = snNewDoc();
   snUndoSync();
   if (SND.ver && STUDY.versions[0] !== SND.ver) STUDY.versions[0] = SND.ver;
+  /* v589: 이 노트를 그릴 때의 단락 구성과 지금 구성이 다르면 글씨가 밀려 보인다 — 비어 있으면 지금 것으로 새로 잡고, 내용이 있으면 알린다 */
+  var _zs = svzSigNow();
+  if (snEmpty(SND) || SND.svzSig == null) SND.svzSig = _zs;
+  else if (SND.svzSig !== _zs) toast('이 노트를 쓴 뒤 본문 구조가 바뀌었습니다 — 손글씨 위치가 어긋날 수 있습니다.');
   STUDY.split = false;
   /* 오른쪽 자료창은 건드리지 않는다 — ⇔ 버튼과 [노트] 버튼은 서로 독립 동작 */
   stEmbedSync();     /* 묵상 화면이면 먼저 전체 폭으로 넓힌 뒤에 배율을 잡는다 */
@@ -25791,7 +25818,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v588';
+var APP_VER = 'v589';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
