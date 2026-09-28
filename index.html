@@ -821,6 +821,36 @@ input[type=date]{cursor:pointer}
 .lbtQ{display:flex;gap:8px;align-items:flex-start;padding:8px 12px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.5;cursor:pointer;margin:0;font-weight:400;color:var(--text)}
 .lbtQ.on{background:var(--card2)}
 #lbtMeta label.lbtQ{margin:0}
+/* Why에서 Way로 — 모드 버튼·연간 구상(v597) */
+.lbtModes{display:flex;gap:6px;margin-bottom:12px}
+.lbtModeBtn{flex:1;padding:11px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--dim);font-weight:800;font-size:13.5px;cursor:pointer;font-family:inherit}
+.lbtModeBtn.on{border-color:var(--accent);color:var(--accent);background:var(--card2)}
+.lbtChips{display:flex;flex-wrap:wrap;gap:6px}
+.lbtMon,.lbtDay{padding:6px 10px;border:1px solid var(--accent);border-radius:999px;background:var(--card2);color:var(--text);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1.2}
+.lbtMon.off,.lbtDay.off{border-color:var(--line);color:var(--dim);background:transparent;text-decoration:line-through}
+.lbtDayRow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.lbtDayM{min-width:34px;font-size:12.5px;font-weight:800;color:var(--dim)}
+.lbtYHd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lbtYState{font-size:12px;font-weight:800;border-radius:999px;padding:2px 9px;border:1px solid var(--line);color:var(--dim)}
+.lbtYState.ok{color:#3aa17e;border-color:rgba(58,161,126,.5)}
+.lbtYMonHd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lbtYMonHd select{width:auto;flex:1 1 220px;padding:8px 10px;font-size:14px}
+.lbtYMonHd b{font-size:16px}
+.lbtYMon .lbtYTheme{margin-top:8px}
+.lbtYWk{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card2)}
+.lbtYWkHd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lbtYWkHd input[type=text]{flex:1 1 220px;width:auto;padding:7px 10px;font-size:14px}
+.lbtYWkHd input[type=checkbox]{flex:0 0 auto;width:18px;height:18px}
+.lbtYWkHd .btn{flex:0 0 auto;width:auto;padding:6px 12px;font-size:12.5px}
+.lbtYDate{flex:0 0 auto;font-weight:800;color:var(--accent2);font-size:13px;min-width:42px}
+.lbtYTitleTx{flex:1 1 200px;font-size:15px}
+.lbtYBadge{flex:0 0 auto;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 7px;border:1px solid var(--line);color:var(--dim)}
+.lbtYBadge.has{color:var(--accent);border-color:var(--accent)}
+.lbtYQs{margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:12.8px;color:var(--dim);line-height:1.5}
+.lbtYQs .bad{color:#d9534f}
+.lbtYWk input.lbtYIds{margin-top:6px;padding:6px 10px;font-size:13px}
+.lbtYOpts{margin-top:8px}
+.lbtYOpts>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--accent)}
 .lbtQ input{flex:0 0 auto;margin-top:3px}
 .lbtQ .lbtNo{flex:0 0 auto;min-width:30px;color:var(--dim);font-size:12px;font-weight:700;margin-top:1px}
 .lbtQ .lbtTx{flex:1 1 auto;min-width:0}
@@ -1497,7 +1527,7 @@ body.uiDlgOpen{overflow:hidden}
     <button class="nav" data-page="zone">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>구역권찰 설교 구상</button>
     <button class="nav" data-page="lbt">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.8 8.8 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.8 9.2a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.2"/><line x1="12" y1="16.2" x2="12" y2="16.3"/></svg>리더의 뒷담화</button>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.8 8.8 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.8 9.2a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.2"/><line x1="12" y1="16.2" x2="12" y2="16.3"/></svg>Why에서 Way로</button>
     <button class="nav" data-page="devo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
     <button class="nav" data-page="series">
@@ -1749,9 +1779,31 @@ body.uiDlgOpen{overflow:hidden}
       <div id="zonePane"><div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [📥 자료 읽기]를 눌러 주세요.</div></div>
     </section>
 
-    <!-- ============ 리더의 뒷담화 (v590) ============ -->
+    <!-- ============ Why에서 Way로 (v590 리더의 뒷담화 → v597 이름·연간 구상) ============ -->
     <section class="page" id="page-lbt">
       <div id="lbtMeta">
+        <div class="lbtModes">
+          <button class="lbtModeBtn" data-mode="year" type="button">📅 연간 설교 구상</button>
+          <button class="lbtModeBtn" data-mode="topic" type="button">🔎 주제별 설교 구상</button>
+        </div>
+        <div id="lbtYearMeta" hidden>
+          <div class="cnt" style="margin-bottom:8px">한 달에 대주제(질문 분류) 하나, 그 달의 주일마다 그 분류의 질문을 설교하는 1년 계획을 세웁니다. 먼저 빠지는 월·주일을 표시해 주세요.</div>
+          <div class="row2">
+            <div><label style="margin-top:0">연도</label><input type="number" id="lbtY_year" min="2025" max="2100"></div>
+            <div><label style="margin-top:0">예배구분</label><input type="text" id="lbtY_service" placeholder="대학부"></div>
+          </div>
+          <label>빠지는 월 — 눌러서 끄고 켭니다</label>
+          <div id="lbtY_months" class="lbtChips"></div>
+          <label>빠지는 주일 — 수련회·연합예배 등</label>
+          <div id="lbtY_days"></div>
+          <div id="lbtY_sum" class="cnt" style="margin-top:8px;font-size:12.5px"></div>
+          <label>요청사항 (선택)</label>
+          <textarea id="lbtY_req" rows="3" placeholder="예) 3월은 새내기가 많으니 교회와 공동체로 / 12월은 한 해를 정리하는 달로"></textarea>
+          <div class="toolrow"><button class="btn" id="lbtY_gen" type="button">📅 연간 계획 구상</button></div>
+          <div class="cnt" style="margin-top:6px;font-size:12.5px;color:var(--dim)">계획이 나오면 오른쪽에서 월 주제·주별 질문을 고친 뒤 [계획 확정]을 누르세요. 확정하면 주차를 골라 개요 초안 선택지를 만들 수 있습니다.</div>
+          <button class="btn sub" id="lbtY_new" type="button" style="width:100%;margin-top:14px">✚ 연간 계획 새로 시작</button>
+        </div>
+        <div id="lbtTopicMeta" hidden>
         <div class="cnt" style="margin-bottom:8px">LTC에서 리더들과 나누는 청년들의 신앙 질문 100개입니다. 질문 하나, 또는 서로 이어진 질문 여러 개를 골라 설교 개요를 구상합니다.</div>
         <div class="row2">
           <div><label style="margin-top:0">설교일</label><input type="date" id="lbt_date"></div>
@@ -1766,6 +1818,7 @@ body.uiDlgOpen{overflow:hidden}
         <div class="toolrow"><button class="btn" id="lbt_gen" type="button">✍ 설교 개요 구상</button></div>
         <div class="cnt" style="margin-top:6px;font-size:12.5px;color:var(--dim)">개요 선택지 3세트를 만듭니다. 하나를 골라 [이 개요로 설교 작성]을 누르면 설교 작성 탭에서 원고를 이어 씁니다. 저장한 설교는 질문 옆에 ✓ 표시가 붙습니다.</div>
         <button class="btn sub" id="lbt_new" type="button" style="width:100%;margin-top:14px">✚ 새로 시작하기</button>
+        </div>
       </div>
       <div id="lbtPane"><div class="empty">왼쪽에서 질문을 고르고 [✍ 설교 개요 구상]을 눌러 주세요.</div></div>
     </section>
@@ -2244,7 +2297,7 @@ body.uiDlgOpen{overflow:hidden}
       <button class="msItem" data-page="mindmap" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M9.6 9.6 6.4 6.4M14.3 9.9 17.1 7.4M14.1 14.2 16.6 16.4"/></svg>마인드맵</button>
       <button class="msItem" data-page="occ" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>상황 설교 구상</button>
       <button class="msItem" data-page="zone" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>구역권찰 설교 구상</button>
-      <button class="msItem" data-page="lbt" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.8 8.8 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.8 9.2a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.2"/><line x1="12" y1="16.2" x2="12" y2="16.3"/></svg>리더의 뒷담화</button>
+      <button class="msItem" data-page="lbt" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.8 8.8 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.8 9.2a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.2"/><line x1="12" y1="16.2" x2="12" y2="16.3"/></svg>Why에서 Way로</button>
       <button class="msItem" data-page="devo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
       <button class="msItem" data-page="series" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>시리즈 계획</button>
       <button class="msItem" data-page="archive" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>미래설교 보관함</button>
@@ -18559,7 +18612,7 @@ $('#zone_date').addEventListener('change', function(){ state.zone.date = this.va
 $('#zone_ref').addEventListener('input', function(){ state.zone.srcRef = this.value.trim(); zoneSaveSoon(); });
 $('#zone_src').addEventListener('change', function(){ state.zone.srcInput = this.value.trim(); zoneSaveSoon(); });
 
-/* ══ 리더의 뒷담화 (v590) ═══════════════════════════════════════════════
+/* ══ 리더의 뒷담화 (v590) → 탭 이름 「Why에서 Way로」·연간 설교 구상 (v597) ═══════════════════════════════════════════════
    LTC 시간에 리더들과 매주 2개쯤 뽑아 소그룹으로 나누는 "청년들이 실제로 묻는 신앙 질문" 100개.
    질문 하나, 또는 서로 이어진 질문 여러 개를 골라 설교 개요 선택지 3세트를 만들고,
    하나를 골라 [이 개요로 설교 작성]으로 작성 탭에 넘긴다(상황 설교·구역권찰과 같은 방식).
@@ -18690,7 +18743,11 @@ function lbtQ(id){
   }
   return null;
 }
-function lbtBlank(){ return { date: '', service: '대학부', sel: [], req: '', opts: [], qs: [], at: '' }; }
+function lbtBlank(){ return { mode: 'year', date: '', service: '대학부', sel: [], req: '', opts: [], qs: [], at: '', year: lbtYearBlank() }; }
+/* 연간 설교 구상(v597) — 한 달 = 대주제(분류) 하나, 그 달의 주일마다 그 분류의 질문.
+   plan.months[].weeks[] 가 주일 하나이고, 확정 뒤 주마다 개요 선택지(opts)를 따로 만든다(시리즈 설교와 같은 흐름). */
+function lbtYearBlank(){ return { yr: new Date().getFullYear() + 1, service: '대학부', offM: [], offD: [], req: '', plan: null, confirmed: false, at: '' }; }
+var LBT_SERIES = 'Why에서 Way로';
 state.lbt = lbtBlank();
 var lbtSaveSoon = debounce(function(){ idbSet('lbtDraft', state.lbt).catch(function(){}); }, 600);
 function lbtSaveNow(){ try { idbSet('lbtDraft', state.lbt).catch(function(){}); } catch(e){} }
@@ -18745,7 +18802,7 @@ function renderLbtSel(){
 }
 
 var P_LBT = [
-'당신은 영락교회 대학부 설교 기획 비서다. 대학부는 매주 LTC(소그룹 리더 훈련) 시간에 「리더의 뒷담화」라는 이름으로, 청년들이 교회 안에서 좀처럼 꺼내지 못하지만 실제로 품고 있는 신앙 질문을 리더들과 소그룹으로 나눈다. 목회자는 그 질문을 기독교 변증(apologetics)의 방법을 적용한 설교로 다룬다.',
+'당신은 영락교회 대학부 설교 기획 비서다. 대학부는 매주 LTC(소그룹 리더 훈련) 시간에 「리더의 뒷담화」라는 이름으로, 청년들이 교회 안에서 좀처럼 꺼내지 못하지만 실제로 품고 있는 신앙 질문을 리더들과 소그룹으로 나눈다. 목회자는 그 질문을 기독교 변증(apologetics)의 방법을 적용한 설교로 다룬다. 이 설교들은 대학부 연간 시리즈 「Why에서 Way로 — 질문이 길이 되는 한 해」(요 14:6)로 묶인다: 청년의 "왜요?"(Why)에서 출발해 길 되신 예수(Way)께 이르게 한다.',
 '입력(JSON): 설교일, 예배구분, 질문(1개 이상 — 분류·질문), 요청사항(없을 수 있음).',
 '할 일: 이 질문(들)에 답하는 변증적 설교 개요 선택지 3세트를 만든다. 완성 원고는 쓰지 않는다.',
 '출력은 반드시 JSON 배열(길이 3)만: [{"제목":"...","본문":"책 장:절-절","변증방법":"이 선택지가 주로 쓰는 변증 방법 1~2개(예: 증거적 변증 · 세계관 비교)","핵심메시지":"...","주제근거":"...","질문응답":[{"질문":"입력 질문 그대로","답":"이 설교가 그 질문에 주는 답 한두 문장"}],"대지":[{"문":"...","근거":"본문 절과 그 의미","반론":"이 대지가 정면으로 다루는 회의자·불신자의 반론","논증":"그 반론에 대한 논리적 대답","예시":"「짧은 제목」 이해를 돕는 비유·사례","적용":"..."},{…},{…}],"나눔":["...","..."]}]',
@@ -18789,24 +18846,9 @@ function lbtExSplit(ex){
   return m ? { t: m[1].trim(), b: m[2].trim() || m[1].trim() } : { t: ex.slice(0, 20).replace(/\s+\S*$/, '') + '…', b: ex };
 }
 /* [✍ 설교 개요 구상] */
-async function aiLbtGen(){
-  var L = state.lbt;
-  L.date = $('#lbt_date').value;
-  L.service = $('#lbt_service').value.trim();
-  L.req = $('#lbt_req').value.trim();
-  var qs = L.sel.map(lbtQ).filter(Boolean);
-  if (!qs.length) { toast('왼쪽에서 질문을 하나 이상 골라 주세요.'); return; }
-  if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
-  if (L.opts && L.opts.length && !await uiConfirm('선택지 3세트를 새로 만들까요? 지금 선택지는 사라집니다.', { okText: '새로 구상' })) return;
-  toast('Opus가 질문에 답하는 변증 설교 개요 3세트를 구상합니다 — 2~3분');
-  var out = await callClaude(P_LBT, JSON.stringify({
-    '설교일': L.date, '예배구분': L.service || '대학부',
-    '질문': qs.map(function(x){ return { '분류': x.g + '. ' + x.t, '질문': x.q }; }),
-    '요청사항': L.req
-  }), 48000, aiTick('리더의 뒷담화 설교 개요'));
-  var arr = aiJson(out);
-  if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
-  L.opts = arr.slice(0, 3).map(function(x){
+/* 선택지 3세트 생성 — 주제별·연간 공용. ids = 질문 ID 목록, req = 요청사항(연간은 그 달·그 주의 맥락이 들어온다) */
+function lbtOptsFrom(arr){
+  return arr.slice(0, 3).map(function(x){
     var e = optEdit(x);
     e['대지'] = lbtDjSer(x['대지']);
     e['변증방법'] = String(x['변증방법'] || '').trim();
@@ -18817,13 +18859,63 @@ async function aiLbtGen(){
       .map(function(t){ return String(t || '').replace(/^\s*(?:\d+[.)]|[-•])\s*/, '').trim(); }).filter(Boolean).join('\n');
     return e;
   });
+}
+async function lbtCallOpts(a){
+  var qs = (a.ids || []).map(lbtQ).filter(Boolean);
+  var out = await callClaude(P_LBT, JSON.stringify({
+    '설교일': a.date || '', '예배구분': a.service || '대학부',
+    '질문': qs.map(function(x){ return { '분류': x.g + '. ' + x.t, '질문': x.q }; }),
+    '요청사항': a.req || ''
+  }), 48000, aiTick(a.label || 'Why에서 Way로 설교 개요'));
+  var arr = aiJson(out);
+  if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+  return lbtOptsFrom(arr);
+}
+async function aiLbtGen(){
+  var L = state.lbt;
+  L.date = $('#lbt_date').value;
+  L.service = $('#lbt_service').value.trim();
+  L.req = $('#lbt_req').value.trim();
+  if (!L.sel.filter(lbtQ).length) { toast('왼쪽에서 질문을 하나 이상 골라 주세요.'); return; }
+  if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
+  if (L.opts && L.opts.length && !await uiConfirm('선택지 3세트를 새로 만들까요? 지금 선택지는 사라집니다.', { okText: '새로 구상' })) return;
+  toast('Opus가 질문에 답하는 변증 설교 개요 3세트를 구상합니다 — 2~3분');
+  L.opts = await lbtCallOpts({ date: L.date, service: L.service, ids: L.sel, req: L.req });
   L.qs = L.sel.slice();   /* 이 선택지가 어떤 질문으로 만들어졌는지 — 생성 뒤 왼쪽 선택을 바꿔도 넘길 때 어긋나지 않게 */
   L.at = nowLocalStr_();
   lbtSaveNow(); renderLbtPane(); renderSyncState();
   toast('개요 3세트 도착 — 다듬은 뒤 하나를 골라 [이 개요로 설교 작성]을 누르세요.');
 }
 
+/* 선택지 주소(v597) — 주제별 't:<i>' · 연간 'y:<주일 날짜>:<i>'. 카드 버튼·다듬기 칸이 data-a 로 들고 다닌다.
+   → { o: 선택지, qs: 질문 ID, date: 설교일, service, no: 시리즈 순번(연간만) } */
+function lbtRef(a){
+  var p = String(a || '').split(':'), L = state.lbt;
+  if (p[0] === 't') return { o: (L.opts || [])[+p[1]], qs: (L.qs && L.qs.length) ? L.qs : L.sel, date: L.date, service: L.service };
+  if (p[0] === 'y') {
+    var hit = lbtYWeek(p[1]); if (!hit) return { o: null };
+    return { o: (hit.w.opts || [])[+p[2]], qs: hit.w.ids || [], date: hit.w.d, service: L.year.service, no: hit.no };
+  }
+  return { o: null };
+}
+/* 카드 + [✏ 개요 다듬기] — 주제별·연간 공용 */
+function lbtOptHtml(o, i, a){
+  var f = function(fld){ return ' data-a="' + a + '" data-f="' + fld + '"'; };
+  return '<div class="edPoint zvOpt">' +
+    '<div class="lbtVis">' + lbtVisHtml(o, i, a) + '</div>' +
+    '<details class="zvEdit"><summary>✏ 개요 다듬기</summary>' +
+    '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="lbtO"' + f('제목') + ' value="' + esc(o['제목'] || '') + '"></div>' +
+    '<div><label>본문</label><input type="text" class="lbtO"' + f('본문') + ' value="' + esc(o['본문'] || '') + '"></div></div>' +
+    '<label>핵심메시지 (주제)</label><input type="text" class="lbtO"' + f('핵심메시지') + ' value="' + esc(o['핵심메시지'] || '') + '">' +
+    '<label>주제 근거</label><textarea class="lbtO edTa" rows="3"' + f('주제근거') + '>' + esc(o['주제근거'] || '') + '</textarea>' +
+    '<label>변증 방법</label><input type="text" class="lbtO"' + f('변증방법') + ' value="' + esc(o['변증방법'] || '') + '">' +
+    '<label>대지 3개 — 「1. 명제 / - 근거: / - 반론: / - 논증: / - 예시: / - 적용:」 줄 형식</label><textarea class="lbtO edTa" rows="18"' + f('대지') + '>' + esc(o['대지'] || '') + '</textarea>' +
+    '<label>소그룹 나눔 질문 — 한 줄에 하나</label><textarea class="lbtO edTa" rows="3"' + f('나눔') + '>' + esc(o['나눔'] || '') + '</textarea>' +
+    '</details></div>';
+}
+
 function renderLbtPane(){
+  if (state.lbt.mode === 'year') { renderLbtYearPane(); return; }
   var box = $('#lbtPane'); if (!box) return;
   var L = state.lbt, opts = L.opts || [];
   if (!opts.length) { box.innerHTML = '<div class="empty">왼쪽에서 질문을 고르고 [✍ 설교 개요 구상]을 눌러 주세요.</div>'; return; }
@@ -18831,25 +18923,13 @@ function renderLbtPane(){
   var h = '<div class="card"><b>설교 개요 선택지 ' + opts.length + '세트</b><div class="cnt" style="margin-top:4px">' +
     (L.at ? '생성 ' + esc(L.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [✏ 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div>' +
     (qs.length ? '<ol style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.6">' + qs.map(function(x){ return '<li><span style="color:var(--dim)">' + x.id + '</span> ' + esc(x.q) + '</li>'; }).join('') + '</ol>' : '') + '</div>';
-  h += opts.map(function(o, i){
-    return '<div class="edPoint zvOpt" id="lbtOpt' + i + '">' +
-      '<div id="lbtVis' + i + '">' + lbtVisHtml(o, i) + '</div>' +
-      '<details class="zvEdit"><summary>✏ 개요 다듬기</summary>' +
-      '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="lbtO" data-i="' + i + '" data-f="제목" value="' + esc(o['제목'] || '') + '"></div>' +
-      '<div><label>본문</label><input type="text" class="lbtO" data-i="' + i + '" data-f="본문" value="' + esc(o['본문'] || '') + '"></div></div>' +
-      '<label>핵심메시지 (주제)</label><input type="text" class="lbtO" data-i="' + i + '" data-f="핵심메시지" value="' + esc(o['핵심메시지'] || '') + '">' +
-      '<label>주제 근거</label><textarea class="lbtO edTa" rows="3" data-i="' + i + '" data-f="주제근거">' + esc(o['주제근거'] || '') + '</textarea>' +
-      '<label>변증 방법</label><input type="text" class="lbtO" data-i="' + i + '" data-f="변증방법" value="' + esc(o['변증방법'] || '') + '">' +
-      '<label>대지 3개 — 「1. 명제 / - 근거: / - 반론: / - 논증: / - 예시: / - 적용:」 줄 형식</label><textarea class="lbtO edTa" rows="18" data-i="' + i + '" data-f="대지">' + esc(o['대지'] || '') + '</textarea>' +
-      '<label>소그룹 나눔 질문 — 한 줄에 하나</label><textarea class="lbtO edTa" rows="3" data-i="' + i + '" data-f="나눔">' + esc(o['나눔'] || '') + '</textarea>' +
-      '</details></div>';
-  }).join('');
+  h += opts.map(function(o, i){ return lbtOptHtml(o, i, 't:' + i); }).join('');
   h += '<div class="toolrow"><button class="btn sub" id="lbtRegen" type="button">개요 재구상 — 선택지가 모두 마음에 안 들 때</button></div>';
   box.innerHTML = h;
 }
 
 /* 선택지 한 장 — 구역권찰 카드(zv*)와 같은 모양 + 「질문에 답하기」·「소그룹 나눔」 */
-function lbtVisHtml(o, i){
+function lbtVisHtml(o, i, a){
   var dj = lbtDjParse(o['대지']), bad = [];
   try { bad = refAudit(String(o['대지'] || '') + '\n' + String(o['주제근거'] || '')); } catch (e) {}
   var row = function(lbl, t, cls){ return t ? '<div class="zvRow' + (cls ? ' ' + cls : '') + '"><span class="zvLbl">' + lbl + '</span><span>' + esc(t) + '</span></div>' : ''; };
@@ -18862,8 +18942,8 @@ function lbtVisHtml(o, i){
   return '<div class="zvHd"><span class="zvChip">선택지 ' + (i + 1) + '</span>' +
       '<div class="zvTitle">' + esc(o['제목'] || '(제목 없음)') + '</div>' +
       (o['본문'] ? '<span class="zvRef">' + esc(o['본문']) + '</span>' : '') +
-      '<button class="btn sub lbtInstaBtn" type="button" data-i="' + i + '" title="이 선택지를 인스타그램 카드 4~5장으로">insta 카드</button>' +
-      '<button class="btn lbtPickBtn" type="button" data-i="' + i + '">이 개요로 설교 작성</button></div>' +
+      '<button class="btn sub lbtInstaBtn" type="button" data-a="' + a + '" title="이 선택지를 인스타그램 카드 4~5장으로">insta 카드</button>' +
+      '<button class="btn lbtPickBtn" type="button" data-a="' + a + '">이 개요로 설교 작성</button></div>' +
     (o['변증방법'] ? '<div class="lbtMeth">🛡 ' + esc(o['변증방법']) + '</div>' : '') +
     (o['핵심메시지'] ? '<div class="zvMsg">' + esc(o['핵심메시지']) + '</div>' : '') +
     (qa.length ? '<div class="zvQs"><span class="zvLbl">질문에 답하기</span><ul>' + qa.map(function(a){
@@ -18875,15 +18955,16 @@ function lbtVisHtml(o, i){
 }
 
 /* 선택지 → 설교 작성 (zonePick·occPick 과 같은 방식: 주제근거 → 서론 바탕, 대지 → 구조 창) */
-window.lbtPick = function(i){
-  var L = state.lbt, o = (L.opts || [])[i];
+window.lbtPick = function(a){
+  var r = lbtRef(a), o = r.o;
   if (!o) return;
   if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 개요로 시작할까요?')) return;
-  var ids = (L.qs && L.qs.length ? L.qs : L.sel).filter(lbtQ);
+  var ids = (r.qs || []).filter(lbtQ);
   clearCompose();
-  $('#c_date').value = L.date || todayLocal_();
-  $('#c_service').value = L.service || '대학부';
-  $('#c_series').value = '리더의 뒷담화';
+  $('#c_date').value = r.date || todayLocal_();
+  $('#c_service').value = r.service || '대학부';
+  $('#c_series').value = LBT_SERIES;
+  if (r.no) $('#c_seriesNo').value = r.no;   /* 연간 계획의 몇 번째 주일인지 — 파일명 회차 */
   $('#c_title').value = o['제목'] || '';
   $('#c_ref').value = o['본문'] || '';
   $('#c_msg').value = o['핵심메시지'] || '';
@@ -18906,7 +18987,7 @@ window.lbtPick = function(i){
   renderPoints(); renderEditor();
   updateComposeBadge(); refreshReqBtns();
   showPage('compose');
-  toast('개요를 설교 작성으로 옮겼습니다 — 저장하면 뒷담화 질문 목록에 ✓ 표시가 붙습니다.');
+  toast('개요를 설교 작성으로 옮겼습니다 — 저장하면 질문 목록에 ✓ 표시가 붙습니다.');
 };
 
 /* ── [insta 카드] (v595) — 선택지 하나 → 인스타그램 캐러셀 카드 4~5장 + 게시 캡션 ──
@@ -18915,7 +18996,7 @@ window.lbtPick = function(i){
    ★ 표지 제목은 선택지 제목(질문)으로 코드가 고정한다(모델이 다른 질문으로 바꾸지 못하게).
    만든 카드 글(deck)은 선택지에 _insta 로 남겨, 다시 누르면 AI 없이 같은 카드를 바로 다시 그린다. */
 var P_LBT_INSTA = [
-'당신은 영락교회 대학부의 인스타그램 카드뉴스 편집자다. 「리더의 뒷담화」 설교 개요 하나(청년들이 실제로 묻는 신앙 질문과 그 답)를 인스타그램 캐러셀 카드 4~5장과 게시 캡션으로 만든다.',
+'당신은 영락교회 대학부의 인스타그램 카드뉴스 편집자다. 대학부 연간 시리즈 「Why에서 Way로」의 설교 개요 하나(청년들이 실제로 묻는 신앙 질문과 그 답)를 인스타그램 캐러셀 카드 4~5장과 게시 캡션으로 만든다.',
 '독자: 인스타그램을 넘기다 멈춘 20대 — 교회에 다니는 청년과 믿지 않는 친구 모두. 교회 안에서만 통하는 말은 풀어 쓰고, 설교투·훈계조를 피한다. 존댓말 입말("~잖아요", "~거든요", "~일까요?").',
 '출력은 JSON 하나만(설명·코드펜스 금지):',
 '{"style":"<English: one shared visual style and colour palette>","cards":[{"type":"cover","title":"<입력 제목(질문) 그대로 — 핵심어 하나만 **강조**>","ref":"<입력 본문>","bg":"<English: background scene>"},{"type":"body","kicker":"<6자 이내 머리말>","lines":["..."],"bg":"..."},{"type":"body","kicker":"...","lines":["..."],"bg":"..."},{"type":"closing","kicker":"...","lines":["..."],"cta":"<댓글로 답하고 싶어지는 질문 하나>","bg":"..."}],"caption":"<게시글 본문>","hashtags":["단어","..."]}',
@@ -18927,10 +19008,10 @@ var P_LBT_INSTA = [
 '■ caption: 4~6줄 — 첫 줄은 질문으로 시작하는 후크, 가운데 2~3줄은 카드 내용을 한 번 더 요약, 마지막 줄은 댓글 유도. 이모지는 1~3개. hashtags 는 5~8개, # 없이 단어만, 한국어 위주(공백 없이).'
 ].join('\n');
 
-async function aiLbtInsta(o, L){
+async function aiLbtInsta(o, r){
   var verse = '';
   try { var fv = await fullVerseText(String(o['본문'] || '')); if (fv && fv.text) verse = fv.ref + ' ' + fv.text; } catch (e) {}
-  var qs = ((L.qs && L.qs.length) ? L.qs : L.sel).map(lbtQ).filter(Boolean).map(function(x){ return x.q; });
+  var qs = (r.qs || []).map(lbtQ).filter(Boolean).map(function(x){ return x.q; });
   var out = await callClaude(P_LBT_INSTA, JSON.stringify({
     '제목': o['제목'] || '', '본문': o['본문'] || '', '본문말씀': verse.slice(0, 2500),
     '원래질문': qs, '핵심메시지': o['핵심메시지'] || '', '주제근거': o['주제근거'] || '',
@@ -18985,20 +19066,20 @@ async function lbtInstaBgs(deck){
   return out;
 }
 /* 저장해 둔 deck 에 지금 선택지의 제목·본문·머리말을 입힌다(다시 그릴 때도 같은 규칙) */
-function lbtInstaDress(deck, o, L){
+function lbtInstaDress(deck, o, r){
   var cs = deck.cards || [];
   if (cs[0]) {
     var t = String(o['제목'] || '').trim();
     if (t && String(cs[0].title || '').replace(/\*\*/g, '').trim() !== t) cs[0].title = t;   /* 표지 = 선택지 제목(질문) */
     cs[0].ref = o['본문'] || cs[0].ref || '';
-    cs[0].label = (L.service || '대학부') + ' · 리더의 뒷담화';
+    cs[0].label = (r.service || '대학부') + ' · ' + LBT_SERIES;
   }
   var last = cs[cs.length - 1];
   if (last && last.type === 'closing') { last.kicker = last.kicker || '오늘, 우리에게'; last.ctaLabel = '댓글로 나눠 주세요'; }
   return deck;
 }
-async function lbtInsta(i){
-  var L = state.lbt, o = (L.opts || [])[i];
+async function lbtInsta(a){
+  var r = lbtRef(a), o = r.o;
   if (!o) return;
   var deck = null, bgs = null;
   if (o._insta && o._insta.deck) {
@@ -19009,7 +19090,7 @@ async function lbtInsta(i){
   try {
     if (!deck) {
       if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
-      deck = await aiLbtInsta(o, L);
+      deck = await aiLbtInsta(o, r);
       o._insta = { deck: JSON.parse(JSON.stringify(deck)), at: nowLocalStr_() };
       lbtSaveNow();
     }
@@ -19022,10 +19103,10 @@ async function lbtInsta(i){
       } else toast('이미지 프록시가 설정되지 않아 검은 배경으로 만듭니다(설정 → 이미지 프록시).');
     }
     (deck.cards || []).forEach(function(c, k){ c.bg = (bgs && bgs[k]) || ''; });
-    lbtInstaDress(deck, o, L);
+    lbtInstaDress(deck, o, r);
     setGenStage('인스타 카드 — 이미지로 만드는 중');
     var cvs = await buildCardNewsCanvases(deck);
-    var base = String(o['제목'] || '리더의 뒷담화').replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) || '리더의 뒷담화';
+    var base = String(o['제목'] || LBT_SERIES).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) || LBT_SERIES;
     var files = [];
     for (var k = 0; k < cvs.length; k++) { var b = await canvasToPngBlob(cvs[k]); files.push(new File([b], base + '_insta' + (k + 1) + '.png', { type: 'image/png' })); }
     hideGenOverlay();
@@ -19087,14 +19168,315 @@ function lbtInstaPresent(p){
   };
 }
 
+/* ══ 연간 설교 구상 (v597) ══════════════════════════════════════════════
+   ①빠지는 월·주일 표시 → ②[📅 연간 계획 구상] P_LBT_YEAR: 달마다 대주제(분류) 하나 + 주일마다 그 분류의 질문
+   → ③오른쪽에서 고치고 [✅ 계획 확정] → ④주차를 골라 [개요 초안 생성] = 주제별과 같은 P_LBT 로 선택지 3세트(그 달·그 주의 맥락을 요청사항으로).
+   ★ 날짜·분류·질문 ID 는 모델 출력을 믿지 않고 코드가 맞춘다(lbtYearNormalize): 날짜는 앱이 계산한 설교 주일 목록이 정본,
+     질문은 그 달 분류에 속한 것만·한 해 한 번만. 모델이 날짜를 빼거나 다른 분류 질문을 넣어도 계획이 어긋나지 않게.
+   ★ 이 계획은 이 기기 IndexedDB(lbtDraft)에만 있다 — 시트로 동기화하지 않는다. */
+function lbtYmd(d){ function z(n){ return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+function lbtSundays(yr){
+  var out = {}, d = new Date(yr, 0, 1);
+  while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
+  while (d.getFullYear() === yr) { var m = d.getMonth() + 1; (out[m] = out[m] || []).push(lbtYmd(d)); d.setDate(d.getDate() + 7); }
+  return out;
+}
+function lbtEaster(yr){   /* 그레고리력 부활절(익명 알고리즘) */
+  var a = yr % 19, b = Math.floor(yr / 100), c = yr % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+      g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
+      l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+      mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
+  return lbtYmd(new Date(yr, mo - 1, da));
+}
+/* 설교하는 달·주일 — 빠지는 월·주일을 뺀 것 */
+function lbtYearActive(Y){
+  var sun = lbtSundays(+Y.yr), out = [];
+  for (var m = 1; m <= 12; m++) {
+    if (Y.offM.indexOf(m) >= 0) continue;
+    var ds = (sun[m] || []).filter(function(d){ return Y.offD.indexOf(d) < 0; });
+    if (ds.length) out.push({ m: m, ds: ds });
+  }
+  return out;
+}
+function lbtYWeek(d){
+  var P = state.lbt.year.plan; if (!P) return null;
+  var no = 0;
+  for (var i = 0; i < P.months.length; i++) for (var k = 0; k < P.months[i].weeks.length; k++) {
+    no++;
+    if (P.months[i].weeks[k].d === d) return { mo: P.months[i], w: P.months[i].weeks[k], k: k, no: no };
+  }
+  return null;
+}
+function lbtG(g){ for (var i = 0; i < LBT_QS.length; i++) if (LBT_QS[i].g === g) return LBT_QS[i]; return null; }
+function lbtMd(d){ var p = String(d || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : d; }
+
+function renderLbtMode(){
+  var L = state.lbt;
+  $$('.lbtModeBtn').forEach(function(b){ b.classList.toggle('on', b.dataset.mode === L.mode); });
+  var y = $('#lbtYearMeta'), t = $('#lbtTopicMeta');
+  if (y) y.hidden = L.mode !== 'year';
+  if (t) t.hidden = L.mode !== 'topic';
+  if (L.mode === 'year') renderLbtYearMeta(); else renderLbtQs();
+  renderLbtPane();
+}
+function renderLbtYearMeta(){
+  var Y = state.lbt.year;
+  if ($('#lbtY_year') && document.activeElement !== $('#lbtY_year')) $('#lbtY_year').value = Y.yr;
+  if ($('#lbtY_service') && document.activeElement !== $('#lbtY_service')) $('#lbtY_service').value = Y.service || '';
+  if ($('#lbtY_req') && document.activeElement !== $('#lbtY_req')) $('#lbtY_req').value = Y.req || '';
+  var mb = $('#lbtY_months');
+  if (mb) { var h = ''; for (var m = 1; m <= 12; m++) h += '<button type="button" class="lbtMon' + (Y.offM.indexOf(m) >= 0 ? ' off' : '') + '" data-m="' + m + '">' + m + '월</button>'; mb.innerHTML = h; }
+  var sun = lbtSundays(+Y.yr), db = $('#lbtY_days');
+  if (db) {
+    var h2 = '';
+    for (var m2 = 1; m2 <= 12; m2++) {
+      if (Y.offM.indexOf(m2) >= 0) continue;
+      h2 += '<div class="lbtDayRow"><span class="lbtDayM">' + m2 + '월</span>' + (sun[m2] || []).map(function(d){
+        return '<button type="button" class="lbtDay' + (Y.offD.indexOf(d) >= 0 ? ' off' : '') + '" data-d="' + d + '" title="' + d + '">' + (+d.slice(8)) + '일</button>';
+      }).join('') + '</div>';
+    }
+    db.innerHTML = h2 || '<div class="cnt">설교하는 달이 없습니다.</div>';
+  }
+  var act = lbtYearActive(Y), nW = act.reduce(function(n, x){ return n + x.ds.length; }, 0), sm = $('#lbtY_sum');
+  if (sm) sm.innerHTML = '설교하는 달 <b>' + act.length + '개월</b> · 설교 주일 <b>' + nW + '회</b>' +
+    (act.length > 10 ? '<br>대주제는 10개 — 남는 달은 한 분류를 한 번 더(다른 질문으로) 쓰거나 한 해를 정리하는 달로 씁니다.' :
+     act.length && act.length < 10 ? '<br>대주제 10개 중 ' + act.length + '개만 다룹니다 — 청년에게 더 시급한 분류를 고릅니다.' : '') +
+    (Y.plan ? '<br><span style="color:var(--accent2)">월·주일을 바꾼 뒤에는 [연간 계획 구상]을 다시 해야 계획에 반영됩니다.</span>' : '');
+}
+
+var P_LBT_YEAR = [
+'당신은 영락교회 대학부 설교 기획 비서다. 입력 연도의 대학부 주일 설교를 연간 시리즈 「Why에서 Way로 — 질문이 길이 되는 한 해」(요 14:6)로 계획한다. 청년들이 교회 안에서 좀처럼 꺼내지 못하던 신앙 질문 100개(10개 분류 × 10개)를 한 해 동안 설교로 다룬다. 설교는 기독교 변증의 방법으로, 믿지 않는 친구도 납득할 수 있게 성경으로 답하는 설교다.',
+'입력(JSON): 연도, 예배구분, 설교월(설교하는 달과 그 달의 설교 주일 날짜 — 빠지는 달·주일은 이미 제외됨), 교회력, 분류(10개 분류와 각 분류의 질문 ID·질문), 이미다룬질문(이미 설교한 질문 ID — 되도록 피한다), 요청사항.',
+'할 일: 설교하는 달마다 대주제(분류) 하나를 배정하고, 그 달의 설교 주일마다 그 분류의 질문을 배정해 1년 계획을 세운다.',
+'출력은 반드시 JSON 하나만: {"개요":"<한 해 전체 흐름 2~3문장>","월":[{"월":1,"분류":"Ⅰ","월주제":"<그 달 시리즈 이름 — 짧게>","흐름":"<그 달 설교가 어떤 순서로 어디로 가는지 1~2문장>","주":[{"날짜":"YYYY-MM-DD","질문":["Ⅰ-1","Ⅰ-3"],"제목":"<질문형 가제>","방향":"<이 주 설교가 줄 답의 방향 한 문장>"}]}]}',
+'원칙: ①입력 설교월의 모든 달과 모든 주일 날짜를 빠짐없이, 입력 순서 그대로 쓴다 — 날짜를 바꾸거나 더하거나 빼지 않는다 ②한 달에는 분류 하나만. 그 달의 모든 주는 그 분류의 질문만 쓴다 ③설교하는 달이 10개 이상이면 10개 분류를 모두 한 번씩 쓰고, 남는 달은 질문이 많이 남은 분류를 한 번 더(다른 질문으로) 쓰거나 한 해를 정리하는 달로 쓴다. 10개보다 적으면 대학부 청년에게 더 시급한 분류를 고르고 빠진 분류를 "개요"에 밝힌다 ④한 주에 질문 1~3개 — 서로 이어지는 질문을 묶는다(LTC에서 한 주에 2개쯤 나누므로 2개가 기본). 한 해 동안 같은 질문을 두 번 쓰지 않는다. 그 달에 다 못 다룬 질문은 남겨도 된다 ⑤달의 순서는 교회력과 대학 생활 흐름에 맞춘다 — 예: 3월 개강(새내기·공동체·신앙의 확신), 부활절이 있는 달(부활·성경의 신뢰성), 5월 가정의 달(부모·관계), 여름·겨울 방학(쉼·진로), 9월 2학기, 취업·진로 시즌(진로·돈), 11월 추수감사, 12월 성탄과 한 해 정리. Ⅹ-10 "결국, 이 시대에 예수를 믿는다는 것은 어떤 의미인가요?"는 한 해의 결론으로 마지막 주가 가장 자연스럽다. 부활절 주일이 설교 주일이면 가능하면 부활 질문(Ⅲ-7)을 둔다 ⑥한 달 안의 순서는 쉬운 질문에서 깊은 질문으로, 의심에서 확신으로 — 한 달이 하나의 작은 시리즈처럼 흐르게 ⑦"제목"은 질문형 가제 — 질문이 하나면 그 질문을 청년 입말로 짧게, 여럿이면 모두 아우르는 대표 질문 하나. 25자 안팎, 존댓말 입말, 답을 제목에 넣지 않는다 ⑧요청사항이 있으면 반드시 반영한다.'
+].join('\n');
+
+/* 모델 출력 → 계획. 날짜·분류·질문은 코드가 정본에 맞춘다(파일 머리 주석) */
+function lbtYearNormalize(j, act){
+  var am = Array.isArray(j && j['월']) ? j['월'] : [], seen = {}, dup = 0, moved = 0;
+  var gs = LBT_QS.map(function(G){ return G.g; });
+  var months = act.map(function(A, idx){
+    var src = am.filter(function(x){ return +(x && x['월']) === A.m; })[0] || am[idx] || {};
+    var g = String(src['분류'] || '').trim().charAt(0);
+    if (gs.indexOf(g) < 0) g = gs[idx % gs.length];
+    var sw = Array.isArray(src['주']) ? src['주'] : [];
+    var weeks = A.ds.map(function(d, k){
+      var w = sw.filter(function(x){ return x && x['날짜'] === d; })[0] || sw[k] || {};
+      if (w !== (sw.filter(function(x){ return x && x['날짜'] === d; })[0])) moved++;
+      var ids = (Array.isArray(w['질문']) ? w['질문'] : String(w['질문'] || '').match(LBT_ID_RE) || [])
+        .map(function(x){ return String(x).trim(); })
+        .filter(function(id){ var q = lbtQ(id); return q && q.g === g; })
+        .filter(function(id){ if (seen[id]) { dup++; return false; } seen[id] = 1; return true; });
+      return { d: d, ids: ids, title: String(w['제목'] || '').trim(), dir: String(w['방향'] || '').trim(), opts: [], at: '', sel: false };
+    });
+    return { m: A.m, g: g, theme: String(src['월주제'] || '').trim(), flow: String(src['흐름'] || '').trim(), weeks: weeks };
+  });
+  return { months: months, note: String((j && j['개요']) || '').trim(), fixes: { dup: dup, moved: moved } };
+}
+async function aiLbtYearPlan(){
+  var L = state.lbt, Y = L.year;
+  Y.yr = +($('#lbtY_year').value || Y.yr); Y.service = $('#lbtY_service').value.trim(); Y.req = $('#lbtY_req').value.trim();
+  var act = lbtYearActive(Y);
+  if (!act.length) { toast('설교하는 달이 없습니다 — 빠지는 월을 확인해 주세요.'); return; }
+  if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
+  if (Y.plan && !await uiConfirm('연간 계획을 새로 구상할까요?\n지금 계획과 주마다 만든 개요 초안 선택지가 모두 사라집니다.', { okText: '새로 구상', danger: true })) return;
+  var used = Object.keys(lbtUsedMap());
+  var yr = +Y.yr, ea = lbtEaster(yr), sun = lbtSundays(yr);
+  var palm = lbtYmd(new Date(yr, +ea.slice(5, 7) - 1, +ea.slice(8) - 7));
+  toast('Opus가 ' + yr + '년 연간 설교 계획을 구상합니다 — 2~4분');
+  var out = await callClaude(P_LBT_YEAR, JSON.stringify({
+    '연도': yr, '예배구분': Y.service || '대학부',
+    '설교월': act.map(function(A){ return { '월': A.m, '주일': A.ds }; }),
+    '교회력': { '종려주일': palm, '부활절': ea, '맥추감사주일(7월 첫 주일)': (sun[7] || [])[0] || '', '추수감사주일(11월 셋째 주일)': (sun[11] || [])[2] || '', '성탄절': yr + '-12-25' },
+    '분류': LBT_QS.map(function(G){ return { '분류': G.g, '이름': G.t, '질문': G.q.map(function(q, k){ return { 'ID': G.g + '-' + (k + 1), '질문': q }; }) }; }),
+    '이미다룬질문': used,
+    '요청사항': Y.req
+  }), 32000, aiTick('연간 설교 계획'));
+  var j = aiJson(out);
+  if (!j || !Array.isArray(j['월'])) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+  Y.plan = lbtYearNormalize(j, act);
+  Y.confirmed = false; Y.at = nowLocalStr_();
+  lbtSaveNow(); renderLbtYearMeta(); renderLbtPane(); renderSyncState();
+  var fx = Y.plan.fixes, n = [];
+  if (fx.dup) n.push('한 해에 두 번 나온 질문 ' + fx.dup + '개를 뺐습니다');
+  toast('연간 계획 도착 — 월 주제·주별 질문을 확인하고 [계획 확정]을 눌러 주세요.' + (n.length ? ' (' + n.join(', ') + ')' : ''));
+}
+
+function renderLbtYearPane(){
+  var box = $('#lbtPane'); if (!box) return;
+  var Y = state.lbt.year, P = Y.plan;
+  if (!P) { box.innerHTML = '<div class="empty">왼쪽에서 연도와 빠지는 월·주일을 정한 뒤 [📅 연간 계획 구상]을 눌러 주세요.</div>'; return; }
+  var ok = !!Y.confirmed, used = lbtUsedMap();
+  var nW = 0, nSel = 0, nOpt = 0;
+  P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ nW++; if (w.sel) nSel++; if (w.opts && w.opts.length) nOpt++; }); });
+  var h = '<div class="card"><div class="lbtYHd"><b style="font-size:16px">' + esc(String(Y.yr)) + ' 연간 설교 계획</b>' +
+    '<span class="lbtYState' + (ok ? ' ok' : '') + '">' + (ok ? '✓ 확정' : '초안') + '</span></div>' +
+    '<div class="cnt" style="margin-top:4px">' + P.months.length + '개월 · 설교 주일 ' + nW + '회 · 개요 초안 ' + nOpt + '주' + (Y.at ? ' · 구상 ' + esc(Y.at) : '') + '</div>' +
+    (P.note ? '<div class="zvWhy" style="margin-top:8px">' + esc(P.note) + '</div>' : '') +
+    '<div class="toolrow" style="flex-wrap:wrap">' +
+    (ok ? '<button class="btn sub" id="lbtY_selAll" type="button">' + (nSel === nW ? '☐ 전체 해제' : '☑ 전체 선택') + '</button>' +
+          '<button class="btn" id="lbtY_genSel" type="button"' + (nSel ? '' : ' disabled') + '>📝 선택한 주차 개요 초안 생성' + (nSel ? ' (' + nSel + ')' : '') + '</button>' +
+          '<button class="btn sub" id="lbtY_unconfirm" type="button">✏ 계획 고치기(확정 풀기)</button>'
+        : '<button class="btn" id="lbtY_confirm" type="button">✅ 계획 확정</button>' +
+          '<button class="btn sub" id="lbtY_regen" type="button">🔄 계획 다시 구상</button>') +
+    '</div>' +
+    (ok ? '' : '<div class="cnt" style="margin-top:6px;font-size:12.5px">월의 대주제·월 주제, 주마다의 가제와 질문 번호(예: 「Ⅰ-1, Ⅰ-3」 또는 그 달 분류면 「1, 3」)를 여기서 고칠 수 있습니다.</div>') +
+    '</div>';
+  P.months.forEach(function(mo){
+    var G = lbtG(mo.g) || { g: mo.g, t: '' };
+    h += '<div class="edPoint lbtYMon"><div class="lbtYMonHd"><span class="zvChip">' + mo.m + '월</span>' +
+      (ok ? '<b>' + esc(G.g + '. ' + G.t) + '</b>'
+          : '<select class="lbtYG" data-m="' + mo.m + '">' + LBT_QS.map(function(x){ return '<option value="' + x.g + '"' + (x.g === mo.g ? ' selected' : '') + '>' + x.g + '. ' + esc(x.t) + '</option>'; }).join('') + '</select>') +
+      '</div>' +
+      (ok ? (mo.theme ? '<div class="zvMsg">' + esc(mo.theme) + '</div>' : '')
+          : '<input type="text" class="lbtYTheme" data-m="' + mo.m + '" placeholder="월 주제(그 달 시리즈 이름)" value="' + esc(mo.theme || '') + '">') +
+      (mo.flow ? '<div class="zvWhy">' + esc(mo.flow) + '</div>' : '');
+    mo.weeks.forEach(function(w, k){
+      var hasOpt = w.opts && w.opts.length, u = w.ids.filter(function(id){ return used[id]; }).length;
+      h += '<div class="lbtYWk" data-d="' + w.d + '"><div class="lbtYWkHd">' +
+        (ok ? '<input type="checkbox" class="lbtYChk" data-d="' + w.d + '"' + (w.sel ? ' checked' : '') + ' title="개요 초안을 만들 주 선택">' : '') +
+        '<span class="lbtYDate">' + lbtMd(w.d) + '</span>' +
+        (ok ? '<b class="lbtYTitleTx">' + esc(w.title || '(가제 없음)') + '</b>'
+            : '<input type="text" class="lbtYTitle" data-d="' + w.d + '" placeholder="이 주 가제(질문형)" value="' + esc(w.title || '') + '">') +
+        (hasOpt ? '<span class="lbtYBadge has">선택지 ' + w.opts.length + '</span>' : '') +
+        (u ? '<span class="lbtUsed">✓ 설교함</span>' : '') +
+        (ok ? '<button class="btn sub lbtYGenOne" type="button" data-d="' + w.d + '">' + (hasOpt ? '다시 구상' : '개요 초안') + '</button>' : '') +
+        '</div>' +
+        '<div class="lbtYQs">' + (w.ids.length ? w.ids.map(function(id){
+            var q = lbtQ(id); return '<span' + (q && q.g !== mo.g ? ' class="bad" title="이 달의 대주제가 아닌 질문"' : '') + '>' + id + ' ' + esc(q ? q.q : '(없는 질문)') + '</span>';
+          }).join('') : '<span class="bad">질문이 없습니다 — 질문 번호를 넣어 주세요.</span>') +
+          (w.dir ? '<span style="color:var(--text)">→ ' + esc(w.dir) + '</span>' : '') + '</div>' +
+        (ok ? '' : '<input type="text" class="lbtYIds" data-d="' + w.d + '" placeholder="질문 번호 — 예) ' + mo.g + '-1, ' + mo.g + '-3" value="' + esc(w.ids.join(', ')) + '">') +
+        (hasOpt ? '<details class="lbtYOpts" data-d="' + w.d + '"' + (w.open ? ' open' : '') + '><summary>개요 초안 선택지 ' + w.opts.length + '세트' + (w.at ? ' · ' + esc(w.at) : '') + '</summary>' +
+            w.opts.map(function(o, i){ return lbtOptHtml(o, i, 'y:' + w.d + ':' + i); }).join('') + '</details>' : '') +
+        '</div>';
+    });
+    h += '</div>';
+  });
+  box.innerHTML = h;
+}
+
+/* 주차별 개요 초안 — 주제별과 같은 P_LBT, 그 달·그 주의 맥락은 요청사항으로 넘긴다 */
+function lbtYearWeekReq(hit){
+  var Y = state.lbt.year, mo = hit.mo, G = lbtG(mo.g) || { g: mo.g, t: '' };
+  var others = mo.weeks.filter(function(x){ return x.d !== hit.w.d; }).map(function(x){ return lbtMd(x.d) + ' ' + (x.title || x.ids.join(',')); });
+  return [
+    Y.req,
+    '연간 시리즈 「' + LBT_SERIES + '」 ' + mo.m + '월 대주제: ' + G.g + '. ' + G.t + (mo.theme ? ' — 월 주제 「' + mo.theme + '」' : '') + (mo.flow ? '. 이 달의 흐름: ' + mo.flow : ''),
+    '이 설교는 그 달 ' + (hit.k + 1) + '/' + mo.weeks.length + '주차다' + (others.length ? '. 같은 달 다른 주: ' + others.join(' / ') + ' — 그 주들과 겹치지 않게 이 주의 질문에 집중한다' : '') + '.',
+    hit.w.title ? '연간 계획의 이 주 가제: 「' + hit.w.title + '」 — 제목 규칙을 따르되 이 가제의 방향을 살린다.' : '',
+    hit.w.dir ? '연간 계획에서 잡은 이 주 답의 방향: ' + hit.w.dir : ''
+  ].filter(Boolean).join('\n');
+}
+async function aiLbtYearWeeks(ds){
+  var Y = state.lbt.year;
+  if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
+  ds = ds.filter(function(d){ var h = lbtYWeek(d); return h && h.w.ids.length; });
+  if (!ds.length) { toast('질문이 배정된 주가 없습니다.'); return; }
+  var had = ds.filter(function(d){ var h = lbtYWeek(d); return h.w.opts && h.w.opts.length; });
+  if (had.length) {
+    var ch = await uiChoose('이미 개요 초안이 있는 주가 ' + had.length + '개 있습니다.', { okText: '모두 새로 만들기', extraText: '없는 주만 만들기', cancelText: '취소' });
+    if (ch === 'cancel' || !ch) return;
+    if (ch === 'extra') ds = ds.filter(function(d){ return had.indexOf(d) < 0; });
+    if (!ds.length) { toast('새로 만들 주가 없습니다.'); return; }
+  }
+  if (ds.length > 3 && !await uiConfirm(ds.length + '주의 개요 초안을 차례로 만듭니다 — 한 주에 2~3분, 모두 약 ' + (ds.length * 2) + '~' + (ds.length * 3) + '분 걸립니다.', { okText: '시작' })) return;
+  var fail = [];
+  for (var i = 0; i < ds.length; i++) {
+    var hit = lbtYWeek(ds[i]); if (!hit) continue;
+    toast('개요 초안 ' + (i + 1) + '/' + ds.length + ' — ' + lbtMd(hit.w.d) + ' 「' + (hit.w.title || hit.w.ids.join(', ')) + '」');
+    try {
+      hit.w.opts = await lbtCallOpts({ date: hit.w.d, service: Y.service, ids: hit.w.ids, req: lbtYearWeekReq(hit), label: lbtMd(hit.w.d) + ' 설교 개요' });
+      hit.w.at = nowLocalStr_(); hit.w.open = true; hit.w.sel = false;
+      lbtSaveNow(); renderLbtPane();
+    } catch (e) { fail.push(lbtMd(ds[i]) + ': ' + e.message); }
+  }
+  renderSyncState();
+  toast(fail.length ? '끝났습니다 — 실패 ' + fail.length + '주(' + fail.join(' / ') + ')' : '개요 초안 ' + ds.length + '주 완료 — 주마다 선택지를 펼쳐 보세요.');
+}
+
+/* ── 이벤트 ── */
+$('#lbtMeta').addEventListener('click', function(e){
+  var mb = e.target.closest('.lbtModeBtn');
+  if (mb) { state.lbt.mode = mb.dataset.mode; lbtSaveSoon(); renderLbtMode(); return; }
+  var Y = state.lbt.year;
+  var mo = e.target.closest('.lbtMon');
+  if (mo) { var m = +mo.dataset.m, at = Y.offM.indexOf(m); if (at >= 0) Y.offM.splice(at, 1); else Y.offM.push(m); lbtSaveSoon(); renderLbtYearMeta(); return; }
+  var dy = e.target.closest('.lbtDay');
+  if (dy) { var d = dy.dataset.d, at2 = Y.offD.indexOf(d); if (at2 >= 0) Y.offD.splice(at2, 1); else Y.offD.push(d); lbtSaveSoon(); renderLbtYearMeta(); return; }
+});
+$('#lbtY_year').addEventListener('change', function(){ var v = +this.value; if (v >= 2000 && v <= 2100) { state.lbt.year.yr = v; lbtSaveSoon(); renderLbtYearMeta(); } });
+$('#lbtY_service').addEventListener('input', function(){ state.lbt.year.service = this.value.trim(); lbtSaveSoon(); });
+$('#lbtY_req').addEventListener('input', function(){ state.lbt.year.req = this.value; lbtSaveSoon(); });
+$('#lbtY_gen').addEventListener('click', withBusy($('#lbtY_gen'), '구상 중…', function(){
+  return aiLbtYearPlan().catch(function(e){ renderSyncState(); toast('연간 계획 구상 실패: ' + e.message); });
+}));
+$('#lbtY_new').addEventListener('click', async function(){
+  var Y = state.lbt.year;
+  if ((Y.plan || Y.offM.length || Y.offD.length || Y.req) && !await uiConfirm('연간 계획과 빠지는 월·주일·요청사항을 모두 비울까요?\n(주제별 설교 구상은 그대로 둡니다)', { okText: '비우기', danger: true })) return;
+  state.lbt.year = lbtYearBlank();
+  lbtSaveNow(); renderLbtYearMeta(); renderLbtPane();
+});
+function lbtYearPaneClick(e){
+  var Y = state.lbt.year, P = Y.plan;
+  var t = e.target;
+  if (t.closest('#lbtY_confirm')) {
+    var empty = 0; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (!w.ids.length) empty++; }); });
+    (empty ? uiConfirm('질문이 비어 있는 주가 ' + empty + '개 있습니다. 그대로 확정할까요?\n(그 주는 개요 초안을 만들 수 없습니다)', { okText: '확정' }) : Promise.resolve(true)).then(function(go){
+      if (!go) return; Y.confirmed = true; lbtSaveNow(); renderLbtPane(); toast('계획을 확정했습니다 — 주차를 골라 개요 초안을 만드세요.');
+    });
+    return true;
+  }
+  if (t.closest('#lbtY_unconfirm')) { Y.confirmed = false; lbtSaveNow(); renderLbtPane(); return true; }
+  var rg = t.closest('#lbtY_regen');
+  if (rg) { withBusy(rg, '구상 중…', function(){ return aiLbtYearPlan().catch(function(er){ renderSyncState(); toast('연간 계획 구상 실패: ' + er.message); }); })(); return true; }
+  if (t.closest('#lbtY_selAll')) {
+    var all = true; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (!w.sel) all = false; }); });
+    P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ w.sel = !all && !!w.ids.length; }); });
+    lbtSaveSoon(); renderLbtPane(); return true;
+  }
+  var gs = t.closest('#lbtY_genSel');
+  if (gs) {
+    var ds = []; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (w.sel) ds.push(w.d); }); });
+    withBusy(gs, '만드는 중…', function(){ return aiLbtYearWeeks(ds).catch(function(er){ renderSyncState(); toast('개요 초안 실패: ' + er.message); }); })();
+    return true;
+  }
+  var one = t.closest('.lbtYGenOne');
+  if (one) { withBusy(one, '구상 중…', function(){ return aiLbtYearWeeks([one.dataset.d]).catch(function(er){ renderSyncState(); toast('개요 초안 실패: ' + er.message); }); })(); return true; }
+  return false;
+}
+$('#lbtPane').addEventListener('change', function(e){
+  var t = e.target, Y = state.lbt.year;
+  if (t.classList.contains('lbtYChk')) { var h = lbtYWeek(t.dataset.d); if (h) { h.w.sel = t.checked; lbtSaveSoon(); renderLbtPane(); } return; }
+  if (t.classList.contains('lbtYG')) {
+    var mo = (Y.plan.months || []).filter(function(x){ return x.m === +t.dataset.m; })[0];
+    if (mo) { mo.g = t.value; lbtSaveSoon(); renderLbtPane(); toast(mo.m + '월 대주제를 바꿨습니다 — 주마다의 질문 번호도 그 분류로 고쳐 주세요(빨간 질문).'); }
+    return;
+  }
+  if (t.classList.contains('lbtYIds')) {
+    var hit = lbtYWeek(t.dataset.d); if (!hit) return;
+    var ids = [];
+    String(t.value || '').split(/[,\s]+/).forEach(function(tok){
+      tok = tok.trim(); if (!tok) return;
+      if (/^\d+$/.test(tok)) tok = hit.mo.g + '-' + tok;   /* 「1, 3」 = 그 달 분류의 1·3번 */
+      if (lbtQ(tok) && ids.indexOf(tok) < 0) ids.push(tok);
+    });
+    hit.w.ids = ids; lbtSaveSoon(); renderLbtPane();
+  }
+});
+$('#lbtPane').addEventListener('toggle', function(e){
+  var t = e.target; if (!t.classList || !t.classList.contains('lbtYOpts')) return;
+  var h = lbtYWeek(t.dataset.d); if (h) { h.w.open = t.open; lbtSaveSoon(); }
+}, true);
+
 $('#lbt_gen').addEventListener('click', withBusy($('#lbt_gen'), '구상 중…', function(){
   return aiLbtGen().catch(function(e){ renderSyncState(); toast('개요 구상 실패: ' + e.message); });
 }));
 $('#lbt_new').addEventListener('click', async function(){
   var L = state.lbt;
-  if ((L.sel.length || (L.opts && L.opts.length) || L.req) && !await uiConfirm('선택한 질문·요청사항·개요 선택지를 모두 비울까요?\n(설교일·예배구분은 그대로 둡니다)', { okText: '비우기', danger: true })) return;
-  var keep = { date: L.date, service: L.service };
-  state.lbt = Object.assign(lbtBlank(), keep);
+  if ((L.sel.length || (L.opts && L.opts.length) || L.req) && !await uiConfirm('선택한 질문·요청사항·개요 선택지를 모두 비울까요?\n(설교일·예배구분과 연간 계획은 그대로 둡니다)', { okText: '비우기', danger: true })) return;
+  L.sel = []; L.req = ''; L.opts = []; L.qs = []; L.at = '';
   $('#lbt_req').value = ''; $('#lbt_filter').value = '';
   lbtSaveNow(); renderLbtQs(); renderLbtPane();
 });
@@ -19120,16 +19502,26 @@ $('#lbtSel').addEventListener('click', function(e){
 $('#lbt_filter').addEventListener('input', debounce(renderLbtQs, 150));
 $('#lbtPane').addEventListener('click', function(e){
   var pk = e.target.closest('.lbtPickBtn');
-  if (pk) { window.lbtPick(+pk.dataset.i); return; }
+  if (pk) { window.lbtPick(pk.dataset.a); return; }
   var ib = e.target.closest('.lbtInstaBtn');
-  if (ib) { withBusy(ib, '만드는 중…', function(){ return lbtInsta(+ib.dataset.i); })(); return; }
+  if (ib) { withBusy(ib, '만드는 중…', function(){ return lbtInsta(ib.dataset.a); })(); return; }
+  if (state.lbt.mode === 'year' && state.lbt.year.plan && lbtYearPaneClick(e)) return;
   var rg = e.target.closest('#lbtRegen');
   if (rg) withBusy(rg, '구상 중…', function(){ return aiLbtGen().catch(function(er){ renderSyncState(); toast('개요 구상 실패: ' + er.message); }); })();
 });
 $('#lbtPane').addEventListener('input', function(e){
-  var t = e.target; if (!t.classList.contains('lbtO')) return;
-  var o = (state.lbt.opts || [])[+t.dataset.i];
-  if (o) { o[t.dataset.f] = t.value; lbtSaveSoon(); var v = $('#lbtVis' + t.dataset.i); if (v) v.innerHTML = lbtVisHtml(o, +t.dataset.i); }
+  var t = e.target;
+  if (t.classList.contains('lbtO')) {   /* 선택지 다듬기 → 위 카드에 바로 반영 */
+    var r = lbtRef(t.dataset.a), o = r.o;
+    if (!o) return;
+    o[t.dataset.f] = t.value; lbtSaveSoon();
+    var box = t.closest('.zvOpt'), v = box && box.querySelector('.lbtVis');
+    if (v) v.innerHTML = lbtVisHtml(o, +String(t.dataset.a).split(':').pop(), t.dataset.a);
+    return;
+  }
+  var Y = state.lbt.year;
+  if (t.classList.contains('lbtYTheme')) { var mo = Y.plan.months.filter(function(x){ return x.m === +t.dataset.m; })[0]; if (mo) { mo.theme = t.value; lbtSaveSoon(); } return; }
+  if (t.classList.contains('lbtYTitle')) { var h = lbtYWeek(t.dataset.d); if (h) { h.w.title = t.value; lbtSaveSoon(); } }
 });
 $('#lbt_date').addEventListener('change', function(){ state.lbt.date = this.value; lbtSaveSoon(); });
 $('#lbt_service').addEventListener('input', function(){ state.lbt.service = this.value.trim(); lbtSaveSoon(); });
@@ -24954,7 +25346,7 @@ function showPage(name){
   if (name === 'series') { state.seriesMode = 'list'; renderSeriesPage(); }
   if (name === 'occ') renderOccPane();
   if (name === 'zone') renderZonePane();
-  if (name === 'lbt') { renderLbtQs(); renderLbtPane(); }
+  if (name === 'lbt') renderLbtMode();
   if (name === 'archive') renderArchive();
   if (name === 'library') renderLibrary();
   if (name === 'illlib') renderIllLib();
@@ -26460,7 +26852,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v596';
+var APP_VER = 'v597';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -26533,12 +26925,16 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     renderZonePane();
   }).catch(function(){});
   $('#lbt_date').value = todayLocal_();
-  idbGet('lbtDraft').then(function(o){   /* v590 리더의 뒷담화 — 고른 질문·선택지 복원 */
-    if (o) state.lbt = Object.assign(lbtBlank(), o);
+  idbGet('lbtDraft').then(function(o){   /* v590 리더의 뒷담화(v597 Why에서 Way로) — 고른 질문·선택지·연간 계획 복원 */
+    if (o) {
+      state.lbt = Object.assign(lbtBlank(), o);
+      state.lbt.year = Object.assign(lbtYearBlank(), o.year || {});
+      if (!o.mode) state.lbt.mode = (o.opts && o.opts.length) ? 'topic' : 'year';   /* v596 이전 데이터: 만들어 둔 선택지가 있으면 주제별로 연다 */
+    }
     if (state.lbt.date) $('#lbt_date').value = state.lbt.date; else state.lbt.date = $('#lbt_date').value;
     $('#lbt_service').value = state.lbt.service || '';
     $('#lbt_req').value = state.lbt.req || '';
-    renderLbtQs(); renderLbtPane();
+    renderLbtQs(); renderLbtMode();
   }).catch(function(){});
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
