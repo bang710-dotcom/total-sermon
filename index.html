@@ -819,6 +819,7 @@ input[type=date]{cursor:pointer}
 .lbtGrp .lbtGCnt.on{color:var(--accent)}
 .lbtQ{display:flex;gap:8px;align-items:flex-start;padding:8px 12px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.5;cursor:pointer;margin:0;font-weight:400;color:var(--text)}
 .lbtQ.on{background:var(--card2)}
+#lbtMeta label.lbtQ{margin:0}
 .lbtQ input{flex:0 0 auto;margin-top:3px}
 .lbtQ .lbtNo{flex:0 0 auto;min-width:30px;color:var(--dim);font-size:12px;font-weight:700;margin-top:1px}
 .lbtQ .lbtTx{flex:1 1 auto;min-width:0}
@@ -18544,6 +18545,358 @@ $('#zone_date').addEventListener('change', function(){ state.zone.date = this.va
 $('#zone_ref').addEventListener('input', function(){ state.zone.srcRef = this.value.trim(); zoneSaveSoon(); });
 $('#zone_src').addEventListener('change', function(){ state.zone.srcInput = this.value.trim(); zoneSaveSoon(); });
 
+/* ══ 리더의 뒷담화 (v590) ═══════════════════════════════════════════════
+   LTC 시간에 리더들과 매주 2개쯤 뽑아 소그룹으로 나누는 "청년들이 실제로 묻는 신앙 질문" 100개.
+   질문 하나, 또는 서로 이어진 질문 여러 개를 골라 설교 개요 선택지 3세트를 만들고,
+   하나를 골라 [이 개요로 설교 작성]으로 작성 탭에 넘긴다(상황 설교·구역권찰과 같은 방식).
+   ★ 어떤 질문으로 설교했는지는 따로 기록하지 않는다 — 넘길 때 비고 맨 앞에 「뒷담화: Ⅰ-3, Ⅰ-4」 표지를 붙이고,
+     시트에 저장된 설교들의 비고에서 그 표지를 읽어 질문 옆에 ✓ 를 단다(lbtUsedMap). 그래서 기기 간에 저절로 맞고,
+     작성만 하고 저장하지 않은 설교는 표시되지 않는다. 표지 형식을 바꾸면 LBT_TAG_RE 도 함께 고칠 것.
+   ★ 비고의 「주제 근거:」는 맨 뒤에 둔다 — editSermonFill 이 비고에서 주제 근거를 끝까지 읽어 서론 바탕으로 쓰기 때문. */
+var LBT_QS = [
+  { g: 'Ⅰ', t: '신앙의 확신과 의심', q: [
+    '하나님이 정말 살아 계신다는 걸 어떻게 확신할 수 있나요?',
+    '모태신앙인데, 이게 제 신앙인지 부모님 신앙인지 모르겠어요.',
+    '신앙에 의심이 드는 것 자체가 죄인가요?',
+    '구원의 확신이 없는데, 저는 구원받은 게 맞나요?',
+    '한 번 구원받으면 어떻게 살아도 천국에 가나요?',
+    '예수님만이 유일한 길이라는 건 너무 배타적이지 않나요?',
+    '복음을 한 번도 듣지 못하고 죽은 사람은 어떻게 되나요?',
+    '사랑의 하나님이 왜 지옥을 만드셨나요?',
+    '뜨거웠던 신앙이 식었는데, 어떻게 회복할 수 있나요?',
+    '교회는 다니는데 하나님이 느껴지지 않아요. 제가 잘못된 걸까요?' ] },
+  { g: 'Ⅱ', t: '고난과 하나님의 뜻', q: [
+    '하나님이 선하시다면 왜 세상에 고통과 악이 있나요?',
+    '열심히 기도했는데 왜 응답이 없나요?',
+    '제 인생의 고난에도 정말 하나님의 뜻이 있나요?',
+    '\'하나님의 뜻\'은 구체적으로 어떻게 알 수 있나요?',
+    '모든 게 예정되어 있다면 제 선택과 노력은 무슨 의미가 있나요?',
+    '믿지 않는 친구들이 더 잘되는 것 같은데, 믿는 게 무슨 유익이 있나요?',
+    '사랑하는 사람을 잃은 슬픔 속에서 하나님을 어떻게 신뢰하나요?',
+    '스스로 목숨을 끊은 사람은 구원받지 못하나요?',
+    '질병이나 사고는 죄에 대한 벌인가요?',
+    '하나님이 침묵하시는 것 같을 때 어떻게 버텨야 하나요?' ] },
+  { g: 'Ⅲ', t: '성경과 기독교 진리', q: [
+    '성경은 사람이 쓴 책인데 어떻게 하나님의 말씀이라고 믿을 수 있나요?',
+    '진화론과 창조론, 과학과 신앙은 충돌하지 않나요?',
+    '구약의 전쟁과 폭력은 사랑의 하나님과 어떻게 조화되나요?',
+    '성경에 서로 모순되는 부분이 있다는데 사실인가요?',
+    '성경의 어떤 규정은 지키고 어떤 규정은 안 지키는데, 그 기준이 뭔가요?',
+    '성경을 어디서부터, 어떻게 읽어야 하나요?',
+    '예수님의 부활은 역사적 사실로 믿을 만한 근거가 있나요?',
+    '다른 종교에도 진리가 있지 않나요?',
+    '삼위일체는 도대체 어떻게 이해해야 하나요?',
+    '캠퍼스에서 접근해 오는 성경공부 모임이 이단인지 어떻게 구별하나요?' ] },
+  { g: 'Ⅳ', t: '기도·예배·영성 생활', q: [
+    '기도가 형식적으로 느껴져요. 어떻게 기도해야 하나요?',
+    '큐티(말씀 묵상)를 꾸준히 하는 방법이 있나요?',
+    '주일성수를 꼭 해야 하나요? 시험·알바·출근과 겹치면요?',
+    '온라인 예배도 예배로 인정되나요?',
+    '성령 충만은 무엇이고, 방언은 꼭 받아야 하나요?',
+    '십일조는 꼭 해야 하나요? 알바비나 용돈에서도요?',
+    '같은 죄를 반복하는데, 또 회개해도 용서받을 수 있나요?',
+    '찬양할 때 감정이 없으면 진정한 예배가 아닌가요?',
+    '금식이나 새벽기도 같은 훈련이 지금도 필요한가요?',
+    '바쁜 일상 속에서 하나님과의 관계를 어떻게 유지하나요?' ] },
+  { g: 'Ⅴ', t: '교회와 공동체', q: [
+    '교회를 꼭 다녀야 하나요? 혼자 신앙생활하면 안 되나요?',
+    '교회에서 받은 상처를 어떻게 극복하나요?',
+    '목회자나 성도들의 말과 행동이 다른 모습을 보면 신앙이 흔들려요.',
+    '청년부에서 봉사만 많고 정작 저는 채워지지 않아요.',
+    '교회를 옮기고 싶은데, 옮겨도 괜찮을까요?',
+    '매주 교회에 가는 것이 부담스러운데, 이런 마음은 어떻게 다뤄야 하나요?',
+    '교회 어른들과 세대 차이가 커서 소통이 어려워요.',
+    '소그룹에서 속마음을 나누는 게 부담스러워요.',
+    '교회 안의 연애나 인간관계 문제로 공동체가 불편해졌어요.',
+    '교회에 대한 사회의 부정적 시선 속에서 기독교인이라고 밝혀야 하나요?' ] },
+  { g: 'Ⅵ', t: '진로·일·소명', q: [
+    '하나님이 주신 소명은 어떻게 발견하나요?',
+    '전공과 진로가 맞지 않는데, 어떻게 결정해야 하나요?',
+    '좋아하는 일, 잘하는 일, 안정적인 일 중 무엇을 택해야 하나요?',
+    '취업이 계속 안 되는데, 하나님이 저를 잊으신 걸까요?',
+    '목회자나 선교사로 부르심을 받았는지 어떻게 확인하나요?',
+    '직장에서 정직하게 살면 손해 보지 않나요?',
+    '회식·술자리·주일 근무 문제는 어떻게 대해야 하나요?',
+    '공무원이나 대기업처럼 \'안정\'을 추구하는 건 믿음이 없는 건가요?',
+    '휴학·재수·이직으로 남들보다 늦어지는 것이 두려워요.',
+    '일이 그저 생계 수단일 뿐인데, 일에도 신앙적 의미가 있나요?' ] },
+  { g: 'Ⅶ', t: '돈·경제·미래', q: [
+    '기독교인이 부자가 되려고 노력해도 되나요?',
+    '주식이나 코인 투자, 신앙적으로 괜찮은가요?',
+    '학자금 대출과 생활비 부담 속에서 어떻게 믿음으로 살 수 있나요?',
+    '내 집 마련이 불가능해 보이는 현실에서도 소망을 가질 수 있나요?',
+    '헌금과 저축, 생활비 사이의 우선순위는 어떻게 정하나요?',
+    '복권이나 도박성 게임(확률형 아이템 포함)은 왜 문제가 되나요?',
+    '부모님께 경제적으로 의존하고 있는데, 독립은 언제 해야 하나요?',
+    '가난한 이웃을 돕는 것과 제 미래 대비는 어떻게 균형을 잡나요?',
+    '미래가 너무 불안한데, \'염려하지 말라\'는 말씀이 현실적인가요?',
+    '그리스도인의 소비와 절제는 어떤 모습이어야 하나요?' ] },
+  { g: 'Ⅷ', t: '연애·결혼·성', q: [
+    '믿지 않는 사람과 연애하거나 결혼해도 되나요?',
+    '하나님이 정해주신 배우자가 따로 있나요?',
+    '연애 상대를 볼 때 어떤 기준을 가져야 하나요?',
+    '혼전순결은 지금 시대에도 지켜야 하나요? 스킨십은 어디까지인가요?',
+    '음란물 문제를 어떻게 이겨낼 수 있나요?',
+    '이미 성적인 실수를 했는데, 하나님 앞에 다시 설 수 있나요?',
+    '결혼을 꼭 해야 하나요? 비혼으로 사는 것도 괜찮은가요?',
+    '경제적 여건 때문에 결혼과 출산이 두려워요.',
+    '이별의 아픔을 신앙 안에서 어떻게 이겨내나요?',
+    '기독교인이라서 거절당할까 봐 상대에게 신앙을 숨기게 돼요.' ] },
+  { g: 'Ⅸ', t: '마음·정체성·관계', q: [
+    '우울증이나 불안장애는 믿음이 부족해서 생기는 건가요?',
+    '정신건강의학과 치료나 상담을 받는 것, 신앙적으로 괜찮나요?',
+    'SNS 속 다른 사람들과 비교하며 열등감에 빠져요.',
+    '하나님 앞에서 저의 가치와 정체성은 무엇인가요?',
+    '외로움이 너무 커요. \'하나님만으로 충분하다\'는 말이 와닿지 않아요.',
+    '저에게 상처 준 사람을 꼭 용서해야 하나요?',
+    '부모님과의 갈등을 \'부모를 공경하라\'는 말씀과 어떻게 조화시키나요?',
+    '믿지 않는 가족을 어떻게 전도하고, 제사 문제는 어떻게 해야 하나요?',
+    '번아웃이 왔는데, 쉬는 것도 신앙적으로 괜찮은가요?',
+    '친구에게 복음을 전하고 싶은데 관계가 깨질까 봐 두려워요.' ] },
+  { g: 'Ⅹ', t: '사회·문화·윤리', q: [
+    '기독교인은 정치적으로 어떤 입장을 가져야 하나요?',
+    '동성애와 성소수자 이슈를 성경적으로, 그리고 사랑으로 어떻게 대해야 하나요?',
+    '젠더 갈등 속에서 그리스도인은 어떤 관점을 가져야 하나요?',
+    '술과 담배는 성경적으로 죄인가요?',
+    '타투, 게임, 웹툰·드라마 같은 문화생활에도 신앙적 기준이 있나요?',
+    '그리스도인은 사회적 약자와 불공정 문제에 어떻게 참여해야 하나요?',
+    '기후위기와 환경 문제도 신앙의 문제인가요?',
+    '과제나 업무에 생성형 AI를 쓸 때 어떤 신앙적 기준이 필요할까요?',
+    '교회의 사회적 신뢰가 떨어진 상황에서 그리스도인은 어떻게 살아야 하나요?',
+    '결국, 이 시대에 예수를 믿는다는 것은 어떤 의미인가요?' ] }
+];
+var LBT_MAX = 5;   /* 한 설교에 묶을 질문 수 상한 — 그 이상이면 메시지가 흩어진다 */
+var LBT_TAG_RE = /뒷담화:\s*([^/]*)/;
+var LBT_ID_RE = /[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]-\d+/g;
+function lbtQ(id){
+  var m = String(id || '').match(/^([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ])-(\d+)$/); if (!m) return null;
+  for (var i = 0; i < LBT_QS.length; i++) if (LBT_QS[i].g === m[1]) {
+    var q = LBT_QS[i].q[+m[2] - 1];
+    return q ? { id: id, g: LBT_QS[i].g, t: LBT_QS[i].t, q: q } : null;
+  }
+  return null;
+}
+function lbtBlank(){ return { date: '', service: '대학부', sel: [], req: '', opts: [], qs: [], at: '' }; }
+state.lbt = lbtBlank();
+var lbtSaveSoon = debounce(function(){ idbSet('lbtDraft', state.lbt).catch(function(){}); }, 600);
+function lbtSaveNow(){ try { idbSet('lbtDraft', state.lbt).catch(function(){}); } catch(e){} }
+document.addEventListener('visibilitychange', function(){ if (document.hidden) lbtSaveNow(); });
+window.addEventListener('pagehide', lbtSaveNow);
+
+/* 시트에 저장된 설교의 비고 「뒷담화: Ⅰ-3, Ⅰ-4」 → { 'Ⅰ-3': [{날짜, 제목}], … } */
+function lbtUsedMap(){
+  var map = {};
+  ((state.data && state.data.sermons) || []).forEach(function(s){
+    var m = String(s['비고'] || '').match(LBT_TAG_RE); if (!m) return;
+    (m[1].match(LBT_ID_RE) || []).forEach(function(id){
+      (map[id] = map[id] || []).push({ d: String(s['날짜'] || '').slice(0, 10), t: String(s['제목'] || '') });
+    });
+  });
+  for (var k in map) map[k].sort(function(a, b){ return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });   /* 마지막 = 가장 최근 */
+  return map;
+}
+
+function renderLbtQs(){
+  var box = $('#lbtQList'); if (!box) return;
+  var L = state.lbt, used = lbtUsedMap(), f = String(($('#lbt_filter') || {}).value || '').trim().toLowerCase();
+  var h = '';
+  LBT_QS.forEach(function(G){
+    var rows = '', nSel = 0, nShow = 0;
+    G.q.forEach(function(q, k){
+      var id = G.g + '-' + (k + 1), on = L.sel.indexOf(id) >= 0;
+      if (on) nSel++;
+      if (f && (q + ' ' + G.t).toLowerCase().indexOf(f) < 0) return;
+      nShow++;
+      var u = used[id];
+      rows += '<label class="lbtQ' + (on ? ' on' : '') + '"><input type="checkbox" class="lbtChk" data-id="' + id + '"' + (on ? ' checked' : '') + '>' +
+        '<span class="lbtNo">' + (k + 1) + '</span><span class="lbtTx">' + esc(q) +
+        (u ? '<span class="lbtUsed" title="' + esc(u.map(function(x){ return (x.d ? x.d + ' ' : '') + x.t; }).join('\n')) + '">✓ ' + esc(u[u.length - 1].d.slice(5).replace('-', '/') || '설교') + (u.length > 1 ? ' 외 ' + (u.length - 1) : '') + '</span>' : '') +
+        '</span></label>';
+    });
+    if (f && !nShow) return;
+    var nUsed = G.q.filter(function(q, k){ return used[G.g + '-' + (k + 1)]; }).length;
+    h += '<details class="lbtGrp" data-g="' + G.g + '"' + ((f || nSel) ? ' open' : '') + '><summary>' + G.g + '. ' + esc(G.t) +
+      '<span class="lbtGCnt' + (nSel ? ' on' : '') + '">' + (nSel ? nSel + '개 선택' : (nUsed ? '✓ ' + nUsed + '/10' : '')) + '</span></summary>' + rows + '</details>';
+  });
+  box.innerHTML = h || '<div class="cnt" style="margin-top:8px">「' + esc(f) + '」이(가) 들어간 질문이 없습니다.</div>';
+  renderLbtSel();
+}
+function renderLbtSel(){
+  var box = $('#lbtSel'); if (!box) return;
+  var L = state.lbt;
+  if (!L.sel.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="lbtSelBox"><div class="lbtSelHd">선택한 질문 ' + L.sel.length + '개<button class="btn sub" id="lbtSelClear" type="button">선택 비우기</button></div><ol>' +
+    L.sel.map(function(id){ var x = lbtQ(id); return x ? '<li><span style="color:var(--dim)">' + id + '</span> ' + esc(x.q) + '</li>' : ''; }).join('') + '</ol>' +
+    (L.sel.length > 1 ? '<div style="margin-top:4px;color:var(--dim);font-size:12px">여러 질문은 공통 뿌리를 찾아 한 메시지로 묶습니다(질문마다 대지를 하나씩 나누지 않습니다).</div>' : '') + '</div>';
+}
+
+var P_LBT = [
+'당신은 영락교회 대학부 설교 기획 비서다. 대학부는 매주 LTC(소그룹 리더 훈련) 시간에 「리더의 뒷담화」라는 이름으로, 청년들이 교회 안에서 좀처럼 꺼내지 못하지만 실제로 품고 있는 신앙 질문을 리더들과 소그룹으로 나눈다. 목회자는 그 질문을 설교로도 다룬다.',
+'입력(JSON): 설교일, 예배구분, 질문(1개 이상 — 분류·질문), 요청사항(없을 수 있음).',
+'할 일: 이 질문(들)에 성경으로 답하는 설교 개요 선택지 3세트를 만든다. 완성 원고는 쓰지 않는다.',
+'출력은 반드시 JSON 배열(길이 3)만: [{"제목":"...","본문":"책 장:절-절","핵심메시지":"...","주제근거":"...","질문응답":[{"질문":"입력 질문 그대로","답":"이 설교가 그 질문에 주는 답 한두 문장"}],"대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}],"나눔":["...","..."]}]',
+'원칙: ①질문을 피하지 않는다 — 대지를 따라 들으면 질문에 대한 성경의 답이 분명히 드러나야 한다. 질문을 꺼내 놓고 "결국 믿음이 중요합니다" 식으로 비껴가거나, 질문을 설교자가 하고 싶은 다른 주제로 바꾸지 않는다. 핵심메시지는 그 답을 한 문장 명제로 쓴 것이다 ②본문: 질문에 가장 직접 답하는 한 단락을 성경 전체에서 고르고 그 단락을 강해한다. 여러 구절을 짜깁기하는 증거본문(proof-text) 나열 설교를 만들지 않는다 — 다른 구절은 근거에서 보조로만 짚는다. 세 선택지는 본문과 접근 갈래가 서로 달라야 한다 ③질문이 여럿이면 그 질문들이 공통으로 딛고 있는 한 뿌리(두려움·정체성·하나님에 대한 오해 등)를 찾아 하나의 메시지로 묶는다 — 질문마다 대지를 하나씩 배정하지 않는다. "질문응답"에는 입력 질문마다 이 설교가 어떻게 답하는지 적는다(입력 질문 수와 같은 길이) ④★주제근거(필수)는 청년들이 이 질문을 품게 되는 실제 삶의 정황(캠퍼스·취업·관계·교회 경험)에서 출발해, 왜 이 본문이 그 질문에 대한 답이 되는지를 2~3문장으로 쓴다 — 설교 작성으로 넘어가면 그대로 서론의 바탕이 된다 ⑤청중은 대학부 청년과 그들을 돌보는 소그룹 리더다. 리더가 먼저 자기 질문으로 듣고 은혜를 받은 뒤, 소그룹원이 같은 질문을 할 때 이 말씀으로 함께 답을 찾아갈 수 있게 한다 — 정답을 외워 전달하는 설교가 아니다 ⑥민감하거나 논쟁적인 질문(지옥·예정·자살·동성애·정치·정신건강·성 등)은 장로교(통합) 교단이 서 있는 성경적·복음적 신학 안에서 성경이 분명히 말하는 것은 분명히 말하되, 정죄·조롱·희화화 없이 목회적 긍휼로 다룬다. 성경이 분명히 말하지 않는 곳에서는 단정하지 않고 하나님의 주권과 은혜에 맡긴다. 우울·불안 같은 정신건강 문제에서 전문 치료·상담을 믿음 부족으로 몰거나 부정하지 않는다. 당사자가 회중 가운데 앉아 있다고 여기고 쓴다 ⑦"나눔"은 설교 뒤 소그룹에서 나눌 질문 정확히 2개 — 정답을 묻는 질문이 아니라 자기 이야기와 결단을 끌어내는 열린 질문으로, 짧게 ⑧제목은 질문을 그대로 옮기지 않는다 ⑨요청사항이 있으면 반드시 반영한다.'
+].join('\n') + '\n' + P_OCC.split('\n').filter(function(l){ return !/^(당신은 |출력은 반드시|선택지 3세트는)/.test(l); }).join('\n');
+
+/* [✍ 설교 개요 구상] */
+async function aiLbtGen(){
+  var L = state.lbt;
+  L.date = $('#lbt_date').value;
+  L.service = $('#lbt_service').value.trim();
+  L.req = $('#lbt_req').value.trim();
+  var qs = L.sel.map(lbtQ).filter(Boolean);
+  if (!qs.length) { toast('왼쪽에서 질문을 하나 이상 골라 주세요.'); return; }
+  if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
+  if (L.opts && L.opts.length && !await uiConfirm('선택지 3세트를 새로 만들까요? 지금 선택지는 사라집니다.', { okText: '새로 구상' })) return;
+  toast('Opus가 질문에 답하는 설교 개요 3세트를 구상합니다 — 1~2분');
+  var out = await callClaude(P_LBT, JSON.stringify({
+    '설교일': L.date, '예배구분': L.service || '대학부',
+    '질문': qs.map(function(x){ return { '분류': x.g + '. ' + x.t, '질문': x.q }; }),
+    '요청사항': L.req
+  }), 32000, aiTick('리더의 뒷담화 설교 개요'));
+  var arr = aiJson(out);
+  if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+  L.opts = arr.slice(0, 3).map(function(x){
+    var e = optEdit(x);
+    e['질문응답'] = (Array.isArray(x['질문응답']) ? x['질문응답'] : []).map(function(a){
+      return { '질문': String((a && a['질문']) || '').trim(), '답': String((a && a['답']) || '').trim() };
+    }).filter(function(a){ return a['답']; });
+    e['나눔'] = (Array.isArray(x['나눔']) ? x['나눔'] : String(x['나눔'] || '').split('\n'))
+      .map(function(t){ return String(t || '').replace(/^\s*(?:\d+[.)]|[-•])\s*/, '').trim(); }).filter(Boolean).join('\n');
+    return e;
+  });
+  L.qs = L.sel.slice();   /* 이 선택지가 어떤 질문으로 만들어졌는지 — 생성 뒤 왼쪽 선택을 바꿔도 넘길 때 어긋나지 않게 */
+  L.at = nowLocalStr_();
+  lbtSaveNow(); renderLbtPane(); renderSyncState();
+  toast('개요 3세트 도착 — 다듬은 뒤 하나를 골라 [이 개요로 설교 작성]을 누르세요.');
+}
+
+function renderLbtPane(){
+  var box = $('#lbtPane'); if (!box) return;
+  var L = state.lbt, opts = L.opts || [];
+  if (!opts.length) { box.innerHTML = '<div class="empty">왼쪽에서 질문을 고르고 [✍ 설교 개요 구상]을 눌러 주세요.</div>'; return; }
+  var qs = (L.qs || []).map(lbtQ).filter(Boolean);
+  var h = '<div class="card"><b>설교 개요 선택지 ' + opts.length + '세트</b><div class="cnt" style="margin-top:4px">' +
+    (L.at ? '생성 ' + esc(L.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [✏ 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div>' +
+    (qs.length ? '<ol style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.6">' + qs.map(function(x){ return '<li><span style="color:var(--dim)">' + x.id + '</span> ' + esc(x.q) + '</li>'; }).join('') + '</ol>' : '') + '</div>';
+  h += opts.map(function(o, i){
+    return '<div class="edPoint zvOpt" id="lbtOpt' + i + '">' +
+      '<div id="lbtVis' + i + '">' + lbtVisHtml(o, i) + '</div>' +
+      '<details class="zvEdit"><summary>✏ 개요 다듬기</summary>' +
+      '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="lbtO" data-i="' + i + '" data-f="제목" value="' + esc(o['제목'] || '') + '"></div>' +
+      '<div><label>본문</label><input type="text" class="lbtO" data-i="' + i + '" data-f="본문" value="' + esc(o['본문'] || '') + '"></div></div>' +
+      '<label>핵심메시지 (주제)</label><input type="text" class="lbtO" data-i="' + i + '" data-f="핵심메시지" value="' + esc(o['핵심메시지'] || '') + '">' +
+      '<label>주제 근거</label><textarea class="lbtO edTa" rows="3" data-i="' + i + '" data-f="주제근거">' + esc(o['주제근거'] || '') + '</textarea>' +
+      '<label>대지 3개 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="lbtO edTa" rows="10" data-i="' + i + '" data-f="대지">' + esc(o['대지'] || '') + '</textarea>' +
+      '<label>소그룹 나눔 질문 — 한 줄에 하나</label><textarea class="lbtO edTa" rows="3" data-i="' + i + '" data-f="나눔">' + esc(o['나눔'] || '') + '</textarea>' +
+      '</details></div>';
+  }).join('');
+  h += '<div class="toolrow"><button class="btn sub" id="lbtRegen" type="button">개요 재구상 — 선택지가 모두 마음에 안 들 때</button></div>';
+  box.innerHTML = h;
+}
+
+/* 선택지 한 장 — 구역권찰 카드(zv*)와 같은 모양 + 「질문에 답하기」·「소그룹 나눔」 */
+function lbtVisHtml(o, i){
+  var dj = djParse(o['대지']), bad = [];
+  try { bad = refAudit(String(o['대지'] || '') + '\n' + String(o['주제근거'] || '')); } catch (e) {}
+  var cards = dj.map(function(d, k){
+    return '<div class="zvPt"><div class="zvPtHd"><span class="zvNo">' + (k + 1) + '</span></div>' +
+      '<div class="zvProp">' + esc(d['문'] || '') + '</div>' +
+      (d['근거'] ? '<div class="zvRow"><span class="zvLbl">근거</span><span>' + esc(d['근거']) + '</span></div>' : '') +
+      (d['적용'] ? '<div class="zvRow zvAp"><span class="zvLbl">적용</span><span>' + esc(d['적용']) + '</span></div>' : '') + '</div>';
+  }).join('');
+  var qa = o['질문응답'] || [], nn = String(o['나눔'] || '').split('\n').map(function(t){ return t.trim(); }).filter(Boolean);
+  return '<div class="zvHd"><span class="zvChip">선택지 ' + (i + 1) + '</span>' +
+      '<div class="zvTitle">' + esc(o['제목'] || '(제목 없음)') + '</div>' +
+      (o['본문'] ? '<span class="zvRef">' + esc(o['본문']) + '</span>' : '') +
+      '<button class="btn lbtPickBtn" type="button" data-i="' + i + '">이 개요로 설교 작성</button></div>' +
+    (o['핵심메시지'] ? '<div class="zvMsg">' + esc(o['핵심메시지']) + '</div>' : '') +
+    (qa.length ? '<div class="zvQs"><span class="zvLbl">질문에 답하기</span><ul>' + qa.map(function(a){
+      return '<li>' + (a['질문'] ? '<b>' + esc(a['질문']) + '</b><br>' : '') + esc(a['답']) + '</li>'; }).join('') + '</ul></div>' : '') +
+    (bad.length ? '<div style="margin-top:8px">' + refAuditHtml(bad, '선택지 ' + (i + 1)) + '</div>' : '') +
+    '<div class="zvPts">' + cards + '</div>' +
+    (o['주제근거'] ? '<div class="zvWhy"><span class="zvLbl">주제 근거</span>' + esc(o['주제근거']) + '</div>' : '') +
+    (nn.length ? '<div class="zvQs"><span class="zvLbl">소그룹 나눔</span><ul>' + nn.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '');
+}
+
+/* 선택지 → 설교 작성 (zonePick·occPick 과 같은 방식: 주제근거 → 서론 바탕, 대지 → 구조 창) */
+window.lbtPick = function(i){
+  var L = state.lbt, o = (L.opts || [])[i];
+  if (!o) return;
+  if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 개요로 시작할까요?')) return;
+  var ids = (L.qs && L.qs.length ? L.qs : L.sel).filter(lbtQ);
+  clearCompose();
+  $('#c_date').value = L.date || todayLocal_();
+  $('#c_service').value = L.service || '대학부';
+  $('#c_series').value = '리더의 뒷담화';
+  $('#c_title').value = o['제목'] || '';
+  $('#c_ref').value = o['본문'] || '';
+  $('#c_msg').value = o['핵심메시지'] || '';
+  var nn = String(o['나눔'] || '').split('\n').map(function(t){ return t.trim(); }).filter(Boolean);
+  /* 표지(뒷담화:)는 맨 앞, 주제 근거는 맨 뒤 — 파일 머리 주석 참조 */
+  $('#c_note').value = [
+    ids.length ? '뒷담화: ' + ids.join(', ') : '',
+    ids.length ? '질문: ' + ids.map(function(id){ return lbtQ(id).q; }).join(' · ') : '',
+    nn.length ? '나눔: ' + nn.map(function(t, k){ return (k + 1) + ') ' + t; }).join(' ') : '',
+    o['주제근거'] ? '주제 근거: ' + o['주제근거'] : ''
+  ].filter(Boolean).join(' / ').replace(/\s+/g, ' ');
+  if (o['주제근거']) state.compose.intro = o['주제근거'];
+  var dj = djParse(o['대지']);
+  if (dj.length) state.compose.points = dj.map(function(d){
+    return normPoint({ text: d['문'] || '', body: d['근거'] || '', apply: d['적용'] || '' });
+  });
+  renderPoints(); renderEditor();
+  updateComposeBadge(); refreshReqBtns();
+  showPage('compose');
+  toast('개요를 설교 작성으로 옮겼습니다 — 저장하면 뒷담화 질문 목록에 ✓ 표시가 붙습니다.');
+};
+
+$('#lbt_gen').addEventListener('click', withBusy($('#lbt_gen'), '구상 중…', function(){
+  return aiLbtGen().catch(function(e){ renderSyncState(); toast('개요 구상 실패: ' + e.message); });
+}));
+$('#lbt_new').addEventListener('click', async function(){
+  var L = state.lbt;
+  if ((L.sel.length || (L.opts && L.opts.length) || L.req) && !await uiConfirm('선택한 질문·요청사항·개요 선택지를 모두 비울까요?\n(설교일·예배구분은 그대로 둡니다)', { okText: '비우기', danger: true })) return;
+  var keep = { date: L.date, service: L.service };
+  state.lbt = Object.assign(lbtBlank(), keep);
+  $('#lbt_req').value = ''; $('#lbt_filter').value = '';
+  lbtSaveNow(); renderLbtQs(); renderLbtPane();
+});
+$('#lbtQList').addEventListener('change', function(e){
+  var t = e.target; if (!t.classList.contains('lbtChk')) return;
+  var L = state.lbt, id = t.dataset.id, at = L.sel.indexOf(id);
+  if (t.checked && at < 0) {
+    if (L.sel.length >= LBT_MAX) { t.checked = false; toast('한 설교에는 질문을 ' + LBT_MAX + '개까지 묶을 수 있습니다 — 너무 많으면 메시지가 흩어집니다.'); return; }
+    L.sel.push(id);
+  } else if (!t.checked && at >= 0) L.sel.splice(at, 1);
+  var row = t.closest('.lbtQ'); if (row) row.classList.toggle('on', t.checked);
+  var grp = t.closest('.lbtGrp');
+  if (grp) {
+    var n = grp.querySelectorAll('.lbtChk:checked').length, c = grp.querySelector('.lbtGCnt');
+    if (c) { c.classList.toggle('on', !!n); c.textContent = n ? n + '개 선택' : ''; }
+  }
+  lbtSaveSoon(); renderLbtSel();
+});
+$('#lbtSel').addEventListener('click', function(e){
+  if (!e.target.closest('#lbtSelClear')) return;
+  state.lbt.sel = []; lbtSaveSoon(); renderLbtQs();
+});
+$('#lbt_filter').addEventListener('input', debounce(renderLbtQs, 150));
+$('#lbtPane').addEventListener('click', function(e){
+  var pk = e.target.closest('.lbtPickBtn');
+  if (pk) { window.lbtPick(+pk.dataset.i); return; }
+  var rg = e.target.closest('#lbtRegen');
+  if (rg) withBusy(rg, '구상 중…', function(){ return aiLbtGen().catch(function(er){ renderSyncState(); toast('개요 구상 실패: ' + er.message); }); })();
+});
+$('#lbtPane').addEventListener('input', function(e){
+  var t = e.target; if (!t.classList.contains('lbtO')) return;
+  var o = (state.lbt.opts || [])[+t.dataset.i];
+  if (o) { o[t.dataset.f] = t.value; lbtSaveSoon(); var v = $('#lbtVis' + t.dataset.i); if (v) v.innerHTML = lbtVisHtml(o, +t.dataset.i); }
+});
+$('#lbt_date').addEventListener('change', function(){ state.lbt.date = this.value; lbtSaveSoon(); });
+$('#lbt_service').addEventListener('input', function(){ state.lbt.service = this.value.trim(); lbtSaveSoon(); });
+$('#lbt_req').addEventListener('input', function(){ state.lbt.req = this.value; lbtSaveSoon(); });
+
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 / 리더스앱 업로드', '원고작성': '스킬사용 원고요청' };
@@ -25869,7 +26222,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v589';
+var APP_VER = 'v590';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -25940,6 +26293,14 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     if (o.srcInput) $('#zone_src').value = o.srcInput;
     if (o.srcRef) $('#zone_ref').value = o.srcRef;
     renderZonePane();
+  }).catch(function(){});
+  $('#lbt_date').value = todayLocal_();
+  idbGet('lbtDraft').then(function(o){   /* v590 리더의 뒷담화 — 고른 질문·선택지 복원 */
+    if (o) state.lbt = Object.assign(lbtBlank(), o);
+    if (state.lbt.date) $('#lbt_date').value = state.lbt.date; else state.lbt.date = $('#lbt_date').value;
+    $('#lbt_service').value = state.lbt.service || '';
+    $('#lbt_req').value = state.lbt.req || '';
+    renderLbtQs(); renderLbtPane();
   }).catch(function(){});
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
