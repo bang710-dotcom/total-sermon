@@ -2002,7 +2002,7 @@ body.uiDlgOpen{overflow:hidden}
           <summary>AI 생성 <span class="sgSub">요약·원고·묵상</span><span class="setBadge" data-badge="ai"></span></summary>
         <label>Claude API 키 (선택 — AI 직결 생성)</label>
         <input type="password" autocomplete="off" id="setClaude" placeholder="sk-ant-api03-...">
-        <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 5, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
+        <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 5.5, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
         <label style="margin-top:14px">브라우저 에이전트 모드 (선택 — 클로드 구독으로 생성)</label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <input type="checkbox" id="setBridge" style="width:auto;margin:0">
@@ -14409,10 +14409,10 @@ $('#devoNext').addEventListener('click', function(){ if (!confirmLeaveDevo()) re
 $('#devoToday').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; devoState.date = todayLocal_(); renderDevo(); });
 $('#devoDate').addEventListener('change', function(){ if (!this.value) return; if (!confirmLeaveDevo()) { this.value = devoState.date; return; } devoState.date = this.value; renderDevo(); });
 
-/* ===================== Claude API 직결 (Opus 5) =====================
+/* ===================== Claude API 직결 (Opus 5.5 · effort high) =====================
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
    키가 없으면 기존 요청함 흐름으로 자동 폴백. */
-var AI_MODEL = 'claude-opus-5';
+var AI_MODEL = 'claude-opus-5-5';   /* v591: Opus 5 → Opus 5.5(effort high 는 modelExtra 가 붙인다) */
 /* 모델별 추가 요청 파라미터 (v586).
    Claude Opus 5.5 는 기본 effort 가 medium 으로, Opus 5(=high)보다 한 단계 낮다 → 설교용 글은 high 로 못 박는다.
    effort 는 Haiku 4.5 등 옛 모델에서 400 을 내므로 그 모델에는 붙이지 않는다. */
@@ -26222,7 +26222,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v590';
+var APP_VER = 'v591';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면

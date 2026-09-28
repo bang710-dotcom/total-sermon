@@ -230,7 +230,7 @@ LTC 시간에 리더들과 매주 2개쯤 뽑아 나누는 청년 신앙 질문 
 - **목록 자동 갱신** — 대화 패널 초기화 때 `aiModelsSync()` 가 **Models API(`GET /v1/models?limit=100`)** 로 계정이 실제로 쓸 수 있는 모델을 받아, 박힌 목록에 없는 것을 「… · 새 모델」로 덧붙인다. 하루 한 번만 조회(`localStorage['tsa.modelsCache']`), 실제 키가 없거나(브라우저 에이전트 모드) 실패하면 **조용히** 박힌 목록만 쓴다. 날짜 스냅샷 ID(`…-20251001`)와 옛 세대(`claude-3…`)는 감춘다. → 다음 모델이 나오면 앱 수정 없이 목록에 뜬다.
 - **박힌 목록(정본·순서 유지)**: Opus 5(기본) · **Opus 5.5** · Sonnet 5 · Haiku 4.5. Haiku 는 날짜 없는 정식 ID `claude-haiku-4-5` 로 바꿨고(예화 인식 호출도 함께), 저장된 옛 ID 는 `AI_MODEL_MIGRATE` 가 승격한다.
 - **`modelExtra(model)`** — 모델별 추가 파라미터. **Opus 5.5 는 기본 effort 가 `medium`**(Opus 5 는 `high`)이라 `output_config:{effort:'high'}` 를 붙인다. effort 를 모르는 옛 모델(Haiku 4.5 등)에는 붙이지 않는다(400). `callClaude`·`callChat` 이 공용.
-- 생성 기능(요약·원고·카드 등)의 기본 모델은 여전히 `AI_MODEL = 'claude-opus-5'` 고정이다 — 대화 선택은 대화에만 적용된다.
+- 생성 기능(요약·원고·카드 등)의 기본 모델은 `AI_MODEL` 고정이다 — 대화 선택은 대화에만 적용된다. **v591 부터 `claude-opus-5-5`**(effort `high` 는 `modelExtra` 가 붙인다). Sonnet 5·Haiku 4.5 로 따로 지정한 호출(전환표시본·묵상 배분·원고 이미지 읽기·예화 인식)은 그대로다. 대화창은 저장된 선택이 없을 때만 `AI_MODEL` 을 기본값으로 따른다.
 - ⚠ 모델 관련 사실(ID·가격·기본 effort·제약)은 기억하지 말고 **`claude-api` 스킬**에서 확인할 것. Opus 5.5 는 thinking 끄기 불가·강제 tool_choice 400·prefill 400 인데, 앱은 셋 다 쓰지 않아 호출 형태는 그대로 호환된다.
 
 ## 기기 간 이어쓰기 — 대기열 덮어쓰기·기준 시점 오인 (v585)
