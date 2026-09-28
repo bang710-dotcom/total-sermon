@@ -19306,7 +19306,7 @@ function renderLbtYearMeta(){
   if (sm) sm.innerHTML = '설교하는 달 <b>' + act.length + '개월</b> · 설교 주일 <b>' + nW + '회</b>' +
     (act.length > 10 ? '<br>대주제는 10개 — 남는 달은 한 분류를 한 번 더(다른 질문으로) 쓰거나 한 해를 정리하는 달로 씁니다.' :
      act.length && act.length < 10 ? '<br>대주제 10개 중 ' + act.length + '개만 다룹니다 — 청년에게 더 시급한 분류를 고릅니다.' : '') +
-    (Y.plan ? '<br><span style="color:var(--accent2)">월·주일을 바꾸면 지금 계획의 날짜가 바로 다시 배치됩니다(넘치는 주는 빨간색, 빈 주일은 주제 생성).</span>' : '');
+    (Y.plan ? '<br><span style="color:var(--accent2)">월·주일을 끄면 그 자리의 주제만 넘침(빨간색)이 되고, 다시 켜면 제자리로 돌아옵니다. 새로 켠 주일은 빈 주일(주제 생성)이 됩니다.</span>' : '');
 }
 
 var P_LBT_YEAR = [
