@@ -18749,8 +18749,11 @@ function lbtBlank(){ return { mode: 'year', date: '', service: '대학부', sel:
 function lbtYearBlank(){ return { yr: new Date().getFullYear() + 1, service: '대학부', offM: [], offD: [], req: '', plan: null, confirmed: false, at: '' }; }
 var LBT_SERIES = 'Why에서 Way로';
 state.lbt = lbtBlank();
-var lbtSaveSoon = debounce(function(){ idbSet('lbtDraft', state.lbt).catch(function(){}); }, 600);
-function lbtSaveNow(){ try { idbSet('lbtDraft', state.lbt).catch(function(){}); } catch(e){} }
+/* ★ 복원(_lbtRestored) 전에는 저장하지 않는다 — 부팅 직후 화면 전환·visibilitychange 가 빈 상태로 저장본을 덮어쓰지 않게(v598).
+   저장할 때마다 연간 계획의 바뀐 부분에 시각을 찍고(lbtYearStamp) 시트로 올린다(lbtYearPushSoon). */
+function _lbtPersist(){ if (!window._lbtRestored) return; try { lbtYearStamp(); } catch (e) {} idbSet('lbtDraft', state.lbt).catch(function(){}); try { lbtYearPushSoon(); } catch (e) {} }
+var lbtSaveSoon = debounce(_lbtPersist, 600);
+function lbtSaveNow(){ try { _lbtPersist(); } catch(e){} }
 document.addEventListener('visibilitychange', function(){ if (document.hidden) lbtSaveNow(); });
 window.addEventListener('pagehide', lbtSaveNow);
 
@@ -19272,7 +19275,7 @@ function lbtYearNormalize(j, act){
     });
     return { m: A.m, g: g, theme: String(src['월주제'] || '').trim(), flow: String(src['흐름'] || '').trim(), weeks: weeks };
   });
-  return { months: months, note: String((j && j['개요']) || '').trim(), fixes: { dup: dup, moved: moved } };
+  return { gen: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), months: months, note: String((j && j['개요']) || '').trim(), fixes: { dup: dup, moved: moved } };
 }
 async function aiLbtYearPlan(){
   var L = state.lbt, Y = L.year;
@@ -19395,6 +19398,170 @@ async function aiLbtYearWeeks(ds){
   renderSyncState();
   toast(fail.length ? '끝났습니다 — 실패 ' + fail.length + '주(' + fail.join(' / ') + ')' : '개요 초안 ' + ds.length + '주 완료 — 주마다 선택지를 펼쳐 보세요.');
 }
+
+/* ══ 연간 계획 기기 간 동기화 (v598) ══════════════════════════════════════
+   작성초안·시리즈 초안과 같은 '시리즈초안'(seriesdraft) 시트의 예약행을 쓴다. 셀 하나에 5만 자까지라 계획 전체(주마다 선택지 3세트)를
+   한 칸에 못 넣으므로 둘로 나눈다:
+     · 계획 행  '__WhyWay__'            — 연도·빠지는 월/주일·요청사항·확정 여부·월/주 뼈대(선택지 제외). 약 10KB.
+     · 주 행    '__WhyWay:<주일 날짜>'  — 그 주의 개요 선택지(+insta 카드 글). 선택지를 만든 주만. 약 10KB.
+   규칙: 행마다 '마지막으로 고친 기기가 이긴다'. 고친 시각 u(기기 시계 ms)를 JSON 안에 싣고, 받을 때 u 가 더 크면 적용한다.
+     - 로컬 변경 감지 = 동기화 대상만 뽑은 JSON 서명(_lsig) 비교 → 바뀌면 u=지금. 올린 서명은 _psig. _lsig≠_psig 이면 올릴 것이 있다.
+     - 처음 보는 상태(_lsig 없음)는 u=0(빈 계획) 또는 1(계획 있음)로 둔다 — 새 기기의 빈 상태나 v597 에서 넘어온 계획이
+       '방금 고친 것'으로 오인돼 다른 기기의 최신 계획을 덮어쓰지 않게.
+     - 주 행은 계획 세대(plan.gen)가 같을 때만 받는다 — 계획을 다시 구상하면 옛 주 행은 저절로 무시된다.
+   동기화하지 않는 것: 주 선택(sel)·펼침(open) 같은 화면 상태, insta 배경 그림(bgs, 장당 수십~수백 KB — 기기에만). */
+var LBT_ROW = '__WhyWay__';
+function lbtPlanBlob(Y){
+  var P = Y.plan;
+  return { yr: Y.yr, service: Y.service || '', offM: Y.offM || [], offD: Y.offD || [], req: Y.req || '', confirmed: !!Y.confirmed, at: Y.at || '',
+    plan: P ? { gen: P.gen || '', note: P.note || '', months: P.months.map(function(mo){
+      return { m: mo.m, g: mo.g, theme: mo.theme || '', flow: mo.flow || '', weeks: mo.weeks.map(function(w){ return { d: w.d, ids: w.ids || [], title: w.title || '', dir: w.dir || '' }; }) };
+    }) } : null };
+}
+function lbtWeekBlob(w, gen, lite){
+  return { gen: gen || '', d: w.d, at: w.at || '', opts: (w.opts || []).map(function(o){
+    var c = {}; for (var k in o) if (k !== '_insta') c[k] = o[k];
+    if (o._insta && o._insta.deck && !lite) c._insta = { deck: o._insta.deck, at: o._insta.at || '' };   /* 그림(bgs)은 싣지 않는다 */
+    return c;
+  }) };
+}
+function _lbtSig(o){ try { return JSON.stringify(o); } catch (e) { return ''; } }
+function lbtYearStamp(){
+  var Y = state.lbt && state.lbt.year; if (!Y) return;
+  var ps = _lbtSig(lbtPlanBlob(Y));
+  if (Y._lsig == null) { Y._lsig = ps; Y.u = Y.plan ? 1 : 0; }
+  else if (ps !== Y._lsig) { Y._lsig = ps; Y.u = Date.now(); }
+  if (!Y.plan) return;
+  var gen = Y.plan.gen;
+  Y.plan.months.forEach(function(mo){ mo.weeks.forEach(function(w){
+    var ws = _lbtSig(lbtWeekBlob(w, gen));
+    if (w._lsig == null) { w._lsig = ws; w.u = (w.opts && w.opts.length) ? 1 : 0; }
+    else if (ws !== w._lsig) { w._lsig = ws; w.u = Date.now(); }
+  }); });
+}
+function _lbtRows(name){
+  return (state.data.seriesdraft || []).filter(function(r){ return r && r['시리즈명'] === name; })
+    .sort(function(a, b){ return String(b['수정일'] || b['등록일'] || '').localeCompare(String(a['수정일'] || a['등록일'] || '')); });
+}
+function _lbtBlobOf(r){ try { return r ? JSON.parse(r['메타JSON'] || 'null') : null; } catch (e) { return null; } }
+function _lbtPut(name, obj){
+  var blob = JSON.stringify(obj), row = _lbtRows(name)[0];
+  if (blob.length > 45000) return Promise.reject(new Error('too-big'));   /* 셀 한도(5만 자) 보호 */
+  var data = { '시리즈명': name, '예배구분': 'whyway', '시작일': '', '종료일': '', '메타JSON': blob };
+  if (row && row['ID']) {
+    data.ID = row['ID'];
+    return apiPost({ action: 'update', sheet: 'seriesdraft', data: data }).then(function(){ row['메타JSON'] = blob; row['수정일'] = nowLocalStr_(); });
+  }
+  data['로컬ID'] = stableLid_(['WHYWAY', name]);   /* 고정 멱등키 — 응답을 잃고 다시 보내도 한 행으로 모인다 */
+  return apiPost({ action: 'add', sheet: 'seriesdraft', data: data }).then(function(id){
+    if (!id || typeof id !== 'string') return;
+    state.data.seriesdraft = state.data.seriesdraft || [];
+    state.data.seriesdraft.push({ ID: id, '시리즈명': name, '예배구분': 'whyway', '메타JSON': blob, '수정일': nowLocalStr_() });
+  });
+}
+var _lbtPushing = false;
+async function lbtYearPush(){
+  var st = state.settings || {};
+  if (!st.url || !st.token || !navigator.onLine || !window._lbtRestored || _lbtPushing) return;
+  var Y = state.lbt.year; if (!Y) return;
+  lbtYearStamp();
+  _lbtPushing = true;
+  var did = false;
+  try {
+    /* 올리기 전에 시트의 예약행을 새로 받는다 — 부팅 직후엔 로컬 캐시가 낡아, 옛 계획을 '더 새것'으로 오판해 덮어쓸 수 있다.
+       받은 것 중 더 새 것은 먼저 적용하고(lbtYearPull), 그다음 남은 이 기기 변경만 올린다. 받기에 실패하면 이번엔 올리지 않는다. */
+    var d0 = await api({ action: 'list', sheet: 'seriesdraft' });
+    var fresh = ((d0 && d0.seriesdraft) || []).filter(function(r){ return r && /^__WhyWay/.test(r['시리즈명'] || ''); });
+    state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(r){ return !(r && /^__WhyWay/.test(r['시리즈명'] || '')); }).concat(fresh);
+    lbtYearPull();
+    if (!state.lbt.year) return;
+    Y = state.lbt.year;
+    var rp = _lbtBlobOf(_lbtRows(LBT_ROW)[0]);
+    var planOk = !rp || (+rp.u || 0) <= (Y.u || 0);   /* 시트의 계획이 더 새것이면 올리지 않는다 — 받는 쪽(lbtYearPull)이 처리 */
+    if (planOk && Y.u > 0 && Y._lsig !== Y._psig) {
+      var sig = Y._lsig;
+      try { await _lbtPut(LBT_ROW, Object.assign({ u: Y.u }, lbtPlanBlob(Y))); Y._psig = sig; did = true; } catch (e) {}
+    }
+    if (Y.plan && planOk) {
+      var gen = Y.plan.gen;
+      for (var i = 0; i < Y.plan.months.length; i++) for (var k = 0; k < Y.plan.months[i].weeks.length; k++) {
+        var w = Y.plan.months[i].weeks[k];
+        if (!(w.u > 0) || w._lsig === w._psig) continue;
+        var name = LBT_ROW.replace(/__$/, '') + ':' + w.d;
+        var rw = _lbtBlobOf(_lbtRows(name)[0]);
+        if (rw && rw.gen === gen && (+rw.u || 0) > w.u) continue;
+        var ws = w._lsig, body = Object.assign({ u: w.u }, lbtWeekBlob(w, gen));
+        if (JSON.stringify(body).length > 45000) body = Object.assign({ u: w.u }, lbtWeekBlob(w, gen, true));   /* 너무 크면 insta 카드 글은 빼고 */
+        try { await _lbtPut(name, body); w._psig = ws; did = true; } catch (e) {}
+      }
+    }
+  } finally { _lbtPushing = false; }
+  if (did) idbSet('lbtDraft', state.lbt).catch(function(){});   /* 올린 서명(_psig)만 바뀜 — 스탬프 없이 바로 저장 */
+}
+var lbtYearPushSoon = debounce(function(){ lbtYearPush().catch(function(){}); }, 4000);
+
+/* 시트 → 이 기기. 동기화가 끝날 때마다(restoreSeriesDrafts 끝) 그리고 부팅 복원 직후 호출된다. */
+function lbtYearPull(){
+  if (!window._lbtRestored) return;
+  var Y = state.lbt.year; if (!Y) return;
+  lbtYearStamp();
+  var changed = false;
+  var rp = _lbtBlobOf(_lbtRows(LBT_ROW)[0]);
+  if (rp && (+rp.u || 0) > (Y.u || 0)) {
+    var old = Y.plan, oldGen = old && old.gen;
+    Y.yr = rp.yr || Y.yr; Y.service = rp.service || ''; Y.offM = rp.offM || []; Y.offD = rp.offD || [];
+    Y.req = rp.req || ''; Y.confirmed = !!rp.confirmed; Y.at = rp.at || '';
+    if (!rp.plan) Y.plan = null;
+    else {
+      var sameGen = !!oldGen && oldGen === rp.plan.gen;
+      Y.plan = { gen: rp.plan.gen, note: rp.plan.note || '', fixes: (old && sameGen && old.fixes) || { dup: 0, moved: 0 },
+        months: (rp.plan.months || []).map(function(mo){
+          return { m: mo.m, g: mo.g, theme: mo.theme || '', flow: mo.flow || '', weeks: (mo.weeks || []).map(function(w){
+            var lw = sameGen ? (lbtYWeekIn(old, w.d) || {}) : {};   /* 같은 세대면 이 기기의 선택지·화면 상태는 그대로 둔다 */
+            return { d: w.d, ids: w.ids || [], title: w.title || '', dir: w.dir || '', opts: lw.opts || [], at: lw.at || '', sel: !!lw.sel, open: !!lw.open,
+              u: lw.u || 0, _lsig: lw._lsig, _psig: lw._psig };
+          }) };
+        }) };
+    }
+    Y.u = +rp.u; Y._lsig = Y._psig = _lbtSig(lbtPlanBlob(Y));
+    changed = true;
+  }
+  if (Y.plan) {
+    var gen = Y.plan.gen;
+    Y.plan.months.forEach(function(mo){ mo.weeks.forEach(function(w){
+      var rw = _lbtBlobOf(_lbtRows(LBT_ROW.replace(/__$/, '') + ':' + w.d)[0]);
+      if (!rw || rw.gen !== gen || (+rw.u || 0) <= (w.u || 0)) return;
+      var keep = {};   /* 이 기기에만 있는 insta 배경 그림 — 카드 글이 같으면 살린다 */
+      (w.opts || []).forEach(function(o, i){ if (o && o._insta && o._insta.bgs) keep[i] = o._insta; });
+      w.opts = (rw.opts || []).map(function(o, i){
+        if (o._insta && keep[i] && _lbtSig(keep[i].deck) === _lbtSig(o._insta.deck)) o._insta.bgs = keep[i].bgs;
+        return o;
+      });
+      w.at = rw.at || ''; w.u = +rw.u; w._lsig = w._psig = _lbtSig(lbtWeekBlob(w, gen));
+      changed = true;
+    }); });
+  }
+  if (!changed) return;
+  idbSet('lbtDraft', state.lbt).catch(function(){});
+  lbtRenderSafe();
+}
+function lbtYWeekIn(P, d){
+  if (!P) return null;
+  for (var i = 0; i < P.months.length; i++) for (var k = 0; k < P.months[i].weeks.length; k++) if (P.months[i].weeks[k].d === d) return P.months[i].weeks[k];
+  return null;
+}
+/* 받아 온 계획을 화면에 — 이 탭에서 글을 쓰는 중이면 커서를 빼앗지 않게 칸을 벗어날 때 다시 그린다 */
+var _lbtNeedRender = false;
+function lbtRenderSafe(){
+  var pg = $('#page-lbt'); if (!pg || !pg.classList.contains('on')) return;
+  var a = document.activeElement;
+  if (a && pg.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { _lbtNeedRender = true; return; }
+  renderLbtMode();
+}
+$('#page-lbt').addEventListener('focusout', function(){
+  if (!_lbtNeedRender) return;
+  setTimeout(function(){ var a = document.activeElement, pg = $('#page-lbt'); if (a && pg.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; _lbtNeedRender = false; renderLbtMode(); }, 0);
+});
 
 /* ── 이벤트 ── */
 $('#lbtMeta').addEventListener('click', function(e){
@@ -20625,6 +20792,7 @@ function restoreSeriesDrafts(){
   (state.data.seriesdraft || []).slice().forEach(function(r){
     var name = r && r['시리즈명']; if (!name) return;
     if (name === CDRAFT_NAME) return;                    /* 작성초안 예약행 — 시리즈가 아님 */
+    if (/^__WhyWay/.test(name)) return;                  /* v598 연간 계획 예약행 — 시리즈가 아님 */
     if (seriesHasSheetRecords(name)) { dropSeriesDraft(name); return; }  /* 이미 생성됨 → 초안 제거 */
     var exists = (state.seriesList || []).some(function(S){ return (S.meta || {})['시리즈명'] === name; });
     if (exists) return;                                  /* 이미 로컬에 있음 */
@@ -20634,6 +20802,7 @@ function restoreSeriesDrafts(){
   });
   if (changed) idbSet('seriesList', state.seriesList).catch(function(){});
   maybeOfferRemoteComposeDraft();   /* 원격 작성초안이 더 새로우면 복원 배너 제안 */
+  try { if (typeof lbtYearPull === 'function') lbtYearPull(); } catch (e) {}   /* v598 Why에서 Way로 연간 계획 */
 }
 var WD = ['일', '월', '화', '수', '목', '금', '토'];
 function wdOf(iso){ return WD[new Date(iso + 'T12:00:00').getDay()]; }
@@ -26852,7 +27021,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v597';
+var APP_VER = 'v598';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -26930,12 +27099,15 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       state.lbt = Object.assign(lbtBlank(), o);
       state.lbt.year = Object.assign(lbtYearBlank(), o.year || {});
       if (!o.mode) state.lbt.mode = (o.opts && o.opts.length) ? 'topic' : 'year';   /* v596 이전 데이터: 만들어 둔 선택지가 있으면 주제별로 연다 */
+      var _yp = state.lbt.year.plan; if (_yp && !_yp.gen) _yp.gen = 'g' + String(state.lbt.year.at || 'v597').replace(/\D/g, '');   /* v597 계획엔 세대 ID 가 없다 */
     }
+    window._lbtRestored = true;
     if (state.lbt.date) $('#lbt_date').value = state.lbt.date; else state.lbt.date = $('#lbt_date').value;
     $('#lbt_service').value = state.lbt.service || '';
     $('#lbt_req').value = state.lbt.req || '';
     renderLbtQs(); renderLbtMode();
-  }).catch(function(){});
+    lbtYearPull(); lbtYearPushSoon();   /* v598 — 시트의 더 새 계획을 받고, 이 기기에만 있던 변경은 올린다 */
+  }).catch(function(){ window._lbtRestored = true; });
   renderSyncState(); renderInbox(); renderStats(); renderDirState(); updateComposeBadge();
   setStyleChips(); renderPoints(); renderEditor();
   /* iOS/사파리 '미사용 저장소 자동 삭제'에서 로컬 데이터(작성 초안 등)를 보호 — 영구 저장 요청(거부돼도 무해) */
