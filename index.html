@@ -2835,6 +2835,7 @@ function _pullData(opts){
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
     if ($('#page-library') && $('#page-library').classList.contains('on')) renderLibrary();
     try { reconcileCleanDraftWithSheet(); } catch (e) {}   /* 동기화로 더 최신 저장본이 들어왔으면 깨끗한 초안을 자동 교체 */
+    try { if (typeof lbtYearPull === 'function') lbtYearPull(); } catch (e) {}   /* v598 Why에서 Way로 연간 계획 — 모든 동기화(포커스·수동·부팅) 뒤 */
     return state.data;
   });
 }
@@ -20802,7 +20803,6 @@ function restoreSeriesDrafts(){
   });
   if (changed) idbSet('seriesList', state.seriesList).catch(function(){});
   maybeOfferRemoteComposeDraft();   /* 원격 작성초안이 더 새로우면 복원 배너 제안 */
-  try { if (typeof lbtYearPull === 'function') lbtYearPull(); } catch (e) {}   /* v598 Why에서 Way로 연간 계획 */
 }
 var WD = ['일', '월', '화', '수', '목', '금', '토'];
 function wdOf(iso){ return WD[new Date(iso + 'T12:00:00').getDay()]; }
