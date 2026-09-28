@@ -18968,8 +18968,8 @@ async function lbtInstaBgs(deck){
   setGenStage('인스타 카드 — 배경 그림 만드는 중 (0/' + n + ')');
   var out = await Promise.all(cs.map(async function(c, k){
     var prompt = [
-      String(c.bg || '').trim() || 'A quiet dark atmospheric scene with a single soft beam of light.',
-      style + '.',
+      (String(c.bg || '').trim() || 'A quiet dark atmospheric scene with a single soft beam of light').replace(/[.\s]*$/, '.'),
+      style.replace(/[.\s]*$/, '.'),
       'Vertical portrait composition that fills the whole frame, calm and uncluttered with generous dark negative space so large white text can be laid over it.',
       k === 0 ? 'Keep the upper and central area especially calm for a big title.' : '',
       'No lettering, no text, no logos, no watermarks, no faces.',
