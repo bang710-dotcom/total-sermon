@@ -15620,7 +15620,15 @@ var CARDNEWS_CSS = ".cn-card{width:1080px;height:1350px;position:relative;overfl
  + ".cn-card.cover .swipe{color:#4ED4B0;font-size:30px;font-weight:700;margin-top:20px}"
  + ".cn-card.closing .cta{margin-top:48px;background:#13251F;border:2px solid #2AA78E;border-radius:28px;padding:46px 50px}"
  + ".cn-card.closing .cta .ctt{color:#4ED4B0;font-weight:800;font-size:30px;letter-spacing:.18em}"
- + ".cn-card.closing .cta .ctx{font-family:'Jua';color:#fff;font-size:62px;line-height:1.32;margin-top:18px}";
+ + ".cn-card.closing .cta .ctx{font-family:'Jua';color:#fff;font-size:62px;line-height:1.32;margin-top:18px}"
+ /* 배경 그림(v596) — 그림은 이미 어둡게 입혀서 오므로 여기선 글자 그림자·보조 색만 */
+ + ".cn-card .cn-bg{position:absolute;left:0;top:0;width:1080px;height:1350px;display:block}"
+ + ".cn-card.hasBg .ln,.cn-card.hasBg .title{text-shadow:0 2px 16px rgba(0,0,0,.6)}"
+ + ".cn-card.hasBg .pageno,.cn-card.hasBg .brand{color:#C4C4CE}.cn-card.hasBg .cover .ref,.cn-card.hasBg.cover .ref{color:#D6D6E6}"
+ + ".cn-card.hasBg .bar{background:rgba(255,255,255,.25)}.cn-card.hasBg .bar.on{background:#4ED4B0}"
+ + ".cn-card.hasBg.closing .cta{background:rgba(12,30,25,.84)}";
+function cnBgCls(c){ return (c && c.bg) ? ' hasBg' : ''; }
+function cnBg(c){ return (c && c.bg) ? '<img class="cn-bg" alt="" src="' + c.bg + '">' : ''; }
 function cnInline(t){
   return esc(String(t || '')).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 }
@@ -15637,7 +15645,7 @@ function renderCardNewsHtml(deck){
   cards.forEach(function(c, i){
     var page = '<div class="pageno">' + (i + 1) + ' / ' + total + '</div>' + cnBars(i, total);
     if (c.type === 'cover'){
-      html += '<div class="cn-card cover"><div class="pad">'
+      html += '<div class="cn-card cover' + cnBgCls(c) + '">' + cnBg(c) + '<div class="pad">'
         + '<div class="label">' + esc(c.label || '설교') + '</div>'
         + '<div class="title">' + cnInline(c.title || '') + '</div>'
         + (c.ref ? '<div class="ref">' + esc(c.ref) + '</div>' : '')
@@ -15645,14 +15653,14 @@ function renderCardNewsHtml(deck){
         + '<div class="swipe">밀어서 보기 →</div></div></div>';
     } else if (c.type === 'closing'){
       var nL = (c.lines || []).length;
-      html += '<div class="cn-card closing' + (nL >= 4 ? ' dense' : '') + '"><div class="pad">'
+      html += '<div class="cn-card closing' + (nL >= 4 ? ' dense' : '') + cnBgCls(c) + '">' + cnBg(c) + '<div class="pad">'
         + '<div class="kick">' + esc(c.kicker || '오늘, 우리에게') + '</div>'
         + '<div class="body-lines">' + cnLines(c.lines) + '</div>'
         + (c.cta ? '<div class="cta"><div class="ctt">' + esc(c.ctaLabel || '한 걸음') + '</div><div class="ctx">' + cnInline(c.cta) + '</div></div>' : '')
         + page + '</div></div>';
     } else {
       var n = (c.lines || []).length;
-      html += '<div class="cn-card body' + (n >= 4 ? ' dense' : '') + '"><div class="pad">'
+      html += '<div class="cn-card body' + (n >= 4 ? ' dense' : '') + cnBgCls(c) + '">' + cnBg(c) + '<div class="pad">'
         + '<div class="kick">' + esc(c.kicker || '') + '</div>'
         + '<div class="body-lines">' + cnLines(c.lines) + '</div>'
         + page + '</div></div>';
@@ -18910,11 +18918,12 @@ var P_LBT_INSTA = [
 '당신은 영락교회 대학부의 인스타그램 카드뉴스 편집자다. 「리더의 뒷담화」 설교 개요 하나(청년들이 실제로 묻는 신앙 질문과 그 답)를 인스타그램 캐러셀 카드 4~5장과 게시 캡션으로 만든다.',
 '독자: 인스타그램을 넘기다 멈춘 20대 — 교회에 다니는 청년과 믿지 않는 친구 모두. 교회 안에서만 통하는 말은 풀어 쓰고, 설교투·훈계조를 피한다. 존댓말 입말("~잖아요", "~거든요", "~일까요?").',
 '출력은 JSON 하나만(설명·코드펜스 금지):',
-'{"cards":[{"type":"cover","title":"<입력 제목(질문) 그대로 — 핵심어 하나만 **강조**>","ref":"<입력 본문>"},{"type":"body","kicker":"<6자 이내 머리말>","lines":["..."]},{"type":"body","kicker":"...","lines":["..."]},{"type":"closing","kicker":"...","lines":["..."],"cta":"<댓글로 답하고 싶어지는 질문 하나>"}],"caption":"<게시글 본문>","hashtags":["단어","..."]}',
+'{"style":"<English: one shared visual style and colour palette>","cards":[{"type":"cover","title":"<입력 제목(질문) 그대로 — 핵심어 하나만 **강조**>","ref":"<입력 본문>","bg":"<English: background scene>"},{"type":"body","kicker":"<6자 이내 머리말>","lines":["..."],"bg":"..."},{"type":"body","kicker":"...","lines":["..."],"bg":"..."},{"type":"closing","kicker":"...","lines":["..."],"cta":"<댓글로 답하고 싶어지는 질문 하나>","bg":"..."}],"caption":"<게시글 본문>","hashtags":["단어","..."]}',
 '■ 카드: 정확히 4장 또는 5장 — 1장=cover, 마지막=closing, 가운데 body 2~3장. 흐름: ②공감·반론 — 이 질문을 품게 되는 솔직한 마음과 가장 흔한 반론("솔직히 이런 생각 들죠") ③성경의 답 — 본문 한 구절과 핵심메시지 ④(5장일 때) 생각해 보면 — 입력의 논증·예시 중 가장 설득력 있는 하나를 짧게 ⑤closing — 핵심 한 줄 + cta.',
 '■ 글자 수(넘치면 카드 밖으로 잘린다): body·closing 의 lines 는 카드당 2~4줄, 한 줄은 한 호흡으로 22자 안팎, 최대 28자. 길면 줄을 나눈다. 각 카드에서 가장 중요한 한 구절만 **강조**(카드당 1개). closing 의 cta 는 40자 이내 — 입력 나눔 질문을 SNS 댓글용으로 짧게 다듬는다.',
 '■ 성경 인용: 입력 "본문말씀"에 있는 문장만 글자 그대로 쓴다(한 절의 일부만 떼어 쓰는 것은 되지만 말을 바꾸지 않는다). 인용 줄 끝이나 다음 줄에 (책 장:절)을 붙인다. 본문말씀이 비어 있으면 성경 문장을 인용하지 말고 요지만 쓴다.',
 '■ 정직: 입력에 없는 새 주장·사실·통계·인용·인물 이야기를 지어내지 않는다. 입력의 내용을 짧고 선명하게 압축만 한다.',
+'■ 배경 그림: 카드마다 "bg"에 그 카드 내용에 어울리는 배경 장면을 영어 한 문장으로 쓴다 — 카드 문장을 글자 그대로 그리는 게 아니라 분위기와 상징을 구체적 장면으로(예: 새벽빛이 스미는 빈 강의실, 비 온 뒤 갈림길, 서로 맞잡은 두 손, 어두운 방에 열린 창). 사람은 뒷모습·실루엣·손 정도만(얼굴 금지). 예수님·하나님을 사람 모습으로 그리지 않는다. 글자·로고·간판·숫자 금지. 흰 글씨가 위에 올라가므로 복잡하지 않고 어두운 편인 장면. "style"에는 모든 카드에 공통으로 쓸 화풍과 색감을 영어 한 구절로 쓴다 — 캐러셀이 한 세트로 보이게(예: "cinematic film photograph, muted teal and amber palette, soft grain").',
 '■ caption: 4~6줄 — 첫 줄은 질문으로 시작하는 후크, 가운데 2~3줄은 카드 내용을 한 번 더 요약, 마지막 줄은 댓글 유도. 이모지는 1~3개. hashtags 는 5~8개, # 없이 단어만, 한국어 위주(공백 없이).'
 ].join('\n');
 
@@ -18938,6 +18947,43 @@ async function aiLbtInsta(o, L){
   deck.hashtags = (Array.isArray(deck.hashtags) ? deck.hashtags : []).map(function(h){ return String(h || '').replace(/^#+/, '').replace(/\s+/g, ''); }).filter(Boolean).slice(0, 10);
   return deck;
 }
+/* 카드 배경 그림 (v596) — 기존 이미지 프록시(genSermonImage)·설정의 이미지 엔진(engineRoute)을 그대로 쓴다.
+   ★ 비율은 '3:4' 로 요청한다: 워커의 고정 표에 있는 비율이라 워커를 다시 배포하지 않아도 세로로 나온다.
+     받은 그림은 fitCanvasCover 로 1080×1350(4:5)에 맞춰 위아래만 조금 잘린다.
+   ★ 흰 글씨가 읽히도록 그림을 미리 어둡게 입혀(전체 막 + 위·아래 그라데이션) JPEG 로 굳힌다.
+   한 장이 실패해도 그 카드만 검은 배경으로 두고 나머지는 계속한다. */
+function lbtInstaBgCompose(im){
+  var cv = fitCanvasCover(im, 1080, 1350), x = cv.getContext('2d');
+  x.fillStyle = 'rgba(8,8,11,.52)'; x.fillRect(0, 0, 1080, 1350);
+  var g = x.createLinearGradient(0, 0, 0, 1350);
+  g.addColorStop(0, 'rgba(8,8,11,.38)'); g.addColorStop(.45, 'rgba(8,8,11,.12)');
+  g.addColorStop(.75, 'rgba(8,8,11,.12)'); g.addColorStop(1, 'rgba(8,8,11,.5)');
+  x.fillStyle = g; x.fillRect(0, 0, 1080, 1350);
+  return cv.toDataURL('image/jpeg', 0.86);
+}
+async function lbtInstaBgs(deck){
+  var cs = deck.cards || [], n = cs.length, done = 0, fail = 0;
+  var rt = engineRoute('background');
+  var style = String(deck.style || '').trim() || 'cinematic film photograph, muted deep palette, soft grain';
+  setGenStage('인스타 카드 — 배경 그림 만드는 중 (0/' + n + ')');
+  var out = await Promise.all(cs.map(async function(c, k){
+    var prompt = [
+      String(c.bg || '').trim() || 'A quiet dark atmospheric scene with a single soft beam of light.',
+      style + '.',
+      'Vertical portrait composition that fills the whole frame, calm and uncluttered with generous dark negative space so large white text can be laid over it.',
+      k === 0 ? 'Keep the upper and central area especially calm for a big title.' : '',
+      'No lettering, no text, no logos, no watermarks, no faces.',
+      IMG_SAFETY
+    ].filter(Boolean).join(' ');
+    try {
+      var r = await genSermonImage({ jobType: 'background', prompt: prompt, aspectRatio: '3:4', provider: rt.provider, model: rt.model });
+      return lbtInstaBgCompose(await loadImgEl(r.src));
+    } catch (e) { fail++; try { console.warn('[insta 배경 #' + (k + 1) + ']', e); } catch (e2) {} return ''; }
+    finally { done++; setGenStage('인스타 카드 — 배경 그림 만드는 중 (' + done + '/' + n + ')'); }
+  }));
+  if (fail) toast('배경 그림 ' + fail + '장을 만들지 못해 그 카드는 검은 배경으로 둡니다.');
+  return out;
+}
 /* 저장해 둔 deck 에 지금 선택지의 제목·본문·머리말을 입힌다(다시 그릴 때도 같은 규칙) */
 function lbtInstaDress(deck, o, L){
   var cs = deck.cards || [];
@@ -18954,11 +19000,11 @@ function lbtInstaDress(deck, o, L){
 async function lbtInsta(i){
   var L = state.lbt, o = (L.opts || [])[i];
   if (!o) return;
-  var deck = null;
+  var deck = null, bgs = null;
   if (o._insta && o._insta.deck) {
     var ch = await uiChoose('이 선택지로 만들어 둔 인스타 카드가 있습니다(' + (o._insta.at || '') + ').', { okText: '다시 보기', extraText: '새로 만들기', cancelText: '취소' });
     if (ch === 'cancel' || !ch) return;
-    if (ch === 'ok') deck = JSON.parse(JSON.stringify(o._insta.deck));
+    if (ch === 'ok') { deck = JSON.parse(JSON.stringify(o._insta.deck)); bgs = o._insta.bgs || null; }
   }
   try {
     if (!deck) {
@@ -18967,6 +19013,15 @@ async function lbtInsta(i){
       o._insta = { deck: JSON.parse(JSON.stringify(deck)), at: nowLocalStr_() };
       lbtSaveNow();
     }
+    /* 배경 그림: 다시 보기는 저장해 둔 그림을 쓰고, 없으면(새로 만들었거나 v595 에 만든 카드) 새로 그린다 */
+    if (!bgs) {
+      var pc = imgProxyCfg();
+      if (pc.url && pc.token) {
+        bgs = await lbtInstaBgs(deck);
+        if (bgs.some(Boolean)) { o._insta.bgs = bgs; lbtSaveNow(); }
+      } else toast('이미지 프록시가 설정되지 않아 검은 배경으로 만듭니다(설정 → 이미지 프록시).');
+    }
+    (deck.cards || []).forEach(function(c, k){ c.bg = (bgs && bgs[k]) || ''; });
     lbtInstaDress(deck, o, L);
     setGenStage('인스타 카드 — 이미지로 만드는 중');
     var cvs = await buildCardNewsCanvases(deck);
@@ -26405,7 +26460,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v595';
+var APP_VER = 'v596';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
