@@ -851,6 +851,20 @@ input[type=date]{cursor:pointer}
 .lbtYWk input.lbtYIds{margin-top:6px;padding:6px 10px;font-size:13px}
 .lbtYOpts{margin-top:8px}
 .lbtYOpts>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--accent)}
+/* 끌어 옮기기·넘침·빈 주일 (v599) */
+.lbtDrag{flex:0 0 auto;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;color:var(--dim);font-size:18px;line-height:1;padding:4px 6px;border-radius:6px}
+.lbtDrag:hover{color:var(--text);background:var(--card)}
+.lbtDragging{position:relative;z-index:30;opacity:.94;box-shadow:0 12px 32px rgba(0,0,0,.45);cursor:grabbing}
+body.lbtDraggingBody,body.lbtDraggingBody *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important}
+.lbtDropLine{height:0;border-top:3px solid var(--accent);margin:5px 0;border-radius:2px;pointer-events:none}
+.lbtYMon.over{border-color:#d9534f}
+.lbtOverChip{color:#d9534f!important;border-color:#d9534f!important}
+.lbtYMonHd .btn{flex:0 0 auto;width:auto;padding:6px 12px;font-size:12.5px}
+.lbtYWk.over{border-color:#d9534f;background:rgba(217,83,79,.08)}
+.lbtYWk.over .lbtYDate{color:#d9534f}
+.lbtOverNote{margin-top:4px;font-size:12px;font-weight:700;color:#d9534f}
+.lbtYWk.empty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-style:dashed;background:transparent}
+.lbtYWk.empty .btn{flex:0 0 auto;width:auto;padding:6px 12px;font-size:12.5px;margin-left:auto}
 .lbtQ input{flex:0 0 auto;margin-top:3px}
 .lbtQ .lbtNo{flex:0 0 auto;min-width:30px;color:var(--dim);font-size:12px;font-weight:700;margin-top:1px}
 .lbtQ .lbtTx{flex:1 1 auto;min-width:0}
@@ -19202,12 +19216,35 @@ function lbtYearActive(Y){
   }
   return out;
 }
-function lbtYWeek(d){
+/* v599 — 주제(topic)와 자리(slot)를 나눈다.
+   달 묶음(plan.months[i] = 대주제·월 주제·흐름·주제 목록)은 순서만 갖고, 몇 월인지·어느 주일인지는 달력에서 매번 다시 계산한다(lbtYearRelayout):
+     i번째 묶음 → 설교하는 i번째 달, 그 달의 k번째 주제 → 그 달의 k번째 설교 주일.
+   그래서 묶음·주제를 끌어 옮기거나 빠지는 월·주일을 바꾸면 날짜가 바로 다시 맞춰진다.
+     · 주제가 그 달 주일보다 많으면 넘치는 주제는 날짜 없음(w.d='') → 빨간색 + 삭제 버튼
+     · 주일이 더 많으면 빈 자리 → [✨ 주제 생성]
+     · 묶음이 설교하는 달보다 많으면 넘치는 묶음은 m=0 → 빨간색 + 삭제 버튼 / 모자라면 빈 묶음을 채워 둔다
+   개요 선택지·동기화 행은 날짜가 아니라 주제 ID(tid)를 따라간다 — 옮겨도 선택지가 그 주제와 함께 간다.
+   v597·v598 에서 만든 주제는 tid = 원래 날짜(그래서 v598 의 '__WhyWay:<날짜>' 동기화 행이 그대로 이어진다). */
+function lbtNewTid(){ return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function lbtYearRelayout(){
+  var Y = state.lbt.year, P = Y && Y.plan; if (!P) return;
+  var act = lbtYearActive(Y);
+  while (P.months.length < act.length) P.months.push({ g: '', theme: '', flow: '', weeks: [] });
+  /* 뒤쪽의 텅 빈 묶음은 달이 줄면 거둔다(내용이 있는 묶음은 넘침으로 남겨 사용자가 고르게) */
+  while (P.months.length > act.length) { var last = P.months[P.months.length - 1]; if (!last.g && !last.weeks.length && !last.theme) P.months.pop(); else break; }
+  P.months.forEach(function(mo, i){
+    var A = act[i];
+    mo.m = A ? A.m : 0; mo.slots = A ? A.ds.slice() : [];
+    mo.weeks.forEach(function(w, k){ if (!w.tid) w.tid = w.d || lbtNewTid(); w.d = mo.slots[k] || ''; });
+  });
+}
+function lbtYWeek(key){
   var P = state.lbt.year.plan; if (!P) return null;
   var no = 0;
   for (var i = 0; i < P.months.length; i++) for (var k = 0; k < P.months[i].weeks.length; k++) {
-    no++;
-    if (P.months[i].weeks[k].d === d) return { mo: P.months[i], w: P.months[i].weeks[k], k: k, no: no };
+    var w = P.months[i].weeks[k];
+    if (w.d) no++;
+    if (w.tid === key) return { mo: P.months[i], w: w, k: k, mi: i, no: w.d ? no : 0 };
   }
   return null;
 }
@@ -19245,7 +19282,7 @@ function renderLbtYearMeta(){
   if (sm) sm.innerHTML = '설교하는 달 <b>' + act.length + '개월</b> · 설교 주일 <b>' + nW + '회</b>' +
     (act.length > 10 ? '<br>대주제는 10개 — 남는 달은 한 분류를 한 번 더(다른 질문으로) 쓰거나 한 해를 정리하는 달로 씁니다.' :
      act.length && act.length < 10 ? '<br>대주제 10개 중 ' + act.length + '개만 다룹니다 — 청년에게 더 시급한 분류를 고릅니다.' : '') +
-    (Y.plan ? '<br><span style="color:var(--accent2)">월·주일을 바꾼 뒤에는 [연간 계획 구상]을 다시 해야 계획에 반영됩니다.</span>' : '');
+    (Y.plan ? '<br><span style="color:var(--accent2)">월·주일을 바꾸면 지금 계획의 날짜가 바로 다시 배치됩니다(넘치는 주는 빨간색, 빈 주일은 주제 생성).</span>' : '');
 }
 
 var P_LBT_YEAR = [
@@ -19272,7 +19309,7 @@ function lbtYearNormalize(j, act){
         .map(function(x){ return String(x).trim(); })
         .filter(function(id){ var q = lbtQ(id); return q && q.g === g; })
         .filter(function(id){ if (seen[id]) { dup++; return false; } seen[id] = 1; return true; });
-      return { d: d, ids: ids, title: String(w['제목'] || '').trim(), dir: String(w['방향'] || '').trim(), opts: [], at: '', sel: false };
+      return { tid: lbtNewTid(), d: d, ids: ids, title: String(w['제목'] || '').trim(), dir: String(w['방향'] || '').trim(), opts: [], at: '', sel: false };
     });
     return { m: A.m, g: g, theme: String(src['월주제'] || '').trim(), flow: String(src['흐름'] || '').trim(), weeks: weeks };
   });
@@ -19299,7 +19336,7 @@ async function aiLbtYearPlan(){
   }), 32000, aiTick('연간 설교 계획'));
   var j = aiJson(out);
   if (!j || !Array.isArray(j['월'])) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
-  Y.plan = lbtYearNormalize(j, act);
+  Y.plan = lbtYearNormalize(j, act); lbtYearRelayout();
   Y.confirmed = false; Y.at = nowLocalStr_();
   lbtSaveNow(); renderLbtYearMeta(); renderLbtPane(); renderSyncState();
   var fx = Y.plan.fixes, n = [];
@@ -19311,64 +19348,173 @@ function renderLbtYearPane(){
   var box = $('#lbtPane'); if (!box) return;
   var Y = state.lbt.year, P = Y.plan;
   if (!P) { box.innerHTML = '<div class="empty">왼쪽에서 연도와 빠지는 월·주일을 정한 뒤 [📅 연간 계획 구상]을 눌러 주세요.</div>'; return; }
+  lbtYearRelayout();
   var ok = !!Y.confirmed, used = lbtUsedMap();
-  var nW = 0, nSel = 0, nOpt = 0;
-  P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ nW++; if (w.sel) nSel++; if (w.opts && w.opts.length) nOpt++; }); });
+  var nW = 0, nSel = 0, nOpt = 0, nOver = 0, nEmpty = 0, nMon = 0;
+  P.months.forEach(function(mo){
+    if (mo.m) nMon++;
+    nEmpty += Math.max(0, mo.slots.length - mo.weeks.length);
+    mo.weeks.forEach(function(w){ if (w.d) nW++; else nOver++; if (w.sel) nSel++; if (w.opts && w.opts.length) nOpt++; });
+  });
+  var drag = function(kind){ return ok ? '' : '<span class="lbtDrag" data-kind="' + kind + '" title="끌어서 ' + (kind === 'mon' ? '달 묶음' : '설교일') + ' 옮기기" aria-label="끌어서 옮기기">⠿</span>'; };
   var h = '<div class="card"><div class="lbtYHd"><b style="font-size:16px">' + esc(String(Y.yr)) + ' 연간 설교 계획</b>' +
     '<span class="lbtYState' + (ok ? ' ok' : '') + '">' + (ok ? '✓ 확정' : '초안') + '</span></div>' +
-    '<div class="cnt" style="margin-top:4px">' + P.months.length + '개월 · 설교 주일 ' + nW + '회 · 개요 초안 ' + nOpt + '주' + (Y.at ? ' · 구상 ' + esc(Y.at) : '') + '</div>' +
+    '<div class="cnt" style="margin-top:4px">' + nMon + '개월 · 설교 주일 ' + nW + '회 · 개요 초안 ' + nOpt + '주' + (Y.at ? ' · 구상 ' + esc(Y.at) : '') +
+      (nOver ? ' · <span style="color:#d9534f;font-weight:700">넘침 ' + nOver + '</span>' : '') +
+      (nEmpty ? ' · <span style="color:var(--accent2);font-weight:700">빈 주일 ' + nEmpty + '</span>' : '') + '</div>' +
     (P.note ? '<div class="zvWhy" style="margin-top:8px">' + esc(P.note) + '</div>' : '') +
     '<div class="toolrow" style="flex-wrap:wrap">' +
-    (ok ? '<button class="btn sub" id="lbtY_selAll" type="button">' + (nSel === nW ? '☐ 전체 해제' : '☑ 전체 선택') + '</button>' +
+    (ok ? '<button class="btn sub" id="lbtY_selAll" type="button">' + (nSel && nSel === nW ? '☐ 전체 해제' : '☑ 전체 선택') + '</button>' +
           '<button class="btn" id="lbtY_genSel" type="button"' + (nSel ? '' : ' disabled') + '>📝 선택한 주차 개요 초안 생성' + (nSel ? ' (' + nSel + ')' : '') + '</button>' +
           '<button class="btn sub" id="lbtY_unconfirm" type="button">✏ 계획 고치기(확정 풀기)</button>'
         : '<button class="btn" id="lbtY_confirm" type="button">✅ 계획 확정</button>' +
           '<button class="btn sub" id="lbtY_regen" type="button">🔄 계획 다시 구상</button>') +
     '</div>' +
-    (ok ? '' : '<div class="cnt" style="margin-top:6px;font-size:12.5px">월의 대주제·월 주제, 주마다의 가제와 질문 번호(예: 「Ⅰ-1, Ⅰ-3」 또는 그 달 분류면 「1, 3」)를 여기서 고칠 수 있습니다.</div>') +
+    (ok ? ((nOver || nEmpty) ? '<div class="cnt" style="margin-top:6px;font-size:12.5px;color:var(--accent2)">넘치는 주·빈 주일은 [✏ 계획 고치기]에서 정리할 수 있습니다.</div>' : '')
+        : '<div class="cnt" style="margin-top:6px;font-size:12.5px">⠿ 손잡이를 끌어 <b>달 묶음</b>을 다른 달로, <b>주제</b>를 같은 달의 다른 주일로 옮길 수 있습니다. 월의 대주제·월 주제, 주마다의 가제와 질문 번호(예: 「Ⅰ-1, Ⅰ-3」 또는 그 달 분류면 「1, 3」)도 여기서 고칩니다.</div>') +
     '</div>';
-  P.months.forEach(function(mo){
-    var G = lbtG(mo.g) || { g: mo.g, t: '' };
-    h += '<div class="edPoint lbtYMon"><div class="lbtYMonHd"><span class="zvChip">' + mo.m + '월</span>' +
-      (ok ? '<b>' + esc(G.g + '. ' + G.t) + '</b>'
-          : '<select class="lbtYG" data-m="' + mo.m + '">' + LBT_QS.map(function(x){ return '<option value="' + x.g + '"' + (x.g === mo.g ? ' selected' : '') + '>' + x.g + '. ' + esc(x.t) + '</option>'; }).join('') + '</select>') +
+  h += '<div id="lbtYMons">';
+  P.months.forEach(function(mo, mi){
+    var G = lbtG(mo.g) || { g: mo.g, t: '' }, over = !mo.m;
+    h += '<div class="edPoint lbtYMon' + (over ? ' over' : '') + '" data-mi="' + mi + '"><div class="lbtYMonHd">' + drag('mon') +
+      (over ? '<span class="zvChip lbtOverChip">배정할 달 없음</span>' : '<span class="zvChip">' + mo.m + '월</span>') +
+      (ok ? '<b>' + esc(mo.g ? G.g + '. ' + G.t : '(대주제 없음)') + '</b>'
+          : '<select class="lbtYG" data-mi="' + mi + '">' + (mo.g ? '' : '<option value="" selected>(대주제 선택)</option>') + LBT_QS.map(function(x){ return '<option value="' + x.g + '"' + (x.g === mo.g ? ' selected' : '') + '>' + x.g + '. ' + esc(x.t) + '</option>'; }).join('') + '</select>') +
+      (over && !ok ? '<button class="btn sub lbtYDelMon" type="button" data-mi="' + mi + '">🗑 묶음 삭제</button>' : '') +
       '</div>' +
       (ok ? (mo.theme ? '<div class="zvMsg">' + esc(mo.theme) + '</div>' : '')
-          : '<input type="text" class="lbtYTheme" data-m="' + mo.m + '" placeholder="월 주제(그 달 시리즈 이름)" value="' + esc(mo.theme || '') + '">') +
+          : '<input type="text" class="lbtYTheme" data-mi="' + mi + '" placeholder="월 주제(그 달 시리즈 이름)" value="' + esc(mo.theme || '') + '">') +
       (mo.flow ? '<div class="zvWhy">' + esc(mo.flow) + '</div>' : '');
-    mo.weeks.forEach(function(w, k){
-      var hasOpt = w.opts && w.opts.length, u = w.ids.filter(function(id){ return used[id]; }).length;
-      h += '<div class="lbtYWk" data-d="' + w.d + '"><div class="lbtYWkHd">' +
-        (ok ? '<input type="checkbox" class="lbtYChk" data-d="' + w.d + '"' + (w.sel ? ' checked' : '') + ' title="개요 초안을 만들 주 선택">' : '') +
-        '<span class="lbtYDate">' + lbtMd(w.d) + '</span>' +
+    h += '<div class="lbtYWks" data-mi="' + mi + '">';
+    var n = Math.max(mo.slots.length, mo.weeks.length);
+    for (var k = 0; k < n; k++) {
+      var w = mo.weeks[k];
+      if (!w) {   /* 빈 주일 */
+        h += '<div class="lbtYWk empty"><span class="lbtYDate">' + lbtMd(mo.slots[k]) + '</span>' +
+          (ok ? '<span class="cnt">빈 주일 — [✏ 계획 고치기]에서 주제를 채우세요.</span>'
+              : '<span class="cnt">빈 주일</span><button class="btn sub lbtYGenSlot" type="button" data-mi="' + mi + '" data-si="' + k + '"' + (mo.g ? '' : ' disabled title="먼저 대주제를 고르세요"') + '>✨ 주제 생성</button>') +
+          '</div>';
+        continue;
+      }
+      var hasOpt = w.opts && w.opts.length, u = w.ids.filter(function(id){ return used[id]; }).length, wo = !w.d;
+      h += '<div class="lbtYWk' + (wo ? ' over' : '') + '" data-t="' + w.tid + '"><div class="lbtYWkHd">' + drag('wk') +
+        (ok && !wo ? '<input type="checkbox" class="lbtYChk" data-t="' + w.tid + '"' + (w.sel ? ' checked' : '') + ' title="개요 초안을 만들 주 선택">' : '') +
+        '<span class="lbtYDate">' + (wo ? '넘침' : lbtMd(w.d)) + '</span>' +
         (ok ? '<b class="lbtYTitleTx">' + esc(w.title || '(가제 없음)') + '</b>'
-            : '<input type="text" class="lbtYTitle" data-d="' + w.d + '" placeholder="이 주 가제(질문형)" value="' + esc(w.title || '') + '">') +
+            : '<input type="text" class="lbtYTitle" data-t="' + w.tid + '" placeholder="이 주 가제(질문형)" value="' + esc(w.title || '') + '">') +
         (hasOpt ? '<span class="lbtYBadge has">선택지 ' + w.opts.length + '</span>' : '') +
         (u ? '<span class="lbtUsed">✓ 설교함</span>' : '') +
-        (ok ? '<button class="btn sub lbtYGenOne" type="button" data-d="' + w.d + '">' + (hasOpt ? '다시 구상' : '개요 초안') + '</button>' : '') +
+        (ok && !wo ? '<button class="btn sub lbtYGenOne" type="button" data-t="' + w.tid + '">' + (hasOpt ? '다시 구상' : '개요 초안') + '</button>' : '') +
+        (wo && !ok ? '<button class="btn sub lbtYDelTopic" type="button" data-t="' + w.tid + '">🗑 삭제</button>' : '') +
         '</div>' +
+        (wo ? '<div class="lbtOverNote">이 달의 설교 주일보다 주제가 많습니다 — 다른 주제와 자리를 바꾸거나 삭제하세요.</div>' : '') +
         '<div class="lbtYQs">' + (w.ids.length ? w.ids.map(function(id){
             var q = lbtQ(id); return '<span' + (q && q.g !== mo.g ? ' class="bad" title="이 달의 대주제가 아닌 질문"' : '') + '>' + id + ' ' + esc(q ? q.q : '(없는 질문)') + '</span>';
           }).join('') : '<span class="bad">질문이 없습니다 — 질문 번호를 넣어 주세요.</span>') +
           (w.dir ? '<span style="color:var(--text)">→ ' + esc(w.dir) + '</span>' : '') + '</div>' +
-        (ok ? '' : '<input type="text" class="lbtYIds" data-d="' + w.d + '" placeholder="질문 번호 — 예) ' + mo.g + '-1, ' + mo.g + '-3" value="' + esc(w.ids.join(', ')) + '">') +
-        (hasOpt ? '<details class="lbtYOpts" data-d="' + w.d + '"' + (w.open ? ' open' : '') + '><summary>개요 초안 선택지 ' + w.opts.length + '세트' + (w.at ? ' · ' + esc(w.at) : '') + '</summary>' +
-            w.opts.map(function(o, i){ return lbtOptHtml(o, i, 'y:' + w.d + ':' + i); }).join('') + '</details>' : '') +
+        (ok ? '' : '<input type="text" class="lbtYIds" data-t="' + w.tid + '" placeholder="질문 번호 — 예) ' + (mo.g || 'Ⅰ') + '-1, ' + (mo.g || 'Ⅰ') + '-3" value="' + esc(w.ids.join(', ')) + '">') +
+        (hasOpt ? '<details class="lbtYOpts" data-t="' + w.tid + '"' + (w.open ? ' open' : '') + '><summary>개요 초안 선택지 ' + w.opts.length + '세트' + (w.at ? ' · ' + esc(w.at) : '') + '</summary>' +
+            w.opts.map(function(o, i){ return lbtOptHtml(o, i, 'y:' + w.tid + ':' + i); }).join('') + '</details>' : '') +
         '</div>';
-    });
-    h += '</div>';
+    }
+    h += '</div></div>';
   });
+  h += '</div>';
   box.innerHTML = h;
+}
+
+/* ── 끌어 옮기기 (v599) — pointer 이벤트라 마우스·아이패드 터치 모두 된다(HTML5 드래그는 iPad 에서 불안정).
+   손잡이(.lbtDrag)를 누른 채 움직이면 항목이 따라오고 파란 선이 놓일 자리를 보여 준다. 놓으면 순서만 바꾸고
+   날짜는 lbtYearRelayout 이 다시 계산한다. 주제는 같은 달 안에서만 옮긴다(목록 = .lbtYWks). */
+function lbtScrollParent(){
+  var pane = $('#lbtPane');
+  return (pane && pane.scrollHeight > pane.clientHeight + 4 && getComputedStyle(pane).overflowY !== 'visible') ? pane : (document.scrollingElement || document.documentElement);
+}
+$('#lbtPane').addEventListener('pointerdown', function(e){
+  var hdl = e.target.closest('.lbtDrag'); if (!hdl || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  var kind = hdl.dataset.kind, isMon = kind === 'mon';
+  var item = hdl.closest(isMon ? '.lbtYMon' : '.lbtYWk'); if (!item) return;
+  var list = item.parentElement;
+  var sel = isMon ? '.lbtYMon' : '.lbtYWk[data-t]';
+  var items = Array.prototype.filter.call(list.children, function(el){ return el.matches(sel); });
+  if (items.length < 2) return;
+  e.preventDefault();
+  try { hdl.setPointerCapture(e.pointerId); } catch (eC) {}
+  var from = items.indexOf(item), to = from, startY = e.clientY, sc = lbtScrollParent(), sc0 = sc.scrollTop;
+  var line = document.createElement('div'); line.className = 'lbtDropLine';
+  item.classList.add('lbtDragging'); document.body.classList.add('lbtDraggingBody');
+  var others = items.filter(function(x){ return x !== item; });
+  function place(y){
+    var idx = 0;
+    others.forEach(function(el){ var r = el.getBoundingClientRect(); if (y > r.top + r.height / 2) idx++; });
+    to = idx;
+    if (idx < others.length) list.insertBefore(line, others[idx]); else list.insertBefore(line, others[others.length - 1].nextSibling);
+  }
+  function move(ev){
+    var r = sc === document.scrollingElement || sc === document.documentElement ? { top: 0, bottom: innerHeight } : sc.getBoundingClientRect();
+    if (ev.clientY < r.top + 60) sc.scrollTop -= 14; else if (ev.clientY > r.bottom - 60) sc.scrollTop += 14;   /* 가장자리에서 자동 스크롤 */
+    item.style.transform = 'translateY(' + (ev.clientY - startY + (sc.scrollTop - sc0)) + 'px)';
+    place(ev.clientY);
+  }
+  function end(){
+    hdl.removeEventListener('pointermove', move); hdl.removeEventListener('pointerup', end); hdl.removeEventListener('pointercancel', end);
+    item.classList.remove('lbtDragging'); item.style.transform = ''; document.body.classList.remove('lbtDraggingBody');
+    if (line.parentNode) line.parentNode.removeChild(line);
+    if (to === from) return;
+    var P = state.lbt.year.plan; if (!P) return;
+    if (isMon) { var mv = P.months.splice(from, 1)[0]; P.months.splice(to, 0, mv); }
+    else { var mo = P.months[+list.dataset.mi]; if (!mo) return; var wv = mo.weeks.splice(from, 1)[0]; mo.weeks.splice(to, 0, wv); }
+    lbtYearRelayout(); lbtSaveNow(); renderLbtPane();
+  }
+  hdl.addEventListener('pointermove', move); hdl.addEventListener('pointerup', end); hdl.addEventListener('pointercancel', end);
+});
+
+/* 빈 주일 하나에 주제 채우기 — 그 달 대주제에서 아직 계획에 없는 질문으로 */
+var P_LBT_YEAR_SLOT = [
+'당신은 영락교회 대학부 설교 기획 비서다. 연간 시리즈 「Why에서 Way로 — 질문이 길이 되는 한 해」(요 14:6)의 연간 계획에서 비어 있는 주일 하나에 설교 주제를 채운다. 청년들이 실제로 묻는 신앙 질문을 기독교 변증의 방법으로, 믿지 않는 친구도 납득하게 성경으로 답하는 설교다.',
+'입력(JSON): 날짜, 몇째주(그 달의 몇 번째 설교 주일/전체), 대주제(분류와 그 분류의 질문 ID·질문 전체), 월주제, 흐름, 같은달다른주(날짜·가제·질문), 쓸수있는질문(이 분류에서 한 해 계획에 아직 없는 질문 ID), 이미다룬질문(이미 설교한 질문 — 되도록 피한다), 요청사항.',
+'출력은 반드시 JSON 하나만: {"질문":["Ⅷ-7"],"제목":"<질문형 가제>","방향":"<이 주 설교가 줄 답의 방향 한 문장>"}',
+'원칙: ①질문은 반드시 "쓸수있는질문" 안에서 1~3개 — 서로 이어지는 질문을 묶는다(2개가 기본). ②같은 달 다른 주와 겹치지 않게, 그 달 흐름에서 이 주의 자리(몇째 주)에 맞는 질문을 고른다 — 앞쪽이면 쉬운 질문, 뒤쪽이면 깊은 질문. ③"제목"은 질문형 가제 — 질문이 하나면 그 질문을 청년 입말로 짧게, 여럿이면 모두 아우르는 대표 질문 하나. 25자 안팎, 존댓말 입말, 답을 제목에 넣지 않는다. ④요청사항이 있으면 반영한다.'
+].join('\n');
+async function aiLbtYearSlot(mi, si){
+  var Y = state.lbt.year, P = Y.plan; if (!P) return;
+  lbtYearRelayout();
+  var mo = P.months[mi]; if (!mo) return;
+  if (!mo.g) { toast('먼저 이 달의 대주제를 골라 주세요.'); return; }
+  var date = mo.slots[si] || '';
+  var G = lbtG(mo.g), inPlan = {};
+  P.months.forEach(function(x){ x.weeks.forEach(function(w){ (w.ids || []).forEach(function(id){ inPlan[id] = 1; }); }); });
+  var free = G.q.map(function(q, k){ return G.g + '-' + (k + 1); }).filter(function(id){ return !inPlan[id]; });
+  if (!free.length) { toast(G.g + '. ' + G.t + ' 의 질문 10개를 모두 계획에 썼습니다 — 빈 주제를 만들어 둘 테니 질문 번호를 직접 넣어 주세요.'); lbtYearInsertTopic(mo, si, { ids: [], title: '', dir: '' }); return; }
+  if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
+  var out = await callClaude(P_LBT_YEAR_SLOT, JSON.stringify({
+    '날짜': date, '몇째주': (si + 1) + '/' + mo.slots.length,
+    '대주제': { '분류': G.g, '이름': G.t, '질문': G.q.map(function(q, k){ return { 'ID': G.g + '-' + (k + 1), '질문': q }; }) },
+    '월주제': mo.theme || '', '흐름': mo.flow || '',
+    '같은달다른주': mo.weeks.map(function(w){ return { '날짜': w.d, '가제': w.title || '', '질문': w.ids || [] }; }),
+    '쓸수있는질문': free, '이미다룬질문': Object.keys(lbtUsedMap()), '요청사항': Y.req || ''
+  }), 16000, aiTick(lbtMd(date) + ' 주제'));
+  var j = aiJson(out) || {};
+  var ids = (Array.isArray(j['질문']) ? j['질문'] : String(j['질문'] || '').match(LBT_ID_RE) || [])
+    .map(function(x){ return String(x).trim(); }).filter(function(id, k, a){ return free.indexOf(id) >= 0 && a.indexOf(id) === k; }).slice(0, 3);
+  if (!ids.length) ids = free.slice(0, Math.min(2, free.length));   /* 모델이 규칙 밖 질문만 냈으면 남은 질문 앞쪽으로 */
+  lbtYearInsertTopic(mo, si, { ids: ids, title: String(j['제목'] || '').trim(), dir: String(j['방향'] || '').trim() });
+  toast(lbtMd(date) + ' 주제를 채웠습니다 — 필요하면 가제·질문 번호를 고치거나 끌어서 다른 주일로 옮기세요.');
+}
+function lbtYearInsertTopic(mo, si, t){
+  var w = { tid: lbtNewTid(), d: '', ids: t.ids || [], title: t.title || '', dir: t.dir || '', opts: [], at: '', sel: false };
+  mo.weeks.splice(Math.min(si, mo.weeks.length), 0, w);
+  lbtYearRelayout(); lbtSaveNow(); renderLbtPane();
 }
 
 /* 주차별 개요 초안 — 주제별과 같은 P_LBT, 그 달·그 주의 맥락은 요청사항으로 넘긴다 */
 function lbtYearWeekReq(hit){
   var Y = state.lbt.year, mo = hit.mo, G = lbtG(mo.g) || { g: mo.g, t: '' };
-  var others = mo.weeks.filter(function(x){ return x.d !== hit.w.d; }).map(function(x){ return lbtMd(x.d) + ' ' + (x.title || x.ids.join(',')); });
+  var others = mo.weeks.filter(function(x){ return x.tid !== hit.w.tid && x.d; }).map(function(x){ return lbtMd(x.d) + ' ' + (x.title || x.ids.join(',')); });
   return [
     Y.req,
     '연간 시리즈 「' + LBT_SERIES + '」 ' + mo.m + '월 대주제: ' + G.g + '. ' + G.t + (mo.theme ? ' — 월 주제 「' + mo.theme + '」' : '') + (mo.flow ? '. 이 달의 흐름: ' + mo.flow : ''),
-    '이 설교는 그 달 ' + (hit.k + 1) + '/' + mo.weeks.length + '주차다' + (others.length ? '. 같은 달 다른 주: ' + others.join(' / ') + ' — 그 주들과 겹치지 않게 이 주의 질문에 집중한다' : '') + '.',
+    '이 설교는 그 달 ' + (hit.k + 1) + '/' + (mo.slots || mo.weeks).length + '주차다' + (others.length ? '. 같은 달 다른 주: ' + others.join(' / ') + ' — 그 주들과 겹치지 않게 이 주의 질문에 집중한다' : '') + '.',
     hit.w.title ? '연간 계획의 이 주 가제: 「' + hit.w.title + '」 — 제목 규칙을 따르되 이 가제의 방향을 살린다.' : '',
     hit.w.dir ? '연간 계획에서 잡은 이 주 답의 방향: ' + hit.w.dir : ''
   ].filter(Boolean).join('\n');
@@ -19394,7 +19540,7 @@ async function aiLbtYearWeeks(ds){
       hit.w.opts = await lbtCallOpts({ date: hit.w.d, service: Y.service, ids: hit.w.ids, req: lbtYearWeekReq(hit), label: lbtMd(hit.w.d) + ' 설교 개요' });
       hit.w.at = nowLocalStr_(); hit.w.open = true; hit.w.sel = false;
       lbtSaveNow(); renderLbtPane();
-    } catch (e) { fail.push(lbtMd(ds[i]) + ': ' + e.message); }
+    } catch (e) { fail.push(lbtMd(hit.w.d) + ': ' + e.message); }
   }
   renderSyncState();
   toast(fail.length ? '끝났습니다 — 실패 ' + fail.length + '주(' + fail.join(' / ') + ')' : '개요 초안 ' + ds.length + '주 완료 — 주마다 선택지를 펼쳐 보세요.');
@@ -19404,7 +19550,8 @@ async function aiLbtYearWeeks(ds){
    작성초안·시리즈 초안과 같은 '시리즈초안'(seriesdraft) 시트의 예약행을 쓴다. 셀 하나에 5만 자까지라 계획 전체(주마다 선택지 3세트)를
    한 칸에 못 넣으므로 둘로 나눈다:
      · 계획 행  '__WhyWay__'            — 연도·빠지는 월/주일·요청사항·확정 여부·월/주 뼈대(선택지 제외). 약 10KB.
-     · 주 행    '__WhyWay:<주일 날짜>'  — 그 주의 개요 선택지(+insta 카드 글). 선택지를 만든 주만. 약 10KB.
+     · 주 행    '__WhyWay:<주제 ID>'    — 그 주제의 개요 선택지(+insta 카드 글). 선택지를 만든 주제만. 약 10KB.
+                                          (v599 부터 날짜가 아니라 주제 ID. v597·v598 주제는 ID = 원래 날짜라 옛 행이 그대로 이어진다)
    규칙: 행마다 '마지막으로 고친 기기가 이긴다'. 고친 시각 u(기기 시계 ms)를 JSON 안에 싣고, 받을 때 u 가 더 크면 적용한다.
      - 로컬 변경 감지 = 동기화 대상만 뽑은 JSON 서명(_lsig) 비교 → 바뀌면 u=지금. 올린 서명은 _psig. _lsig≠_psig 이면 올릴 것이 있다.
      - 처음 보는 상태(_lsig 없음)는 u=0(빈 계획) 또는 1(계획 있음)로 둔다 — 새 기기의 빈 상태나 v597 에서 넘어온 계획이
@@ -19412,15 +19559,18 @@ async function aiLbtYearWeeks(ds){
      - 주 행은 계획 세대(plan.gen)가 같을 때만 받는다 — 계획을 다시 구상하면 옛 주 행은 저절로 무시된다.
    동기화하지 않는 것: 주 선택(sel)·펼침(open) 같은 화면 상태, insta 배경 그림(bgs, 장당 수십~수백 KB — 기기에만). */
 var LBT_ROW = '__WhyWay__';
+/* 동기화 JSON 모양을 바꾼 판. 바뀌면 서명만 새로 잡고 시각(u)은 올리지 않는다 — 모양 변경을 '방금 고친 것'으로 오인해
+   다른 기기의 더 새 계획을 덮어쓰지 않게(lbtYearStamp). 형식을 또 바꾸면 이 숫자를 올릴 것. */
+var LBT_SYNC_FMT = 2;
 function lbtPlanBlob(Y){
   var P = Y.plan;
   return { yr: Y.yr, service: Y.service || '', offM: Y.offM || [], offD: Y.offD || [], req: Y.req || '', confirmed: !!Y.confirmed, at: Y.at || '',
     plan: P ? { gen: P.gen || '', note: P.note || '', months: P.months.map(function(mo){
-      return { m: mo.m, g: mo.g, theme: mo.theme || '', flow: mo.flow || '', weeks: mo.weeks.map(function(w){ return { d: w.d, ids: w.ids || [], title: w.title || '', dir: w.dir || '' }; }) };
+      return { g: mo.g || '', theme: mo.theme || '', flow: mo.flow || '', weeks: mo.weeks.map(function(w){ return { tid: w.tid, ids: w.ids || [], title: w.title || '', dir: w.dir || '' }; }) };
     }) } : null };
 }
 function lbtWeekBlob(w, gen, lite){
-  return { gen: gen || '', d: w.d, at: w.at || '', opts: (w.opts || []).map(function(o){
+  return { gen: gen || '', tid: w.tid, at: w.at || '', opts: (w.opts || []).map(function(o){
     var c = {}; for (var k in o) if (k !== '_insta') c[k] = o[k];
     if (o._insta && o._insta.deck && !lite) c._insta = { deck: o._insta.deck, at: o._insta.at || '' };   /* 그림(bgs)은 싣지 않는다 */
     return c;
@@ -19429,6 +19579,17 @@ function lbtWeekBlob(w, gen, lite){
 function _lbtSig(o){ try { return JSON.stringify(o); } catch (e) { return ''; } }
 function lbtYearStamp(){
   var Y = state.lbt && state.lbt.year; if (!Y) return;
+  if (Y.plan) lbtYearRelayout();
+  if (Y._fmt !== LBT_SYNC_FMT) {   /* 형식이 바뀐 첫 실행 — 올린 상태였으면 올린 상태 그대로, 대기 중이었으면 대기 그대로 */
+    var syncedP = Y._lsig != null && Y._lsig === Y._psig, np = _lbtSig(lbtPlanBlob(Y));
+    if (Y._lsig != null) { Y._lsig = np; Y._psig = syncedP ? np : null; }
+    if (Y.plan) Y.plan.months.forEach(function(mo){ mo.weeks.forEach(function(w){
+      if (w._lsig == null) return;
+      var sw = w._lsig === w._psig, nw = _lbtSig(lbtWeekBlob(w, Y.plan.gen));
+      w._lsig = nw; w._psig = sw ? nw : null;
+    }); });
+    Y._fmt = LBT_SYNC_FMT;
+  }
   var ps = _lbtSig(lbtPlanBlob(Y));
   if (Y._lsig == null) { Y._lsig = ps; Y.u = Y.plan ? 1 : 0; }
   else if (ps !== Y._lsig) { Y._lsig = ps; Y.u = Date.now(); }
@@ -19488,7 +19649,7 @@ async function lbtYearPush(){
       for (var i = 0; i < Y.plan.months.length; i++) for (var k = 0; k < Y.plan.months[i].weeks.length; k++) {
         var w = Y.plan.months[i].weeks[k];
         if (!(w.u > 0) || w._lsig === w._psig) continue;
-        var name = LBT_ROW.replace(/__$/, '') + ':' + w.d;
+        var name = LBT_ROW.replace(/__$/, '') + ':' + w.tid;
         var rw = _lbtBlobOf(_lbtRows(name)[0]);
         if (rw && rw.gen === gen && (+rw.u || 0) > w.u) continue;
         var ws = w._lsig, body = Object.assign({ u: w.u }, lbtWeekBlob(w, gen));
@@ -19517,21 +19678,23 @@ function lbtYearPull(){
       var sameGen = !!oldGen && oldGen === rp.plan.gen;
       Y.plan = { gen: rp.plan.gen, note: rp.plan.note || '', fixes: (old && sameGen && old.fixes) || { dup: 0, moved: 0 },
         months: (rp.plan.months || []).map(function(mo){
-          return { m: mo.m, g: mo.g, theme: mo.theme || '', flow: mo.flow || '', weeks: (mo.weeks || []).map(function(w){
-            var lw = sameGen ? (lbtYWeekIn(old, w.d) || {}) : {};   /* 같은 세대면 이 기기의 선택지·화면 상태는 그대로 둔다 */
-            return { d: w.d, ids: w.ids || [], title: w.title || '', dir: w.dir || '', opts: lw.opts || [], at: lw.at || '', sel: !!lw.sel, open: !!lw.open,
+          return { g: mo.g || '', theme: mo.theme || '', flow: mo.flow || '', weeks: (mo.weeks || []).map(function(w){
+            var tid = w.tid || w.d;   /* v598 기기가 올린 행에는 tid 가 없다 — 그때 주제 ID 는 날짜 */
+            var lw = sameGen ? (lbtYWeekIn(old, tid) || {}) : {};   /* 같은 세대면 이 기기의 선택지·화면 상태는 그대로 둔다 */
+            return { tid: tid, d: '', ids: w.ids || [], title: w.title || '', dir: w.dir || '', opts: lw.opts || [], at: lw.at || '', sel: !!lw.sel, open: !!lw.open,
               u: lw.u || 0, _lsig: lw._lsig, _psig: lw._psig };
           }) };
         }) };
     }
-    Y.u = +rp.u; Y._lsig = Y._psig = _lbtSig(lbtPlanBlob(Y));
+    if (Y.plan) lbtYearRelayout();
+    Y.u = +rp.u; Y._lsig = Y._psig = _lbtSig(lbtPlanBlob(Y)); Y._fmt = LBT_SYNC_FMT;
     changed = true;
   }
   if (Y.plan) {
     var gen = Y.plan.gen;
     Y.plan.months.forEach(function(mo){ mo.weeks.forEach(function(w){
-      var rw = _lbtBlobOf(_lbtRows(LBT_ROW.replace(/__$/, '') + ':' + w.d)[0]);
-      if (!rw || rw.gen !== gen || (+rw.u || 0) <= (w.u || 0)) return;
+      var rw = _lbtBlobOf(_lbtRows(LBT_ROW.replace(/__$/, '') + ':' + w.tid)[0]);
+      if (!rw || rw.gen !== gen || (rw.tid || rw.d) !== w.tid || (+rw.u || 0) <= (w.u || 0)) return;
       var keep = {};   /* 이 기기에만 있는 insta 배경 그림 — 카드 글이 같으면 살린다 */
       (w.opts || []).forEach(function(o, i){ if (o && o._insta && o._insta.bgs) keep[i] = o._insta; });
       w.opts = (rw.opts || []).map(function(o, i){
@@ -19546,9 +19709,9 @@ function lbtYearPull(){
   idbSet('lbtDraft', state.lbt).catch(function(){});
   lbtRenderSafe();
 }
-function lbtYWeekIn(P, d){
+function lbtYWeekIn(P, tid){
   if (!P) return null;
-  for (var i = 0; i < P.months.length; i++) for (var k = 0; k < P.months[i].weeks.length; k++) if (P.months[i].weeks[k].d === d) return P.months[i].weeks[k];
+  for (var i = 0; i < P.months.length; i++) for (var k = 0; k < P.months[i].weeks.length; k++) { var w = P.months[i].weeks[k]; if ((w.tid || w.d) === tid) return w; }
   return null;
 }
 /* 받아 온 계획을 화면에 — 이 탭에서 글을 쓰는 중이면 커서를 빼앗지 않게 칸을 벗어날 때 다시 그린다 */
@@ -19570,11 +19733,11 @@ $('#lbtMeta').addEventListener('click', function(e){
   if (mb) { state.lbt.mode = mb.dataset.mode; lbtSaveSoon(); renderLbtMode(); return; }
   var Y = state.lbt.year;
   var mo = e.target.closest('.lbtMon');
-  if (mo) { var m = +mo.dataset.m, at = Y.offM.indexOf(m); if (at >= 0) Y.offM.splice(at, 1); else Y.offM.push(m); lbtSaveSoon(); renderLbtYearMeta(); return; }
+  if (mo) { var m = +mo.dataset.m, at = Y.offM.indexOf(m); if (at >= 0) Y.offM.splice(at, 1); else Y.offM.push(m); lbtSaveSoon(); renderLbtYearMeta(); if (Y.plan) renderLbtPane(); return; }
   var dy = e.target.closest('.lbtDay');
-  if (dy) { var d = dy.dataset.d, at2 = Y.offD.indexOf(d); if (at2 >= 0) Y.offD.splice(at2, 1); else Y.offD.push(d); lbtSaveSoon(); renderLbtYearMeta(); return; }
+  if (dy) { var d = dy.dataset.d, at2 = Y.offD.indexOf(d); if (at2 >= 0) Y.offD.splice(at2, 1); else Y.offD.push(d); lbtSaveSoon(); renderLbtYearMeta(); if (Y.plan) renderLbtPane(); return; }
 });
-$('#lbtY_year').addEventListener('change', function(){ var v = +this.value; if (v >= 2000 && v <= 2100) { state.lbt.year.yr = v; lbtSaveSoon(); renderLbtYearMeta(); } });
+$('#lbtY_year').addEventListener('change', function(){ var v = +this.value; if (v >= 2000 && v <= 2100) { state.lbt.year.yr = v; lbtSaveSoon(); renderLbtYearMeta(); if (state.lbt.year.plan) renderLbtPane(); } });
 $('#lbtY_service').addEventListener('input', function(){ state.lbt.year.service = this.value.trim(); lbtSaveSoon(); });
 $('#lbtY_req').addEventListener('input', function(){ state.lbt.year.req = this.value; lbtSaveSoon(); });
 $('#lbtY_gen').addEventListener('click', withBusy($('#lbtY_gen'), '구상 중…', function(){
@@ -19590,8 +19753,14 @@ function lbtYearPaneClick(e){
   var Y = state.lbt.year, P = Y.plan;
   var t = e.target;
   if (t.closest('#lbtY_confirm')) {
-    var empty = 0; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (!w.ids.length) empty++; }); });
-    (empty ? uiConfirm('질문이 비어 있는 주가 ' + empty + '개 있습니다. 그대로 확정할까요?\n(그 주는 개요 초안을 만들 수 없습니다)', { okText: '확정' }) : Promise.resolve(true)).then(function(go){
+    lbtYearRelayout();
+    var empty = 0, over = 0, gap = 0;
+    P.months.forEach(function(mo){ gap += Math.max(0, mo.slots.length - mo.weeks.length); mo.weeks.forEach(function(w){ if (!w.d) over++; else if (!w.ids.length) empty++; }); });
+    var warn = [];
+    if (over) warn.push('설교 주일보다 많아 넘친 주제 ' + over + '개(날짜 없음)');
+    if (gap) warn.push('주제가 없는 빈 주일 ' + gap + '개');
+    if (empty) warn.push('질문이 비어 있는 주 ' + empty + '개');
+    (warn.length ? uiConfirm(warn.join('\n') + '\n\n그대로 확정할까요? (그 주는 개요 초안을 만들 수 없습니다)', { okText: '확정' }) : Promise.resolve(true)).then(function(go){
       if (!go) return; Y.confirmed = true; lbtSaveNow(); renderLbtPane(); toast('계획을 확정했습니다 — 주차를 골라 개요 초안을 만드세요.');
     });
     return true;
@@ -19600,30 +19769,49 @@ function lbtYearPaneClick(e){
   var rg = t.closest('#lbtY_regen');
   if (rg) { withBusy(rg, '구상 중…', function(){ return aiLbtYearPlan().catch(function(er){ renderSyncState(); toast('연간 계획 구상 실패: ' + er.message); }); })(); return true; }
   if (t.closest('#lbtY_selAll')) {
-    var all = true; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (!w.sel) all = false; }); });
-    P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ w.sel = !all && !!w.ids.length; }); });
+    var all = true; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (w.d && !w.sel) all = false; }); });
+    P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ w.sel = !all && !!w.d && !!w.ids.length; }); });
     lbtSaveSoon(); renderLbtPane(); return true;
   }
   var gs = t.closest('#lbtY_genSel');
   if (gs) {
-    var ds = []; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (w.sel) ds.push(w.d); }); });
+    var ds = []; P.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (w.sel && w.d) ds.push(w.tid); }); });
     withBusy(gs, '만드는 중…', function(){ return aiLbtYearWeeks(ds).catch(function(er){ renderSyncState(); toast('개요 초안 실패: ' + er.message); }); })();
     return true;
   }
   var one = t.closest('.lbtYGenOne');
-  if (one) { withBusy(one, '구상 중…', function(){ return aiLbtYearWeeks([one.dataset.d]).catch(function(er){ renderSyncState(); toast('개요 초안 실패: ' + er.message); }); })(); return true; }
+  if (one) { withBusy(one, '구상 중…', function(){ return aiLbtYearWeeks([one.dataset.t]).catch(function(er){ renderSyncState(); toast('개요 초안 실패: ' + er.message); }); })(); return true; }
+  var dt = t.closest('.lbtYDelTopic');
+  if (dt) {
+    var hd = lbtYWeek(dt.dataset.t); if (!hd) return true;
+    ((hd.w.opts && hd.w.opts.length) || hd.w.title || hd.w.ids.length
+      ? uiConfirm('넘친 주제 「' + (hd.w.title || hd.w.ids.join(', ') || '(빈 주제)') + '」를 삭제할까요?' + (hd.w.opts && hd.w.opts.length ? '\n만들어 둔 개요 초안 선택지도 함께 사라집니다.' : ''), { okText: '삭제', danger: true })
+      : Promise.resolve(true)).then(function(go){ if (!go) return; hd.mo.weeks.splice(hd.k, 1); lbtYearRelayout(); lbtSaveNow(); renderLbtPane(); });
+    return true;
+  }
+  var dm = t.closest('.lbtYDelMon');
+  if (dm) {
+    var mb = P.months[+dm.dataset.mi]; if (!mb) return true;
+    var G = lbtG(mb.g);
+    uiConfirm('배정할 달이 없는 묶음 「' + (G ? G.g + '. ' + G.t : '(대주제 없음)') + (mb.theme ? ' — ' + mb.theme : '') + '」(주제 ' + mb.weeks.length + '개)를 삭제할까요?', { okText: '삭제', danger: true }).then(function(go){
+      if (!go) return; P.months.splice(+dm.dataset.mi, 1); lbtYearRelayout(); lbtSaveNow(); renderLbtPane();
+    });
+    return true;
+  }
+  var gsl = t.closest('.lbtYGenSlot');
+  if (gsl) { withBusy(gsl, '만드는 중…', function(){ return aiLbtYearSlot(+gsl.dataset.mi, +gsl.dataset.si).catch(function(er){ renderSyncState(); toast('주제 생성 실패: ' + er.message); }); })(); return true; }
   return false;
 }
 $('#lbtPane').addEventListener('change', function(e){
   var t = e.target, Y = state.lbt.year;
-  if (t.classList.contains('lbtYChk')) { var h = lbtYWeek(t.dataset.d); if (h) { h.w.sel = t.checked; lbtSaveSoon(); renderLbtPane(); } return; }
+  if (t.classList.contains('lbtYChk')) { var h = lbtYWeek(t.dataset.t); if (h) { h.w.sel = t.checked; lbtSaveSoon(); renderLbtPane(); } return; }
   if (t.classList.contains('lbtYG')) {
-    var mo = (Y.plan.months || []).filter(function(x){ return x.m === +t.dataset.m; })[0];
-    if (mo) { mo.g = t.value; lbtSaveSoon(); renderLbtPane(); toast(mo.m + '월 대주제를 바꿨습니다 — 주마다의 질문 번호도 그 분류로 고쳐 주세요(빨간 질문).'); }
+    var mo = (Y.plan.months || [])[+t.dataset.mi];
+    if (mo) { mo.g = t.value; lbtSaveSoon(); renderLbtPane(); if (mo.weeks.length) toast((mo.m ? mo.m + '월' : '이 묶음의') + ' 대주제를 바꿨습니다 — 주마다의 질문 번호도 그 분류로 고쳐 주세요(빨간 질문).'); }
     return;
   }
   if (t.classList.contains('lbtYIds')) {
-    var hit = lbtYWeek(t.dataset.d); if (!hit) return;
+    var hit = lbtYWeek(t.dataset.t); if (!hit) return;
     var ids = [];
     String(t.value || '').split(/[,\s]+/).forEach(function(tok){
       tok = tok.trim(); if (!tok) return;
@@ -19635,7 +19823,7 @@ $('#lbtPane').addEventListener('change', function(e){
 });
 $('#lbtPane').addEventListener('toggle', function(e){
   var t = e.target; if (!t.classList || !t.classList.contains('lbtYOpts')) return;
-  var h = lbtYWeek(t.dataset.d); if (h) { h.w.open = t.open; lbtSaveSoon(); }
+  var h = lbtYWeek(t.dataset.t); if (h) { h.w.open = t.open; lbtSaveSoon(); }
 }, true);
 
 $('#lbt_gen').addEventListener('click', withBusy($('#lbt_gen'), '구상 중…', function(){
@@ -19688,8 +19876,8 @@ $('#lbtPane').addEventListener('input', function(e){
     return;
   }
   var Y = state.lbt.year;
-  if (t.classList.contains('lbtYTheme')) { var mo = Y.plan.months.filter(function(x){ return x.m === +t.dataset.m; })[0]; if (mo) { mo.theme = t.value; lbtSaveSoon(); } return; }
-  if (t.classList.contains('lbtYTitle')) { var h = lbtYWeek(t.dataset.d); if (h) { h.w.title = t.value; lbtSaveSoon(); } }
+  if (t.classList.contains('lbtYTheme')) { var mo = Y.plan.months[+t.dataset.mi]; if (mo) { mo.theme = t.value; lbtSaveSoon(); } return; }
+  if (t.classList.contains('lbtYTitle')) { var h = lbtYWeek(t.dataset.t); if (h) { h.w.title = t.value; lbtSaveSoon(); } }
 });
 $('#lbt_date').addEventListener('change', function(){ state.lbt.date = this.value; lbtSaveSoon(); });
 $('#lbt_service').addEventListener('input', function(){ state.lbt.service = this.value.trim(); lbtSaveSoon(); });
@@ -27021,7 +27209,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v598';
+var APP_VER = 'v599';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -27100,6 +27288,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       state.lbt.year = Object.assign(lbtYearBlank(), o.year || {});
       if (!o.mode) state.lbt.mode = (o.opts && o.opts.length) ? 'topic' : 'year';   /* v596 이전 데이터: 만들어 둔 선택지가 있으면 주제별로 연다 */
       var _yp = state.lbt.year.plan; if (_yp && !_yp.gen) _yp.gen = 'g' + String(state.lbt.year.at || 'v597').replace(/\D/g, '');   /* v597 계획엔 세대 ID 가 없다 */
+      if (_yp) _yp.months.forEach(function(mo){ (mo.weeks || []).forEach(function(w){ if (!w.tid) w.tid = w.d || lbtNewTid(); }); });   /* v599 — 옛 주제의 ID = 원래 날짜 */
     }
     window._lbtRestored = true;
     if (state.lbt.date) $('#lbt_date').value = state.lbt.date; else state.lbt.date = $('#lbt_date').value;
