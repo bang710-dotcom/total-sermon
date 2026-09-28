@@ -1,7 +1,0 @@
-{
-  "version": "0.0.1",
-  "configurations": [
-    { "name": "tsa-static", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1"], "port": 8765 },
-    { "name": "fake-sheet", "runtimeExecutable": "python3", "runtimeArgs": ["/Users/rev.bang/Library/CloudStorage/Dropbox/total-sermon/tools/fake_sheet.py"], "port": 8766 }
-  ]
-}
