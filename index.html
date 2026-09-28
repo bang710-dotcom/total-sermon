@@ -790,7 +790,7 @@ input[type=date]{cursor:pointer}
 .zvChip{flex:0 0 auto;font-size:12px;font-weight:800;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:3px 10px}
 .zvTitle{flex:1 1 240px;min-width:0;font-size:19px;font-weight:800;line-height:1.35;color:var(--text)}
 .zvRef{flex:0 0 auto;font-size:12.5px;font-weight:700;color:var(--accent2);background:rgba(224,182,92,.12);border:1px solid rgba(224,182,92,.4);border-radius:999px;padding:3px 10px}
-.zvHd .zonePickBtn{flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px;margin-left:auto}
+.zvHd .zonePickBtn,.zvHd .lbtPickBtn{flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px;margin-left:auto}
 .zvMsg{margin-top:12px;padding:11px 14px;border-left:4px solid var(--accent);background:var(--card2);border-radius:0 10px 10px 0;font-size:15.5px;font-weight:700;line-height:1.55;color:var(--text)}
 .zvPts{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .zvPt{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 13px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -809,6 +809,28 @@ input[type=date]{cursor:pointer}
 .zvWhy .zvLbl{margin-right:7px}
 .zvEdit{margin-top:12px}
 .zvEdit summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--accent)}
+/* 리더의 뒷담화(v590) — 질문 목록 + 선택지 카드의 질문·나눔 칸 */
+.lbtGrp{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:var(--card)}
+.lbtGrp>summary{cursor:pointer;padding:10px 12px;font-weight:800;font-size:14px;display:flex;gap:8px;align-items:center;list-style:none}
+.lbtGrp>summary::-webkit-details-marker{display:none}
+.lbtGrp>summary::before{content:'▸';color:var(--dim);font-size:12px}
+.lbtGrp[open]>summary::before{content:'▾'}
+.lbtGrp .lbtGCnt{margin-left:auto;font-size:12px;font-weight:700;color:var(--dim)}
+.lbtGrp .lbtGCnt.on{color:var(--accent)}
+.lbtQ{display:flex;gap:8px;align-items:flex-start;padding:8px 12px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.5;cursor:pointer;margin:0;font-weight:400;color:var(--text)}
+.lbtQ.on{background:var(--card2)}
+.lbtQ input{flex:0 0 auto;margin-top:3px}
+.lbtQ .lbtNo{flex:0 0 auto;min-width:30px;color:var(--dim);font-size:12px;font-weight:700;margin-top:1px}
+.lbtQ .lbtTx{flex:1 1 auto;min-width:0}
+.lbtUsed{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;color:#3aa17e;border:1px solid rgba(58,161,126,.42);border-radius:5px;padding:0 5px;white-space:nowrap}
+.lbtSelBox{margin-top:10px;padding:10px 12px;border:1px dashed var(--accent);border-radius:10px;font-size:13px;line-height:1.55}
+.lbtSelBox .lbtSelHd{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--accent)}
+.lbtSelBox .lbtSelHd button{margin-left:auto;flex:0 0 auto;width:auto;padding:4px 10px;font-size:12px}
+.lbtSelBox ol{margin:6px 0 0;padding-left:20px}
+.zvQs{margin-top:12px;padding:10px 13px;background:var(--card2);border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.6}
+.zvQs .zvLbl{margin-right:6px}
+.zvQs ul{margin:6px 0 0;padding-left:18px}
+.zvQs li b{color:var(--text)}
 /* 서론·결론 상자(v580) — 대지 상자와 같은 모양, 머리에 섹션 이름 */
 .ptRow .ptSecTag{flex:0 0 auto;font-weight:800;font-size:13px;color:var(--accent);min-width:34px;text-align:center}
 .ptRow .ptBlk .ptMini{flex:0 0 26px;height:26px;background:var(--card2);border:1px solid var(--line);border-radius:6px;color:var(--dim);cursor:pointer;font-size:12px;padding:0;font-family:inherit}
@@ -883,10 +905,10 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #searchLeft{min-width:0}
   #qResults{max-height:calc(100vh - 170px);overflow:auto;padding-right:4px}
   #detailPane{display:block;position:sticky;top:18px;max-height:calc(100vh - 40px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;min-height:300px}
-  #page-compose.on,#page-occ.on,#page-zone.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
-  #composeMeta,#occMeta,#zoneMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:14px;scrollbar-gutter:stable}
-  #occMeta label,#zoneMeta label{margin-top:9px}
-  #occPane,#zonePane{max-height:calc(100vh - 40px);overflow:auto;padding-right:4px}
+  #page-compose.on,#page-occ.on,#page-zone.on,#page-lbt.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
+  #composeMeta,#occMeta,#zoneMeta,#lbtMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:14px;scrollbar-gutter:stable}
+  #occMeta label,#zoneMeta label,#lbtMeta label{margin-top:9px}
+  #occPane,#zonePane,#lbtPane{max-height:calc(100vh - 40px);overflow:auto;padding-right:4px}
   #page-series.on{display:grid;grid-template-columns:minmax(290px,360px) minmax(0,1fr);gap:20px;align-items:start}
   #seriesMeta{max-height:calc(100vh - 40px);overflow:auto;position:sticky;top:18px;padding-right:4px}
   #seriesMeta label{margin-top:9px}
@@ -935,7 +957,7 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #main > .page{padding-top:10px}
   /* 가로 스크롤(좌우 흔들림) 차단 — 넘치는 요소가 있어도 페이지가 좌우로 밀리지 않게 */
   #app{overflow-x:hidden}
-  .page,#seriesPane,#occPane,#zonePane,#editorPane,#detailPane,#qResults{max-width:100%}
+  .page,#seriesPane,#occPane,#zonePane,#lbtPane,#editorPane,#detailPane,#qResults{max-width:100%}
 
   /* 하단 탭바: 5칸, 큰 터치 타깃, 안전영역 */
   .tabbar button{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;padding:7px 0 5px}
@@ -1030,6 +1052,9 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #page-zone.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
   #page-zone.on #zoneMeta{min-height:0;overflow-y:auto;padding-right:4px}
   #page-zone.on #zonePane{min-height:0;overflow-y:auto}
+  #page-lbt.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
+  #page-lbt.on #lbtMeta{min-height:0;overflow-y:auto;padding-right:4px}
+  #page-lbt.on #lbtPane{min-height:0;overflow-y:auto}
 
   /* 시리즈: 목록은 전체폭, 마법사는 좌(계획) + 우(결과) */
   #page-series.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
@@ -1464,6 +1489,8 @@ body.uiDlgOpen{overflow:hidden}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>상황 설교 구상</button>
     <button class="nav" data-page="zone">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>구역권찰 설교 구상</button>
+    <button class="nav" data-page="lbt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.8 8.8 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.8 9.2a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.2"/><line x1="12" y1="16.2" x2="12" y2="16.3"/></svg>리더의 뒷담화</button>
     <button class="nav" data-page="devo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
     <button class="nav" data-page="series">
@@ -1713,6 +1740,27 @@ body.uiDlgOpen{overflow:hidden}
         <button class="btn sub" id="zone_new" type="button" style="width:100%;margin-top:14px">✚ 새로 시작하기</button>
       </div>
       <div id="zonePane"><div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [📥 자료 읽기]를 눌러 주세요.</div></div>
+    </section>
+
+    <!-- ============ 리더의 뒷담화 (v590) ============ -->
+    <section class="page" id="page-lbt">
+      <div id="lbtMeta">
+        <div class="cnt" style="margin-bottom:8px">LTC에서 리더들과 나누는 청년들의 신앙 질문 100개입니다. 질문 하나, 또는 서로 이어진 질문 여러 개를 골라 설교 개요를 구상합니다.</div>
+        <div class="row2">
+          <div><label style="margin-top:0">설교일</label><input type="date" id="lbt_date"></div>
+          <div><label style="margin-top:0">예배구분</label><input type="text" id="lbt_service" placeholder="대학부"></div>
+        </div>
+        <label>질문 찾기</label>
+        <input type="text" id="lbt_filter" placeholder="예) 기도, 연애, 구원 …" autocomplete="off">
+        <div id="lbtSel"></div>
+        <div id="lbtQList"></div>
+        <label>요청사항 (선택)</label>
+        <textarea id="lbt_req" rows="3" placeholder="예) 본문은 시편에서 / 이번 주 LTC에서 나온 이야기: … / 새가족이 많은 주"></textarea>
+        <div class="toolrow"><button class="btn" id="lbt_gen" type="button">✍ 설교 개요 구상</button></div>
+        <div class="cnt" style="margin-top:6px;font-size:12.5px;color:var(--dim)">개요 선택지 3세트를 만듭니다. 하나를 골라 [이 개요로 설교 작성]을 누르면 설교 작성 탭에서 원고를 이어 씁니다. 저장한 설교는 질문 옆에 ✓ 표시가 붙습니다.</div>
+        <button class="btn sub" id="lbt_new" type="button" style="width:100%;margin-top:14px">✚ 새로 시작하기</button>
+      </div>
+      <div id="lbtPane"><div class="empty">왼쪽에서 질문을 고르고 [✍ 설교 개요 구상]을 눌러 주세요.</div></div>
     </section>
 
     <!-- ============ 이달의 묵상 ============ -->
@@ -2189,6 +2237,7 @@ body.uiDlgOpen{overflow:hidden}
       <button class="msItem" data-page="mindmap" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M9.6 9.6 6.4 6.4M14.3 9.9 17.1 7.4M14.1 14.2 16.6 16.4"/></svg>마인드맵</button>
       <button class="msItem" data-page="occ" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>상황 설교 구상</button>
       <button class="msItem" data-page="zone" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>구역권찰 설교 구상</button>
+      <button class="msItem" data-page="lbt" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.8 8.8 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.8 9.2a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.2"/><line x1="12" y1="16.2" x2="12" y2="16.3"/></svg>리더의 뒷담화</button>
       <button class="msItem" data-page="devo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>이달의 묵상</button>
       <button class="msItem" data-page="series" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>시리즈 계획</button>
       <button class="msItem" data-page="archive" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></svg>미래설교 보관함</button>
@@ -24293,6 +24342,7 @@ function showPage(name){
   /* 새벽/상황 설교 작성칸을 떠날 때 마지막 입력을 즉시 저장(디바운스 사이 이탈로 인한 유실 방지) */
   if (_curPage === 'occ' && name !== 'occ' && typeof occSaveNow === 'function') { try { occSaveNow(); } catch(e){} }
   if (_curPage === 'zone' && name !== 'zone' && typeof zoneSaveNow === 'function') { try { zoneSaveNow(); } catch(e){} }
+  if (_curPage === 'lbt' && name !== 'lbt' && typeof lbtSaveNow === 'function') { try { lbtSaveNow(); } catch(e){} }
   $$('.page').forEach(function(p){ p.classList.remove('on'); });
   var pg = $('#page-' + name);
   if (pg) pg.classList.add('on');
@@ -24313,6 +24363,7 @@ function showPage(name){
   if (name === 'series') { state.seriesMode = 'list'; renderSeriesPage(); }
   if (name === 'occ') renderOccPane();
   if (name === 'zone') renderZonePane();
+  if (name === 'lbt') { renderLbtQs(); renderLbtPane(); }
   if (name === 'archive') renderArchive();
   if (name === 'library') renderLibrary();
   if (name === 'illlib') renderIllLib();
@@ -26079,7 +26130,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var grid = document.querySelector('#moreSheet .msGrid');
     if (!grid) return;
     var GROUPS = [
-      { label: '작성 · 구상', pages: ['compose', 'occ', 'zone', 'devo', 'series', 'input'] },
+      { label: '작성 · 구상', pages: ['compose', 'occ', 'zone', 'lbt', 'devo', 'series', 'input'] },
       { label: '자료 · 검색', pages: ['search', 'library', 'illlib', 'analytics', 'archive'] },
       { label: '생성물 · 관리', pages: ['outputs', 'import', 'inbox', 'settings'] }
     ];
