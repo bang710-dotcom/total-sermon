@@ -19990,7 +19990,7 @@ function lbtDevoAudit(rows){
     var ref = String(r['본문범위'] || '').trim(), why = '';
     if (!ref) why = '본문이 없습니다';
     else why = lbtRefWhyBad(ref);
-    if (!why && r.fixed && lbtDevoVerseN(ref) > 30) why = lbtDevoVerseN(ref) + '절 — 한 쪽에 다 들어가지 않습니다(30절 이내로 줄여 주세요)';
+    if (!why && r.fixed && lbtDevoVerseN(ref) > 26) why = lbtDevoVerseN(ref) + '절 — 한 쪽에 다 들어가지 않습니다(26절 이내로 줄여 주세요)';   /* 실측: 25절 이야기 본문이 7.8pt 까지 줄어든다 */
     if (!why && !r.fixed) {
       var vn = lbtDevoVerseN(ref);
       if (vn > 24) why = vn + '절 — 하루 분량으로 깁니다(20절 이내)';
@@ -25214,10 +25214,6 @@ function devoMD(iso){ var d = new Date(iso + 'T00:00:00'); return (d.getMonth() 
 function devoDayPages(S, row, bk){
   var p = devoParseRef(row['본문범위']) || { c1:1,v1:1,c2:1,v2:1 };
   var verses = bk ? devoVersesHtml(bk, p) : '<div class="vs">(본문 로드 실패)</div>';
-  /* 긴 본문은 글자를 줄여 한 쪽에 담는다(v603) — .pg 가 overflow:hidden 이라 넘치면 잘린다.
-     실측: 10.8pt 에서 본문 글자 약 1,250자까지 한 쪽(1,419자부터 넘침). 넓이는 글자 크기의 제곱에 비례 → √비율로 줄이고 8pt 까지. */
-  var vChars = verses.replace(/<span class="vn">[^<]*<\/span>/g, '').replace(/<[^>]+>/g, '').length;
-  if (vChars > 1250) verses = verses.replace(/<div class="vs">/g, '<div class="vs" style="font-size:' + Math.max(8, 10.8 * Math.sqrt(1250 / vChars)).toFixed(2) + 'pt">');
   var paper = devoBgSrc(S, 'paper');
   var titleRow = '<table style="width:100%;border-collapse:separate;border-spacing:3mm 0"><tr>'
     + '<td style="width:34%"><div class="pill" style="font-size:12.5pt;padding:2.6mm 0">' + devoMD(row['날짜']) + ' ' + devoWD(row['날짜']) + '요일</div></td>'
@@ -25406,6 +25402,24 @@ async function buildDevoBookletHtml(S, opts){
   });
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(m['시리즈명'] || '묵상집') + '</title><style>' + DEVO_CSS + '</style></head><body>' + pages.join('') + '</body></html>';
 }
+/* 본문 쪽 맞추기(v603) — .pg 가 overflow:hidden 이라 긴 본문(약 1,300자 이상)은 아래가 잘렸다.
+   실제 조판을 재서, 본문 패널이 쪽의 아래 여백(14mm) 위에 들어올 때까지 그 쪽 본문 글자만 0.2pt씩 줄인다(7.6pt 까지).
+   글자 수로 어림하면 절 간격·줄바꿈 차이로 빗나가므로 반드시 잰다. 짧은 본문은 손대지 않는다. */
+function devoFitPages(doc){
+  var n = 0;
+  Array.prototype.forEach.call(doc.querySelectorAll('.bodypg'), function(pg){
+    var panel = pg.querySelector('.panel'); if (!panel) return;
+    var vs = panel.querySelectorAll('.vs'); if (!vs.length) return;
+    var pr = pg.getBoundingClientRect(), limit = pr.bottom - pr.height * 14 / 297;
+    var fs = 10.8, k = 0;
+    while (panel.getBoundingClientRect().bottom > limit + 0.5 && fs > 7.6 && k++ < 20) {
+      fs = Math.round((fs - 0.2) * 10) / 10;
+      Array.prototype.forEach.call(vs, function(v){ v.style.fontSize = fs + 'pt'; });
+    }
+    if (fs < 10.8) n++;
+  });
+  return n;
+}
 function printDevoBooklet(S, opts){
   /* ★ 창은 클릭 제스처가 살아있을 때 '즉시' 연다. 개요 생성(API) 같은 await 뒤에 window.open을
      호출하면 브라우저가 팝업으로 막는다. 먼저 빈 창을 열고, 조립이 끝나면 그 창을 채운다. */
@@ -25416,7 +25430,7 @@ function printDevoBooklet(S, opts){
     if (w.closed) return;
     w.document.open(); w.document.write(html); w.document.close();
     var printed = false;   /* onload 경로와 폴백 타이머가 둘 다 실행돼 인쇄창이 두 번 뜨는 것 방지(1회 가드) */
-    var go = function(){ if (printed || w.closed) return; printed = true; try { w.focus(); w.print(); } catch(e){} };
+    var go = function(){ if (printed || w.closed) return; printed = true; try { devoFitPages(w.document); } catch(eF){} try { w.focus(); w.print(); } catch(e){} };
     w.onload = function(){
       var fonts = (w.document.fonts && w.document.fonts.ready) ? w.document.fonts.ready : Promise.resolve();
       Promise.resolve(fonts).then(function(){ setTimeout(go, 600); });
