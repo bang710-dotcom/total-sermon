@@ -19990,6 +19990,7 @@ function lbtDevoAudit(rows){
     var ref = String(r['본문범위'] || '').trim(), why = '';
     if (!ref) why = '본문이 없습니다';
     else why = lbtRefWhyBad(ref);
+    if (!why && r.fixed && lbtDevoVerseN(ref) > 30) why = lbtDevoVerseN(ref) + '절 — 한 쪽에 다 들어가지 않습니다(30절 이내로 줄여 주세요)';
     if (!why && !r.fixed) {
       var vn = lbtDevoVerseN(ref);
       if (vn > 24) why = vn + '절 — 하루 분량으로 깁니다(20절 이내)';
@@ -25213,6 +25214,10 @@ function devoMD(iso){ var d = new Date(iso + 'T00:00:00'); return (d.getMonth() 
 function devoDayPages(S, row, bk){
   var p = devoParseRef(row['본문범위']) || { c1:1,v1:1,c2:1,v2:1 };
   var verses = bk ? devoVersesHtml(bk, p) : '<div class="vs">(본문 로드 실패)</div>';
+  /* 긴 본문은 글자를 줄여 한 쪽에 담는다(v603) — .pg 가 overflow:hidden 이라 넘치면 잘린다.
+     실측: 10.8pt 에서 본문 글자 약 1,250자까지 한 쪽(1,419자부터 넘침). 넓이는 글자 크기의 제곱에 비례 → √비율로 줄이고 8pt 까지. */
+  var vChars = verses.replace(/<span class="vn">[^<]*<\/span>/g, '').replace(/<[^>]+>/g, '').length;
+  if (vChars > 1250) verses = verses.replace(/<div class="vs">/g, '<div class="vs" style="font-size:' + Math.max(8, 10.8 * Math.sqrt(1250 / vChars)).toFixed(2) + 'pt">');
   var paper = devoBgSrc(S, 'paper');
   var titleRow = '<table style="width:100%;border-collapse:separate;border-spacing:3mm 0"><tr>'
     + '<td style="width:34%"><div class="pill" style="font-size:12.5pt;padding:2.6mm 0">' + devoMD(row['날짜']) + ' ' + devoWD(row['날짜']) + '요일</div></td>'
@@ -25328,9 +25333,10 @@ async function buildDevoBookletHtml(S, opts){
   function _bn(ko){ var b = (_idx || []).filter(function(x){ return x.ko === ko || x.abbr === ko; })[0]; return b ? b.n : 0; }
   var _bnums = [], _seenN = {};
   rows.forEach(function(r){ var pp = devoParseRef(r['본문범위']); if (pp){ var n = _bn(pp.book); if (n && !_seenN[n]){ _seenN[n] = 1; _bnums.push(n); } } });
-  var catLabel = devoBookGroup(_bnums);
+  var ww = opts.ww || null;   /* Why에서 Way로 월별 묵상집(v603) — 표지 라벨·「이달의 질문」 1쪽·주차 표지만 다르다 */
+  var catLabel = ww ? ww.coverLabel : devoBookGroup(_bnums);
   var period = m['기간'] || devoPeriod(rows);
-  var themeLabel = (S.theme && S.theme.label) ? S.theme.label : '';
+  var themeLabel = ww ? ww.subtitle : ((S.theme && S.theme.label) ? S.theme.label : '');
   /* 표지 */
   pages.push(devoPg('<div style="position:absolute;left:24mm;right:24mm;top:36mm;bottom:108mm;background:rgba(252,250,240,.48);border:0.55mm solid rgba(74,64,50,.8);border-radius:14mm;z-index:0"></div>'
     + '<div style="position:relative;z-index:1;text-align:center;margin-top:40mm">'
@@ -25343,13 +25349,14 @@ async function buildDevoBookletHtml(S, opts){
     + '<div style="position:absolute;bottom:24mm;left:0;right:0;text-align:center;z-index:1"><span style="display:inline-block;background:rgba(40,28,14,.55);color:#FFFDF2;font-weight:900;font-size:15.5pt;letter-spacing:7px;padding:3mm 12mm 3.4mm;border-radius:99px">영락교회 대학부</span></div>', cover, 'cover'));
   /* 묵상이란 5p */
   DEVO_INTRO.forEach(function(h){ pages.push(devoPg('<div class="ip" style="position:relative;height:100%">' + h + '</div>', paper)); });
+  if (ww && ww.guide) pages.push(devoPg(ww.guide, paper));   /* 책 개요 대신 이달의 질문 1쪽 */
   /* 책 데이터 미리 로드 */
   var need = {}; weeks.forEach(function(w){ w.rows.forEach(function(r){ var pp = devoParseRef(r['본문범위']); if (pp) need[pp.book] = 1; }); });
   var bookMap = {};
   for (var ko in need){ try { bookMap[ko] = await devoLoadBook(ko); } catch(e){ bookMap[ko] = null; } }
   /* 책별 개요(8항목) 미리 생성·캐시 */
   var ovMap = {};
-  for (var ko3 in need){ try { ovMap[ko3] = await ensureOverview(S, ko3); } catch(e){ ovMap[ko3] = null; } }
+  if (!ww) for (var ko3 in need){ try { ovMap[ko3] = await ensureOverview(S, ko3); } catch(e){ ovMap[ko3] = null; } }   /* 날마다 책이 바뀌는 월별 묵상엔 책 개요를 넣지 않는다 */
   var lastBook = null;
   try { await illustLoadFull(); } catch (eIll){}   /* D-3: 한 주의 예화용(전문 표시) */
   /* 주차별 */
@@ -25366,14 +25373,20 @@ async function buildDevoBookletHtml(S, opts){
     var _startRef = (_sp.c1 != null) ? (_sp.c1 + ':' + _sp.v1) : '';
     var _endRef = (_ep.c2 != null) ? (_ep.c2 + ':' + _ep.v2) : '';
     var rangeShort = _startRef + (_endRef && _endRef !== _startRef ? ' ~ ' + _endRef : '');
-    var theme = (m['주차주제'] && m['주차주제'][wi] && m['주차주제'][wi]['주제']) || first['제목'] || '';
+    var wk = ww ? (ww.byMon[w.mon] || {}) : null;
+    var theme = wk ? (wk.theme || '') : ((m['주차주제'] && m['주차주제'][wi] && m['주차주제'][wi]['주제']) || first['제목'] || '');
+    var mid = wk
+      ? '<div style="font-size:11.5pt;font-weight:700" class="dim">' + (wk.free ? devoMD(wk.sun) + ' 주일까지 · 자유 묵상' : devoMD(wk.sun) + ' 주일의 질문') + '</div>'
+        + '<div style="font-size:' + (String(wk.title || '').length > 16 ? 17 : 20) + 'pt;font-weight:900;margin:3mm 8mm 0;line-height:1.4">' + esc(wk.title || '') + '</div>'
+        + wk.qs.map(function(q){ return '<div style="font-size:9.8pt;margin:2mm 10mm 0;line-height:1.5;color:#5B5142">' + esc(q) + '</div>'; }).join('')
+      : '<div style="font-size:21pt;font-weight:900">' + esc(wkBookName) + '</div>'
+        + '<div style="font-size:15pt;font-weight:700;margin-top:2mm">' + esc(rangeShort) + '</div>';
     pages.push(devoPg('<div style="position:absolute;left:34mm;right:34mm;top:42mm;bottom:80mm;border:0.45mm solid #4A4032;border-radius:14mm;background:rgba(252,250,240,.55);z-index:0"></div>'
       + '<div style="position:relative;z-index:1;text-align:center;margin-top:38mm"><div style="font-size:20pt;font-weight:700;letter-spacing:6px">WEEKLY&nbsp; WORD</div>'
       + '<div style="font-size:11pt;margin-top:4mm" class="dim">' + devoMD(first['날짜']) + ' (' + devoWD(first['날짜']) + ') ~ ' + devoMD(last['날짜']) + ' (' + devoWD(last['날짜']) + ')</div>'
-      + '<div style="width:60mm;border-top:0.3mm solid #6F6046;margin:11mm auto"></div>'
-      + '<div style="font-size:21pt;font-weight:900">' + esc(wkBookName) + '</div>'
-      + '<div style="font-size:15pt;font-weight:700;margin-top:2mm">' + esc(rangeShort) + '</div>'
-      + (theme ? '<div style="font-size:11.5pt;margin-top:8mm" class="accent">- ' + esc(theme) + ' -</div>' : '')
+      + '<div style="width:60mm;border-top:0.3mm solid #6F6046;margin:' + (wk ? '8mm' : '11mm') + ' auto"></div>'
+      + mid
+      + (theme ? '<div style="font-size:11.5pt;margin-top:' + (wk ? '6mm' : '8mm') + '" class="accent">- ' + esc(theme) + ' -</div>' : '')
       + '<div style="font-size:9pt;margin-top:16mm" class="dim">' + esc(m['시리즈명'] || '') + ' 말씀 묵상집</div></div>'
       + '<div style="position:absolute;bottom:34mm;left:0;right:0;text-align:center;z-index:1"><span style="display:inline-block;background:rgba(252,250,243,.92);color:#5B5142;font-size:11pt;padding:2.2mm 7mm;border-radius:99px">매일 한 줄의 말씀으로 하루를 채워보세요.</span></div>', weekly, 'wk'));
     /* 일정표(찢은 종이) */
@@ -27700,7 +27713,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v602';
+var APP_VER = 'v603';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
