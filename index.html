@@ -19390,6 +19390,7 @@ function renderLbtYearPane(){
     '<div class="toolrow" style="flex-wrap:wrap">' +
     (ok ? '<button class="btn sub" id="lbtY_selAll" type="button">' + (nSel && nSel === nW ? '☐ 전체 해제' : '☑ 전체 선택') + '</button>' +
           '<button class="btn" id="lbtY_genSel" type="button"' + (nSel ? '' : ' disabled') + '>📝 선택한 주차 개요 초안 생성' + (nSel ? ' (' + nSel + ')' : '') + '</button>' +
+          '<button class="btn sub" id="lbtY_hwpx" type="button">📄 한글 파일(hwpx)</button>' +
           '<button class="btn sub" id="lbtY_unconfirm" type="button">✏ 계획 고치기(확정 풀기)</button>'
         : '<button class="btn" id="lbtY_confirm" type="button">✅ 계획 확정</button>' +
           '<button class="btn sub" id="lbtY_regen" type="button">🔄 계획 다시 구상</button>') +
@@ -19795,6 +19796,31 @@ $('#lbtY_new').addEventListener('click', async function(){
   state.lbt.year = lbtYearBlank();
   lbtSaveNow(); renderLbtYearMeta(); renderLbtPane();
 });
+/* 확정한 연간 계획 → 한글(hwpx) — 시리즈 설교계획과 같은 plan 껍데기·6열 표(v601).
+   주일마다 한 행(빈 주일도 날짜만 남긴다), 대주제·월 주제는 그 달 첫 행에만. 넘친 주제(날짜 없음)는 넣지 않는다.
+   LTC·GBS 칸은 설교계획처럼 비워 둔다(손으로 채우는 칸). 설정의 산출물 형식과 상관없이 늘 hwpx. */
+async function lbtYearHwpx(){
+  var Y = state.lbt.year, P = Y.plan; if (!P) return;
+  lbtYearRelayout();
+  var rows = [['회차', '주일', '대주제 / 월 주제', '설교 가제 / 질문', 'LTC', 'GBS']], n = 0;
+  P.months.forEach(function(mo){
+    if (!mo.m) return;
+    var G = lbtG(mo.g), byD = {};
+    mo.weeks.forEach(function(w){ if (w.d) byD[w.d] = w; });
+    mo.slots.forEach(function(d, k){
+      var w = byD[d];
+      var head = k ? '' : [G ? G.g + '. ' + G.t : '', mo.theme || ''].filter(Boolean);
+      if (!head.length) head = '';   /* 빈 배열이면 셀에 문단이 없어 한글이 못 연다 */
+      var body = w ? [w.title || '(가제 없음)'].concat(w.ids.map(function(id){ var q = lbtQ(id); return id + ' ' + (q ? q.q : ''); })) : '(빈 주일)';
+      rows.push([w ? String(++n) : '', fmtKorDate(d), head, body, '', '']);
+    });
+  });
+  var blob = await hwpxBuild({ type: 'plan', slots: [Y.yr + '년 ' + LBT_SERIES + ' 연간 설교 계획'],
+    blocks: [{ role: 'blank' }, { role: 'table', rows: rows }] });
+  var fname = (LBT_SERIES + '_' + Y.yr + '_연간설교계획.hwpx').replace(/\s+/g, '').replace(/[\\/:*?"<>|]/g, '_');
+  await saveBlobToResults(blob, fname);
+  if (canFolderSave()) toast('결과함에 저장: ' + fname);
+}
 function lbtYearPaneClick(e){
   var Y = state.lbt.year, P = Y.plan;
   var t = e.target;
@@ -19808,9 +19834,12 @@ function lbtYearPaneClick(e){
     if (empty) warn.push('질문이 비어 있는 주 ' + empty + '개');
     (warn.length ? uiConfirm(warn.join('\n') + '\n\n그대로 확정할까요? (그 주는 개요 초안을 만들 수 없습니다)', { okText: '확정' }) : Promise.resolve(true)).then(function(go){
       if (!go) return; Y.confirmed = true; lbtSaveNow(); renderLbtPane(); toast('계획을 확정했습니다 — 주차를 골라 개요 초안을 만드세요.');
+      lbtYearHwpx().catch(function(er){ toast('한글 파일 만들기 실패: ' + er.message); });   /* 확정하면 곧바로 한글 파일로 */
     });
     return true;
   }
+  var hx = t.closest('#lbtY_hwpx');
+  if (hx) { withBusy(hx, '만드는 중…', function(){ return lbtYearHwpx().catch(function(er){ toast('한글 파일 만들기 실패: ' + er.message); }); })(); return true; }
   if (t.closest('#lbtY_unconfirm')) { Y.confirmed = false; lbtSaveNow(); renderLbtPane(); return true; }
   var rg = t.closest('#lbtY_regen');
   if (rg) { withBusy(rg, '구상 중…', function(){ return aiLbtYearPlan().catch(function(er){ renderSyncState(); toast('연간 계획 구상 실패: ' + er.message); }); })(); return true; }
@@ -27255,7 +27284,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v600';
+var APP_VER = 'v601';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
