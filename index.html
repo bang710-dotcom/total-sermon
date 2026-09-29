@@ -19296,6 +19296,13 @@ function lbtYWeek(key){
   return null;
 }
 function lbtG(g){ for (var i = 0; i < LBT_QS.length; i++) if (LBT_QS[i].g === g) return LBT_QS[i]; return null; }
+/* 달의 대주제 표시 (v606) — 「Ⅳ. 기도·예배·영성 생활」 대신 「[1월의 주제] 기도·예배·영성 생활」.
+   로마 숫자는 질문 목록(LBT_QS)의 분류 번호라 달 순서와 맞지 않는다(2026-09-29 목사님 요청). 화면·묵상집·한글 파일 모두 이 함수로.
+   분류 번호는 질문 ID(Ⅳ-3)·초안의 대주제 선택 칸에만 남긴다. AI 에 넘길 때는 이름만(G.t). */
+function lbtMonTheme(mo, G){
+  G = G || (mo && lbtG(mo.g)); if (!G) return '';
+  return (mo && mo.m ? '[' + mo.m + '월의 주제] ' : '') + G.t;
+}
 function lbtMd(d){ var p = String(d || '').split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : d; }
 
 function renderLbtMode(){
@@ -19431,7 +19438,7 @@ function renderLbtYearPane(){
     var G = lbtG(mo.g) || { g: mo.g, t: '' }, over = !mo.m;
     h += '<div class="edPoint lbtYMon' + (over ? ' over' : '') + '" data-mi="' + mi + '"><div class="lbtYMonHd">' + drag('mon') +
       (over ? '<span class="zvChip lbtOverChip">배정할 달 없음' + (mo.pm ? ' (원래 ' + mo.pm + '월)' : '') + '</span>' : '<span class="zvChip">' + mo.m + '월</span>') +
-      (ok ? '<b>' + esc(mo.g ? G.g + '. ' + G.t : '(대주제 없음)') + '</b>'
+      (ok ? '<b>' + esc(mo.g ? lbtMonTheme(mo, G) : '(대주제 없음)') + '</b>'
           : '<select class="lbtYG" data-mi="' + mi + '">' + (mo.g ? '' : '<option value="" selected>(대주제 선택)</option>') + LBT_QS.map(function(x){ return '<option value="' + x.g + '"' + (x.g === mo.g ? ' selected' : '') + '>' + x.g + '. ' + esc(x.t) + '</option>'; }).join('') + '</select>') +
       (over && !ok ? '<button class="btn sub lbtYDelMon" type="button" data-mi="' + mi + '">🗑 묶음 삭제</button>' : '') +
       '</div>' +
@@ -19596,7 +19603,7 @@ async function aiLbtYearRefs(tids){
     var G = lbtG(mo.g) || { g: mo.g, t: '' };
     mo.weeks.forEach(function(w){
       if (w.d && want[w.tid] && (w.ids.length || w.title)) ws.push({ w: w, row: {
-        'ID': w.tid, '날짜': w.d, '대주제': G.g ? G.g + '. ' + G.t : '', '월주제': mo.theme || '', '가제': w.title || '', '답의방향': w.dir || '',
+        'ID': w.tid, '날짜': w.d, '대주제': G.g ? G.t : '', '월주제': mo.theme || '', '가제': w.title || '', '답의방향': w.dir || '',
         '질문': w.ids.map(function(id){ var q = lbtQ(id); return q ? q.q : id; }) } });
       else (w.refs || []).forEach(function(x){ others.push(x.r); });
     });
@@ -19640,7 +19647,7 @@ async function aiLbtYearSlot(mi, date){
   var G = lbtG(mo.g), inPlan = {};
   P.months.forEach(function(x){ x.weeks.forEach(function(w){ (w.ids || []).forEach(function(id){ inPlan[id] = 1; }); }); });
   var free = G.q.map(function(q, k){ return G.g + '-' + (k + 1); }).filter(function(id){ return !inPlan[id]; });
-  if (!free.length) { toast(G.g + '. ' + G.t + ' 의 질문 10개를 모두 계획에 썼습니다 — 빈 주제를 만들어 둘 테니 질문 번호를 직접 넣어 주세요.'); lbtYearInsertTopic(mo, date, { ids: [], title: '', dir: '' }); return; }
+  if (!free.length) { toast('「' + G.t + '」의 질문 10개를 모두 계획에 썼습니다 — 빈 주제를 만들어 둘 테니 질문 번호를 직접 넣어 주세요.'); lbtYearInsertTopic(mo, date, { ids: [], title: '', dir: '' }); return; }
   if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return; }
   var out = await callClaude(P_LBT_YEAR_SLOT, JSON.stringify({
     '날짜': date, '몇째주': (si + 1) + '/' + mo.slots.length,
@@ -19669,7 +19676,7 @@ function lbtYearWeekReq(hit){
   var others = mo.weeks.filter(function(x){ return x.tid !== hit.w.tid && x.d; }).map(function(x){ return lbtMd(x.d) + ' ' + (x.title || x.ids.join(',')); });
   return [
     Y.req,
-    '연간 시리즈 「' + LBT_SERIES + '」 ' + mo.m + '월 대주제: ' + G.g + '. ' + G.t + (mo.theme ? ' — 월 주제 「' + mo.theme + '」' : '') + (mo.flow ? '. 이 달의 흐름: ' + mo.flow : ''),
+    '연간 시리즈 「' + LBT_SERIES + '」 ' + mo.m + '월 대주제: ' + G.t + (mo.theme ? ' — 월 주제 「' + mo.theme + '」' : '') + (mo.flow ? '. 이 달의 흐름: ' + mo.flow : ''),
     '이 설교는 그 달 ' + (hit.k + 1) + '/' + (mo.slots || mo.weeks).length + '주차다' + (others.length ? '. 같은 달 다른 주: ' + others.join(' / ') + ' — 그 주들과 겹치지 않게 이 주의 질문에 집중한다' : '') + '.',
     hit.w.title ? '연간 계획의 이 주 가제: 「' + hit.w.title + '」 — 제목 규칙을 따르되 이 가제의 방향을 살린다.' : '',
     hit.w.dir ? '연간 계획에서 잡은 이 주 답의 방향: ' + hit.w.dir : '',
@@ -19933,7 +19940,7 @@ async function lbtYearHwpx(){
     mo.weeks.forEach(function(w){ if (w.d) byD[w.d] = w; });
     mo.slots.forEach(function(d, k){
       var w = byD[d];
-      var head = k ? '' : [G ? G.g + '. ' + G.t : '', mo.theme || ''].filter(Boolean);
+      var head = k ? '' : [G ? lbtMonTheme(mo, G) : '', mo.theme || ''].filter(Boolean);
       if (!head.length) head = '';   /* 빈 배열이면 셀에 문단이 없어 한글이 못 연다 */
       var body = w ? [w.title || '(가제 없음)'].concat(w.ids.map(function(id){ var q = lbtQ(id); return id + ' ' + (q ? q.q : ''); }),
         (w.refs || []).length ? ['본문: ' + lbtRefsLine(w)] : []) : '(빈 주일)';
@@ -19971,7 +19978,7 @@ function lbtDevoWeeks(mo){
 /* 계획이 바뀌었는지 보려는 서명 — 주일·주제·질문·토요일 본문 */
 function lbtDevoSig(wks){ return wks.map(function(x){ return x.sun + '|' + (x.w ? x.w.tid + '|' + x.w.title + '|' + x.w.ids.join(',') : '-') + '|' + x.sat; }).join('/'); }
 function lbtDevoQ(x, G){
-  if (!x.w) return '자유 묵상 — 대주제 「' + (G ? G.g + '. ' + G.t : '') + '」';
+  if (!x.w) return '자유 묵상 — 이달의 대주제 「' + (G ? G.t : '') + '」';
   return (x.w.title ? x.w.title + ' — ' : '') + x.w.ids.map(function(id){ var q = lbtQ(id); return q ? q.q : id; }).join(' / ');
 }
 function lbtDevoVerseN(r){
@@ -20083,7 +20090,7 @@ async function aiLbtDevoMonth(mi){
   oth.rows.concat(oth.sats).forEach(function(x){ avoid[x.ref] = 1; });
   toast(mo.m + '월 묵상 ' + (wks.length * 6) + '일의 본문을 고릅니다 (1/2단계)');
   var out = await callClaude(P_LBT_DEVO, JSON.stringify({
-    '월': mo.m, '대주제': G ? { '분류': G.g + '. ' + G.t, '질문': G.q } : null, '월주제': mo.theme || '', '흐름': mo.flow || '',
+    '월': mo.m, '대주제': G ? { '분류': G.t, '질문': G.q } : null, '월주제': mo.theme || '', '흐름': mo.flow || '',
     '주': wks.map(function(x){ return x.w
       ? { '주일': x.sun, '종류': '설교', '가제': x.w.title || '', '질문': x.w.ids.map(function(id){ var q = lbtQ(id); return q ? q.q : id; }), '답의방향': x.w.dir || '',
           '추천본문': (x.w.refs || []).map(function(r){ return r.r + (r.story ? '(이야기)' : ''); }), '토요일본문': x.sat || '(없음 — 이야기 본문을 새로 고른다)', '날짜': x.days }
@@ -20157,7 +20164,7 @@ function lbtDevoBooklet(mo){
   var byMon = {};
   wks.forEach(function(x){
     byMon[x.days[0]] = { sun: x.sun, free: !x.w, theme: (D.themes && D.themes[x.sun]) || (x.w ? x.w.title : '자유 묵상'),
-      title: x.w ? (x.w.title || '') : G.g + '. ' + G.t, qs: x.w ? x.w.ids.map(function(id){ var q = lbtQ(id); return q ? q.q : ''; }).filter(Boolean) : [] };
+      title: x.w ? (x.w.title || '') : lbtMonTheme(mo, G), qs: x.w ? x.w.ids.map(function(id){ var q = lbtQ(id); return q ? q.q : ''; }).filter(Boolean) : [] };
   });
   var li = wks.map(function(x){
     var b = byMon[x.days[0]];
@@ -20166,13 +20173,13 @@ function lbtDevoBooklet(mo){
         : '<div style="font-size:9.6pt;line-height:1.6;color:#5B5142;margin-left:4mm">· 설교가 없는 주 — 이달의 대주제를 따라 자유롭게 묵상합니다.</div>') + '</div>';
   }).join('');
   var guide = '<div class="pill" style="font-size:16.5pt;padding:2.6mm 0">' + mo.m + '월 <span class="accent">이달의 질문</span></div><div style="height:4.5mm"></div>'
-    + '<div class="panel" style="padding:6mm 7mm"><div style="font-size:13pt;font-weight:900">' + esc(G.g + '. ' + G.t) + '</div>'
+    + '<div class="panel" style="padding:6mm 7mm"><div style="font-size:13pt;font-weight:900">' + esc(lbtMonTheme(mo, G)) + '</div>'
     + (mo.theme ? '<div style="font-size:11pt;font-weight:700;margin-top:2mm" class="accent">' + esc(mo.theme) + '</div>' : '')
     + (mo.flow ? '<div style="font-size:9.8pt;line-height:1.7;margin-top:3mm">' + esc(mo.flow) + '</div>' : '') + '</div><div style="height:4mm"></div>'
     + '<div class="badge">주일마다 함께 붙들 질문</div><div class="panel" style="margin-top:2.5mm;border-radius:0 5mm 5mm 5mm;padding:5.5mm 7mm">' + li + '</div>'
     + '<div style="margin-top:4mm;font-size:9.3pt;line-height:1.65;color:#5B5142;text-align:center">월요일부터 토요일까지의 묵상은 다가올 주일의 질문을 향해 갑니다.<br>토요일에는 주일 말씀과 이어지는 이야기 본문을 읽습니다.</div>';
   return printDevoBooklet({ meta: { '시리즈명': LBT_SERIES, '기간': period }, devo: { rows: rows } },
-    { ww: { coverLabel: G.g + '. ' + G.t, subtitle: mo.m + '월' + (mo.theme ? ' · ' + mo.theme : ''), guide: guide, byMon: byMon } });
+    { ww: { coverLabel: lbtMonTheme(mo, G), subtitle: mo.m + '월' + (mo.theme ? ' · ' + mo.theme : ''), guide: guide, byMon: byMon } });
 }
 function lbtDevoHtml(mo, mi){
   var mk = lbtDevoKey(mo.m), D = lbtDevoGet(mo), wks = lbtDevoWeeks(mo);
@@ -20196,7 +20203,7 @@ function lbtDevoHtml(mo, mi){
   wks.forEach(function(x){
     var rs = D.rows.filter(function(r){ return x.days.indexOf(r['날짜']) >= 0; });
     h += '<div class="lbtDevoWk"><div class="lbtDevoWkHd"><b>' + lbtMd(x.days[0]) + '~' + lbtMd(x.days[5]) + '</b> → ' + lbtMd(x.sun) + ' 주일 · '
-      + esc(x.w ? (x.w.title || x.w.ids.join(', ')) : '자유 묵상 (' + (G ? G.g + '. ' + G.t : '') + ')') + ((D.themes || {})[x.sun] ? ' <span class="cnt">— ' + esc(D.themes[x.sun]) + '</span>' : '') + '</div>';
+      + esc(x.w ? (x.w.title || x.w.ids.join(', ')) : '자유 묵상 · ' + (G ? lbtMonTheme(mo, G) : '')) + ((D.themes || {})[x.sun] ? ' <span class="cnt">— ' + esc(D.themes[x.sun]) + '</span>' : '') + '</div>';
     rs.forEach(function(r){
       var i = D.rows.indexOf(r), wd = devoWD(r['날짜']);
       h += '<div class="lbtDevoDay' + (r.bad ? ' bad' : '') + '"><div class="lbtDevoDayHd"><span class="lbtYDate">' + lbtMd(r['날짜']) + ' ' + wd + '</span>'
@@ -20294,7 +20301,7 @@ function lbtYearPaneClick(e){
   if (dm) {
     var mb = P.months[+dm.dataset.mi]; if (!mb) return true;
     var G = lbtG(mb.g);
-    uiConfirm('배정할 달이 없는 묶음 「' + (G ? G.g + '. ' + G.t : '(대주제 없음)') + (mb.theme ? ' — ' + mb.theme : '') + '」(주제 ' + mb.weeks.length + '개)를 삭제할까요?', { okText: '삭제', danger: true }).then(function(go){
+    uiConfirm('배정할 달이 없는 묶음 「' + (G ? G.t : '(대주제 없음)') + (mb.theme ? ' — ' + mb.theme : '') + '」(주제 ' + mb.weeks.length + '개)를 삭제할까요?', { okText: '삭제', danger: true }).then(function(go){
       if (!go) return; P.months.splice(+dm.dataset.mi, 1); lbtYearRelayout(); lbtSaveNow(); renderLbtPane();
     });
     return true;
@@ -27781,7 +27788,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v605';
+var APP_VER = 'v606';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
