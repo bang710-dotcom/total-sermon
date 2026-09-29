@@ -848,7 +848,12 @@ input[type=date]{cursor:pointer}
 .lbtYBadge.has{color:var(--accent);border-color:var(--accent)}
 .lbtYQs{margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:12.8px;color:var(--dim);line-height:1.5}
 .lbtYQs .bad{color:#d9534f}
-.lbtYWk input.lbtYIds{margin-top:6px;padding:6px 10px;font-size:13px}
+.lbtYWk input.lbtYIds,.lbtYWk input.lbtYRefsIn{margin-top:6px;padding:6px 10px;font-size:13px}
+/* 추천 본문 (v602) */
+.lbtYRefs{margin-top:6px;display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;font-size:12.8px;line-height:1.5}
+.lbtYRefs .lbl{font-weight:800;color:var(--dim)}
+.lbtYRef .story{margin-left:3px;font-size:11px;font-weight:800;color:#3aa17e;border:1px solid rgba(58,161,126,.5);border-radius:5px;padding:0 4px}
+.lbtYRefs .warn{font-size:11.5px;font-weight:700;color:var(--accent2)}
 .lbtYOpts{margin-top:8px}
 .lbtYOpts>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--accent)}
 /* 끌어 옮기기·넘침·빈 주일 (v599) */
@@ -19333,7 +19338,7 @@ function lbtYearNormalize(j, act){
         .map(function(x){ return String(x).trim(); })
         .filter(function(id){ var q = lbtQ(id); return q && q.g === g; })
         .filter(function(id){ if (seen[id]) { dup++; return false; } seen[id] = 1; return true; });
-      return { tid: lbtNewTid(), d: d, pd: d, ids: ids, title: String(w['제목'] || '').trim(), dir: String(w['방향'] || '').trim(), opts: [], at: '', sel: false };
+      return { tid: lbtNewTid(), d: d, pd: d, ids: ids, title: String(w['제목'] || '').trim(), dir: String(w['방향'] || '').trim(), refs: [], opts: [], at: '', sel: false };
     });
     return { m: A.m, pm: A.m, g: g, theme: String(src['월주제'] || '').trim(), flow: String(src['흐름'] || '').trim(), weeks: weeks };
   });
@@ -19365,7 +19370,10 @@ async function aiLbtYearPlan(){
   lbtSaveNow(); renderLbtYearMeta(); renderLbtPane(); renderSyncState();
   var fx = Y.plan.fixes, n = [];
   if (fx.dup) n.push('한 해에 두 번 나온 질문 ' + fx.dup + '개를 뺐습니다');
-  toast('연간 계획 도착 — 월 주제·주별 질문을 확인하고 [계획 확정]을 눌러 주세요.' + (n.length ? ' (' + n.join(', ') + ')' : ''));
+  toast('연간 계획 도착 — 이어서 주마다 추천 본문을 찾습니다.' + (n.length ? ' (' + n.join(', ') + ')' : ''));
+  var tids = []; Y.plan.months.forEach(function(mo){ mo.weeks.forEach(function(w){ if (w.d) tids.push(w.tid); }); });
+  try { await aiLbtYearRefs(tids); }
+  catch (e) { renderSyncState(); toast('계획은 들어왔지만 추천 본문 찾기는 실패했습니다: ' + e.message + ' — [📖 추천 본문 채우기]로 다시 시도해 주세요.'); }
 }
 
 function renderLbtYearPane(){
