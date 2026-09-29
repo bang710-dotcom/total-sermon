@@ -19984,10 +19984,39 @@ function lbtDevoVerseN(r){
   return n;
 }
 /* 한 달치 행의 문제를 코드로 찾는다(모델 출력을 믿지 않음) → row.bad 에 사유. 토요일 고정 본문은 실재만 본다. */
-function lbtDevoAudit(rows){
-  var ivs = [], n = 0;
+/* 한 해 전체에서 이 달이 피해야 할 본문(v604) — 달을 어떤 순서로 만들든 같은 규칙.
+   rows = 다른 달 묵상 본문(이 기기 것이 우선, 없으면 묵상집 시트), sats = 다른 주들의 토요일 이야기 본문(예약 — 아직 만들지 않은 달 포함).
+   이 달의 날짜(mine)는 뺀다 — 다시 만들 때 자기 자신과 겹친다고 보지 않게. */
+function lbtDevoYearOthers(mo){
+  var Y = state.lbt.year, P = Y.plan, mk = lbtDevoKey(mo.m), mine = {}, local = {}, rows = [], sats = [];
+  lbtDevoWeeks(mo).forEach(function(x){ x.days.forEach(function(d){ mine[d] = 1; }); });
+  Object.keys(Y.devo || {}).forEach(function(k){
+    ((Y.devo[k] || {}).rows || []).forEach(function(r){
+      local[r['날짜']] = 1;
+      if (k === mk || mine[r['날짜']]) return;
+      var iv = refToInterval(r['본문범위']); if (iv) rows.push({ iv: iv, ref: r['본문범위'], d: r['날짜'] });
+    });
+  });
+  (state.data.devo || []).forEach(function(r){
+    if (r['시리즈명'] !== LBT_SERIES || mine[r['날짜']] || local[r['날짜']]) return;
+    var iv = refToInterval(r['본문범위']); if (iv) rows.push({ iv: iv, ref: r['본문범위'], d: r['날짜'] });
+  });
+  ((P && P.months) || []).forEach(function(m2){
+    if (!m2.m || m2 === mo) return;
+    lbtDevoWeeks(m2).forEach(function(x){ if (!x.sat) return; var iv = refToInterval(x.sat); if (iv) sats.push({ iv: iv, ref: x.sat, d: x.days[5] }); });
+  });
+  return { rows: rows, sats: sats };
+}
+function lbtIvHit(list, iv){ for (var i = 0; i < list.length; i++) { var o = list[i].iv || list[i]; if (o.idx === iv.idx && o.lo <= iv.hi && iv.lo <= o.hi) return list[i]; } return null; }
+/* 한 달치 행의 문제를 코드로 찾는다(모델 출력을 믿지 않음) → row.bad 에 사유.
+   · 평일(고정 아님): 실재·5~24절 · 같은 달 다른 날(토요일 고정 본문 포함) · 다른 달 묵상 · 한 해의 다른 토요일 이야기 본문과 겹치면 문제
+   · 토요일 고정 본문: 실재·26절 이내 · 다른 토요일 이야기 본문과 같으면 문제(추천 본문을 바꿔야 함). 다른 달 평일과 겹치는 것은 그 평일 쪽 문제로 본다. */
+function lbtDevoAudit(rows, mo){
+  var ext = mo ? lbtDevoYearOthers(mo) : { rows: [], sats: [] };
+  var fixedIv = [], seen = [], n = 0;
+  rows.forEach(function(r){ if (r.fixed) { var iv = refToInterval(r['본문범위']); if (iv) fixedIv.push({ iv: iv, r: r }); } });
   rows.forEach(function(r){
-    var ref = String(r['본문범위'] || '').trim(), why = '';
+    var ref = String(r['본문범위'] || '').trim(), why = '', hit;
     if (!ref) why = '본문이 없습니다';
     else why = lbtRefWhyBad(ref);
     if (!why && r.fixed && lbtDevoVerseN(ref) > 26) why = lbtDevoVerseN(ref) + '절 — 한 쪽에 다 들어가지 않습니다(26절 이내로 줄여 주세요)';   /* 실측: 25절 이야기 본문이 7.8pt 까지 줄어든다 */
@@ -19997,8 +20026,16 @@ function lbtDevoAudit(rows){
       else if (vn < 3) why = vn + '절 — 너무 짧습니다';
     }
     var iv = !why ? refToInterval(ref) : null;
-    if (iv && !r.fixed && ivs.some(function(o){ return o.idx === iv.idx && o.lo <= iv.hi && iv.lo <= o.hi; })) why = '같은 달의 다른 날 본문과 겹칩니다';
-    if (iv) ivs.push(iv);
+    if (iv && r.fixed) {
+      if ((hit = lbtIvHit(fixedIv.filter(function(x){ return x.r !== r && x.r['날짜'] < r['날짜']; }), iv))) why = '같은 달 ' + lbtMd(hit.r['날짜']) + ' 토요일 이야기 본문과 겹칩니다 — 그 주 추천 본문을 바꿔 주세요';
+      else if ((hit = lbtIvHit(ext.sats, iv))) why = lbtMd(hit.d) + ' 토요일 이야기 본문(' + hit.ref + ')과 겹칩니다 — 한쪽 주의 추천 본문을 바꿔 주세요';
+    } else if (iv) {
+      if ((hit = lbtIvHit(fixedIv, iv))) why = '같은 달 ' + lbtMd(hit.r['날짜']) + ' 토요일 이야기 본문(' + hit.r['본문범위'] + ')과 겹칩니다';
+      else if ((hit = lbtIvHit(seen, iv))) why = '같은 달 ' + lbtMd(hit.d) + ' 본문(' + hit.ref + ')과 겹칩니다';
+      else if ((hit = lbtIvHit(ext.rows, iv))) why = '다른 달 ' + lbtMd(hit.d) + ' 묵상 본문(' + hit.ref + ')과 겹칩니다';
+      else if ((hit = lbtIvHit(ext.sats, iv))) why = lbtMd(hit.d) + ' 토요일 이야기 본문(' + hit.ref + ')으로 예약된 본문과 겹칩니다';
+      if (!why) seen.push({ iv: iv, ref: ref, d: r['날짜'] });
+    }
     r.bad = why || '';
     if (why) n++;
   });
@@ -20006,11 +20043,11 @@ function lbtDevoAudit(rows){
 }
 var P_LBT_DEVO = [
 '당신은 영락교회 대학부 말씀묵상집 편집자다. 연간 시리즈 「Why에서 Way로 — 질문이 길이 되는 한 해」(요 14:6)의 한 달치 매일 묵상 본문을 고른다. 청년들이 월~토 한 주 동안 말씀을 묵상하며 다가올 주일에 다룰 신앙 질문으로 한 걸음씩 다가가게 하는 것이 목적이다.',
-'입력(JSON): 월, 대주제(분류 이름과 그 분류의 질문들), 월주제, 흐름, 주(주일·종류·질문·가제·답의방향·추천본문·토요일본문·날짜 6개), 피할본문(다른 달 묵상에 이미 쓴 본문), 요청사항.',
+'입력(JSON): 월, 대주제(분류 이름과 그 분류의 질문들), 월주제, 흐름, 주(주일·종류·질문·가제·답의방향·추천본문·토요일본문·날짜 6개), 피할본문(다른 달 묵상에 이미 쓴 본문과 한 해의 다른 주 토요일 이야기 본문 — 이 본문들과 절이 하나라도 겹치면 안 된다), 요청사항.',
 '출력은 반드시 JSON 하나만: {"주":[{"주일":"YYYY-MM-DD","주제":"<이 주 묵상 주제 — 12자 안팎>","날":[{"날짜":"YYYY-MM-DD","본문범위":"시 13:1-6","제목":"<본문이 보여 주는 장면·고백을 담은 한 구절형>"}]}]}',
 '종류가 "설교"인 주의 흐름: 월=같은 질문을 던진 성경 속 목소리(시편의 탄식·욥·전도서·하박국 등) / 화·수=그 질문을 삶으로 겪은 인물의 이야기(내러티브) / 목·금=답의 방향을 보여 주는 예수님의 말씀·서신·예언서 / 토=입력의 "토요일본문"을 글자 그대로 쓴다(주일 설교 추천 본문 중 이야기 본문 — 바꾸지 말 것, 제목만 붙인다). 추천본문 가운데 쓸 만한 것은 월~금에도 쓸 수 있으나 토요일본문과 겹치면 안 된다.',
 '종류가 "자유"인 주(설교가 없는 주일 앞 주): 그 달 대주제 전체를 돌아보는 자유 묵상이다. 같은 흐름(질문의 목소리 → 이야기 → 답의 방향)으로 대주제의 여러 질문을 넓게 품고, 토요일은 감사·고백의 시편이나 이야기 본문으로 한 주를 닫는다.',
-'원칙: ①입력의 모든 주·모든 날짜를 빠짐없이 쓰고 날짜를 바꾸지 않는다 ②하루 본문은 한 번에 묵상할 완결된 단락 — 5~20절(시편은 20절 이내면 한 편 전체도 좋다) ③표기는 개역개정 약어 + 장:절-절("창 22:1-14", "시 13:1-6") — 실제로 존재하는 장·절만, 범위가 확실하지 않으면 다른 본문을 고른다 ④한 달 안에서 같은 본문·겹치는 절을 두 번 쓰지 않고, 피할본문과도 겹치지 않게 ⑤본문을 질문에 억지로 잇지 않는다 — 그 본문을 그대로 읽으면 그 날의 역할이 드러나야 한다 ⑥구약과 신약을 고르게 ⑦"제목"은 질문의 답을 미리 말하지 않고 본문의 장면·고백을 담는다 ⑧요청사항이 있으면 반영한다.'
+'원칙: ①입력의 모든 주·모든 날짜를 빠짐없이 쓰고 날짜를 바꾸지 않는다 ②하루 본문은 한 번에 묵상할 완결된 단락 — 5~20절(시편은 20절 이내면 한 편 전체도 좋다) ③표기는 개역개정 약어 + 장:절-절("창 22:1-14", "시 13:1-6") — 실제로 존재하는 장·절만, 범위가 확실하지 않으면 다른 본문을 고른다 ④한 달 안에서 같은 본문·겹치는 절을 두 번 쓰지 않고, 피할본문과는 한 절도 겹치지 않게(같은 장의 다른 범위도 겹치는지 확인) ⑤본문을 질문에 억지로 잇지 않는다 — 그 본문을 그대로 읽으면 그 날의 역할이 드러나야 한다 ⑥구약과 신약을 고르게 ⑦"제목"은 질문의 답을 미리 말하지 않고 본문의 장면·고백을 담는다 ⑧요청사항이 있으면 반영한다.'
 ].join('\n');
 var P_LBT_DEVO_FIX = [
 '당신은 영락교회 대학부 말씀묵상집 편집자다. 연간 시리즈 「Why에서 Way로」의 한 달치 묵상 본문 가운데 문제가 있는 날만 다시 고른다.',
@@ -20030,7 +20067,7 @@ function lbtDevoGet(mo){
     .map(function(d){ var x = want[d['날짜']]; return { '날짜': d['날짜'], '본문범위': d['본문범위'] || '', '제목': d['제목'] || '', '관찰질문': d['관찰질문'] || '', '묵상질문': d['묵상질문'] || '', '적용질문': d['적용질문'] || '', sun: x.sun, fixed: devoWD(d['날짜']) === '토' && !!x.sat && d['본문범위'] === x.sat, _q: lbtDevoQ(x, lbtG(mo.g)) }; });
   if (!rows.length) return Y.devo[mk] || null;
   Y.devo[mk] = { rows: rows, themes: {}, at: '', sheetAt: '시트', sig: '' };
-  lbtDevoAudit(rows);
+  lbtDevoAudit(rows, mo);
   return Y.devo[mk];
 }
 async function aiLbtDevoMonth(mi){
@@ -20041,11 +20078,9 @@ async function aiLbtDevoMonth(mi){
   if (noStory.length && !await uiConfirm(noStory.map(function(x){ return lbtMd(x.sun); }).join(', ') + ' 주는 추천 본문에 이야기 본문이 없어, 토요일 본문도 AI가 이야기 본문으로 고릅니다.\n(먼저 [📖 추천 본문 채우기]로 보완할 수도 있습니다)', { okText: '그대로 진행' })) return;
   var old = Y.devo && Y.devo[mk];
   if (old && old.rows && old.rows.length && !await uiConfirm(mo.m + '월 묵상 본문을 새로 고를까요?\n지금 본문과 질문이 모두 바뀝니다(묵상집 시트에도 다시 등록합니다).', { okText: '새로 고르기', danger: true })) return;
-  /* 다른 달 묵상에 이미 쓴 본문 — 이 기기 + 시트 */
-  var avoid = {};
-  Object.keys(Y.devo || {}).forEach(function(k){ if (k !== mk) ((Y.devo[k] || {}).rows || []).forEach(function(r){ if (r['본문범위']) avoid[r['본문범위']] = 1; }); });
-  var mine = {}; wks.forEach(function(x){ x.days.forEach(function(d){ mine[d] = 1; }); });
-  (state.data.devo || []).forEach(function(d){ if (d['시리즈명'] === LBT_SERIES && !mine[d['날짜']] && d['본문범위']) avoid[d['본문범위']] = 1; });
+  /* 피할 본문 = 다른 달 묵상(이 기기 + 시트) + 한 해의 다른 주 토요일 이야기 본문(예약). 검사는 lbtDevoAudit 가 절 범위로 다시 한다. */
+  var avoid = {}, oth = lbtDevoYearOthers(mo);
+  oth.rows.concat(oth.sats).forEach(function(x){ avoid[x.ref] = 1; });
   toast(mo.m + '월 묵상 ' + (wks.length * 6) + '일의 본문을 고릅니다 (1/2단계)');
   var out = await callClaude(P_LBT_DEVO, JSON.stringify({
     '월': mo.m, '대주제': G ? { '분류': G.g + '. ' + G.t, '질문': G.q } : null, '월주제': mo.theme || '', '흐름': mo.flow || '',
@@ -20069,7 +20104,7 @@ async function aiLbtDevoMonth(mi){
         '제목': String(g['제목'] || '').trim(), '관찰질문': '', '묵상질문': '', '적용질문': '', sun: x.sun, fixed: fixed, _q: lbtDevoQ(x, G) });
     });
   });
-  var nBad = lbtDevoAudit(rows);
+  var nBad = lbtDevoAudit(rows, mo);
   if (nBad) {   /* 문제 있는 날만 한 번 다시 고른다 */
     toast('문제가 있는 ' + nBad + '일의 본문을 다시 고릅니다');
     var bad = rows.filter(function(r){ return r.bad; }), used = rows.filter(function(r){ return !r.bad; }).map(function(r){ return r['본문범위']; });
@@ -20084,7 +20119,7 @@ async function aiLbtDevoMonth(mi){
         r['본문범위'] = String(x['본문범위'] || '').replace(/\s+/g, ' ').replace(/\s*([:\-])\s*/g, '$1').trim(); r['제목'] = String(x['제목'] || r['제목'] || '').trim();
       });
     } catch (e) { /* 보정 실패 — 문제 표시를 남겨 검토 화면에서 고치게 한다 */ }
-    nBad = lbtDevoAudit(rows);
+    nBad = lbtDevoAudit(rows, mo);
   }
   Y.devo = Y.devo || {};
   Y.devo[mk] = { rows: rows, themes: themes, at: nowLocalStr_(), sheetAt: '', sig: lbtDevoSig(wks) };
@@ -20103,7 +20138,7 @@ async function aiLbtDevoMonth(mi){
 /* 묵상집 시트 등록 — 시리즈 묵상과 같은 업서트(날짜+시리즈명 멱등) */
 async function lbtDevoRegister(mo, quiet){
   var D = lbtDevoGet(mo); if (!D) return 0;
-  var bad = lbtDevoAudit(D.rows), noQ = D.rows.filter(function(r){ return !r['관찰질문'] || !r['묵상질문'] || !r['적용질문']; }).length;
+  var bad = lbtDevoAudit(D.rows, mo), noQ = D.rows.filter(function(r){ return !r['관찰질문'] || !r['묵상질문'] || !r['적용질문']; }).length;
   if (bad) { toast('본문에 문제가 있는 날이 ' + bad + '일 있습니다(빨간 표시) — 고친 뒤 등록하세요.'); return 0; }
   if (noQ && !quiet && !await uiConfirm('질문이 비어 있는 날이 ' + noQ + '일 있습니다. 그대로 등록할까요?', { okText: '등록' })) return 0;
   if (!(state.settings && state.settings.url && state.settings.token)) { toast('설정에 시트 주소·토큰이 없어 등록하지 못했습니다.'); return 0; }
@@ -20115,7 +20150,7 @@ async function lbtDevoRegister(mo, quiet){
 /* 책 조판 — 시리즈 묵상집(buildDevoBookletHtml)에 ww 옵션: 표지 라벨·「이달의 질문」 1쪽·주차 표지만 다르다 */
 function lbtDevoBooklet(mo){
   var D = lbtDevoGet(mo); if (!D || !D.rows.length) { toast('먼저 묵상 본문을 만들어 주세요.'); return; }
-  if (lbtDevoAudit(D.rows)) { toast('본문에 문제가 있는 날(빨간 표시)을 먼저 고쳐 주세요.'); return; }
+  if (lbtDevoAudit(D.rows, mo)) { toast('본문에 문제가 있는 날(빨간 표시)을 먼저 고쳐 주세요.'); return; }
   var G = lbtG(mo.g) || { g: mo.g, t: '' }, wks = lbtDevoWeeks(mo), rows = D.rows.slice().sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
   var first = rows[0]['날짜'], last = rows[rows.length - 1]['날짜'];
   var period = first.slice(0, 4) + '년 ' + devoMD(first) + ' ~ ' + (last.slice(0, 4) !== first.slice(0, 4) ? last.slice(0, 4) + '년 ' : '') + devoMD(last);
@@ -20142,6 +20177,7 @@ function lbtDevoBooklet(mo){
 function lbtDevoHtml(mo, mi){
   var mk = lbtDevoKey(mo.m), D = lbtDevoGet(mo), wks = lbtDevoWeeks(mo);
   var has = D && D.rows && D.rows.length;
+  if (has) lbtDevoAudit(D.rows, mo);   /* 다른 달을 나중에 만들거나 추천 본문을 바꿔 생긴 겹침도 바로 보이게(v604) */
   var nBad = has ? D.rows.filter(function(r){ return r.bad; }).length : 0, noQ = has ? D.rows.filter(function(r){ return !r['관찰질문'] || !r['묵상질문'] || !r['적용질문']; }).length : 0;
   var stale = has && D.sig && D.sig !== lbtDevoSig(wks), open = !!(state.lbt.year.devoOpen || {})[mk];
   var h = '<details class="lbtDevo" data-mk="' + mk + '"' + (open ? ' open' : '') + '><summary>📚 ' + mo.m + '월 묵상집'
@@ -20280,7 +20316,7 @@ $('#lbtPane').addEventListener('change', function(e){
     var f = t.dataset.f, v = f === '본문범위' ? String(t.value || '').replace(/\s+/g, ' ').replace(/\s*([:\-])\s*/g, '$1').trim() : String(t.value || '').trim();
     if (r[f] === v) return;
     r[f] = v;
-    if (f === '본문범위') { r['관찰질문'] = r['묵상질문'] = r['적용질문'] = ''; r.fixed = false; lbtDevoAudit(Dm.rows); }
+    if (f === '본문범위') { r['관찰질문'] = r['묵상질문'] = r['적용질문'] = ''; r.fixed = false; lbtDevoAudit(Dm.rows, (Y.plan.months || []).filter(function(m2){ return m2.m && lbtDevoKey(m2.m) === t.dataset.mk; })[0]); }
     Dm.sheetAt = ''; lbtSaveSoon();
     if (f === '본문범위') renderLbtPane();
     return;
@@ -27727,7 +27763,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v603';
+var APP_VER = 'v604';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
