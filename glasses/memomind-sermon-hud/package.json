@@ -6,7 +6,7 @@
   "description": "MemoMind One 설교 HUD — 토탈 설교 앱 카드원고를 안경 화면으로",
   "scripts": {
     "setup": "node tools/setup.mjs ${MEMOMIND_SDK}",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.mjs",
     "studio": "node ${MEMOMIND_SDK}/PhoneSDK/tools/run-browser-studio.mjs --plugin \"$PWD\"",
     "simulate": "node tools/simulate.mjs",
     "pack": "node tools/pack.mjs ${MEMOMIND_SDK}",
