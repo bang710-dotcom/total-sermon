@@ -1,0 +1,21 @@
+{
+  "id": "com.bang710.sermonhud",
+  "name": "설교 HUD",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "bridgeVersion": "2.0",
+  "permissions": [
+    { "name": "display", "required": true },
+    { "name": "device.events", "required": true, "scope": { "types": ["button", "imuGesture", "connection"] } },
+    { "name": "storage", "required": true }
+  ],
+  "deviceRequirements": {
+    "preferredPluginId": "com.gm.example.web-bridge",
+    "protocols": [
+      { "id": "gm.scene", "minVersion": "1.0" },
+      { "id": "gm.device-events", "minVersion": "1.0" }
+    ]
+  },
+  "schemaVersion": 2,
+  "permissionPolicyVersion": 1
+}

@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; --bg:#111; --fg:#f2f2f2; --dim:#8a8a8a; --card:#1a1a1a; --accent:#fef991; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, "Apple SD Gothic Neo", sans-serif; }
+main { padding:16px; max-width:640px; margin:0 auto; }
+h1 { font-size:18px; margin:0 0 12px; }
+.nav, .row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+.nav span { flex:1; text-align:center; color:var(--dim); }
+button { background:var(--card); color:var(--fg); border:1px solid #333; border-radius:10px; padding:10px 14px; font:inherit; }
+#next { background:var(--accent); color:#111; border-color:var(--accent); }
+.switch { color:var(--dim); font-size:13px; }
+#preview { background:#000; color:#3cfa44; border-radius:10px; padding:12px; min-height:120px; white-space:pre-wrap; font:15px/1.6 system-ui, "Apple SD Gothic Neo", sans-serif; }
+textarea { width:100%; min-height:90px; box-sizing:border-box; background:var(--card); color:var(--fg); border:1px solid #333; border-radius:8px; margin:8px 0; }
+details { margin:12px 0; } summary { color:var(--dim); cursor:pointer; }
+#log { color:var(--dim); font:11px/1.5 ui-monospace, monospace; white-space:pre-wrap; max-height:180px; overflow:auto; }
+input[type=number] { width:4.5em; background:var(--card); color:var(--fg); border:1px solid #333; border-radius:6px; padding:6px; font:inherit; }
+label { color:var(--dim); font-size:13px; }

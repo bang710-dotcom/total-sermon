@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'">
+  <title>설교 HUD</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1 id="title">설교를 불러오세요</h1>
+    <div class="nav">
+      <button id="prev">◀ 이전</button>
+      <span id="pos">—</span>
+      <button id="next">다음 ▶</button>
+    </div>
+    <div class="row">
+      <button id="timer">▶ 시작</button>
+      <label class="switch"><input id="gestures" type="checkbox"> 고개 돌려 넘기기</label>
+    </div>
+    <pre id="preview"></pre>
+    <details>
+      <summary>설교 불러오기</summary>
+      <button id="sample">샘플 설교 (수 1:5-9)</button>
+      <textarea id="paste" placeholder='설교앱 파일맵.cardArr 를 붙여 넣으세요: [{"t":"head","x":"..."}, ...]'></textarea>
+      <button id="load">붙여 넣은 원고 불러오기</button>
+    </details>
+    <details>
+      <summary>실기기 보정 (화면에 남는 줄이 많거나 글이 잘릴 때)</summary>
+      <div class="row">
+        <label>줄당 글자 <input id="cpl" type="number" min="12" max="60"></label>
+        <label>화면당 줄 <input id="mxl" type="number" min="3" max="20"></label>
+        <button id="fitApply">적용</button>
+      </div>
+    </details>
+    <pre id="log"></pre>
+  </main>
+  <script type="module" src="src/plugin.js"></script>
+</body>
+</html>
