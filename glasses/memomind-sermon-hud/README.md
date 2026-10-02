@@ -29,12 +29,16 @@
 ## 맥에서 시작하기
 
 ```sh
+# 0) Node.js 확인 — 버전이 안 나오면 https://nodejs.org 에서 LTS 설치(또는 brew install node)
+node -v
+
 # 1) 공식 SDK 받기 (한 번만)
 git clone https://github.com/memomind-open/plugin-open-platform ~/memomind-sdk
-export MEMOMIND_SDK=~/memomind-sdk
+export MEMOMIND_SDK=~/memomind-sdk     # ⚠ 터미널을 새로 열 때마다 다시 입력
 
-# 2) SDK 파일을 이 폴더로 복사 (SDK 는 MemoMind 약관 대상이라 저장소에 싣지 않는다)
-cd glasses/memomind-sermon-hud
+# 2) 이 프로젝트 폴더로 이동 → SDK 파일 복사 (SDK 는 MemoMind 약관 대상이라 프로젝트에 싣지 않는다)
+#    압축본으로 받았다면 푼 폴더로:   cd ~/memomind-sermon-hud
+#    설교앱 저장소 안이라면:          cd <저장소>/glasses/memomind-sermon-hud
 npm run setup
 
 # 3) 로직 테스트 (15개)
