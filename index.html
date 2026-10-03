@@ -10458,11 +10458,8 @@ function parseFreeToStructure(){
     else { c.concPoints = ''; c.concPtsEdited = false; }
     while (concL.length && !concL[0].trim()) concL.shift();
     while (concL.length && !concL[concL.length - 1].trim()) concL.pop();
-    var msg = ($('#c_msg') && $('#c_msg').value.trim()) || '';
-    if (msg && concL.length && concL[concL.length - 1].trim() === msg) {
-      concL.pop(); /* 핵심메시지 줄은 자동 생성됨 */
-      while (concL.length && !concL[concL.length - 1].trim()) concL.pop();
-    }
+    /* v609: 핵심메시지 자동 줄이 없어졌으므로 끝 줄을 떼지 않는다 — v608 이전 원고 끝의 핵심메시지 줄은
+       결론 내용에 그대로 남아(지울 수 있음) 다시 저장해도 원고가 바뀌지 않는다(왕복 가드 유지). */
     c.concBody = concL.join('\n');
   }
   return true;
@@ -10702,15 +10699,11 @@ function renderEditor(){
         inner +
         '</div>';
     });
-    /* 설교 핵심주제(핵심메시지)를 결론 마무리 한 줄로 — 편집 가능한 [결론 내용] 칸에 1회 시드(이후 자유 수정·내보내기 반영). */
-    if (!c.concBodySeeded && !String(c.concBody || '').trim()){
-      var _cmEl = document.getElementById('c_msg'), _cm = _cmEl ? _cmEl.value.trim() : '';
-      if (_cm){ c.concBody = _cm; c.concBodySeeded = true; }
-    }
+    /* v609: 예전엔 핵심메시지를 [결론 내용] 칸에 1회 자동으로 채웠다 — 자동 삽입을 없앴다(목사님 요청). */
     html += '<div class="edPoint"><div class="edPointTitle">결론</div>' +
       ta('concIntro', 0, '', 2, '', c.concIntro) +
       ta('concPoints', 0, '', 3, '결론에서 정리할 대지 요약 — 위 대지에서 자동으로 채워집니다. 자유롭게 고쳐 쓰세요.', (c.concPtsEdited ? (c.concPoints || '') : concPointsDerived(c))) +
-      ta('concBody', 0, '', 4, '결론 내용을 작성하세요 (설교 핵심주제가 자동으로 들어오며, 자유롭게 고쳐 쓰세요)', c.concBody) +
+      ta('concBody', 0, '', 4, '결론 내용을 작성하세요', c.concBody) +
       '</div>';
     if (String(c.free || '').trim()) {
       html += '<details class="sumbox"><summary>전체 원고 보기 (참고용 — 여기서 고쳐도 반영되지 않습니다)</summary>' +
@@ -11436,11 +11429,7 @@ function assembleText(){
   L.push(c.concIntro.trim() || '말씀을 정리합니다.');
   var concPts = concPointsOut(c); if (concPts.trim()) concPts.split('\n').forEach(function(l){ if (l.trim()) L.push(l.trim()); });
   if (c.concBody.trim()) { L.push(''); L.push(c.concBody.trim()); }
-  var msg = $('#c_msg').value.trim();
-  /* 끝 줄이 이미 핵심메시지면 다시 붙이지 않는다(v572) — 결론 없이 파싱된 원고는 마지막 대지 본문 끝에 그 줄이 남아 있어
-     저장할 때마다 원고 끝에 핵심메시지가 한 줄씩 늘어났다. */
-  var lastL = ''; for (var li = L.length - 1; li >= 0; li--) { if (String(L[li]).trim()) { lastL = String(L[li]).trim(); break; } }
-  if (msg && lastL !== msg) L.push(msg);
+  /* v609: 결론 끝에 핵심메시지를 자동으로 붙이지 않는다(목사님 요청). 원고 끝 줄은 결론 내용에 쓴 그대로다. */
   return L.join('\n');
 }
 /* ── 왕복 가드(v572) ──
@@ -13122,8 +13111,7 @@ function parasFromCompose(meta, c){
   push(c.concIntro.trim() || '말씀을 정리합니다.', true);
   var concPts2 = concPointsOut(c); if (concPts2.trim()) concPts2.split('\n').forEach(function(l){ if (l.trim()) push(l.trim(), true); });
   if (c.concBody.trim()) c.concBody.trim().split('\n').forEach(function(l){ push(l, false, null, doInd); });
-  var msg = $('#c_msg') ? $('#c_msg').value.trim() : (meta['핵심메시지'] || '');
-  if (msg) push(msg, true);
+  /* v609: 결론 끝 핵심메시지 자동 줄(굵게)을 없앴다 — assembleText 와 같은 규칙 */
   return { paras: paras, st: st };
 }
 function docxFileName(meta){
@@ -14937,7 +14925,7 @@ var P_SUM = [
 var P_MS = [
 '당신은 영락교회 대학부 설교자의 원고 집필 비서다. 입력된 초고(JSON)를 강단에서 바로 쓸 완성 설교문으로 발전시킨다.',
 '출력은 반드시 JSON 배열만: [{"t":"p|head|ex|ap|pr|su|quote","x":"문단 텍스트"}] — 서론부터 결론·축복까지 순서대로.',
-'t 규칙: head=대지 선언("1. ...")·"말씀을 정리합니다."·결론 핵심메시지 / ex="ex) 예화제목" 한 줄 / quote=성경 인용 / ap=대지적용(청중이 "내 얘기다" 느끼게 메시지를 오늘의 삶으로 일반화하는 공감 문단) / pr=대지실천(그 대지 끝에서 구체적 실천·결단을 촉구하는 문단) / su=대지정리(실천 뒤에 그 대지를 정리하며 권면으로 닫는 문단) / p=일반 본문(주해근거) 문단.',
+'t 규칙: head=대지 선언("1. ...")·"말씀을 정리합니다." / ex="ex) 예화제목" 한 줄 / quote=성경 인용 / ap=대지적용(청중이 "내 얘기다" 느끼게 메시지를 오늘의 삶으로 일반화하는 공감 문단) / pr=대지실천(그 대지 끝에서 구체적 실천·결단을 촉구하는 문단) / su=대지정리(실천 뒤에 그 대지를 정리하며 권면으로 닫는 문단) / p=일반 본문(주해근거) 문단.',
 '★ 구조 표시(필수): 각 대지는 [head(번호 선언) → p(주해근거)·ex(예화) → ap(대지적용) → pr(대지실천) → su(대지정리)] 순으로 쓰고, 적용 문단은 t=ap, 실천 문단은 t=pr, 정리 문단은 t=su로 표시한다. (앱이 이 표시로 구조 코드를 자동 삽입해, 나중에 기본원고/자유원고를 오가도 원고가 무너지지 않는다. 적용·실천·정리를 t=p로 두면 구조가 깨진다.)',
 '★★ 대지 마무리(필수): 어떤 대지도 실천 문단으로 끝내지 않는다. 실천 뒤에 반드시 t=su 문단 하나를 두어 세 박자로 닫는다 — ①갈무리: 그 대지의 메시지를 한두 문장으로 응축하되 통념을 뒤집는 재정의("~이 아니라 ~입니다")로 못 박는다 ②권면: "늘 ~하며 살아가실 수 있는 저와 여러분 되기를 바랍니다" 형태로 그렇게 사는 삶을 축복한다(이 문장을 빠뜨리면 대지가 완결되지 않은 것으로 본다) ③연결: 다음 대지가 답할 물음을 던지며 건너간다("그렇다면 … 다음으로 함께 살펴보겠습니다"). 마지막 대지는 새 국면을 열지 말고 결론으로 향하는 닫는 결로 쓴다. 새 정보·새 논증·새 예화를 더하지 말고, 꾸짖음이 아니라 벅찬 축복의 어조로, 실천 문단보다 짧게(2~4문장). 대지마다 갈무리 표현과 은유는 서로 다르게 한다.',
 '★ 인용(quote) 형식(필수): 반드시 「약어 장:절, "절 단위 전문(개역개정)"」 한 줄로 쓴다. 책 이름은 약어(요·창·고전·살전 등), 맨 앞에 약어 장:절을 적고 쉼표+공백 뒤 큰따옴표로 본문 전문. ★★절 "전문"을 한 글자도 빼지 말고 통째로 싣는다 — 문맥상 일부만 필요해도, 설교 때 성경을 그 절 전체로 읽으므로 앞·뒤를 자르거나 중략(…)하지 마라(부분 인용·발췌 절대 금지). 같은 절 재인용도 매번 전문. 범위면 "요 7:14-24". 예) 요 7:18, "스스로 말하는 자는 자기 영광만 구하되 그를 보내신 이의 영광을 구하는 자는 참되니 그 속에 불의가 없느니라". (앱이 자동으로 빨간 볼드로 표시하므로 별도 장식 금지. 초고에 「본문…(책 장:절)」 같은 후행 괄호 형식이 있어도 반드시 이 선두 약어 형식으로 바꿔 쓴다)',
@@ -27791,7 +27779,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v608';
+var APP_VER = 'v609';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
