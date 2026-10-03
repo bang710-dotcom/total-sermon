@@ -1756,16 +1756,16 @@ body.uiDlgOpen{overflow:hidden}
               </div>
               <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                 <div class="cnt" style="text-align:center;margin:0">이미지 가지</div>
-                <div class="cascitem"><button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="trans" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="imgdata" style="width:100%"><span class="blab">프롬프트 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="imgdata" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="bgimg" style="width:100%"><span class="blab">배경 이미지 생성</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="bgimg" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
+                <div class="cascitem"><button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="trans" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                 <div class="cascitem"><button class="btn sub" data-casc="transpdf" style="width:100%"><span class="blab">전환 표시 PDF</span><small class="bpath">전환표시본 + 생성 이미지 삽입</small></button><span class="cascsw" data-cascsel="transpdf" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (생성해 둔 배경 이미지가 있어야 만들어집니다)"></span></div>
               </div>
             </div>
-            <button class="btn sub" id="btnImgRegen" style="width:100%;margin-top:6px"><span class="blab">🖼 이미지 낱장 재생성</span><small class="bpath">번호별 · 엔진 선택 · 뒤따르는 본문 컷 자동 포함</small></button>
-            <button class="btn sub" id="btnRetrans" style="width:100%;margin-top:6px"><span class="blab">♻ 원고 수정 반영 (전환표·이미지 유지)</span><small class="bpath">고친 문장에 전환 지점만 다시 맞춰 전환표시본 · 전환 PDF 재생성</small></button>
           </div>
           <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
+          <button class="btn sub" id="btnImgRegen" style="width:100%;margin-top:6px"><span class="blab">🖼 이미지 낱장 재생성</span><small class="bpath">번호별 · 엔진 선택 · 뒤따르는 본문 컷 자동 포함</small></button>
+          <button class="btn sub" id="btnRetrans" style="width:100%;margin-top:6px"><span class="blab">♻ 원고 수정 반영 (전환표·이미지 유지)</span><small class="bpath">고친 문장에 전환 지점만 다시 맞춰 전환표시본 · 전환 PDF 재생성</small></button>
         </div>
         <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab">📮 주보내용 공유하기</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 카카오·메시지로 바로 공유</small></button>
         <div class="cnt" style="margin-top:8px">중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(설교 원고 파일은 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
@@ -24214,9 +24214,9 @@ function cascStepList(target){
   }
   if (inB) {
     s.push({ label: '이미지 컷' });
-    if (target === 'trans' || (sel && sel.trans)) s.push({ label: '이미지 전환표시본' });
     if (target === 'imgdata' || (sel && sel.imgdata)) s.push({ label: '이미지 프롬프트' });
     if (target === 'bgimg' || (sel && sel.bgimg)) s.push({ label: '배경 이미지' });
+    if (target === 'trans' || (sel && sel.trans)) s.push({ label: '이미지 전환표시본' });
     if (target === 'transpdf' || (sel && sel.transpdf)) s.push({ label: '전환 표시 PDF' });
   }
   return s;
@@ -24402,11 +24402,11 @@ async function runCascade(target, id, meta){
       var doTransPdf = (target === 'transpdf' || !!(sel && sel.transpdf));
       var cuts = null;
       ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
-      if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await transHwpxBlob(meta, body); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); try { setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) }); } catch (e2) {} } } catch (e) { rec('전환표시본', e); } }
       if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 ' + fmtTag() + ' 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
       if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
-      /* v588: 전환표시본은 이미지 생성보다 먼저 만들어지므로, 같은 실행에서 이미지를 만들었으면 그림을 넣어 다시 저장한다(본문 재사용·AI 호출 없음) */
-      if (doTrans && doBg && outFmt() === 'hwpx' && typeof body === 'string' && body.trim()) { try { await saveBlobToResults(await transHwpxBlob(meta, body), imgDataNames(meta).trans); } catch (e) { rec('전환표시본(이미지 넣기)', e); } }
+      /* 전환표시본은 배경 이미지 뒤에 만든다(v608) — HWPX 가 생성 이미지를 바마다 얹으므로(v588) 같은 실행에서 만든 그림이 한 번에 들어간다.
+         (v588~v607 은 전환표시본을 먼저 만들고 이미지 생성 뒤 다시 저장했다) */
+      if (doTrans) { ck(); cascStep(k++, '이미지 전환표시본 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); var body = await aiTransDoc(meta, cuts); if (body && body.trim()) { var tb; if (outFmt() === 'hwpx') tb = await transHwpxBlob(meta, body); else { var Dt = await ensureDocxLib(); tb = await Dt.Packer.toBlob(buildTransDocx(Dt, meta, body)); } await saveBlobToResults(tb, imgDataNames(meta).trans); await markOutput(id, '이미지전환표시본', '앱 직접 생성'); try { setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) }); } catch (e2) {} } } catch (e) { rec('전환표시본', e); } }
       /* 전환 표시 PDF — 전환표시본 본문(방금 만들었으면 그대로 재사용) + 생성해 둔 배경 이미지 */
       if (doTransPdf) { ck(); cascStep(k++, '전환 표시 PDF(이미지 삽입) 조판 중…'); try { await saveTransPdf(id, meta, cuts, (typeof body === 'string' ? body : '')); } catch (e) { rec('전환 표시 PDF', e); } }
     }
@@ -27791,7 +27791,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v607';
+var APP_VER = 'v608';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
