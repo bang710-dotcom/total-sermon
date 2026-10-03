@@ -11543,7 +11543,7 @@ function editSermonFill(id, noNav){
   state.versionOf = null;
   Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
   var c = newCompose();
-  c.free = s['원고텍스트'] || '';
+  c.free = stripTrailMsg(s['원고텍스트'] || '', s['핵심메시지']);   /* v613: 옛 자동 핵심메시지 끝 줄은 열 때 뗀다 — 다음 저장 때 데이터에서도 빠진다 */
   c.sum = s['요약본'] || '';
   var dj = djParse(String(s['대지'] || ''));
   var ills = String(s['예화'] || '').split(';').map(function(x){ return x.trim(); });
@@ -11623,7 +11623,7 @@ function bufModAdopt(row){
 function composeSameAsRow(row){
   try {
     if (!row) return false;
-    if (rtNorm(String(row['원고텍스트'] || '')) !== rtNorm(assembleText())) return false;
+    if (rtNorm(stripTrailMsg(row['원고텍스트'] || '', row['핵심메시지'])) !== rtNorm(assembleText())) return false;   /* v613: 열 때 뗀 옛 자동 핵심메시지 줄은 차이로 보지 않는다 */
     return Object.keys(C_META).every(function(k){ var el = $('#' + C_META[k]); return String(row[k] == null ? '' : row[k]).trim() === String(el ? el.value : '').trim(); });
   } catch (e) { return false; }
 }
@@ -12995,6 +12995,20 @@ function buildDocxParas(D, paras, st){
 }
 
 /* 메타 + 본문 텍스트(자유·기존 설교)를 문단 배열로 */
+/* v613: v608 이전 원고는 저장할 때마다 결론 끝에 핵심메시지 한 줄이 자동으로 붙었다(v609 에서 자동 삽입은 없앴지만
+   이미 저장된 원고에는 남아 있었다 — 2026-10-04 전환표시 HWPX 끝에 그대로 나온 사례). 끝 줄(빈 줄·**굵게** 표기 무시)이
+   핵심메시지와 같으면 그 줄을 뺀다. 원고를 열 때(editSermonFill — 다음 저장 때 데이터에서도 빠진다)와
+   조판할 때(parasFromText — 열지 않고 내보내는 경로·옛 전환표시본 재사용분) 두 곳에서 쓴다. */
+function stripTrailMsg(text, msg){
+  var t = String(text == null ? '' : text); msg = String(msg || '').trim();
+  if (!msg) return t;
+  var L = t.split('\n'), i = L.length - 1;
+  while (i >= 0 && !L[i].trim()) i--;
+  if (i < 0 || L[i].trim().replace(/\*\*/g, '').trim() !== msg) return t;
+  L.splice(i);
+  while (L.length && !L[L.length - 1].trim()) L.pop();
+  return L.join('\n');
+}
 function parasFromText(meta, bodyText, style){
   var st = DOCX_STYLES[style] || DOCX_STYLES['기본원고'];
   var paras = [];
@@ -13013,7 +13027,7 @@ function parasFromText(meta, bodyText, style){
   function trailBlanks(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
   function ensureBlanks(n){ while (trailBlanks() < n) paras.push({ text: '' }); }
   var inConc = false, headNo = 0, refTrk = refQuoteTracker();
-  String(bodyText || '').split('\n').forEach(function(line){
+  stripTrailMsg(bodyText, meta && meta['핵심메시지']).split('\n').forEach(function(line){   /* v613: 옛 자동 핵심메시지 끝 줄 제외 */
     var l = line.trim();
     if (!l) { refTrk(''); paras.push({ text: '' }); return; }      /* 빈 줄은 그대로 유지(간격) */
     if (/^▶.*◀$/.test(l)) { paras.push({ text: l, bar: true }); return; }   /* 이미지 전환 바(전환표시본 전용 — 원고 양식은 그대로, 띠만 추가) */
