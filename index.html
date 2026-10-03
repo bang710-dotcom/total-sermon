@@ -12710,7 +12710,7 @@ function hwpxCard(meta, items){
   var blocks = (items || []).map(function(it){
     var x = String(it.x || '');
     if (it.t === 'trans') return { role: 'bar', text: x };
-    if (it.t === 'quote') return { role: 'scripture', text: toLeadRefQuote(x) };
+    if (it.t === 'quote') return { role: 'scripture', text: toLeadRefQuote(x, true) };
     if (it.t === 'ex') return { role: 'illustration', text: x };
     if (it.t === 'p') return { role: 'line', text: x };
     return { role: 'bold', text: x };
@@ -12898,6 +12898,7 @@ function refQuoteTracker(){
     var re = refAnyRe(), m;
     re.lastIndex = pos;
     while (pos < t.length && (m = re.exec(t))){
+      if (/[(\[（]/.test(m[1])) continue;   /* v612: 괄호 안 성구(「(요 3:16 "…")」)는 참고 출처 — 인용으로 칠하지 않는다 */
       var s0 = m.index + m[1].length, c3 = closeAt(t, m.index + m[0].length), nx;
       /* 한 성구에 인용이 여럿 이어지면(「행 1:6-7 "…?" / "…"」) 뒤 인용까지 한 구간으로 */
       while (c3 >= 0 && (nx = /^\s*[\/,]?\s*["“”]/.exec(t.slice(c3 + 1)))) {
@@ -12932,11 +12933,16 @@ function trailRefRe(){
   if (!_trailRefRe) _trailRefRe = new RegExp('^(.*\\S)\\s*[\\(\\[]\\s*(' + BOOKS + ')\\s*(\\d+)\\s*[:장]\\s*(\\d+)([a-zA-Z]?)(?:\\s*[-~]\\s*(\\d+)([a-zA-Z]?))?\\s*[\\)\\]]\\s*[.。]?\\s*$');
   return _trailRefRe;
 }
-function toLeadRefQuote(line){
+/* v612: loose 가 아니면(일반 문단) 괄호 앞 글 전체가 따옴표로 묶인 「"…" (책 장:절)」만 인용으로 본다.
+   예전엔 「① 기도의 특권(마18:18)」·「…성장해가는 것입니다(엡 4:13-16).」처럼 참고용 출처로 끝나는 문단까지
+   인용으로 바꿔 문단 전체가 빨간 볼드 단락이 됐다(원고 1,121편 실측 37줄). loose=true 는 이미 인용(quote)으로
+   정해진 항목(카드원고·완성원고의 t='quote')에서만 쓴다. */
+function toLeadRefQuote(line, loose){
   var s = String(line).trim();
   if (refQuoteRe().test(s)) return line;          /* 이미 새 형식 */
   var m = s.match(trailRefRe());
   if (!m) return line;
+  if (!loose && !/^["“][\s\S]*["”]$/.test(m[1].trim())) return line;   /* 괄호 속 출처는 참고 표기 — 인용으로 바꾸지 않는다 */
   var text = m[1].replace(/^["“]/, '').replace(/["”]$/, '').trim();
   if (!text) return line;
   var ref = bookAbbrOf(m[2]) + ' ' + m[3] + ':' + m[4] + (m[5] || '') + (m[6] ? '-' + m[6] + (m[7] || '') : '');
@@ -15896,7 +15902,7 @@ window.cnPresentShare = cnPresentShare;
 function msArrToFree(arr){
   return (arr || []).map(function(p){
     var t = p.t || 'p', x = String(p.x || '');
-    var cv = toLeadRefQuote(x.trim()); x = (cv !== x.trim()) ? cv : x;   /* 본문 인용 새 형식 강제 */
+    var cv = toLeadRefQuote(x.trim(), t === 'quote'); x = (cv !== x.trim()) ? cv : x;   /* 본문 인용 새 형식 강제 — 일반 문단의 괄호 출처는 그대로(v612) */
     x = x.replace(/^\s*\((?:주해|근거|적용|강화|실천|정리|대지\s*내용|내용|서론|결론)\)\s*/, '');   /* 모델이 코드를 이미 넣었으면 제거(중복 방지) */
     if (t === 'ex') return /^\s*ex\)/i.test(x) ? x : 'ex) ' + x;   /* 예화 제목 줄은 반드시 "ex) " — 파서가 예화 블록으로 인식 */
     if (t === 'ap') return '(적용) ' + x;   /* 대지적용(공감·현대적 일반화) → 본문블록(role=대지적용) */
@@ -16154,7 +16160,7 @@ function buildCardDocx(D, meta, items){
         children: [new D.TextRun({ text: x, bold: true, color: 'FFFFFF' })]
       }));
     } else {
-      if (it.t === 'quote') x = toLeadRefQuote(x);   /* 후행 괄호 → 선두 약어 형식 강제 */
+      if (it.t === 'quote') x = toLeadRefQuote(x, true);   /* 후행 괄호 → 선두 약어 형식 강제 */
       var col = it.t === 'quote' ? 'EE0000' : it.t === 'ex' ? '215E99' : undefined;
       children.push(new D.Paragraph({ keepNext: keep, keepLines: true, spacing: { line: 360 },
         children: [new D.TextRun({ text: x, bold: it.t !== 'p', color: col })] }));
@@ -27832,7 +27838,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v611';
+var APP_VER = 'v612';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
