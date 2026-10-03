@@ -12998,7 +12998,7 @@ function parasFromText(meta, bodyText, style){
     : (series ? series + ' - ' : '') + (meta['제목'] || '');
   /* 새벽설교: 비고의 「찬송: …」을 제목 옆 괄호로 (내보내기·미리보기 공용) */
   var dawnHymn = String(meta['예배구분'] || '').indexOf('새벽') >= 0 && String(meta['비고'] || '').match(/찬송\s*[:：]\s*([^\/\n]+)/);
-  if (dawnHymn && dawnHymn[1].trim()) titleLine += ' (' + dawnHymn[1].trim() + ')';
+  if (dawnHymn && dawnHymn[1].trim()) titleLine += ' (' + (hymnFixSync(dawnHymn[1]) || dawnHymn[1].trim()) + ')';   /* v611: 목록으로 장번호 기준 곡명 맞춤(목록이 없으면 그대로) */
   paras.push({ text: titleLine, bold: true, size: st.titleSize });
   if (style !== '카드원고' && meta['본문']) paras.push({ text: meta['본문'], bold: true });
   paras.push({ text: '' });
@@ -17966,7 +17966,7 @@ function archiveRec(m, w, wi, o, status){
     '시리즈': m['시리즈명'] || '', '시리즈순번': String(_k >= 0 ? _k + 1 : wi + 1),
     '제목': o['제목'] || '', '본문': o['본문'] || '', '상태': status || '보관',
     '핵심메시지': o['핵심메시지'] || '', '대지': djSer(o['대지']),
-    '비고': (_isTp && w['회차명'] ? '회차: ' + w['회차명'] + ' / ' : '') + (cleanHymn(o['찬송']) ? '찬송: ' + cleanHymn(o['찬송']) + ' / ' : '') + (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
+    '비고': (_isTp && w['회차명'] ? '회차: ' + w['회차명'] + ' / ' : '') + (hymnFixSync(o['찬송']) ? '찬송: ' + hymnFixSync(o['찬송']) + ' / ' : '') + (o['주제근거'] ? '주제 근거: ' + o['주제근거'] : '') + (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '')
   };
   if (o['묵상요약']) rec['요약본'] = o['묵상요약'];
   /* 안정 멱등키 — bulkAdd 응답 유실 후 재시도(_id 미기록)나 두 기기의 동시 보관이
@@ -18076,7 +18076,7 @@ function optEdit(o){
   o = o || {};
   return { '제목': o['제목'] || '', '본문': o['본문'] || '', '핵심메시지': o['핵심메시지'] || '',
     '주제근거': o['주제근거'] || '', '대지': djSer(o['대지']),
-    '찬송': cleanHymn(o['찬송'] || ''), '묵상요약': o['묵상요약'] || '' };
+    '찬송': hymnFixSync(o['찬송'] || ''), '묵상요약': o['묵상요약'] || '' };
 }
 
 /* ── 상황 설교 구상 ── */
@@ -23015,7 +23015,7 @@ async function confirmSermonWeeks(idxs, skipUnchanged){
       '제목': ed['제목'] || '', '본문': ed['본문'] || '', '상태': '구상/연구',
       '핵심메시지': ed['핵심메시지'] || '', '대지': ed['대지'] || '' };
     var _bigo = (_isTp && w['회차명'] ? '회차: ' + w['회차명'] + ' / ' : '') +
-      (String(ed['찬송'] || '').trim() ? '찬송: ' + ed['찬송'].trim() + ' / ' : '') +
+      (hymnFixSync(ed['찬송']) ? '찬송: ' + hymnFixSync(ed['찬송']) + ' / ' : '') +
       (String(ed['주제근거'] || '').trim() ? '주제 근거: ' + ed['주제근거'].trim() : '') +
       (w['주간범위'] ? ' / 주간묵상: ' + w['주간범위'] : '');
     if (_bigo.trim()) rec['비고'] = _bigo.trim().replace(/^\/\s*|\s*\/\s*$/g, '').trim();
@@ -23265,28 +23265,28 @@ function cleanHymn(v){
   var kor = s.match(/[가-힣].*$/);      /* 번호 없이 곡명만 있는 경우, 한글 시작부터 */
   return kor ? kor[0].trim() : '';
 }
-/* AI가 적어 준 찬송 표기를 성경앱 찬송가 645장 목록으로 바로잡는다 (v548 검증 게이트).
-   ★ 사람이 직접 칠 때 쓰는 hymnResolve 와 우선순위가 반대다 — 사람은 악보를 보고 번호를 적지만,
-     모델은 곡명이 정확하고 번호를 자주 틀린다. 그래서 여기서는 "곡명 우선"으로 맞추고,
-     목록에 없는 번호는 지워서 틀린 번호가 주보·카톡으로 나가지 않게 한다.
+/* 찬송 표기를 성경앱 새찬송가 645장 목록으로 바로잡는다 (v548 검증 게이트).
+   ★ v611: "장번호 우선" — 번호가 목록에 있으면 그 번호의 곡명으로 맞춘다(hymnResolve 와 같은 규칙).
+     v548~v610 은 "곡명 우선"이었는데, 「459장 비둘기같이 온유한」처럼 번호는 목사님이 의도한 새찬송가 번호이고
+     곡명만 다른 기준으로 섞여 들어온 경우를 187장으로 바꿔 버렸다(2026-10-04 목사님 결정: 번호가 정본).
+     번호가 없거나 645장에 없는 번호면 곡명으로 찾고, 못 찾으면 곡명만 남긴다(틀린 번호가 주보로 나가지 않게).
    목록을 아직 못 받았으면(오프라인 등) 손대지 않는다 — 작업을 막지 않는 것이 우선. */
 function hymnFixSync(v){
   var s = cleanHymn(v); if (!s) return '';
   var items = (typeof STUDY !== 'undefined' && STUDY && STUDY.hymnList) || null;
   if (!items || !items.length) return s;
   var m = s.match(/^(\d{1,3})\s*장\s*(.*)$/);
-  var no = m ? m[1] : '', ttl = String(m ? m[2] : s).replace(/\s+/g, '');
-  if (ttl){
-    var exact = items.filter(function(h){ return String(h.title || '').replace(/\s+/g, '') === ttl; })[0];
-    if (exact) return exact.no + '장 ' + exact.title;
-    var part = items.filter(function(h){ return String(h.title || '').replace(/\s+/g, '').indexOf(ttl) >= 0; });
-    if (part.length === 1) return part[0].no + '장 ' + part[0].title;
-  }
-  if (no){
-    var byNo = items.filter(function(h){ return String(h.no) === no; })[0];
+  if (m){
+    var byNo = items.filter(function(h){ return String(h.no) === m[1]; })[0];
     if (byNo) return byNo.no + '장 ' + byNo.title;
-    return (m && m[2] ? m[2].trim() : s);        /* 645장에 없는 번호는 떼어 내고 곡명만 남긴다 */
+    s = String(m[2] || '').trim();               /* 645장에 없는 번호는 떼어 내고 곡명으로 다시 찾는다 */
+    if (!s) return '';
   }
+  var ttl = s.replace(/\s+/g, '');
+  var exact = items.filter(function(h){ return String(h.title || '').replace(/\s+/g, '') === ttl; })[0];
+  if (exact) return exact.no + '장 ' + exact.title;
+  var part = items.filter(function(h){ return String(h.title || '').replace(/\s+/g, '').indexOf(ttl) >= 0; });
+  if (part.length === 1) return part[0].no + '장 ' + part[0].title;
   return s;
 }
 function sanitizeHymns(opts){
@@ -23589,7 +23589,7 @@ function spDawnHtml(){
 
     if (confirmed) {
       var src = selO || ed;
-      var hymn = cleanHymn(src['찬송'] || ed['찬송'] || '');
+      var hymn = hymnFixSync(src['찬송'] || ed['찬송'] || '');
       var card =
         '<div style="margin:8px 0 10px;padding:11px 13px;border:1.5px solid var(--accent);border-radius:10px;background:rgba(124,154,255,.08)">' +
         '<div style="margin-bottom:5px"><b style="font-size:14px">' + esc(src['제목'] || '') + '</b> <span style="color:var(--accent2);font-size:13px">' + linkifyRefs(src['본문'] || '') + '</span></div>' +
@@ -23603,7 +23603,7 @@ function spDawnHtml(){
           '<summary style="cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
           esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + linkifyRefs(o['본문'] || '') + '</span></summary>' +
           '<div style="padding:8px 11px;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;font-size:13px;line-height:1.5">' +
-          (cleanHymn(o['찬송']) ? '<div style="color:var(--accent);font-size:12px;margin-bottom:2px;font-weight:700">🎵 ' + esc(cleanHymn(o['찬송'])) + '</div>' : '') +
+          (hymnFixSync(o['찬송']) ? '<div style="color:var(--accent);font-size:12px;margin-bottom:2px;font-weight:700">🎵 ' + esc(hymnFixSync(o['찬송'])) + '</div>' : '') +
           linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) +
           '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></div></details>';
       }).join('');
@@ -23625,7 +23625,7 @@ function spDawnHtml(){
         '<label style="display:block;margin:0;padding:9px 11px;padding-right:100px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
         '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
         '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
-        (cleanHymn(o['찬송']) ? '<div style="margin:3px 0 0 22px;color:var(--accent);font-size:12.5px;font-weight:700">🎵 ' + esc(cleanHymn(o['찬송'])) + '</div>' : '') +
+        (hymnFixSync(o['찬송']) ? '<div style="margin:3px 0 0 22px;color:var(--accent);font-size:12.5px;font-weight:700">🎵 ' + esc(hymnFixSync(o['찬송'])) + '</div>' : '') +
         '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
         (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
         '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div>' +
@@ -23635,7 +23635,7 @@ function spDawnHtml(){
     }).join('');
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문 (1~2절)</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
-      '<label>찬송가 (장번호 + 제목)</label><input type="text" class="spS" data-w="' + wi + '" data-f="찬송" value="' + esc(cleanHymn(ed['찬송'] || '')) + '">' +
+      '<label>찬송가 (장번호 + 제목)</label><input type="text" class="spS" data-w="' + wi + '" data-f="찬송" value="' + esc(hymnFixSync(ed['찬송'] || '')) + '">' +
       '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
       '<label>주제 근거</label><textarea class="spS edTa" rows="2" data-w="' + wi + '" data-f="주제근거">' + esc(ed['주제근거'] || '') + '</textarea>' +
       '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>' +
