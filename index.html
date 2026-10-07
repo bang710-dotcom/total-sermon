@@ -49,6 +49,10 @@ h1 span{color:var(--accent2)}
 .setGrp>summary::-webkit-details-marker{display:none}
 .setGrp>summary::after{content:'▾';margin-left:auto;opacity:.55;font-size:12px}
 .setGrp[open]>summary::after{content:'▴'}
+.aiMdlRow{margin-top:10px}
+.aiMdlHd{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-bottom:4px;font-size:14px}
+.aiMdlDesc{flex-basis:100%;font-size:12.5px;color:var(--dim)}
+.aiMdlChg{font-size:11px;font-weight:700;color:var(--accent);border:1px solid currentColor;border-radius:6px;padding:0 5px}
 .setGrp[open]{padding-bottom:13px}
 .setGrp>summary>.sgSub{font-weight:400;font-size:12px;color:var(--dim)}
 .setBadge{font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
@@ -2097,7 +2101,15 @@ body.uiDlgOpen{overflow:hidden}
           <summary>AI 생성 <span class="sgSub">요약·원고·묵상</span><span class="setBadge" data-badge="ai"></span></summary>
         <label>Claude API 키 (선택 — AI 직결 생성)</label>
         <input type="password" autocomplete="off" id="setClaude" placeholder="sk-ant-api03-...">
-        <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(Opus 5.5, 사용량 차감). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
+        <div class="cnt" style="margin-top:6px">키를 넣으면 요약본·원고작성·시리즈 묵상/설교가 요청함 없이 <b>즉시 생성</b>됩니다(사용량 차감 — 모델은 아래 「기능별 모델」). 키는 이 기기의 브라우저에만 저장되며, 비워두면 기존 요청함 방식으로 작동합니다.</div>
+        <label style="margin-top:14px">기능별 모델</label>
+        <div id="aiModelGrid"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn sub" id="aiModelsRefreshBtn" type="button" style="width:auto">🔄 모델 목록 새로고침</button>
+          <button class="btn sub" id="aiModelsResetBtn" type="button" style="width:auto">기본값으로</button>
+          <span class="cnt" id="aiModelsStamp" style="margin:0"></span>
+        </div>
+        <div class="cnt" style="margin-top:6px">고르는 즉시 저장됩니다(이 기기). 목록은 Claude 키로 <b>계정이 실제로 쓸 수 있는 모델</b>을 하루 한 번 받아 채우므로, 새 모델이 나오면 앱을 고치지 않아도 여기에 나타나고 알림이 뜹니다. 기본값은 모두 <b>「최신 Opus/Sonnet/Haiku 자동」</b>이라 같은 계열의 새 모델로 저절로 바뀌고(바뀔 때 알림), 늘 같은 결과물이 필요하면 모델을 직접 지정해 고정하세요. 브라우저 에이전트 모드에서는 브라우저 AI가 처리하므로 이 선택이 적용되지 않습니다.</div>
         <label style="margin-top:14px">브라우저 에이전트 모드 (선택 — 클로드 구독으로 생성)</label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <input type="checkbox" id="setBridge" style="width:auto;margin:0">
@@ -14535,23 +14547,227 @@ $('#devoDate').addEventListener('change', function(){ if (!this.value) return; i
 /* ===================== Claude API 직결 (Opus 5.5 · effort high) =====================
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
    키가 없으면 기존 요청함 흐름으로 자동 폴백. */
-var AI_MODEL = 'claude-opus-5-5';   /* v591: Opus 5 → Opus 5.5(effort high 는 modelExtra 가 붙인다) */
-/* 모델별 추가 요청 파라미터 (v586).
-   Claude Opus 5.5 는 기본 effort 가 medium 으로, Opus 5(=high)보다 한 단계 낮다 → 설교용 글은 high 로 못 박는다.
-   effort 는 Haiku 4.5 등 옛 모델에서 400 을 내므로 그 모델에는 붙이지 않는다. */
-function modelExtra(m){
-  return /^claude-opus-5-5/.test(String(m || '')) ? { output_config: { effort: 'high' } } : {};
+var AI_MODEL = 'claude-opus-5-5';   /* 최후 대비값(목록에서 계열을 못 찾을 때). 실제로 쓰는 모델은 aiModelFor('main') — 설정 → 기능별 모델 (v615) */
+
+/* ── 기능별 모델 (v615) ──
+   예전엔 모델 ID 가 코드 곳곳에 박혀 있어 새 모델이 나올 때마다 코드를 고쳐야 했다(Haiku 5.5 제보).
+   이제 설정 → AI 생성 → 기능별 모델에서 고르고, 선택지는 Models API(GET /v1/models)로 계정이 실제로 쓸 수 있는
+   모델을 하루 한 번 받아 채운다. 「최신 Opus/Sonnet/Haiku 자동」을 고르면 새 모델이 나와도 저절로 따라간다.
+   ⚠ 새로 모델을 지정해 부르는 기능을 만들면 ID 를 박지 말고 여기 AI_FEATURES 에 한 줄 추가 → callClaude(…, 'k').
+   v616: 기본값도 「최신 … 자동」 — Sonnet 5.5 가 나왔는데 기본값이 Sonnet 5 로 박혀 있어 또 코드를 고쳐야 했다(2026-10-07).
+   이제 새 모델이 나오면 기본값을 쓰는 기능은 저절로 따라가고 알림이 뜬다. 고정하려면 설정에서 모델을 직접 지정.
+   effort: 'high' = 설교용 글은 깊게(Opus 5.5·Haiku 5.5 는 기본이 medium), '' = 모델 기본값. */
+var AI_FEATURES = [
+  { k: 'main',     label: '기본 생성',        def: 'auto:opus',        effort: 'high', desc: '요약본·원고·카드원고·개요·묵상 질문 등 아래에서 따로 정하지 않은 모든 AI 생성' },
+  { k: 'chat',     label: '설교 대화',        def: 'auto:opus',        effort: 'high', desc: '대화창 기본 모델 — 대화창 머리의 선택 칸과 같은 값' },
+  { k: 'transdoc', label: '전환표시본',       def: 'auto:sonnet',      effort: 'high', desc: '원고에 이미지 전환 바 끼워 넣기(원고 전문을 그대로 옮겨 씀)' },
+  { k: 'devoplan', label: '묵상 본문 배분',   def: 'auto:sonnet',      effort: 'high', desc: '시리즈 묵상집의 날짜별 본문 나누기' },
+  { k: 'ocr',      label: '원고·교재 읽기',   def: 'auto:sonnet',      effort: 'high', desc: '구역권찰 — 설교·교재 이미지와 스캔 PDF 옮겨 적기' },
+  { k: 'illocr',   label: '예화 이미지 인식', def: 'auto:haiku',       effort: '',     desc: '예화 사진·캡처 글 옮겨 적기(인식 뒤 다듬기는 「기본 생성」 모델)' }
+];
+/* 목록을 못 받을 때(키 없음·에이전트 모드·오프라인) 쓰는 기본 목록 */
+var AI_MODELS_BUILTIN = [
+  { id: 'claude-opus-5-5',   name: 'Claude Opus 5.5' },
+  { id: 'claude-opus-5',     name: 'Claude Opus 5' },
+  { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' },
+  { id: 'claude-sonnet-5',   name: 'Claude Sonnet 5' },
+  { id: 'claude-haiku-5-5',  name: 'Claude Haiku 5.5' },
+  { id: 'claude-haiku-4-5',  name: 'Claude Haiku 4.5' }
+];
+/* 옛 저장값 자동 승격 — 저장값이 목록에 없으면 select 가 빈 값이 되어 모델 선택이 깨진다 */
+var AI_MODEL_MIGRATE = { 'claude-sonnet-4-6': 'claude-sonnet-5', 'claude-opus-4-8': 'claude-opus-5', 'claude-opus-4-1-20250805': 'claude-opus-5',
+  'claude-haiku-4-5-20251001': 'claude-haiku-4-5' };
+var AI_FAMS = [['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']];   /* 「최신 … 자동」을 두는 계열 */
+var AI_FAM_ORD = { opus: 0, sonnet: 1, haiku: 2, fable: 3, mythos: 4 };
+var MODELS_CACHE_KEY = 'tsa.modelsCache';   /* { v:2, at, list:[{id,name,created,effort,img,maxOut}] } */
+
+/* 현행 세대 모델 ID → { fam, v }(v = 주버전×100 + 부버전). 날짜 스냅샷(…-20251001)·옛 세대(claude-3-…)는 null — 목록에서 감춘다 */
+function aiModelVer(id){
+  var m = /^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d{1,2}))?$/.exec(String(id || ''));
+  return m ? { fam: m[1], v: (+m[2]) * 100 + (+(m[3] || 0)) } : null;
 }
+function aiModelsCached(){
+  try { var c = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || 'null'); return (c && Array.isArray(c.list) && c.list.length) ? c : null; }
+  catch (e) { return null; }
+}
+/* 고를 수 있는 모델 — 계정 목록을 받았으면 그것만(쓸 수 없는 모델을 보이지 않게), 아니면 기본 목록 */
+function aiModelsAll(){
+  var c = aiModelsCached(), src = c ? c.list : AI_MODELS_BUILTIN, seen = {}, out = [];
+  src.forEach(function(m){ if (m && m.id && !seen[m.id] && aiModelVer(m.id)) { seen[m.id] = 1; out.push(m); } });
+  out.sort(function(a, b){
+    var x = aiModelVer(a.id), y = aiModelVer(b.id);
+    return (AI_FAM_ORD[x.fam] - AI_FAM_ORD[y.fam]) || (y.v - x.v);
+  });
+  return out;
+}
+function aiModelInfo(id){
+  var c = aiModelsCached();
+  return (c && c.list.filter(function(x){ return x && x.id === id; })[0]) || null;
+}
+function aiModelName(id){
+  var i = aiModelInfo(id) || AI_MODELS_BUILTIN.filter(function(x){ return x.id === id; })[0];
+  return String((i && i.name) || id).replace(/^Claude\s+/, '');
+}
+/* 'auto:opus' → 지금 고를 수 있는 Opus 중 가장 새 것. 그 밖의 값은 그대로(옛 ID 는 승격) */
+function aiModelResolve(v){
+  v = AI_MODEL_MIGRATE[v] || v;
+  var m = /^auto:(\w+)$/.exec(String(v || ''));
+  if (!m) return v;
+  var best = null;
+  aiModelsAll().forEach(function(x){ var p = aiModelVer(x.id); if (p.fam === m[1] && (!best || p.v > best.v)) best = { id: x.id, v: p.v }; });
+  return best ? best.id : AI_MODEL;
+}
+function aiFeature(k){ return AI_FEATURES.filter(function(f){ return f.k === k; })[0] || null; }
+/* 설정에 저장된 선택(자동 포함) — 저장값이 없으면 기능별 기본값 */
+function aiModelChoice(k){
+  var f = aiFeature(k), s = (window.state && state.settings && state.settings.aiModels) || {};
+  var v = s[k] || (f ? f.def : AI_MODEL);
+  return AI_MODEL_MIGRATE[v] || v;
+}
+/* 이 기능이 실제로 부를 모델 ID */
+function aiModelFor(k){ return aiModelResolve(aiModelChoice(k)); }
+function aiModelSave(k, v){
+  state.settings = state.settings || {};
+  var o = Object.assign({}, state.settings.aiModels || {}), f = aiFeature(k);
+  if (!v || (f && v === f.def)) delete o[k]; else o[k] = v;   /* 기본값은 저장하지 않는다 — 나중에 기본값을 바꾸면 따라가게 */
+  if (Object.keys(o).length) state.settings.aiModels = o; else delete state.settings.aiModels;
+  save(LS.settings, state.settings);
+}
+/* effort 를 받는 모델인가 — 목록의 capabilities 가 정본, 모르면 세대로 어림(Haiku 4.5·Sonnet 4.5 이하는 400) */
+function aiEffortOk(id){
+  var i = aiModelInfo(id);
+  if (i && typeof i.effort === 'boolean') return i.effort;
+  var p = aiModelVer(id);
+  if (!p) return false;
+  if (p.v >= 500) return true;
+  if (p.fam === 'haiku') return false;
+  return p.v >= 406 || (p.fam === 'opus' && p.v >= 405);
+}
+/* 모델별 추가 요청 파라미터 (v586 → v615 일반화).
+   effort 를 받는 모델에는 기능별 effort(기본 high)를 명시한다 — 기본값이 high 인 모델에는 같은 뜻이고,
+   Opus 5.5·Haiku 5.5 처럼 기본이 medium 인 모델은 한 단계 올라간다. effort 를 모르는 옛 모델에는 붙이지 않는다(400). */
+function modelExtra(m, effort){
+  if (effort === undefined) effort = 'high';
+  return (effort && aiEffortOk(m)) ? { output_config: { effort: effort } } : {};
+}
+/* 출력 한도 — 목록에 모델의 최대 출력(max_tokens)이 있으면 그 안으로 줄인다(Haiku 4.5 64K 등) */
+function aiClampTokens(m, n){
+  var i = aiModelInfo(m);
+  return (i && i.maxOut && n > i.maxOut) ? i.maxOut : n;
+}
+
+/* 계정이 쓸 수 있는 모델 목록 받기 — 하루 한 번(force 면 즉시). 새 모델이 생기면 알리고, 「자동」 선택이 바뀌면 그것도 알린다. */
+var _aiModelsP = null;
+function aiModelsRefresh(force){
+  var c0 = aiModelsCached();
+  if (!force && c0 && c0.v === 2 && (Date.now() - (+c0.at || 0)) < 86400000) return Promise.resolve(c0.list);
+  var key = realKey();
+  if (!key) return force ? Promise.reject(new Error('Claude API 키가 없어 목록을 받을 수 없습니다(에이전트 모드는 기본 목록을 씁니다).')) : Promise.resolve(null);
+  if (_aiModelsP) return _aiModelsP;
+  var autoBefore = {};
+  AI_FAMS.forEach(function(f){ autoBefore[f[0]] = aiModelResolve('auto:' + f[0]); });
+  _aiModelsP = fetch('https://api.anthropic.com/v1/models?limit=100', { headers: {
+    'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true'
+  } }).then(function(r){
+    if (!r.ok) throw new Error('모델 목록 HTTP ' + r.status);
+    return r.json();
+  }).then(function(j){
+    var list = ((j && j.data) || []).filter(function(m){ return m && aiModelVer(m.id); }).map(function(m){
+      var cp = m.capabilities || {};
+      return { id: m.id, name: m.display_name || m.id, created: m.created_at || '',
+        effort: (cp.effort && typeof cp.effort.supported === 'boolean') ? cp.effort.supported : null,
+        img: (cp.image_input && typeof cp.image_input.supported === 'boolean') ? cp.image_input.supported : null,
+        maxOut: +m.max_tokens || 0 };
+    });
+    if (!list.length) throw new Error('받은 모델 목록이 비어 있습니다.');
+    var had = {};
+    (c0 ? c0.list : []).forEach(function(x){ had[x.id] = 1; });
+    try { localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ v: 2, at: Date.now(), list: list })); } catch (e) {}
+    /* 알림 — 처음 받는 기기(c0 없음)·옛 형식 캐시에서 넘어올 때는 모두 '새 모델'로 보일 수 있으므로 조용히 */
+    if (c0 && c0.v === 2) {
+      var fresh = list.filter(function(x){ return !had[x.id]; }).map(function(x){ return aiModelName(x.id); });
+      var moved = [];
+      AI_FAMS.forEach(function(f){
+        var now = aiModelResolve('auto:' + f[0]);
+        if (now !== autoBefore[f[0]] && AI_FEATURES.some(function(ft){ return aiModelChoice(ft.k) === 'auto:' + f[0]; }))
+          moved.push('최신 ' + f[1] + ' 자동 → ' + aiModelName(now));
+      });
+      if (fresh.length || moved.length)
+        toast((fresh.length ? '새 AI 모델: ' + fresh.join(', ') + ' — 설정 → 기능별 모델에서 고를 수 있습니다.' : '') + (moved.length ? (fresh.length ? '\n' : '') + moved.join(' · ') : ''));
+    }
+    aiModelsPaint();
+    return list;
+  });
+  _aiModelsP.then(function(){ _aiModelsP = null; }, function(){ _aiModelsP = null; });
+  return _aiModelsP;
+}
+/* <select> 선택지 — 「자동」 셋 + 고를 수 있는 모델. 저장값이 목록에 없으면(퇴역 등) 그 값도 남겨 둔다(빈 칸 방지) */
+function aiModelOptsHtml(cur){
+  var all = aiModelsAll(), h = ['<optgroup label="자동 — 새 모델이 나오면 저절로 바뀜">'];
+  var opt = function(v, t){ return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(t) + '</option>'; };
+  AI_FAMS.forEach(function(f){ h.push(opt('auto:' + f[0], '최신 ' + f[1] + ' 자동 (지금 ' + aiModelName(aiModelResolve('auto:' + f[0])) + ')')); });
+  h.push('</optgroup><optgroup label="모델 지정">');
+  all.forEach(function(m){ h.push(opt(m.id, aiModelName(m.id))); });
+  if (cur && !/^auto:/.test(cur) && !all.some(function(m){ return m.id === cur; })) h.push(opt(cur, cur + ' (목록에 없음)'));
+  h.push('</optgroup>');
+  return h.join('');
+}
+/* 설정 화면의 기능별 칸 + 대화창 선택 칸을 다시 그린다(목록 갱신·이전 코드 적용 뒤) */
+function aiModelsPaint(){
+  var g = document.getElementById('aiModelGrid');
+  if (g) {
+    g.innerHTML = AI_FEATURES.map(function(f){
+      var cur = aiModelChoice(f.k), dflt = (cur === f.def);
+      return '<div class="aiMdlRow"><div class="aiMdlHd"><b>' + esc(f.label) + '</b>'
+        + (dflt ? '' : '<span class="aiMdlChg">변경됨</span>') + '<span class="aiMdlDesc">' + esc(f.desc) + '</span></div>'
+        + '<select data-aimodel="' + f.k + '">' + aiModelOptsHtml(cur) + '</select></div>';
+    }).join('');
+  }
+  var st = document.getElementById('aiModelsStamp');
+  if (st) {
+    var c = aiModelsCached();
+    st.textContent = c ? '계정 목록 ' + aiModelsAll().length + '개 · ' + new Date(+c.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' 받음' : '기본 목록 사용 중(키를 넣으면 계정 목록을 받습니다)';
+  }
+  if (window.aiChatModelPaint) window.aiChatModelPaint();
+}
+(function(){
+  var g = document.getElementById('aiModelGrid');
+  if (g) g.addEventListener('change', function(e){
+    var s = e.target.closest('select[data-aimodel]'); if (!s) return;
+    var f = aiFeature(s.getAttribute('data-aimodel'));
+    aiModelSave(f.k, s.value);
+    aiModelsPaint();
+    var inf = aiModelInfo(aiModelFor(f.k)), needImg = (f.k === 'illocr' || f.k === 'ocr');
+    toast(f.label + ' 모델: ' + aiModelName(aiModelFor(f.k)) + (/^auto:/.test(s.value) ? ' (자동)' : '')
+      + (needImg && inf && inf.img === false ? '\n⚠ 이 모델은 이미지를 읽지 못합니다 — 이미지 인식이 실패합니다.' : ''));
+  });
+  var rb = document.getElementById('aiModelsRefreshBtn');
+  if (rb) rb.addEventListener('click', withBusy(rb, '받는 중…', function(){
+    return aiModelsRefresh(true).then(function(){ toast('모델 목록을 새로 받았습니다.'); }, function(e){ toast('모델 목록 받기 실패: ' + e.message); });
+  }));
+  var xb = document.getElementById('aiModelsResetBtn');
+  if (xb) xb.addEventListener('click', async function(){
+    if (!(state.settings && state.settings.aiModels)) { toast('이미 기본값입니다.'); return; }
+    if (!await uiConfirm('기능별 모델을 모두 기본값으로 되돌릴까요?\n\n' + AI_FEATURES.map(function(f){ return f.label + ' — ' + aiModelName(aiModelResolve(f.def)); }).join('\n'))) return;
+    delete state.settings.aiModels;
+    save(LS.settings, state.settings);
+    aiModelsPaint();
+    toast('기능별 모델을 기본값으로 되돌렸습니다.');
+  });
+})();
 function realKey(){ return String(state.settings.claudeKey || '').trim(); }
 /* aiKey(): 브라우저 에이전트 모드가 켜져 있으면 키 유무와 무관하게 센티널 '__AGENT__' 반환
    → 생성은 항상 브리지(구독)가 우선(과금 방지), 모든 aiKey() 게이트·AI_DIRECT 라우팅은 열린 채 유지.
    실제 키는 realKey()로 따로 읽어, 브리지가 못 하는 경로(설교 대화·이미지 인식)에만 폴백으로 쓴다.
    모드가 꺼져 있으면 기존대로 키. */
 function aiKey(){ return bridgeOn() ? '__AGENT__' : realKey(); }
-async function callClaude(system, user, maxTokens, onTick, modelOverride){
+/* feature: AI_FEATURES 의 키('illocr' 등) — 생략하면 'main'. 'claude-…' 모델 ID 를 직접 넘겨도 된다(effort high). */
+async function callClaude(system, user, maxTokens, onTick, feature){
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
   if (key === '__AGENT__') return bridgeCall(system, user, onTick);   /* 에이전트 모드 — 비전(이미지) 포함 전부 브리지(구독) */
+  var ft = /^claude-/.test(String(feature || '')) ? null : aiFeature(feature || 'main');
+  var model = ft ? aiModelFor(ft.k) : String(feature);
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
@@ -14565,9 +14781,9 @@ async function callClaude(system, user, maxTokens, onTick, modelOverride){
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
-    body: JSON.stringify(Object.assign({ model: modelOverride || AI_MODEL, max_tokens: maxTokens || 8000, stream: true,
+    body: JSON.stringify(Object.assign({ model: model, max_tokens: aiClampTokens(model, maxTokens || 8000), stream: true,
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: user }] }, modelExtra(modelOverride || AI_MODEL)))
+      messages: [{ role: 'user', content: user }] }, modelExtra(model, ft ? ft.effort : 'high')))
   });
   if (!res.ok) {
     var et = '';
@@ -16074,7 +16290,7 @@ async function shrinkImage(file){
   URL.revokeObjectURL(url);
   return cv.toDataURL('image/jpeg', 0.85).split(',')[1];
 }
-/* 예화 이미지 → Opus 비전 인식 → 아이디어인박스 직접 등록 (휴대폰에서도 작동) */
+/* 예화 이미지 → 비전 인식(설정 → 기능별 모델 「예화 이미지 인식」) → 아이디어인박스 직접 등록 (휴대폰에서도 작동) */
 async function aiIdeaImages(imgs){
   var okN = 0;
   for (var i = 0; i < imgs.length; i++) {
@@ -16084,7 +16300,7 @@ async function aiIdeaImages(imgs){
       var out = await callClaude(P_OCR, [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
         { type: 'text', text: '이 이미지의 예화를 정리해 주세요.' }
-      ], 8000, aiTick('예화 인식'), 'claude-haiku-4-5');
+      ], 8000, aiTick('예화 인식'), 'illocr');
       var j = aiJson(out);
       if (!j['내용']) throw new Error('형식 오류');
       if (aiKey()) toast('예화 강화 중… (' + (i + 1) + '/' + imgs.length + ')');
@@ -17086,7 +17302,7 @@ var P_TRANSDOC = [
 ].join('\n');
 async function aiTransDoc(meta, cuts){
   var table = cuts.filter(function(c){ return c.n >= 2; }).map(function(c){ return { n: c.n, type: c.type, anchor: c.anchor || '' }; });
-  var out = await callClaude(P_TRANSDOC, JSON.stringify({ 원고: meta['원고텍스트'], 전환표: table }), 32000, aiTick('전환표시본'), 'claude-sonnet-5');
+  var out = await callClaude(P_TRANSDOC, JSON.stringify({ 원고: meta['원고텍스트'], 전환표: table }), 32000, aiTick('전환표시본'), 'transdoc');
   var j = aiJson(out);
   return (j && typeof j.body === 'string') ? j.body : (typeof j === 'string' ? j : '');
 }
@@ -17790,7 +18006,7 @@ async function aiSeriesDevo(m){
     toast('AI가 묵상 ' + nDays + '일 본문을 배분합니다 (1/2단계) — 잠시만요');
     var rows = null, cyc = null, fix = '';
     for (var attempt = 0; attempt < 2; attempt++) {
-      var out = await callClaude(P_DEVO_PLAN, baseUser + fix, 16000, aiTick('묵상 본문 배분'), 'claude-sonnet-5');
+      var out = await callClaude(P_DEVO_PLAN, baseUser + fix, 16000, aiTick('묵상 본문 배분'), 'devoplan');
       rows = aiJson(out);
       if (!Array.isArray(rows) || rows.length !== nDays)
         throw new Error('일수 불일치(' + ((rows && rows.length) || 0) + '/' + nDays + ') — 한 번 더 시도해 주세요.');
@@ -18387,7 +18603,7 @@ async function zoneOcr(blocks, what){
   if (bridgeOn() && blocks.some(function(b){ return b.type === 'document'; }))
     throw new Error('스캔 PDF는 브라우저 에이전트 모드로 읽을 수 없습니다 — 이미지 파일이나 HWPX·DOCX로 올려 주세요.');
   var out = await callClaude(P_ZONE_OCR, blocks.concat([{ type: 'text', text: '위 ' + what + '의 본문을 순서대로 옮겨 적어 주세요.' }]),
-    32000, aiTick(what + ' 읽기'), 'claude-sonnet-5');
+    32000, aiTick(what + ' 읽기'), 'ocr');
   return String(out || '').replace(/^\s*```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/, '').trim();
 }
 function zoneUrlErr(e){
@@ -24800,6 +25016,7 @@ function paintFmtChips(){
   paintFmtChips();
 })();
 $('#saveSettings').addEventListener('click', function(){
+  var prevKey = realKey(), prevAiModels = state.settings && state.settings.aiModels;
   state.settings = { url: $('#setUrl').value.trim(), token: $('#setToken').value.trim(), claudeKey: $('#setClaude').value.trim(),
     laUrl: $('#setLaUrl').value.trim(), laToken: $('#setLaToken').value.trim(),
     proxyUrl: ($('#setProxyUrl') ? $('#setProxyUrl').value.trim() : (state.settings && state.settings.proxyUrl) || ''),
@@ -24812,6 +25029,8 @@ $('#saveSettings').addEventListener('click', function(){
     imgScreens: ($('#imgScreensSel') ? $('#imgScreensSel').value : (state.settings && state.settings.imgScreens) || 'both'),
     imgVignette: ($('#imgVignetteSel') ? $('#imgVignetteSel').value === 'on' : !!(state.settings && state.settings.imgVignette)),
     fileFmt: ((state.settings && state.settings.fileFmt) === 'docx') ? 'docx' : 'hwpx' };
+  if (prevAiModels) state.settings.aiModels = prevAiModels;   /* 기능별 모델은 고를 때 바로 저장 — 여기서 지우지 않게 */
+  if (realKey() && realKey() !== prevKey) aiModelsRefresh(true).catch(function(){});   /* 새 키 → 그 계정의 모델 목록 */
   STUDY._memoP = null;   /* 메모 설정 변경 → 다음 열람 때 새로 불러오기 */
   save(LS.settings, state.settings);
   toast('설정 저장됨');
@@ -24831,7 +25050,7 @@ function friendlyConnErr(e){
 }
 
 /* ===== 설정 이전 (기기 간, v444) — 코드 복사/붙여넣기 + 해시 링크 ===== */
-var XFER_KEYS = ['url', 'token', 'claudeKey', 'laUrl', 'laToken', 'proxyUrl', 'proxyToken', 'vidProxyUrl', 'geminiKey', 'memoUrl', 'memoKey', 'imgEngine'];
+var XFER_KEYS = ['url', 'token', 'claudeKey', 'laUrl', 'laToken', 'proxyUrl', 'proxyToken', 'vidProxyUrl', 'geminiKey', 'memoUrl', 'memoKey', 'imgEngine', 'aiModels'];
 function xferEncode(){
   var o = {}; XFER_KEYS.forEach(function(k){ var v = (state.settings || {})[k]; if (v) o[k] = v; });
   return 'TSA1.' + btoa(unescape(encodeURIComponent(JSON.stringify(o))));
@@ -24842,13 +25061,19 @@ function xferDecode(code){
   try {
     var o = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
     if (!o || typeof o !== 'object') return null;
-    var out = {}; XFER_KEYS.forEach(function(k){ if (typeof o[k] === 'string' && o[k]) out[k] = o[k]; });
+    var out = {}; XFER_KEYS.forEach(function(k){
+      if (typeof o[k] === 'string' && o[k]) out[k] = o[k];
+      else if (k === 'aiModels' && o[k] && typeof o[k] === 'object' && !Array.isArray(o[k])) {   /* 기능별 모델(v615) — 문자열 값만 */
+        var am = {}; Object.keys(o[k]).forEach(function(f){ if (typeof o[k][f] === 'string' && o[k][f]) am[f] = o[k][f]; });
+        if (Object.keys(am).length) out[k] = am;
+      }
+    });
     return Object.keys(out).length ? out : null;
   } catch (e){ return null; }
 }
 async function xferApply(o, srcLabel){
   var names = { url: 'API URL', token: 'API 토큰', claudeKey: 'Claude 키', laUrl: '리더스앱 URL', laToken: '리더스앱 토큰',
-    proxyUrl: '이미지 프록시', proxyToken: '프록시 토큰', vidProxyUrl: '유튜브 프록시', geminiKey: 'Gemini 키', memoUrl: '성경앱 메모 URL', memoKey: '성경앱 메모 키', imgEngine: '이미지 엔진', imgScreens: '강단 스크린 출력', imgVignette: '비네팅' };
+    proxyUrl: '이미지 프록시', proxyToken: '프록시 토큰', vidProxyUrl: '유튜브 프록시', geminiKey: 'Gemini 키', memoUrl: '성경앱 메모 URL', memoKey: '성경앱 메모 키', imgEngine: '이미지 엔진', aiModels: 'AI 기능별 모델', imgScreens: '강단 스크린 출력', imgVignette: '비네팅' };
   var list = Object.keys(o).map(function(k){ return names[k] || k; }).join(' · ');
   if (!await uiConfirm((srcLabel || '설정 코드') + '에서 아래 항목을 이 기기에 적용할까요?\n\n' + list + '\n\n(비어 있지 않은 항목만 덮어씁니다)')) return false;
   state.settings = state.settings || {};
@@ -24861,6 +25086,7 @@ async function xferApply(o, srcLabel){
   if (o.imgEngine && $('#imgEngineSel')) $('#imgEngineSel').value = o.imgEngine;
   if (o.imgScreens && $('#imgScreensSel')) $('#imgScreensSel').value = o.imgScreens;
   if ($('#imgVignetteSel')) $('#imgVignetteSel').value = o.imgVignette ? 'on' : 'off';
+  try { aiModelsPaint(); if (o.claudeKey) aiModelsRefresh(true).catch(function(){}); } catch (eAm){}
   toast('설정을 적용했습니다 — 연결을 확인합니다.');
   try { await api({ action: 'ping' }); toast('연결 성공! 동기화를 시작합니다.'); sync(); } catch (e){ toast(friendlyConnErr(e)); }
   return true;
@@ -27866,7 +28092,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v614';
+var APP_VER = 'v616';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -27901,6 +28127,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   $('#setUrl').value = state.settings.url || '';
   $('#setToken').value = state.settings.token || '';
   $('#setClaude').value = state.settings.claudeKey || '';
+  try { aiModelsPaint(); } catch (eAm){}
+  setTimeout(function(){ aiModelsRefresh(false).catch(function(){}); }, 4000);   /* 하루 한 번 — 새 모델 확인(v615) */
   if ($('#setLaUrl')) $('#setLaUrl').value = state.settings.laUrl || '';
   if ($('#setLaToken')) $('#setLaToken').value = state.settings.laToken || '';
   try { paintFmtChips(); } catch (eFc){}
@@ -28454,12 +28682,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   <div class="aiHd">
     <span class="ttl"><b>설교</b><span>대화</span></span>
     <span class="sp"></span>
-    <select id="aiModel" title="모델 선택">
-      <option value="claude-opus-5">Opus 5 · 최고 성능</option>
-      <option value="claude-opus-5-5">Opus 5.5 · 최신</option>
-      <option value="claude-sonnet-5">Sonnet 5 · 균형</option>
-      <option value="claude-haiku-4-5">Haiku 4.5 · 빠름</option>
-    </select>
+    <select id="aiModel" title="모델 선택"></select>
     <button class="nu" id="aiResetW" type="button" title="대화창 너비 초기화" aria-label="대화창 너비 초기화">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 7 4 12 9 17"/><polyline points="15 7 20 12 15 17"/></svg>
     </button>
@@ -29009,7 +29232,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     aEl.innerHTML = '<span class="cur"></span>';
     var full = '';
     try {
-      full = await callChat(convo.slice(), modelSel.value, sysFor(pg), function(out){
+      full = await callChat(convo.slice(), aiModelResolve(modelSel.value), sysFor(pg), function(out){
         if (myGen !== chatGen) return;   /* 그 사이 [새 대화] 시작 — 렌더 중단 */
         aEl.innerHTML = renderMd(out) + '<span class="cur"></span>';
         followBottom();
@@ -29326,54 +29549,27 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   });
   ctxOn.addEventListener('change', refreshCtxTag);
   /* 닫기는 [닫기] 버튼 또는 다른 메뉴로 이동할 때만 — 작성창 클릭/Esc로는 닫히지 않음 */
-  /* 구모델명 자동 승격 — 저장값이 목록에 없으면 select.value가 빈 값이 되어 모델 선택이 깨진다 */
-  var AI_MODEL_MIGRATE = { 'claude-sonnet-4-6': 'claude-sonnet-5', 'claude-opus-4-8': 'claude-opus-5', 'claude-opus-4-1-20250805': 'claude-opus-5',
-    'claude-haiku-4-5-20251001': 'claude-haiku-4-5' };
-  /* ── 모델 목록 자동 갱신 (v586) ──
-     목록이 코드에 박혀 있어 새 모델이 나와도 고르지 못했다(Opus 5.5 제보). 이제 Models API(GET /v1/models)로
-     계정이 실제로 쓸 수 있는 모델을 받아, 목록에 없는 것을 뒤에 덧붙인다. 하루 한 번만 조회(localStorage 캐시)하고,
-     키가 없거나(브라우저 에이전트 모드) 실패하면 조용히 박힌 목록 그대로 쓴다.
-     날짜 스냅샷 ID(…-20251001)와 옛 세대(claude-3 등)는 감춘다 — 고를 일이 없고 목록만 길어진다. */
-  var MODELS_CACHE_KEY = 'tsa.modelsCache';
-  function aiModelsApply(list){
-    try {
-      var have = {};
-      Array.prototype.forEach.call(modelSel.options, function(o){ have[o.value] = 1; });
-      (list || []).forEach(function(m){
-        if (!m || !m.id || have[m.id]) return;
-        if (!/^claude-(opus|sonnet|haiku|fable|mythos)-\d/.test(m.id)) return;   /* 현행 세대만 */
-        if (/-\d{8}$/.test(m.id)) return;                                        /* 날짜 스냅샷 제외 */
-        var o = document.createElement('option');
-        o.value = m.id; o.textContent = (m.name || m.id) + ' · 새 모델';
-        modelSel.appendChild(o);
-      });
-    } catch (e) {}
-  }
-  function aiModelsSync(){
-    try {
-      var c = JSON.parse(localStorage.getItem(MODELS_CACHE_KEY) || 'null');
-      if (c && c.list && (Date.now() - (+c.at || 0)) < 86400000) { aiModelsApply(c.list); return; }
-    } catch (e) {}
-    var key = (window.realKey ? realKey() : '');
-    if (!key) return;
-    fetch('https://api.anthropic.com/v1/models?limit=100', { headers: {
-      'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true'
-    } }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
-      var list = ((j && j.data) || []).map(function(m){ return { id: m.id, name: m.display_name || m.id }; });
-      if (!list.length) return;
-      try { localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ at: Date.now(), list: list })); } catch (e) {}
-      aiModelsApply(list);
-    }).catch(function(){});
-  }
-  aiModelsSync();
+  /* ── 모델 선택 (v615) ──
+     선택지·「자동」 해석은 메인 스크립트의 공용 모델 목록(aiModelOptsHtml/aiModelResolve)을 쓰고,
+     값은 설정 → 기능별 모델의 「설교 대화」(state.settings.aiModels.chat)와 같은 것이다. 한쪽에서 바꾸면 다른 쪽도 바뀐다.
+     옛 기기별 저장값 localStorage['tsa.aiModel'](v586 이전~v614)은 처음 한 번 옮겨 온다. */
   try {
-    var mv = localStorage.getItem('tsa.aiModel') || AI_MODEL;
-    mv = AI_MODEL_MIGRATE[mv] || mv;
-    if (!Array.prototype.some.call(modelSel.options, function(o){ return o.value === mv; })) mv = AI_MODEL;
-    modelSel.value = mv;
-    localStorage.setItem('tsa.aiModel', mv);
+    var legacyM = localStorage.getItem('tsa.aiModel');
+    /* 옛 코드는 고르지 않아도 그때의 기본값(v586~590 Opus 5, v591~ Opus 5.5)을 저장했다 — 그 값은 '선택'이 아니므로 옮기지 않고 기본값(자동)을 따른다 */
+    var legacyDef = { 'claude-opus-5': 1, 'claude-opus-5-5': 1 };
+    if (legacyM && !legacyDef[legacyM] && !(state.settings && state.settings.aiModels && state.settings.aiModels.chat)) aiModelSave('chat', AI_MODEL_MIGRATE[legacyM] || legacyM);
+    localStorage.removeItem('tsa.aiModel');
   } catch(e){}
-  modelSel.addEventListener('change', function(){ try { localStorage.setItem('tsa.aiModel', modelSel.value); } catch(e){} });
+  window.aiChatModelPaint = function(){
+    var cur = aiModelChoice('chat');
+    modelSel.innerHTML = aiModelOptsHtml(cur);
+    modelSel.title = '모델 선택 — 지금 ' + aiModelName(aiModelResolve(cur));
+  };
+  aiChatModelPaint();
+  modelSel.addEventListener('change', function(){
+    aiModelSave('chat', modelSel.value);
+    aiModelsPaint();   /* 설정 화면의 「설교 대화」 칸도 함께 */
+  });
 
   /* ── 대화창 너비 조절(우측 경계 드래그) ── */
   var W_DEFAULT = 380, W_MIN = 320, docEl = document.documentElement;
