@@ -278,6 +278,18 @@ LTC 시간에 리더들과 매주 2개쯤 뽑아 나누는 청년 신앙 질문 
 - ⚠ 남은 한계: 목록 항목 사이에 **빈 줄을 두고**, 그 번호가 마침 다음 대지 번호와 같으면 여전히 대지로 본다(실측 0편). 대지 머리를 `(대지)` 코드로 쓰면 번호와 무관하게 확실하다.
 - 비교 도구: `tools/points_dump.py`(roundtrip_test 와 같은 방식으로 파서를 떼어 원고별 대지 목록을 뽑음) — 파서를 고칠 때 전후 JSON 을 비교하면 된다.
 
+## 기능별 모델 설정 — v615
+
+새 모델(Haiku 5.5 등)이 나올 때마다 코드의 모델 ID 를 고쳐야 했다(2026-10-07 제보). 이제 **설정 → AI 생성 → 기능별 모델**에서 고른다. 아래 v586 항목의 「박힌 목록」·대화창 전용 목록 코드는 이것으로 대체됐다.
+- **`AI_FEATURES`**(`AI_MODEL` 바로 아래) — 기능 6개: `main`(기본 생성, Opus 5.5) · `chat`(설교 대화) · `transdoc`(전환표시본, Sonnet 5) · `devoplan`(묵상 본문 배분, Sonnet 5) · `ocr`(구역권찰 원고·교재 읽기, Sonnet 5) · `illocr`(예화 이미지 인식, **Haiku 5.5** — 기본값을 4.5 에서 올렸다). 기본값과 같은 선택은 저장하지 않는다(`aiModelSave`) → 나중에 기본값을 바꾸면 따라간다.
+- **호출**: `callClaude(system, user, max, tick, 'transdoc')` 처럼 **5번째 인자에 기능 키**(생략 = `main`). `'claude-…'` ID 도 받지만 **새 코드에서 ID 를 박지 말고 `AI_FEATURES` 에 한 줄 추가할 것.** 실제 모델 = `aiModelFor(k)`.
+- 저장: `state.settings.aiModels`(이 기기, 고르는 즉시 저장). `#saveSettings` 가 settings 를 새로 만들므로 거기서 `aiModels` 를 보존한다 — 지우지 말 것. 설정 이전 코드(`XFER_KEYS`)에 포함(문자열 값만 받음).
+- **목록** = `aiModelsRefresh()` 가 Models API 를 **하루 한 번**(부팅 4초 뒤 · 키 변경 시 · [🔄 모델 목록 새로고침]) 받아 `tsa.modelsCache`(`v:2`, 모델별 `effort`·`img`·`maxOut` = capabilities·max_tokens)에 둔다. 받았으면 **그 목록만**(계정이 못 쓰는 모델 숨김), 못 받으면 `AI_MODELS_BUILTIN`. 날짜 스냅샷·옛 세대는 `aiModelVer` 가 감춘다. 새 모델이 생기면 토스트로 알린다(첫 수신·옛 형식 캐시에서는 조용히).
+- **「최신 Opus/Sonnet/Haiku 자동」**(`auto:opus` 등) — `aiModelResolve` 가 목록에서 같은 계열 최고 버전(ID 의 주·부버전)으로 푼다. 자동 선택이 바뀌면 그것도 알린다.
+- **effort** — `modelExtra(m, effort)`: 모델이 effort 를 받으면(capabilities 가 정본, 없으면 세대로 어림 — Haiku 4.5·Sonnet 4.5 이하는 안 받음) 기능별 effort 를 명시한다. `illocr` 만 `''`(모델 기본값 — 옮겨 적기에 깊은 사고 불필요), 나머지 `high`. 출력 한도는 `aiClampTokens` 가 목록의 모델 최대치로 줄인다(Haiku 4.5 64K).
+- **대화창 선택 칸**은 설정의 `chat` 값과 같은 것(`aiChatModelPaint`, 한쪽을 바꾸면 다른 쪽도). 옛 `localStorage['tsa.aiModel']` 은 첫 실행 때 옮기고 지운다. 에이전트 모드에서는 브리지가 처리하므로 모델 선택이 적용되지 않는다.
+- 검증(Playwright, 가짜 Models API): 옛 캐시·옛 대화 선택 이전 · 목록에서 날짜 스냅샷·claude-3 숨김 · 기능별 실제 요청 모델/effort/max_tokens(Haiku 4.5 = effort 없음·64000) · `auto:haiku` 가 새 「Haiku 6」으로 풀림 + 알림 · 설정 ↔ 대화창 동기 · [설정 저장]·설정 이전 코드 보존 · 휴대폰 폭 가로 넘침 없음.
+
 ## AI 모델 목록 — 자동 갱신 + Opus 5.5 (v586)
 
 설교 대화의 모델 선택지가 코드에 박혀 있어 새 모델이 나와도 고를 수 없었다(2026-09-23 Opus 5.5 제보).
