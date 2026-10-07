@@ -281,7 +281,8 @@ LTC 시간에 리더들과 매주 2개쯤 뽑아 나누는 청년 신앙 질문 
 ## 기능별 모델 설정 — v615
 
 새 모델(Haiku 5.5 등)이 나올 때마다 코드의 모델 ID 를 고쳐야 했다(2026-10-07 제보). 이제 **설정 → AI 생성 → 기능별 모델**에서 고른다. 아래 v586 항목의 「박힌 목록」·대화창 전용 목록 코드는 이것으로 대체됐다.
-- **`AI_FEATURES`**(`AI_MODEL` 바로 아래) — 기능 6개: `main`(기본 생성, Opus 5.5) · `chat`(설교 대화) · `transdoc`(전환표시본, Sonnet 5) · `devoplan`(묵상 본문 배분, Sonnet 5) · `ocr`(구역권찰 원고·교재 읽기, Sonnet 5) · `illocr`(예화 이미지 인식, **Haiku 5.5** — 기본값을 4.5 에서 올렸다). 기본값과 같은 선택은 저장하지 않는다(`aiModelSave`) → 나중에 기본값을 바꾸면 따라간다.
+- **`AI_FEATURES`**(`AI_MODEL` 바로 아래) — 기능 6개: `main`(기본 생성) · `chat`(설교 대화) · `transdoc`(전환표시본) · `devoplan`(묵상 본문 배분) · `ocr`(구역권찰 원고·교재 읽기) · `illocr`(예화 이미지 인식). 기본값과 같은 선택은 저장하지 않는다(`aiModelSave`) → 나중에 기본값을 바꾸면 따라간다.
+- **v616: 기본값 = 「최신 자동」** — `main`·`chat` = `auto:opus`(지금 Opus 5.5), `transdoc`·`devoplan`·`ocr` = `auto:sonnet`(지금 **Sonnet 5.5**, v615 까지 Sonnet 5), `illocr` = `auto:haiku`(지금 Haiku 5.5). v615 에서 기본값을 ID 로 박았더니 Sonnet 5.5 때문에 또 코드를 고쳐야 했다. 새 모델이 나오면 기본값을 쓰는 기능은 저절로 바뀌고 알림이 뜬다(`aiModelsRefresh` 의 「자동 → …」). **기본값을 다시 특정 ID 로 박지 말 것** — 고정은 사용자가 설정에서 한다. 계정 목록에 그 계열이 없으면 `AI_MODEL` 로 떨어진다.
 - **호출**: `callClaude(system, user, max, tick, 'transdoc')` 처럼 **5번째 인자에 기능 키**(생략 = `main`). `'claude-…'` ID 도 받지만 **새 코드에서 ID 를 박지 말고 `AI_FEATURES` 에 한 줄 추가할 것.** 실제 모델 = `aiModelFor(k)`.
 - 저장: `state.settings.aiModels`(이 기기, 고르는 즉시 저장). `#saveSettings` 가 settings 를 새로 만들므로 거기서 `aiModels` 를 보존한다 — 지우지 말 것. 설정 이전 코드(`XFER_KEYS`)에 포함(문자열 값만 받음).
 - **목록** = `aiModelsRefresh()` 가 Models API 를 **하루 한 번**(부팅 4초 뒤 · 키 변경 시 · [🔄 모델 목록 새로고침]) 받아 `tsa.modelsCache`(`v:2`, 모델별 `effort`·`img`·`maxOut` = capabilities·max_tokens)에 둔다. 받았으면 **그 목록만**(계정이 못 쓰는 모델 숨김), 못 받으면 `AI_MODELS_BUILTIN`. 날짜 스냅샷·옛 세대는 `aiModelVer` 가 감춘다. 새 모델이 생기면 토스트로 알린다(첫 수신·옛 형식 캐시에서는 조용히).
