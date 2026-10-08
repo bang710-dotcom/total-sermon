@@ -1996,11 +1996,13 @@ body.uiDlgOpen{overflow:hidden}
     <!-- ============ 가져오기 (데스크탑) ============ -->
     <section class="page" id="page-import">
       <div class="dropzone" id="dropzone">
-        워드(.docx) 파일을 앱 화면 아무 데나 끌어다 놓으세요<br>
-        <span style="font-size:12.5px">파일명에서 날짜·제목·본문을 자동 인식합니다 · 여러 개 동시 가능 · 예화 이미지도 함께 놓으면 알아서 분류</span><br><br>
+        설교 원고 파일을 앱 화면 아무 데나 끌어다 놓으세요<br>
+        <b style="font-size:13.5px">한글(.hwpx) · 워드(.docx) · PDF · 텍스트(.txt · .md · .rtf)</b><br>
+        <span style="font-size:12.5px">파일명에서 날짜·예배구분·시리즈·제목·본문을 자동 인식합니다 · 여러 개 동시 가능 · 예화 이미지도 함께 놓으면 알아서 분류</span><br>
+        <span style="font-size:12px;color:var(--dim)">옛 한글(.hwp)·워드(.doc)는 HWPX·DOCX로 저장해 넣어 주세요 · 글자층이 없는 스캔 PDF는 확인 후 AI로 읽습니다(Claude 키 필요)</span><br><br>
         <button class="linkbtn" id="pickFiles" style="font-size:14px">또는 파일 선택…</button><br>
         <button class="linkbtn" id="pickPhotos" style="font-size:14px">📷 사진 앨범에서 예화 이미지 선택…</button>
-        <input type="file" id="fileInput" accept=".hwpx,.docx,image/*" multiple style="display:none">
+        <input type="file" id="fileInput" accept=".hwpx,.docx,.pdf,.txt,.text,.md,.markdown,.rtf,.hwp,.doc,text/plain,application/pdf,image/*" multiple style="display:none">
         <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
       </div>
       <div id="impList" style="margin-top:14px"></div>
@@ -2428,7 +2430,7 @@ body.uiDlgOpen{overflow:hidden}
   <div class="dropMsg">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     <h3>파일을 여기에 놓으세요</h3>
-    <p>예화 <b style="color:var(--accent)">이미지</b> → 글로 정리해 인박스 등록<br>설교 원고 <b style="color:var(--accent2)">HWPX·DOCX</b> → 가져오기에서 시트 등록<br>여러 개를 한 번에 놓아도 알아서 분류됩니다</p>
+    <p>예화 <b style="color:var(--accent)">이미지</b> → 글로 정리해 인박스 등록<br>설교 원고 <b style="color:var(--accent2)">HWPX·DOCX·PDF·TXT</b> → 가져오기에서 시트 등록<br>여러 개를 한 번에 놓아도 알아서 분류됩니다</p>
   </div>
 </div>
 <div id="genOverlay">
@@ -24287,7 +24289,7 @@ $('#imgBtn').addEventListener('click', function(){ $('#ideaImgInput').click(); }
 $('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.files); this.value = ''; });
 
 /* 전체 화면 드롭존: 어느 화면이든 파일을 끌어오면 안내 오버레이 표시.
-   놓는 순간 자동 분류 — 이미지 → 예화(인박스), docx → 가져오기 */
+   놓는 순간 자동 분류 — 이미지 → 예화(인박스), 원고 파일(hwpx·docx·pdf·텍스트) → 가져오기 */
 (function(){
   var overlay = $('#dragOverlay');
   var depth = 0;
@@ -24315,10 +24317,10 @@ $('#ideaImgInput').addEventListener('change', function(){ handleIdeaImages(this.
     var files = e.dataTransfer ? Array.prototype.slice.call(e.dataTransfer.files) : [];
     if (!files.length) return;
     var imgs = files.filter(function(f){ return /^image\//.test(f.type); });
-    var docs = files.filter(function(f){ return isDocOut(f.name) && !/^~\$/.test(f.name); });
+    var docs = files.filter(isImportDoc);
     if (imgs.length) handleIdeaImages(imgs);
     if (docs.length) { handleImportFiles(docs); showPage('import'); }
-    if (!imgs.length && !docs.length) toast('이미지 또는 문서(.hwpx·.docx) 파일만 받을 수 있습니다.');
+    if (!imgs.length && !docs.length) toast('이미지 또는 원고 파일(HWPX·DOCX·PDF·TXT)만 받을 수 있습니다.');
   });
 })();
 
@@ -24800,7 +24802,7 @@ function promotePreachedByDate(writeSheet){
     ids.forEach(function(id){ apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '상태': '설교함' } }).catch(function(){}); });
 }
 
-/* ===================== DOCX 가져오기 ===================== */
+/* ===================== 원고 가져오기 (HWPX·DOCX·PDF·텍스트) ===================== */
 var BOOKS = '창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록|창|출|레|민|신|수|삿|룻|삼상|삼하|왕상|왕하|대상|대하|스|느|에|욥|시|잠|전|아|사|렘|애|겔|단|호|욜|암|옵|욘|미|나|합|습|학|슥|말|마|막|눅|요|행|롬|고전|고후|갈|엡|빌|골|살전|살후|딤전|딤후|딛|몬|히|약|벧전|벧후|요일|요이|요삼|유|계';
 var REF_TEXT_RE = new RegExp('(' + BOOKS + ')\\s*(\\d+)\\s*[:장]\\s*(\\d+)(?:\\s*[-~]\\s*(\\d+))?');
 var REF_FILE_RE = new RegExp('(' + BOOKS + ')\\s*(\\d+)[\\s_:](\\d+)(?:\\s*[-~]\\s*(\\d+))?');
@@ -24832,10 +24834,10 @@ function parseFileDate(name, fallbackYear){
   return { date: '', rest: name };
 }
 /* 약칭 앞 구분자는 1개 이상 요구 — 0개 허용이면 단어 중간 한 글자 약칭에 걸린다(예: "감사 141" → "감") */
-var TAIL_REF_RE = new RegExp('[\\s_\\-]+(' + BOOKS + ')\\s*\\d+(\\s*[장]?[\\s_:.]\\s*\\d+([-~]\\d+)?)*([\\s_]+\\d+)?\\s*$');
+var TAIL_REF_RE = new RegExp('[\\s_\\-]+(' + BOOKS + ')\\s*\\d+(\\s*[장]?[\\s_:.]\\s*\\d+([-~]\\d+)?)*([\\s_]+\\d+)?\\s*절?\\s*$');   /* v617: 끝의 「…1-8절」도 */
 function cleanTitle(name){
   try { name = name.normalize('NFC'); } catch (e) {}   /* macOS NFD 파일명 → NFC로 통일(시트 검색·중복 판정 어긋남 방지) */
-  name = name.replace(/\.(docx?|DOCX?|hwpx?|HWPX?)$/, '');
+  name = name.replace(/\.(docx?|hwpx?|pdf|txt|text|md|markdown|rtf|html?)$/i, '');
   name = name.replace(TAIL_REF_RE, ''); /* 꼬리 성경구절은 제목에서 제외 (본문 칸이 따로 있음) */
   /* 토큰은 구분자 경계에서만 제거 — '설교문?'식 부분 일치는 제목 속 글자를 갉아먹는다(예: "설교자의 마음" → "자의 마음") */
   name = name.replace(/(^|[\s_\-.])(설교문|설교|원고|최종|수정\d*|final|v\d+)(?=$|[\s_\-.])/g, '$1');
@@ -24852,42 +24854,280 @@ function docxXmlToText(xml){
   }
   return paras.join('\n');
 }
+/* ── 가져오기 파일 종류 (v617) ──
+   v616까지는 가져오기가 워드 내부 파일(word/document.xml)만 찾아서, 앱이 기본으로 만드는 HWPX 원고를 넣으면
+   「문서 본문을 찾을 수 없습니다」로 전부 실패했다(2026-10-09 제보). 이제 HWPX·DOCX 는 공용 zipDocParas,
+   PDF 는 글자층에서 문단을 다시 세우고(스캔 PDF 는 확인 후 AI 로 읽기), 텍스트 파일(txt·md·rtf·text/*)도 받는다.
+   ⚠ isDocOut(산출물 폴더 스캔용 docx·hwpx 판별)은 여러 곳이 쓰므로 건드리지 않고 가져오기는 importKind 를 쓴다. */
+function importKind(f){
+  var n = String((f && f.name) || '');
+  if (/^~\$|^\._/.test(n)) return '';                       /* 워드 임시 잠금 파일 · 맥 리소스 포크 */
+  if (/\.(docx|hwpx)$/i.test(n)) return 'zip';
+  if (/\.pdf$/i.test(n) || (f && f.type === 'application/pdf')) return 'pdf';
+  if (/\.rtf$/i.test(n)) return 'rtf';
+  if (/\.(txt|text|md|markdown|html?)$/i.test(n) || /^text\//.test((f && f.type) || '')) return 'text';
+  if (/\.(hwp|doc)$/i.test(n)) return 'old';
+  return '';
+}
+function isImportDoc(f){ return !!importKind(f); }
+/* 텍스트 파일 글자 인코딩 — BOM(UTF-16) → UTF-8(엄격) → 실패하면 한국어 윈도 기본(CP949) */
+function decodeTextBuf(buf){
+  var u = new Uint8Array(buf);
+  if (u[0] === 0xFF && u[1] === 0xFE) return new TextDecoder('utf-16le').decode(u.subarray(2));
+  if (u[0] === 0xFE && u[1] === 0xFF) return new TextDecoder('utf-16be').decode(u.subarray(2));
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(u).replace(/^﻿/, ''); }
+  catch (e) { try { return new TextDecoder('euc-kr').decode(u); } catch (e2) { return new TextDecoder('utf-8').decode(u); } }
+}
+/* RTF → 글자. 맥 텍스트편집기·워드패드가 저장한 RTF 의 한글은 \'hh(코드페이지 바이트)나 \uN 으로 들어 있다.
+   글꼴표·색표·그림 같은 부가 그룹과 \* 그룹은 건너뛴다. */
+function rtfToText(src){
+  var cp = (src.match(/\\ansicpg(\d+)/) || [])[1];
+  var enc = { '949': 'euc-kr', '936': 'gbk', '932': 'shift_jis', '65001': 'utf-8' }[cp] || 'windows-1252', dec;
+  try { dec = new TextDecoder(enc); } catch (e) { dec = new TextDecoder('windows-1252'); }
+  var DEST = /^(fonttbl|colortbl|expandedcolortbl|stylesheet|info|pict|object|header[lrf]?|footer[lrf]?|listtable|listoverridetable|rsidtbl|generator|xmlnstbl|themedata|colorschememapping|latentstyles|datastore|filetbl|revtbl)$/;
+  var out = '', bytes = [], stack = [], skip = false, uc = 1, pend = 0, i = 0, n = src.length;
+  function flush(){ if (bytes.length) { out += dec.decode(new Uint8Array(bytes)); bytes = []; } }
+  while (i < n) {
+    var c = src[i];
+    if (c === '{') { flush(); stack.push({ skip: skip, uc: uc }); i++; continue; }
+    if (c === '}') { flush(); var st = stack.pop() || { skip: false, uc: 1 }; skip = st.skip; uc = st.uc; i++; continue; }
+    if (c === '\\') {
+      var nx = src[i + 1];
+      if (nx === "'") { var hx = parseInt(src.substr(i + 2, 2), 16); i += 4; if (pend > 0) { pend--; continue; } if (!skip && !isNaN(hx)) bytes.push(hx); continue; }
+      if (nx === '\\' || nx === '{' || nx === '}') { flush(); if (!skip) out += nx; i += 2; continue; }
+      if (nx === '*') { skip = true; i += 2; continue; }
+      if (nx === '~') { flush(); if (!skip) out += ' '; i += 2; continue; }
+      if (nx === '\n' || nx === '\r') { flush(); if (!skip) out += '\n'; i += 2; continue; }
+      var m = /^([a-zA-Z]+)(-?\d+)? ?/.exec(src.slice(i + 1, i + 48));
+      if (!m) { i += 2; continue; }
+      i += 1 + m[0].length; flush();
+      var w = m[1], arg = m[2];
+      if (DEST.test(w)) { skip = true; continue; }
+      if (skip) continue;
+      if (w === 'par' || w === 'line' || w === 'sect' || w === 'page') out += '\n';
+      else if (w === 'tab') out += '\t';
+      else if (w === 'uc') uc = +arg || 0;
+      else if (w === 'u') { var cpn = +arg; if (cpn < 0) cpn += 65536; out += String.fromCharCode(cpn); pend = uc; }
+      else if (w === 'emdash') out += '—'; else if (w === 'endash') out += '–';
+      else if (w === 'lquote') out += '‘'; else if (w === 'rquote') out += '’';
+      else if (w === 'ldblquote') out += '“'; else if (w === 'rdblquote') out += '”';
+      else if (w === 'bullet') out += '•';
+      continue;
+    }
+    if (c === '\r' || c === '\n') { i++; continue; }
+    if (pend > 0) { pend--; i++; continue; }
+    if (!skip) { flush(); out += c; }
+    i++;
+  }
+  flush();
+  return out;
+}
+/* 텍스트류 정리 — 줄바꿈 통일, 줄 끝 공백 제거, 빈 줄은 하나까지만(문단 경계는 남긴다) */
+function normImportText(t){
+  return String(t || '').replace(/\r\n?/g, '\n').replace(/ /g, ' ').split('\n')
+    .map(function(x){ return x.replace(/\s+$/, ''); }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+/* PDF 글자층 → 문단. PDF 는 줄마다 끊겨 있으므로 줄 간격·정렬로 문단을 다시 세운다.
+   - 쪽번호(「- 3 -」 등)는 빼고, 본문보다 작은 글씨 줄(각주)은 끝에 [각주]로 모은다. 본문 속 위첨자 번호(1))는 뺀다.
+   - 줄 잇기: 한글(HWP)이 만든 PDF 는 낱말 중간에서도 줄을 바꾸고, 낱말 사이에서 바뀔 때만 줄 끝에 실제 공백 글자를 남긴다.
+     pdf.js 글자층(getTextContent)은 줄 끝 공백을 지워 버리므로, 그리기 명령(getOperatorList)의 글자 흐름과 줄을 맞대어
+     「줄 마지막 글자 뒤에 실제 공백이 있는가」를 읽는다(pdfLineEnds). 줄 끝 공백이 있는 문서는 그걸 따르고, 하나도 없는
+     문서(워드 등 — 줄 끝 공백을 안 남긴다)는 줄 사이에 공백을 넣는다. */
+function pdfLineEnds(ops, OPS, lines){
+  var gs = '';
+  for (var k = 0; k < ops.fnArray.length; k++) {
+    var fn = ops.fnArray[k];
+    if (fn !== OPS.showText && fn !== OPS.showSpacedText && fn !== OPS.nextLineShowText && fn !== OPS.nextLineSetSpacingShowText) continue;
+    var arr = ops.argsArray[k][fn === OPS.nextLineSetSpacingShowText ? 2 : 0] || [];
+    for (var g = 0; g < arr.length; g++) {
+      var gl = arr[g];
+      if (gl && typeof gl === 'object') gs += (gl.isSpace || /^\s+$/.test(gl.unicode || '')) ? ' ' : String(gl.unicode || '');
+    }
+  }
+  var pos = 0;
+  lines.forEach(function(l){
+    var chars = l.parts.map(function(q){ return q.s; }).join('').replace(/\s+/g, ''), ok = !!chars;
+    for (var c = 0; c < chars.length && ok; c++) {
+      while (pos < gs.length && /\s/.test(gs[pos])) pos++;
+      if (gs[pos] === chars[c]) { pos++; continue; }
+      var j = gs.indexOf(chars[c], pos);   /* 어긋나면 가까운 곳에서 다시 맞춘다 */
+      if (j >= 0 && j - pos < 40) pos = j + 1; else ok = false;
+    }
+    l.endSpace = ok ? /\s/.test(gs[pos] || '') : null;
+  });
+}
+async function pdfImportText(buf){
+  if (!window.pdfjsLib) await loadScript(PDFJS_BASE + 'pdf.min.js');
+  var lib = window.pdfjsLib;
+  lib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + 'pdf.worker.min.js';
+  var pdf = await lib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;
+  var L = [];
+  for (var p = 1; p <= pdf.numPages; p++) {
+    var page = await pdf.getPage(p), vp = page.getViewport({ scale: 1 });
+    var tc = await page.getTextContent(), cur = null, pageLines = [];
+    tc.items.forEach(function(it){
+      if (typeof it.str !== 'string') return;
+      var tr = it.transform, sz = Math.hypot(tr[2], tr[3]) || it.height || 10;
+      var x = tr[4], y = vp.height - tr[5];
+      if (it.str !== '') {
+        /* 위첨자(작은 글씨, 살짝 위)는 같은 줄로, 그 밖의 세로 이동은 새 줄 */
+        if (cur && Math.abs(y - cur.y) > 0.6 * Math.max(sz, cur.sz) && !(sz < 0.85 * cur.sz && y < cur.y && cur.y - y < 1.2 * cur.sz)) { pageLines.push(cur); cur = null; }
+        if (!cur) cur = { p: p, W: vp.width, H: vp.height, y: y, sz: sz, x0: x, x1: x + (it.width || 0), parts: [] };
+        if (sz > cur.sz && cur.parts.every(function(q){ return !q.s.trim(); })) { cur.sz = sz; cur.y = y; }
+        cur.parts.push({ s: it.str, sz: sz });
+        cur.x0 = Math.min(cur.x0, x); cur.x1 = Math.max(cur.x1, x + (it.width || 0));
+        if (sz > cur.sz) cur.sz = sz;
+      }
+      if (it.hasEOL && cur) { pageLines.push(cur); cur = null; }
+    });
+    if (cur) pageLines.push(cur);
+    try { pdfLineEnds(await page.getOperatorList(), lib.OPS, pageLines); } catch (eOps) {}
+    L = L.concat(pageLines);
+  }
+  L.forEach(function(l){
+    l.raw = l.parts.filter(function(q){ return !(q.sz < 0.8 * l.sz && /^\s*\d{1,2}\)?\s*$/.test(q.s)); })
+      .map(function(q){ return q.s; }).join('');
+    l.text = l.raw.trim();
+  });
+  L = L.filter(function(l){
+    if (!l.text) return false;
+    return !(/^[-–—]?\s*\d{1,3}\s*[-–—]?$/.test(l.text) && (l.y > l.H * 0.85 || l.y < l.H * 0.12));   /* 쪽번호 */
+  });
+  if (!L.length) return '';
+  var szs = L.map(function(l){ return l.sz; }).sort(function(a, b){ return a - b; });
+  var body = szs[Math.floor(szs.length / 2)];
+  var notes = L.filter(function(l){ return l.sz < 0.85 * body; }).map(function(l){ return l.text; });
+  L = L.filter(function(l){ return l.sz >= 0.85 * body; });
+  var left = Math.min.apply(null, L.map(function(l){ return l.x0; }));
+  var right = Math.max.apply(null, L.map(function(l){ return l.x1; }));
+  L.forEach(function(l){ l.center = (l.x0 - left) > (right - left) * 0.12 && Math.abs((l.x0 + l.x1) / 2 - (left + right) / 2) < (right - left) * 0.06; });
+  var gaps = [];
+  for (var i = 1; i < L.length; i++) if (L[i].p === L[i - 1].p && L[i].y > L[i - 1].y) gaps.push(L[i].y - L[i - 1].y);
+  gaps.sort(function(a, b){ return a - b; });
+  var lineGap = gaps.length ? gaps[Math.floor(gaps.length * 0.25)] : body * 1.6;   /* 문단 안 줄 간격(가장 흔한 작은 값) */
+  /* 양쪽 정렬 문서(한글 기본)면 「오른쪽 끝까지 닿지 않은 줄 = 문단의 마지막 줄」이다. 왼쪽 정렬(워드 기본)은 줄 끝이 들쭉날쭉해
+     이 규칙을 쓰면 줄마다 문단이 갈리므로, 줄 간격으로 이어진 줄의 70% 이상이 오른쪽 끝에 닿을 때만 쓴다. */
+  /* pdf.js 글자 폭은 어림값이라 꽉 찬 줄도 끝이 몇 pt씩 들쭉날쭉하다 → 오른쪽 끝은 90% 지점, 허용 폭은 줄 너비의 8% */
+  var x1s = L.filter(function(l){ return !l.center; }).map(function(l){ return l.x1; }).sort(function(a, b){ return a - b; });
+  var rightRef = x1s.length ? x1s[Math.floor(x1s.length * 0.9)] : right;
+  var full = function(l){ return l.x1 >= rightRef - Math.max(body * 3, (rightRef - left) * 0.08); };
+  var nearGap = function(a, b){ return b.p === a.p && (b.y - a.y) > 0 && (b.y - a.y) < lineGap * 1.35; };
+  var wrapN = 0, fullN = 0;
+  for (var q = 1; q < L.length; q++) if (!L[q].center && !L[q - 1].center && nearGap(L[q - 1], L[q])) { wrapN++; if (full(L[q - 1])) fullN++; }
+  var justified = wrapN >= 3 && fullN / wrapN >= 0.7;
+  var paras = [];
+  L.forEach(function(l, k){
+    var prev = L[k - 1], cont = false;
+    if (prev && prev.center === l.center) {
+      if (l.p === prev.p) cont = nearGap(prev, l) && (l.center || !justified || full(prev));
+      else if (l.center) cont = quoteOpen(paras[paras.length - 1].map(function(x){ return x.text; }).join(''));   /* 쪽을 넘은 가운데 인용 */
+      else cont = full(prev) && l.x0 - left < body * 0.6;   /* 쪽을 넘어 이어지는 문단 */
+    }
+    if (cont) paras[paras.length - 1].push(l); else paras.push([l]);
+  });
+  var wraps = 0, spaced = 0;
+  paras.forEach(function(ls){ ls.slice(0, -1).forEach(function(l){ wraps++; if (l.endSpace) spaced++; }); });
+  var trustSpace = wraps > 0 && spaced / wraps >= 0.2;
+  var out = paras.map(function(ls){
+    var s = '';
+    ls.forEach(function(l, k){
+      if (!k) { s = l.text; return; }
+      var pe = ls[k - 1].endSpace, gap = (trustSpace && pe !== null && pe !== undefined) ? pe : true;
+      if (!trustSpace && /[A-Za-z]-$/.test(s)) { s = s.slice(0, -1); gap = false; }   /* 영문 하이픈 줄바꿈 */
+      s += (gap ? ' ' : '') + l.text;
+    });
+    return s.replace(/[ \t]{2,}/g, ' ').trim();
+  }).filter(Boolean);
+  if (notes.length) out.push('[각주]', notes.join('\n'));
+  return out.join('\n');
+}
+async function importReadText(f){
+  var k = importKind(f), buf = await f.arrayBuffer(), t;
+  if (k === 'old') throw new Error(/\.hwp$/i.test(f.name)
+    ? '옛 한글(.hwp) 파일은 읽을 수 없습니다 — 한글에서 [다른 이름으로 저장 → HWPX]로 바꿔 넣어 주세요'
+    : '옛 워드(.doc) 파일은 읽을 수 없습니다 — 워드에서 .docx 로 저장해 넣어 주세요');
+  if (k === 'zip') {
+    var ps = await zipDocParas(buf);
+    if (!ps) throw new Error('문서 본문을 찾을 수 없습니다(손상되었거나 한글·워드 문서가 아닙니다)');
+    t = ps.join('\n');
+  } else if (k === 'pdf') {
+    t = await pdfImportText(buf);
+    if (t.replace(/\s/g, '').length < 100) {   /* 글자층이 없는(스캔) PDF */
+      if (!aiKey()) throw new Error('글자층이 없는 스캔 PDF입니다 — 설정에 Claude 키를 넣으면 AI로 읽을 수 있습니다');
+      hideWaitOverlay();   /* 확인창이 대기 화면에 가리지 않게 */
+      var okOcr = await uiConfirm('「' + f.name + '」은(는) 글자층이 없는 스캔 PDF입니다.\nAI로 글자를 읽어 올까요? (사용량 차감)');
+      showWaitOverlay('원고 파일을 읽는 중…', '', 0);
+      if (!okOcr) throw new Error('스캔 PDF — 읽기를 취소했습니다');
+      t = await zoneOcr([{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: zoneB64(buf) } }], '설교 원고');
+    }
+  } else {
+    var raw = (k === 'rtf') ? new TextDecoder('utf-8').decode(new Uint8Array(buf)) : decodeTextBuf(buf);
+    if (k === 'rtf' || /^\s*\{\\rtf/.test(raw)) raw = rtfToText(raw);
+    else if (/\.html?$/i.test(f.name) || f.type === 'text/html') raw = new DOMParser().parseFromString(raw, 'text/html').body.innerText || '';
+    else if (/\.(md|markdown)$/i.test(f.name)) raw = raw.replace(/^#{1,6}\s+/gm, '').replace(/\*\*(.+?)\*\*|__(.+?)__/g, '$1$2');
+    t = raw;
+  }
+  t = normImportText(t);
+  if (t.replace(/\s/g, '').length < 20) throw new Error('본문 글자를 찾지 못했습니다');
+  return t;
+}
+/* 파일명 → 날짜·예배구분·시리즈·회차·제목·본문.
+   앱이 저장하는 이름(sermonFileBase): 「20261011 원고_대학부_여호수아6_실수 뒤에 남은 것_수 10_1-8」
+   손으로 붙인 이름도 함께: 「20261011_대학부 여호수아6_실수 뒤에 남은 것_수 10_1-8절」, 예전 「대학부_제목」 */
+var IMPORT_SERVICES = ['대학부', '새벽', '주일', '주일예배', '수요', '수요예배', '금요', '금요기도회', '청년부', '구역권찰', '특별', '수련회'];
+function importServiceSet(){
+  var o = {};
+  IMPORT_SERVICES.forEach(function(x){ o[x] = 1; });
+  ((state.data && state.data.sermons) || []).forEach(function(s){ var v = String(s['예배구분'] || '').trim(); if (v) o[v] = 1; });
+  return o;
+}
+function parseImportName(fname, fy){
+  var name = String(fname || '');
+  try { name = name.normalize('NFC'); } catch (e) {}
+  name = name.replace(/\.[A-Za-z0-9]{1,8}$/, '');
+  var pd = parseFileDate(name, fy);
+  var rest = pd.rest.replace(/^[\s_\-.]+|[\s_\-.]+$/g, '');
+  var fm = rest.match(REF_FILE_RE);
+  rest = rest.replace(TAIL_REF_RE, '');
+  var toks = rest.split('_').map(function(x){ return x.trim(); }).filter(Boolean);
+  if (toks.length > 1 && /^(기본|자유|카드)?원고$/.test(toks[0])) toks.shift();
+  var known = importServiceSet(), service = '', series = '', seriesNo = '';
+  if (toks.length > 1) {
+    var t0 = toks[0], w = t0.split(/\s+/);
+    if (known[t0] || /^[가-힣A-Za-z0-9]{2,8}$/.test(t0)) { service = t0; toks.shift(); }
+    else if (w.length > 1 && known[w[0]]) { service = w[0]; toks[0] = w.slice(1).join(' '); }
+  }
+  if (toks.length > 1) {   /* 제목 앞 토막이 「시리즈명+회차」(앱 파일명의 seriesTag) */
+    var sm = toks[0].match(/^(.*\D)\s*(\d{1,3})$/);
+    if (sm) { series = sm[1].trim(); seriesNo = sm[2]; toks.shift(); }
+  }
+  return { date: pd.date, service: service, series: series, seriesNo: seriesNo,
+    title: cleanTitle(toks.join(' ')), ref: fm ? fmtRef(fm) : '' };
+}
 function handleImportFiles(files){
-  var list = Array.prototype.slice.call(files).filter(function(f){ return isDocOut(f.name) && !/^~\$/.test(f.name); });
-  if (!list.length) { toast('docx 파일이 없습니다.'); return; }
-  loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js').then(function(){
-    var chain = Promise.resolve();
-    list.forEach(function(f){
-      chain = chain.then(function(){
-        return f.arrayBuffer().then(function(buf){ return window.JSZip.loadAsync(buf); }).then(function(zip){
-          var doc = zip.file('word/document.xml');
-          if (!doc) throw new Error('문서 본문을 찾을 수 없습니다');
-          return doc.async('string');
-        }).then(function(xml){
-          var text = docxXmlToText(xml);
-          var fy = new Date(f.lastModified).getFullYear();
-          var pd = parseFileDate(f.name, fy);
-          var tm = text.slice(0, 600).match(REF_TEXT_RE);
-          var fm = f.name.match(REF_FILE_RE);
-          /* 파일명 '대학부_제목' 패턴에서 예배구분 추출 */
-          var service = '';
-          var rest = pd.rest;
-          var sm = rest.match(/^([가-힣A-Za-z0-9]{2,8})_/);
-          if (sm) { service = sm[1]; rest = rest.slice(sm[0].length); }
-          state.importRows.push({
-            use: true, fname: f.name,
-            '날짜': pd.date, '예배구분': service, '제목': cleanTitle(rest),
-            '본문': tm ? fmtRef(tm) : (fm ? fmtRef(fm) : ''),
-            '상태': '설교함', '원고텍스트': text
-          });
-        }).catch(function(e){
-          state.importRows.push({ use: false, fname: f.name, error: String(e.message || e) });
+  var list = Array.prototype.slice.call(files).filter(isImportDoc);
+  if (!list.length) { toast('가져올 원고 파일이 없습니다 (HWPX·DOCX·PDF·텍스트).'); return; }
+  showWaitOverlay('원고 파일을 읽는 중…');
+  var chain = Promise.resolve();
+  list.forEach(function(f){
+    chain = chain.then(function(){
+      return importReadText(f).then(function(text){
+        var nm = parseImportName(f.name, new Date(f.lastModified).getFullYear());
+        var tm = text.slice(0, 600).match(REF_TEXT_RE);
+        state.importRows.push({
+          use: true, fname: f.name, kind: importKind(f),
+          '날짜': nm.date, '예배구분': nm.service, '시리즈': nm.series, '시리즈순번': nm.seriesNo, '제목': nm.title,
+          '본문': nm.ref || (tm ? fmtRef(tm) : ''),   /* 앱이 만든 파일명의 본문이 원래 본문 칸 그대로라 우선 */
+          '상태': '설교함', '원고텍스트': text
         });
+      }).catch(function(e){
+        state.importRows.push({ use: false, fname: f.name, error: String((e && e.message) || e) });
       });
     });
-    return chain;
-  }).then(renderImport).catch(function(e){ toast(e.message); });
+  });
+  chain.then(function(){ hideWaitOverlay(); renderImport(); }, function(e){ hideWaitOverlay(); renderImport(); toast(e.message); });
 }
+var IMPORT_KIND_LABEL = { zip: '', pdf: 'PDF · ', rtf: 'RTF · ', text: '텍스트 · ' };
 function renderImport(){
   var box = $('#impList');
   $('#impActions').style.display = state.importRows.length ? 'flex' : 'none';
@@ -24897,26 +25137,28 @@ function renderImport(){
       return _nfcIncl(s['비고'] || '', r.fname) || (s['날짜'] === r['날짜'] && _nfcEq(String(s['제목'] || ''), String(r['제목'] || '')));
     });
     return '<div class="imp">' +
-      '<label style="margin:0;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)"><input type="checkbox" style="width:auto" ' + (r.use ? 'checked' : '') + ' onchange="state.importRows[' + i + '].use=this.checked"> <span class="fname">' + esc(r.fname) + ' · ' + r['원고텍스트'].length.toLocaleString() + '자</span></label>' +
+      '<label style="margin:0;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)"><input type="checkbox" style="width:auto" ' + (r.use ? 'checked' : '') + ' onchange="state.importRows[' + i + '].use=this.checked"> <span class="fname">' + esc(r.fname) + ' · ' + (IMPORT_KIND_LABEL[r.kind] || '') + r['원고텍스트'].length.toLocaleString() + '자</span></label>' +
       (dup ? '<div class="warn">⚠ 같은 날짜·제목 또는 같은 원본의 설교가 이미 시트에 있습니다.</div>' : '') +
       '<div class="row2"><div><label>날짜</label><input type="date" value="' + esc(r['날짜']) + '" onchange="state.importRows[' + i + '][\'날짜\']=this.value"></div>' +
       '<div><label>예배구분</label><input type="text" value="' + esc(r['예배구분']) + '" onchange="state.importRows[' + i + '][\'예배구분\']=this.value"></div></div>' +
       '<div class="row2"><div><label>제목</label><input type="text" value="' + esc(r['제목']) + '" onchange="state.importRows[' + i + '][\'제목\']=this.value"></div>' +
       '<div><label>본문</label><input type="text" value="' + esc(r['본문']) + '" onchange="state.importRows[' + i + '][\'본문\']=this.value"></div></div>' +
+      '<div class="row2"><div><label>시리즈</label><input type="text" value="' + esc(r['시리즈'] || '') + '" onchange="state.importRows[' + i + '][\'시리즈\']=this.value"></div>' +
+      '<div><label>시리즈 회차</label><input type="text" inputmode="numeric" value="' + esc(r['시리즈순번'] || '') + '" onchange="state.importRows[' + i + '][\'시리즈순번\']=this.value"></div></div>' +
       '</div>';
   }).join('');
 }
-/* 드래그앤드롭은 전역 오버레이가 일괄 처리 (이미지→예화, docx→가져오기) */
+/* 드래그앤드롭은 전역 오버레이가 일괄 처리 (이미지→예화, 원고 파일→가져오기) */
 /* [파일 선택]도 드롭과 동일하게 자동 분류 — 이미지 → 예화(인박스/OCR), docx → 가져오기 목록.
    accept에 image/*가 있어 아이폰에서도 '사진 보관함'이 선택지에 뜬다. */
 function classifyPickedFiles(fileList){
   var files = Array.prototype.slice.call(fileList || []);
   if (!files.length) return;
   var imgs = files.filter(function(f){ return /^image\//.test(f.type); });
-  var docs = files.filter(function(f){ return isDocOut(f.name) && !/^~\$/.test(f.name); });
+  var docs = files.filter(isImportDoc);
   if (imgs.length) handleIdeaImages(imgs);
   if (docs.length) handleImportFiles(docs);
-  if (!imgs.length && !docs.length) toast('이미지 또는 문서(.hwpx·.docx) 파일만 받을 수 있습니다.');
+  if (!imgs.length && !docs.length) toast('이미지 또는 원고 파일(HWPX·DOCX·PDF·TXT)만 받을 수 있습니다.');
 }
 $('#pickFiles').addEventListener('click', function(){ $('#fileInput').click(); });
 $('#fileInput').addEventListener('change', function(){ classifyPickedFiles(this.files); this.value = ''; });
@@ -24937,7 +25179,7 @@ $('#impRegister').addEventListener('click', async function(){
   var overs = picked.filter(function(r){ return String(r['원고텍스트'] || '').length > 45000; });
   if (overs.length && !await uiConfirm('⚠ ' + overs.length + '건은 원고가 45,000자를 넘어 시트에는 앞부분만 저장됩니다(원본 파일은 그대로).\n계속 등록할까요?')) return;
   var rows = picked.map(function(r){
-    return { '날짜': r['날짜'], '예배구분': r['예배구분'], '제목': r['제목'], '본문': r['본문'],
+    return { '날짜': r['날짜'], '예배구분': r['예배구분'], '시리즈': r['시리즈'] || '', '시리즈순번': r['시리즈순번'] || '', '제목': r['제목'], '본문': r['본문'],
       '상태': r['상태'], '원고텍스트': r['원고텍스트'].slice(0, 45000), '비고': '원본: ' + r.fname,
       /* 안정 멱등키 — 등록 실패 후 재클릭·같은 파일 재등록이 중복 행을 만들지 않게 */
       '로컬ID': stableLid_(['IMP', r['날짜'] || '', r['제목'] || '', r.fname || '']) };
@@ -28092,7 +28334,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v616';
+var APP_VER = 'v617';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
