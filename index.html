@@ -3982,7 +3982,8 @@ function illUnified(){
     var title = d['제목'] || illFirstLine(story);
     if (folded && libT[String(title).trim()]) return;  /* 번들에 이미 있으면 생략(중복 방지) */
     out.push({ key: 'inbox:' + d['ID'], src: folded ? 'lib' : 'inbox', category: folded ? '인박스 편입' : '내 인박스', title: title,
-      message: d['강조메시지'] || '', story: story, refs: String(d['관련본문'] || '').split(/;\s*/).filter(Boolean), keywords: d['키워드'] || '' });
+      message: d['강조메시지'] || '', story: story, refs: String(d['관련본문'] || '').split(/;\s*/).filter(Boolean), keywords: d['키워드'] || '',
+      source: String(d['출처'] || '').trim() });
   });
   return out;
 }
@@ -9719,7 +9720,8 @@ async function aiIllustration(i, bi, userReq){
           if (!d) return;
           if (d.출처 === '서랍'){
             var c = cands[(+d.번호 || 0) - 1]; if (!c) return;
-            arr.push({ 제목: c.it.title || '', 내용: c.it.story || '', _src: '서랍', _why: d.이유 || '', _adapt: d.각색 || '', _key: c.it.key });
+            arr.push({ 제목: c.it.title || '', 내용: c.it.story || '', _src: '서랍', _why: d.이유 || '', _adapt: d.각색 || '', _key: c.it.key,
+              _source: c.it.source || '', _sourceConf: c.it.sourceConf || '', _sourceNote: c.it.sourceNote || '' });
           } else if (d.제목 || d.내용){
             arr.push({ 제목: d.제목 || '', 내용: d.내용 || '', _src: '창작' });
           }
@@ -9757,6 +9759,10 @@ function illPick(i, bi, role, arr){
     var meta = '';
     if (d._why) meta += '<div style="margin-top:5px;font-size:12.5px;color:var(--accent2)">✓ ' + esc(d._why) + '</div>';
     if (d._adapt) meta += '<div style="margin-top:2px;font-size:12.5px;color:var(--dim)">✎ 각색: ' + esc(d._adapt) + '</div>';
+    /* 출처 — 서랍 예화는 도서관 출처(등급·비고 포함), 창작은 사실 확인이 필요하다는 표시 (v621) */
+    if (d._src === '서랍') meta += d._source ? illSrc(d._source, d._sourceConf, d._sourceNote).replace(/font-size:11px/g, 'font-size:12px')
+      : '<div style="margin-top:5px;font-size:12px;color:var(--dim);font-style:italic">📎 출처 기록 없음</div>';
+    else meta += '<div style="margin-top:5px;font-size:12px;color:var(--dim);font-style:italic">📎 AI 창작 예화 — 출처 없음(실화처럼 쓸 경우 사실 확인 필요)</div>';
     return '<div class="illOpt" data-k="' + k + '">'
       + '<div class="illOptT">' + badge + esc(d.제목 || '') + '</div>'
       + '<div class="illOptB">' + esc(d.내용 || '') + '</div>' + meta
@@ -28362,7 +28368,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v620';
+var APP_VER = 'v621';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
