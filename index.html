@@ -814,6 +814,20 @@ input[type=date]{cursor:pointer}
 .zvWhy .zvLbl{margin-right:7px}
 .zvEdit{margin-top:12px}
 .zvEdit summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--accent)}
+/* v620: 공용 선택지 카드(optVisHtml) — 상황 설교·시리즈 계획(주일·주제·새벽) */
+.zvAct{margin-left:auto;flex:0 0 auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.zvAct .btn{flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px}
+.zvAct .zvSaved{font-size:12px;color:var(--accent);font-weight:700}
+.zvHymn{margin-top:10px;font-size:13.5px;font-weight:700;color:var(--accent)}
+.zvCard{border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin:0 0 10px;background:var(--card);cursor:pointer;transition:border-color .15s,background .15s}
+.zvCard.zvSelOn{border:1.5px solid var(--accent);background:rgba(124,154,255,.06)}
+.zvCard.zvDone{cursor:default}
+.zvPick{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.zvPick input{width:auto;margin:0}
+.zvCard.zvSelOn .zvChip{background:var(--accent);color:#fff}
+.zvOther{filter:grayscale(1);opacity:.55;margin:0 0 6px}
+.zvOther>summary{cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+.zvOther>.zvCard{margin-top:4px;cursor:default}
 /* 리더의 뒷담화(v590) — 질문 목록 + 선택지 카드의 질문·나눔 칸 */
 .lbtGrp{border:1px solid var(--line);border-radius:10px;margin-top:8px;background:var(--card)}
 .lbtGrp>summary{cursor:pointer;padding:10px 12px;font-weight:800;font-size:14px;display:flex;gap:8px;align-items:center;list-style:none}
@@ -18335,23 +18349,29 @@ function optEdit(o){
 state.occ = { date: '', sit: '', opts: [], at: '' };
 var occSaveSoon = debounce(function(){ idbSet('occDraft', state.occ).catch(function(){}); }, 600);
 
+/* v620: 상황 설교 선택지 카드 — 공용 optVisHtml + 상황 설교 버튼(미래설교 저장·미리보기·작성) */
+function occVisHtml(o, i){
+  var saved = (o._status === '보관');
+  return optVisHtml(o, i, { actions:
+    (saved ? '<span class="zvSaved">✓ 보관됨</span>' : '<button class="btn sub" type="button" onclick="occArchiveOne(' + i + ')">＋ 미래설교 저장</button>') +
+    '<button class="btn sub" type="button" onclick="occPreview(' + i + ')">미리보기</button>' +
+    '<button class="btn" type="button" onclick="occPick(' + i + ')">이 개요로 설교 작성</button>' });
+}
 function renderOccPane(){
   var box = $('#occPane'), O = state.occ;
   if (!O.opts.length) { box.innerHTML = '<div class="empty">설교일과 상황을 입력하고 [개요생성]을 눌러 주세요.</div>'; return; }
   var h = '<div class="card"><b>설교 개요 선택지 3세트</b><div class="cnt" style="margin-top:4px">' +
-    (O.at ? '생성 ' + esc(O.at) + ' · ' : '') + '각 칸은 그 자리에서 바로 수정됩니다. 대지 칸은 「1. 명제 / - 근거: / - 적용:」 줄 형식을 유지해 주세요.</div></div>';
+    (O.at ? '생성 ' + esc(O.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [✏ 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div></div>';
   h += O.opts.map(function(o, i){
-    var saved = (o._status === '보관');
-    return '<div class="edPoint" id="occOpt' + i + '">' +
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:15.5px">선택지 ' + (i + 1) + '</b>' +
-      '<button class="btn sub" style="flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px" onclick="occArchiveOne(' + i + ')"' + (saved ? ' disabled' : '') + '>' + (saved ? '✓ 보관됨' : '＋ 미래설교 저장') + '</button>' +
-      '<button class="btn sub" style="flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px" onclick="occPreview(' + i + ')">미리보기</button>' +
-      '<button class="btn" style="margin-left:auto;flex:0 0 auto;width:auto;padding:8px 14px;font-size:13px" onclick="occPick(' + i + ')">이 개요로 설교 작성</button></div>' +
+    return '<div class="edPoint zvOpt" id="occOpt' + i + '">' +
+      '<div id="occVis' + i + '">' + occVisHtml(o, i) + '</div>' +
+      '<details class="zvEdit"><summary>✏ 개요 다듬기</summary>' +
       '<div class="row2" style="margin-top:6px"><div><label>제목</label><input type="text" class="occF" data-i="' + i + '" data-f="제목" value="' + esc(o['제목'] || '') + '"></div>' +
       '<div><label>본문</label><input type="text" class="occF" data-i="' + i + '" data-f="본문" value="' + esc(o['본문'] || '') + '"></div></div>' +
       '<label>핵심메시지 (주제)</label><input type="text" class="occF" data-i="' + i + '" data-f="핵심메시지" value="' + esc(o['핵심메시지'] || '') + '">' +
-      '<label>주제 근거</label><textarea class="occF edTa" rows="2" data-i="' + i + '" data-f="주제근거">' + esc(o['주제근거'] || '') + '</textarea>' +
-      '<label>대지 3개 — 명제·근거·적용</label><textarea class="occF edTa" rows="10" data-i="' + i + '" data-f="대지">' + esc(o['대지'] || '') + '</textarea></div>';
+      '<label>주제 근거</label><textarea class="occF edTa" rows="3" data-i="' + i + '" data-f="주제근거">' + esc(o['주제근거'] || '') + '</textarea>' +
+      '<label>대지 3개 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="occF edTa" rows="10" data-i="' + i + '" data-f="대지">' + esc(o['대지'] || '') + '</textarea>' +
+      '</details></div>';
   }).join('');
   h += '<div class="toolrow"><button class="btn sub" id="occRegen">개요 재생성 — 선택지가 모두 마음에 안 들 때</button></div>';
   box.innerHTML = h;
@@ -18485,7 +18505,7 @@ $('#occPane').addEventListener('input', function(e){
   var t = e.target;
   if (!t.classList.contains('occF')) return;
   var o = state.occ.opts[+t.dataset.i];
-  if (o) { o[t.dataset.f] = t.value; occSaveSoon(); }
+  if (o) { o[t.dataset.f] = t.value; occSaveSoon(); var v = $('#occVis' + t.dataset.i); if (v) v.innerHTML = occVisHtml(o, +t.dataset.i); }   /* 다듬기 → 카드에 바로 반영(v620) */
 });
 $('#occ_date').addEventListener('change', function(){ state.occ.date = this.value; occSaveSoon(); });
 $('#occ_sit').addEventListener('input', function(){ state.occ.sit = this.value; occSaveSoon(); });
@@ -18814,25 +18834,83 @@ function renderZonePane(){
 
 /* 선택지 한 장을 한눈에 — 제목·본문 / 핵심메시지 / 대지 카드 3장(변화 유형 배지·근거·적용) / 주제 근거 */
 var ZV_TYPE = { '관점 전환': 'zvT1', '행동 변화': 'zvT2', '새 이해': 'zvT3' };
-function zoneVisHtml(o, i){
-  var dj = djParse(o['대지']), types = o['변화'] || [], bad = [];
-  try { bad = refAudit(String(o['대지'] || '') + '\n' + String(o['주제근거'] || '')); } catch (e) {}
+/* v620: 개요 선택지 공용 카드 — 구역권찰 카드를 앱 전체(상황 설교·시리즈 계획 주일/주제/새벽)로 넓혔다.
+   opt.chip  = 머리 칩 HTML(기본 「선택지 N」, 시리즈는 라디오 칩·확정 칩)
+   opt.actions = 오른쪽 버튼 HTML(.zvAct 안에 들어간다)
+   opt.hymn  = 새벽 찬송 줄 표시 · opt.extra = [라벨, 글] 맨 아래 덧붙임(주일 묵상집 요약 등)
+   글은 linkifyRefs 로 성구를 누를 수 있게(본문의 책을 문맥으로) 찍는다. 대지는 줄 형식 문자열·배열 모두 받는다. */
+function optVisHtml(o, i, opt){
+  opt = opt || {}; o = o || {};
+  var dj = Array.isArray(o['대지']) ? o['대지'] : djParse(o['대지']), types = o['변화'] || [], bad = [];
+  try { bad = refAudit(djSer(o['대지']) + '\n' + String(o['주제근거'] || '')); } catch (e) {}
+  var bk = ''; try { bk = brefBook(o['본문'] || ''); } catch (e) {}
+  function L(t){ return linkifyRefs(t, bk); }
   var cards = dj.map(function(d, k){
     var ty = String(types[k] || '').replace(/\s+/g, ' ').trim(), cls = ZV_TYPE[ty] || '';
     return '<div class="zvPt"><div class="zvPtHd"><span class="zvNo">' + (k + 1) + '</span>' +
       (ty ? '<span class="zvType ' + cls + '">' + esc(ty) + '</span>' : '') + '</div>' +
-      '<div class="zvProp">' + esc(d['문'] || '') + '</div>' +
-      (d['근거'] ? '<div class="zvRow"><span class="zvLbl">근거</span><span>' + esc(d['근거']) + '</span></div>' : '') +
-      (d['적용'] ? '<div class="zvRow zvAp"><span class="zvLbl">적용</span><span>' + esc(d['적용']) + '</span></div>' : '') + '</div>';
+      '<div class="zvProp">' + L(d['문'] || '') + '</div>' +
+      (d['근거'] ? '<div class="zvRow"><span class="zvLbl">근거</span><span>' + L(d['근거']) + '</span></div>' : '') +
+      (d['적용'] ? '<div class="zvRow zvAp"><span class="zvLbl">적용</span><span>' + L(d['적용']) + '</span></div>' : '') + '</div>';
   }).join('');
-  return '<div class="zvHd"><span class="zvChip">선택지 ' + (i + 1) + '</span>' +
+  var hymn = opt.hymn ? hymnFixSync(o['찬송'] || '') : '';
+  var ex = opt.extra && String(opt.extra[1] || '').trim() ? opt.extra : null;
+  return '<div class="zvHd">' + (opt.chip != null ? opt.chip : '<span class="zvChip">선택지 ' + (i + 1) + '</span>') +
       '<div class="zvTitle">' + esc(o['제목'] || '(제목 없음)') + '</div>' +
-      (o['본문'] ? '<span class="zvRef">' + esc(o['본문']) + '</span>' : '') +
-      '<button class="btn zonePickBtn" type="button" data-i="' + i + '">이 개요로 설교 작성</button></div>' +
-    (o['핵심메시지'] ? '<div class="zvMsg">' + esc(o['핵심메시지']) + '</div>' : '') +
+      (o['본문'] ? '<span class="zvRef">' + linkifyRefs(o['본문']) + '</span>' : '') +
+      (opt.actions ? '<span class="zvAct">' + opt.actions + '</span>' : '') + '</div>' +
+    (hymn ? '<div class="zvHymn">🎵 ' + esc(hymn) + '</div>' : '') +
+    (o['핵심메시지'] ? '<div class="zvMsg">' + L(o['핵심메시지']) + '</div>' : '') +
     (bad.length ? '<div style="margin-top:8px">' + refAuditHtml(bad, '선택지 ' + (i + 1)) + '</div>' : '') +
-    '<div class="zvPts">' + cards + '</div>' +
-    (o['주제근거'] ? '<div class="zvWhy"><span class="zvLbl">주제 근거</span>' + esc(o['주제근거']) + '</div>' : '');
+    (cards ? '<div class="zvPts">' + cards + '</div>' : '') +
+    (o['주제근거'] ? '<div class="zvWhy"><span class="zvLbl">주제 근거</span>' + L(o['주제근거']) + '</div>' : '') +
+    (ex ? '<div class="zvWhy"><span class="zvLbl">' + esc(ex[0]) + '</span>' + esc(ex[1]) + '</div>' : '');
+}
+/* v620: 시리즈 계획(주일·주제·새벽) 선택지 카드 — 라디오 칩으로 고르고(카드 아무 곳이나 눌러도 됨),
+   고른 카드에는 아래 다듬기 칸(w.edit)의 값을 겹쳐 보여 준다. dawn=새벽(찬송 줄), sun=그 주 주일(묵상집 요약). */
+function spOptMerged(w, oi){
+  var o = (w.opts || [])[oi] || {};
+  if (oi !== w.sel || !w.edit) return o;
+  var m = {}, k; for (k in o) m[k] = o[k];
+  for (k in w.edit) if (w.edit[k] != null && String(w.edit[k]).trim()) m[k] = w.edit[k];
+  return m;
+}
+function spOptCardInner(w, wi, oi, dawn, sun){
+  var o = (w.opts || [])[oi] || {}, m = spOptMerged(w, oi);
+  return optVisHtml(m, oi, {
+    chip: '<label class="zvPick zvChip"><input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '"' + (w.sel === oi ? ' checked' : '') + '>선택지 ' + (oi + 1) + '</label>',
+    actions: o._status === '보관' ? '<span class="zvSaved">✓ 저장됨</span>'
+      : '<button class="btn sub" type="button" data-act="optArchive" data-w="' + wi + '" data-o="' + oi + '">미래설교 저장</button>',
+    hymn: !!dawn, extra: (dawn && sun) ? ['묵상집 요약', m['묵상요약']] : null });
+}
+function spOptCardsHtml(w, wi, dawn, sun){
+  return (w.opts || []).map(function(o, oi){
+    return '<div class="zvCard' + (w.sel === oi ? ' zvSelOn' : '') + '" id="spc' + wi + '_' + oi + '" data-w="' + wi + '" data-o="' + oi + '"' +
+      (dawn ? ' data-dawn="1"' : '') + (sun ? ' data-sun="1"' : '') + '>' + spOptCardInner(w, wi, oi, dawn, sun) + '</div>';
+  }).join('');
+}
+/* 다듬기·선택 변경 뒤 그 주의 카드만 다시 그린다(재렌더 없이) */
+function spOptCardsRefresh(wi){
+  var w = state.series && state.series.sermon && state.series.sermon.weeks[wi]; if (!w) return;
+  $$('#spw' + wi + ' .zvCard[data-o]').forEach(function(c){
+    var oi = +c.dataset.o;
+    c.classList.toggle('zvSelOn', w.sel === oi);
+    c.innerHTML = spOptCardInner(w, wi, oi, c.dataset.dawn === '1', c.dataset.sun === '1');
+  });
+}
+/* 확정된 주: 고른 개요(다듬은 값) 카드 + 나머지는 흑백으로 접어 둔다 */
+function spConfirmedCardsHtml(w, src, dawn, sun){
+  var card = '<div class="zvCard zvSelOn zvDone">' + optVisHtml(src, w.sel, { chip: '<span class="zvChip">✓ 확정</span>', hymn: !!dawn,
+    extra: (dawn && sun) ? ['묵상집 요약', src['묵상요약']] : null }) + '</div>';
+  var others = (w.opts || []).map(function(o, oi){
+    if (oi === w.sel) return '';
+    return '<details class="zvOther"><summary>' + esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + esc(o['본문'] || '') + '</span></summary>' +
+      '<div class="zvCard zvDone">' + optVisHtml(o, oi, { hymn: !!dawn }) + '</div></details>';
+  }).join('');
+  return card + (arguments[4] || '') + others;   /* 5번째 인자 = 고른 카드와 나머지 사이에 넣을 HTML(예화 계획 줄 등) */
+}
+function zoneVisHtml(o, i){
+  return optVisHtml(o, i, { actions: '<button class="btn zonePickBtn" type="button" data-i="' + i + '">이 개요로 설교 작성</button>' });
 }
 
 /* 선택지 → 설교 작성 (occPick 과 같은 방식: 주제근거 → 서론 바탕, 대지 → 구조 창) */
@@ -22948,24 +23026,8 @@ function spSermonHtml(){
 
     if (confirmed) {
       /* ── 확정 상태: 선택된 주제 풀컬러 + 나머지 흑백 접힘 ── */
-      var src = selO || ed; /* selO 없으면(slOpenSheet 경로) edit 데이터 사용 */
-      var confirmCard =
-        '<div style="margin:8px 0 10px;padding:11px 13px;border:1.5px solid var(--accent);border-radius:10px;background:rgba(124,154,255,.08)">' +
-        '<div style="margin-bottom:5px"><b style="font-size:14px">' + esc(src['제목'] || '') + '</b>' +
-        ' <span style="color:var(--accent2);font-size:13px">' + linkifyRefs(src['본문'] || '') + '</span></div>' +
-        '<div style="font-size:13px;margin-bottom:3px;color:var(--txt)">' + linkifyRefs(src['핵심메시지'] || ed['핵심메시지'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
-        ((src['주제근거'] || ed['주제근거']) ? '<div style="color:var(--dim);font-size:12px;margin-bottom:3px">근거 — ' + linkifyRefs(src['주제근거'] || ed['주제근거'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' : '') +
-        '<div style="font-size:12.5px;margin-top:5px">' + djHtml(src['대지'] || ed['대지'], brefBook(src['본문'] || ed['본문'] || '')) + '</div></div>';
-      /* 나머지 선택지: 흑백 + 접혀 있음 */
-      var nonSelHtml = (w.opts || []).filter(function(_, oi){ return oi !== w.sel; }).map(function(o){
-        return '<details style="filter:grayscale(1);opacity:0.5;margin:0 0 5px">' +
-          '<summary style="cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
-          esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + linkifyRefs(o['본문'] || '') + '</span></summary>' +
-          '<div style="padding:8px 11px;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;font-size:13px;line-height:1.5">' +
-          linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) +
-          (o['주제근거'] ? '<div style="font-size:12px;margin-top:2px;color:var(--dim)">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
-          '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></div></details>';
-      }).join('');
+      var src = selO ? spOptMerged(w, w.sel) : ed; /* selO 없으면(slOpenSheet 경로) edit 데이터 사용 */
+      var confirmCard = spConfirmedCardsHtml(w, src, false, false, illPlanRow(src));   /* v620: 공용 카드 */
       var composeBtn =
         '<div style="margin:6px 0 2px">' +
         '<button class="btn" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:13px">이 주제로 작성하기 →</button></div>';
@@ -22974,32 +23036,18 @@ function spSermonHtml(){
         '<button class="btn sub" data-w="' + wi + '" data-act="weekReselect" style="width:auto">설교주제 다시 선택</button>' +
         '<button class="linkbtn" data-w="' + wi + '" data-act="weekCollapse" style="font-size:12px;color:var(--dim)">이 주차 접기 ↑</button></div>';
       return '<details class="edPoint spConfirmed' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' +
-        (wi === openIdx ? ' open' : '') + '>' + summary + head + confirmCard + illPlanRow(src) + nonSelHtml + composeBtn + bottomRow + '</details>';
+        (wi === openIdx ? ' open' : '') + '>' + summary + head + confirmCard + composeBtn + bottomRow + '</details>';
     }
 
     /* ── 미확정 상태: 라디오 선택지 + 편집란 + 확정 버튼 ── */
-    var opts = (w.opts || []).map(function(o, oi){
-      var sel = w.sel === oi;
-      var corner = '<div style="position:absolute;top:7px;right:8px;z-index:2">' +
-        (o._status === '보관' ? '<span style="font-size:11px;color:var(--accent);font-weight:700">✓ 저장됨</span>'
-               : '<button class="btn sub" data-act="optArchive" data-w="' + wi + '" data-o="' + oi + '" style="width:auto;font-size:11px;padding:3px 8px;white-space:nowrap">미래설교 저장</button>') +
-        '</div>';
-      return '<div style="position:relative;margin:0 0 9px">' +
-        '<label style="display:block;margin:0;padding:9px 11px;padding-right:100px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
-        '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
-        '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
-        '<div style="margin:3px 0 0 22px;padding-right:0">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
-        (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
-        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></label>' + corner +
-        '</div>';
-    }).join('');
+    var opts = spOptCardsHtml(w, wi, false, false);   /* v620: 공용 카드 — 카드를 눌러 고른다 */
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
       '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
       '<label>주제 근거</label><textarea class="spS edTa" rows="2" data-w="' + wi + '" data-f="주제근거">' + esc(ed['주제근거'] || '') + '</textarea>' +
       '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>';
     var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn" data-w="' + wi + '" data-act="weekSave" style="width:auto">수정사항 저장 (보관함 반영)</button></div>';
-    return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + edit + wSave + '</details>';
+    return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + '<details class="zvEdit"><summary>✏ 선택한 개요 다듬기 — 고친 내용은 위 카드에 바로 보입니다</summary>' + edit + wSave + '</details></details>';
   }).join('');
   h += '<div class="toolrow" style="flex-wrap:wrap">' +
     '<button class="btn" id="spSermonConfirm" style="flex:1 1 100%;font-size:13px">선택 항목 전체 확정</button>' +
@@ -23022,7 +23070,7 @@ $('#seriesPane').addEventListener('input', function(e){
     if (wr) { wr['통독범위'] = t.value; wr['주간범위'] = t.value; spSaveSoon(); }
   } else if (t.classList.contains('spS')) {
     var w = state.series && state.series.sermon && state.series.sermon.weeks[+t.dataset.w];
-    if (w) { (w.edit = w.edit || {})[t.dataset.f] = t.value; spSaveSoon(); }
+    if (w) { (w.edit = w.edit || {})[t.dataset.f] = t.value; spSaveSoon(); spOptCardsRefresh(+t.dataset.w); }   /* 다듬기 → 고른 카드에 바로 반영(v620) */
   }
 });
 $('#seriesPane').addEventListener('change', function(e){
@@ -23033,14 +23081,8 @@ $('#seriesPane').addEventListener('change', function(e){
     w.edit = optEdit(w.opts[w.sel]);
     saveSeries();
     $$('#spw' + t.dataset.w + ' .spS').forEach(function(el){ el.value = w.edit[el.dataset.f] || ''; });
-    /* 선택된 카드 즉시 하이라이트 (재렌더 없이 DOM 직접 업데이트) */
-    var det = $('#spw' + t.dataset.w);
-    if (det) det.querySelectorAll('input[type="radio"]').forEach(function(r){
-      var lbl = r.closest('label'); if (!lbl) return;
-      var sel = +r.value === w.sel;
-      lbl.style.borderColor = sel ? 'var(--accent)' : '';
-      lbl.style.background  = sel ? 'rgba(124,154,255,.06)' : '';
-    });
+    /* 선택된 카드 즉시 하이라이트 (재렌더 없이 그 주 카드만 다시 그림, v620) */
+    spOptCardsRefresh(+t.dataset.w);
   } else if (t.classList.contains('spUse')) {
     var w2 = state.series.sermon.weeks[+t.dataset.w];
     w2.skip = !t.checked; saveSeries();
@@ -23049,6 +23091,13 @@ $('#seriesPane').addEventListener('change', function(e){
   }
 });
 $('#seriesPane').addEventListener('click', async function(e){
+  /* v620: 선택지 카드 아무 곳이나 눌러 고르기 — 버튼·입력·성구 링크·라디오 칩은 제 동작 그대로 */
+  var spCard = e.target.closest('.zvCard[data-o]');
+  if (spCard && !e.target.closest('button,a,input,textarea,select,label,.bref,summary')) {
+    var rd = spCard.querySelector('input[type="radio"]');
+    if (rd && !rd.checked) { rd.checked = true; rd.dispatchEvent(new Event('change', { bubbles: true })); }
+    return;
+  }
   var ddr = e.target.closest('#spDawnRedo');
   if (ddr) { spDawnRedo(); return; }
   /* 이달의 말씀 생성/다시 선정 — 주일(대학부) 시리즈 */
@@ -23888,25 +23937,9 @@ function spDawnHtml(){
       (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
 
     if (confirmed) {
-      var src = selO || ed;
-      var hymn = hymnFixSync(src['찬송'] || ed['찬송'] || '');
-      var card =
-        '<div style="margin:8px 0 10px;padding:11px 13px;border:1.5px solid var(--accent);border-radius:10px;background:rgba(124,154,255,.08)">' +
-        '<div style="margin-bottom:5px"><b style="font-size:14px">' + esc(src['제목'] || '') + '</b> <span style="color:var(--accent2);font-size:13px">' + linkifyRefs(src['본문'] || '') + '</span></div>' +
-        (hymn ? '<div style="font-size:12.5px;color:var(--accent);margin-bottom:3px;font-weight:700">🎵 ' + esc(hymn) + '</div>' : '') +
-        '<div style="font-size:13px;margin-bottom:3px">' + linkifyRefs(src['핵심메시지'] || ed['핵심메시지'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
-        ((src['주제근거'] || ed['주제근거']) ? '<div style="color:var(--dim);font-size:12px;margin-bottom:3px">근거 — ' + linkifyRefs(src['주제근거'] || ed['주제근거'] || '', brefBook(src['본문'] || ed['본문'] || '')) + '</div>' : '') +
-        '<div style="font-size:12.5px;margin-top:5px">' + djHtml(src['대지'] || ed['대지'], brefBook(src['본문'] || ed['본문'] || '')) + '</div>' +
-        (isSun && (src['묵상요약'] || ed['묵상요약']) ? '<div style="margin-top:7px;padding-top:6px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--dim)">묵상집 요약 — ' + esc(src['묵상요약'] || ed['묵상요약']) + '</div>' : '') + '</div>';
-      var nonSel = (w.opts || []).filter(function(_, oi){ return oi !== w.sel; }).map(function(o){
-        return '<details style="filter:grayscale(1);opacity:0.5;margin:0 0 5px">' +
-          '<summary style="cursor:pointer;list-style:none;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
-          esc(o['제목'] || '') + '<span style="font-size:12px;color:var(--dim);margin-left:6px">' + linkifyRefs(o['본문'] || '') + '</span></summary>' +
-          '<div style="padding:8px 11px;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;font-size:13px;line-height:1.5">' +
-          (hymnFixSync(o['찬송']) ? '<div style="color:var(--accent);font-size:12px;margin-bottom:2px;font-weight:700">🎵 ' + esc(hymnFixSync(o['찬송'])) + '</div>' : '') +
-          linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) +
-          '<div style="margin-top:4px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div></div></details>';
-      }).join('');
+      var src = selO ? spOptMerged(w, w.sel) : ed;
+      var card = spConfirmedCardsHtml(w, src, true, isSun);   /* v620: 공용 카드(찬송·묵상집 요약 포함) */
+      var nonSel = '';
       var bottom =
         '<div style="margin:6px 0 2px"><button class="btn" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:13px">이 주제로 작성하기 →</button></div>' +
         '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
@@ -23915,24 +23948,7 @@ function spDawnHtml(){
       return '<details class="edPoint spConfirmed' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + card + nonSel + bottom + '</details>';
     }
 
-    var opts = (w.opts || []).map(function(o, oi){
-      var sel = w.sel === oi;
-      var corner = '<div style="position:absolute;top:7px;right:8px;z-index:2">' +
-        (o._status === '보관' ? '<span style="font-size:11px;color:var(--accent);font-weight:700">✓ 저장됨</span>'
-               : '<button class="btn sub" data-act="optArchive" data-w="' + wi + '" data-o="' + oi + '" style="width:auto;font-size:11px;padding:3px 8px;white-space:nowrap">미래설교 저장</button>') +
-        '</div>';
-      return '<div style="position:relative;margin:0 0 9px">' +
-        '<label style="display:block;margin:0;padding:9px 11px;padding-right:100px;border:1px solid ' + (sel ? 'var(--accent)' : 'var(--line)') + ';border-radius:10px;cursor:pointer;font-size:13.5px' + (sel ? ';background:rgba(124,154,255,.06)' : '') + '">' +
-        '<input type="radio" name="spw' + wi + '" value="' + oi + '" data-w="' + wi + '" style="width:auto;margin-right:7px" ' + (sel ? 'checked' : '') + '>' +
-        '<b>' + esc(o['제목'] || '') + '</b> <span style="color:var(--accent2)">' + linkifyRefs(o['본문'] || '') + '</span>' +
-        (hymnFixSync(o['찬송']) ? '<div style="margin:3px 0 0 22px;color:var(--accent);font-size:12.5px;font-weight:700">🎵 ' + esc(hymnFixSync(o['찬송'])) + '</div>' : '') +
-        '<div style="margin:3px 0 0 22px">' + linkifyRefs(o['핵심메시지'] || '', brefBook(o['본문'] || '')) + '</div>' +
-        (o['주제근거'] ? '<div style="color:var(--dim);margin:2px 0 0 22px;font-size:12px">근거 — ' + linkifyRefs(o['주제근거'], brefBook(o['본문'] || '')) + '</div>' : '') +
-        '<div style="margin:4px 0 0 22px;font-size:12.5px">' + djHtml(o['대지'], brefBook(o['본문'] || '')) + '</div>' +
-        (isSun && String(o['묵상요약'] || '').trim() ? '<div style="margin:6px 0 0 22px;padding-top:5px;border-top:1px dashed var(--line);font-size:12px;color:var(--dim);line-height:1.55">묵상집 요약 — ' + esc(o['묵상요약']) + '</div>' : '') +
-        '</label>' + corner +
-        '</div>';
-    }).join('');
+    var opts = spOptCardsHtml(w, wi, true, isSun);   /* v620: 공용 카드 — 카드를 눌러 고른다 */
     var edit = '<div class="row2" style="margin-top:4px"><div><label>제목</label><input type="text" class="spS" data-w="' + wi + '" data-f="제목" value="' + esc(ed['제목'] || '') + '"></div>' +
       '<div><label>본문 (1~2절)</label><input type="text" class="spS" data-w="' + wi + '" data-f="본문" value="' + esc(ed['본문'] || '') + '"></div></div>' +
       '<label>찬송가 (장번호 + 제목)</label><input type="text" class="spS" data-w="' + wi + '" data-f="찬송" value="' + esc(hymnFixSync(ed['찬송'] || '')) + '">' +
@@ -23941,7 +23957,7 @@ function spDawnHtml(){
       '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>' +
       (isSun ? '<label>묵상집 요약 (주일 — 묵상집 출력용)</label><textarea class="spS edTa" rows="3" data-w="' + wi + '" data-f="묵상요약">' + esc(ed['묵상요약'] || '') + '</textarea>' : '');
     var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn" data-w="' + wi + '" data-act="weekSave" style="width:auto">수정사항 저장 (보관함 반영)</button></div>';
-    return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + edit + wSave + '</details>';
+    return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + '<details class="zvEdit"><summary>✏ 선택한 개요 다듬기 — 고친 내용은 위 카드에 바로 보입니다</summary>' + edit + wSave + '</details></details>';
   }).join('');
   h += '<div class="toolrow" style="flex-wrap:wrap">' +
     '<button class="btn" id="spSermonConfirm" style="flex:1 1 100%;font-size:13px">선택 항목 전체 확정</button>' +
@@ -28346,7 +28362,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v619';
+var APP_VER = 'v620';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
