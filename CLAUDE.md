@@ -301,7 +301,7 @@ LTC 시간에 리더들과 매주 2개쯤 뽑아 나누는 청년 신앙 질문 
 - **목록** = `aiModelsRefresh()` 가 Models API 를 **하루 한 번**(부팅 4초 뒤 · 키 변경 시 · [🔄 모델 목록 새로고침]) 받아 `tsa.modelsCache`(`v:2`, 모델별 `effort`·`img`·`maxOut` = capabilities·max_tokens)에 둔다. 받았으면 **그 목록만**(계정이 못 쓰는 모델 숨김), 못 받으면 `AI_MODELS_BUILTIN`. 날짜 스냅샷·옛 세대는 `aiModelVer` 가 감춘다. 새 모델이 생기면 토스트로 알린다(첫 수신·옛 형식 캐시에서는 조용히).
 - **「최신 Opus/Sonnet/Haiku 자동」**(`auto:opus` 등) — `aiModelResolve` 가 목록에서 같은 계열 최고 버전(ID 의 주·부버전)으로 푼다. 자동 선택이 바뀌면 그것도 알린다.
 - **effort** — `modelExtra(m, effort)`: 모델이 effort 를 받으면(capabilities 가 정본, 없으면 세대로 어림 — Haiku 4.5·Sonnet 4.5 이하는 안 받음) 기능별 effort 를 명시한다. `illocr` 만 `''`(모델 기본값 — 옮겨 적기에 깊은 사고 불필요), 나머지 `high`. 출력 한도는 `aiClampTokens` 가 목록의 모델 최대치로 줄인다(Haiku 4.5 64K).
-- **대화창 선택 칸**은 설정의 `chat` 값과 같은 것(`aiChatModelPaint`, 한쪽을 바꾸면 다른 쪽도). 옛 `localStorage['tsa.aiModel']` 은 첫 실행 때 옮기고 지운다. 에이전트 모드에서는 브리지가 처리하므로 모델 선택이 적용되지 않는다.
+- **대화창 선택 칸**은 설정의 `chat` 값과 같은 것(`aiChatModelPaint`, 한쪽을 바꾸면 다른 쪽도). **v622**: 기본 너비(380px)에서 「최신 Opus 자동 (지금 Opus 5.5)」 때문에 머리 버튼(너비 초기화·기록·새 대화·닫기)이 패널 밖으로 밀려 가려졌다 → 대화창 칸만 짧은 표기 **「자동 · Opus 5.5」**(`aiModelOptsHtml(cur, true)`, 설정 화면은 긴 표기 그대로) + `.aiHd select` 를 `flex:0 1 auto;min-width:72px`(좁으면 줄어듦). 실측: 너비 320·340·380px 모두 버튼 4개 + 선택 칸이 패널 안에 들어간다. 옛 `localStorage['tsa.aiModel']` 은 첫 실행 때 옮기고 지운다. 에이전트 모드에서는 브리지가 처리하므로 모델 선택이 적용되지 않는다.
 - 검증(Playwright, 가짜 Models API): 옛 캐시·옛 대화 선택 이전 · 목록에서 날짜 스냅샷·claude-3 숨김 · 기능별 실제 요청 모델/effort/max_tokens(Haiku 4.5 = effort 없음·64000) · `auto:haiku` 가 새 「Haiku 6」으로 풀림 + 알림 · 설정 ↔ 대화창 동기 · [설정 저장]·설정 이전 코드 보존 · 휴대폰 폭 가로 넘침 없음.
 
 ## AI 모델 목록 — 자동 갱신 + Opus 5.5 (v586)

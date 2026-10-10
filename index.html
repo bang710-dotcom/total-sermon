@@ -1264,7 +1264,7 @@ body.aiResizing #aiPanel,body.aiResizing #app{transition:none !important}
 .aiHd .ttl{font-size:14.5px;font-weight:800;display:flex;flex-direction:column;align-items:flex-start;gap:0;line-height:1.15;flex:0 0 auto;white-space:nowrap}
 .aiHd .ttl b{color:var(--accent)}
 .aiHd .sp{flex:1}
-.aiHd select{width:auto;flex:0 0 auto;font-size:12.5px;padding:6px 8px;border-radius:8px;font-weight:600}
+.aiHd select{width:auto;flex:0 1 auto;min-width:72px;text-overflow:ellipsis;font-size:12.5px;padding:6px 8px;border-radius:8px;font-weight:600}   /* v621: 좁으면 선택 칸이 줄어든다 — 버튼이 밀려나 가려지지 않게 */
 .aiHd .x,.aiHd .nu{background:var(--card);border:1px solid var(--line);color:var(--dim);border-radius:8px;
   width:34px;height:34px;font-size:16px;cursor:pointer;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
 .aiHd .x:hover,.aiHd .nu:hover{color:var(--text);border-color:var(--accent)}
@@ -14724,10 +14724,10 @@ function aiModelsRefresh(force){
   return _aiModelsP;
 }
 /* <select> 선택지 — 「자동」 셋 + 고를 수 있는 모델. 저장값이 목록에 없으면(퇴역 등) 그 값도 남겨 둔다(빈 칸 방지) */
-function aiModelOptsHtml(cur){
+function aiModelOptsHtml(cur, short){   /* short = 대화창 머리용 짧은 표기(v621) */
   var all = aiModelsAll(), h = ['<optgroup label="자동 — 새 모델이 나오면 저절로 바뀜">'];
   var opt = function(v, t){ return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(t) + '</option>'; };
-  AI_FAMS.forEach(function(f){ h.push(opt('auto:' + f[0], '최신 ' + f[1] + ' 자동 (지금 ' + aiModelName(aiModelResolve('auto:' + f[0])) + ')')); });
+  AI_FAMS.forEach(function(f){ var nm = aiModelName(aiModelResolve('auto:' + f[0])); h.push(opt('auto:' + f[0], short ? '자동 · ' + nm : '최신 ' + f[1] + ' 자동 (지금 ' + nm + ')')); });
   h.push('</optgroup><optgroup label="모델 지정">');
   all.forEach(function(m){ h.push(opt(m.id, aiModelName(m.id))); });
   if (cur && !/^auto:/.test(cur) && !all.some(function(m){ return m.id === cur; })) h.push(opt(cur, cur + ' (목록에 없음)'));
@@ -28368,7 +28368,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v621';
+var APP_VER = 'v622';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -29838,7 +29838,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   } catch(e){}
   window.aiChatModelPaint = function(){
     var cur = aiModelChoice('chat');
-    modelSel.innerHTML = aiModelOptsHtml(cur);
+    modelSel.innerHTML = aiModelOptsHtml(cur, true);
     modelSel.title = '모델 선택 — 지금 ' + aiModelName(aiModelResolve(cur));
   };
   aiChatModelPaint();
