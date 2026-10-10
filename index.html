@@ -25735,6 +25735,10 @@ var DEVO_CSS = "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:
  + ".ip .sec{margin-bottom:6.5mm}.ip .panel{border-radius:0 5mm 5mm 5mm;padding:5mm 7mm;margin-top:2.5mm}"
  + ".ip .t{font-size:10.5pt;line-height:1.9}.ip .vs2{font-size:9.8pt;line-height:1.75;margin:2.5mm 0 0}"
  + ".ip .vh{color:#9A5B33;font-weight:700;font-size:9.5pt;margin-top:3.5mm}"
+ + ".ip table.qt{width:100%;border-collapse:collapse;margin-top:3mm;font-size:10pt;line-height:1.5}"
+ + ".ip table.qt th{font-weight:700;color:#6F6046;border-bottom:0.35mm solid #6F6046;padding:1.6mm 1mm;text-align:center}"
+ + ".ip table.qt td{border-bottom:0.25mm solid #BCAF97;padding:1.6mm 1mm;text-align:center;color:#9A5B33;font-weight:700}"
+ + ".ip table.qt th:first-child,.ip table.qt td:first-child{text-align:left;color:#3A3024;font-weight:500;width:27%}"
  + ".ip .foot{position:absolute;bottom:16mm;left:13mm;right:13mm;text-align:center;font-size:10.5pt;color:#5B5142;line-height:1.9;font-weight:500}.ip .q{color:#9A5B33;font-weight:700}";
 function devoBgSrc(S, kind){ return (S.theme && S.theme[kind]) ? S.theme[kind] : ('devo_assets/' + kind + '.jpg'); }
 function devoPg(body, bgSrc, cls){ return '<div class="pg ' + (cls||'') + '"><img class="bg" src="' + bgSrc + '">' + body + '</div>'; }
@@ -25755,7 +25759,15 @@ var DEVO_INTRO = [
  +'<div class="sec"><div class="panel" style="border-radius:5mm"><div class="t"><b>4) 묵상하기</b><br>- 그 내용 속에서 하나님의 뜻을 발견하기<br>- 시간과 공간을 초월하는 메시지 찾기</div></div>'
  +'<div class="panel" style="border-radius:5mm"><div class="t"><b>5) 적용하기</b><br>- 그 뜻을 내 삶에 연결하기<br>- 적용의 범주: 하나님, 감사, 기도, 실천, 회개, 확신<br>- 적용 원칙: 가능한 구체적으로 실천 가능하도록</div></div>'
  +'<div class="panel" style="border-radius:5mm"><div class="t"><b>6) 기도하기</b><br>- 삶에서 잘 살아낼 수 있도록 결단하기<br>- 하나님의 도우심을 구하기</div></div>'
- +'<div class="panel" style="border-radius:5mm"><div class="t"><b>7) 살아내기</b></div></div></div>',
+ +'<div class="panel" style="border-radius:5mm"><div class="t"><b>7) 살아내기</b></div></div></div>'
+ /* v618: QT의 4요소 — 유형별 구성표(2026-10-10 목사님 요청) */
+ +'<div class="sec"><div class="badge">3. QT의 4요소</div><div class="panel"><div class="t"><b>QT의 4요소:</b> 내용관찰, 연구와 묵상, 느낀 점, 결단과 적용</div>'
+ +'<table class="qt"><thead><tr><th>유형</th><th>내용관찰</th><th>연구와 묵상</th><th>느낀 점</th><th>결단과 적용</th></tr></thead><tbody>'
+ +'<tr><td>A형 (기초)</td><td></td><td></td><td>○</td><td></td></tr>'
+ +'<tr><td>B형 (관찰형)</td><td>○</td><td></td><td>○</td><td></td></tr>'
+ +'<tr><td>C형 (실천형)</td><td>○</td><td></td><td>○</td><td>○</td></tr>'
+ +'<tr><td>D형 (완성형)</td><td>○</td><td>○</td><td>○</td><td>○</td></tr>'
+ +'</tbody></table></div></div>',
  '<h1>성경묵상의 <span class="thin">읽기</span></h1>'
  +'<div class="sec"><div class="panel" style="border-radius:5mm"><div class="t"><b>1. 천천히 소리내어 읽기</b></div></div>'
  +'<div class="panel" style="border-radius:5mm"><div class="t"><b>2. 줄 치고 표시하며 읽기</b><br>- 사실, 인물, 배경, 사건, 결과 파악, 반복되는 단어, 키워드</div></div>'
@@ -28334,7 +28346,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v617';
+var APP_VER = 'v618';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
