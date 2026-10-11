@@ -1197,7 +1197,7 @@ html[data-theme="light"]{
 /* 세피아 = 따뜻한 크림 바탕·짙은 녹색 텍스트·그린 강조 */
 html[data-theme="sepia"]{
   --bg:#f3efe7; --card:#fbf9f3; --card2:#ece6d8; --line:#d9d0bd; --line2:#c2b69c;
-  --text:#1e3932; --dim:#5b6b60; --accent:#00704a; --accent2:#a6703a;
+  --text:#1e3932; --dim:#5b6b60; --accent:#00704a; --accent2:#855528;   /* v633: 금색 글자 대비 3.4→5.1 */
   --ok:#00704a; --warn:#a6431f;
   --on-accent:#fff; --on-gold:#fff;
   --info:#1e6b4f; --info-bg:#dceee6; --info-line:#7cc0a8;
@@ -1676,8 +1676,8 @@ body.fmPhase1 #cmHead{opacity:0;pointer-events:none}
 :root{--edSerif:"AppleMyungjo","Apple Myungjo","Nanum Myeongjo","NanumMyeongjo","Batang","바탕",serif}
 body.edPaper:not(.focusMode) #editorPane{
   --bg:#fcfbf8; --card:#fffefb; --card2:#f5f2ea; --line:#e3ddd0; --line2:#cbc3b2;
-  --text:#1f1f22; --dim:#7b776f; --accent:#3b52c4; --accent2:#9a6416; --on-accent:#fff; --on-gold:#fff;
-  --accent-soft:color-mix(in srgb,#3b52c4 12%,transparent); --gold-soft:color-mix(in srgb,#9a6416 12%,transparent);
+  --text:#1f1f22; --dim:#6a665e; --accent:#3b52c4; --accent2:#87570f; --on-accent:#fff; --on-gold:#fff;   /* v633: 대비 4.5 이상 */
+  --accent-soft:color-mix(in srgb,#3b52c4 12%,transparent); --gold-soft:color-mix(in srgb,#87570f 12%,transparent);
   --c-ill:#1d4fc4; --c-act:#6d45a8; --c-sum:#9a5c14; --c-str:#b8323f; --c-star:#8f7314;
   --good:#2f8a4e; --bad:#c0392b; --caution:#9a6f06; --warn:#b4472b; --ok:#2c7a4b;
   color-scheme:light;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:var(--r-lg);
@@ -28984,7 +28984,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v632';
+var APP_VER = 'v633';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
