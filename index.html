@@ -379,6 +379,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .plegend code{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 5px;font-size:var(--fs-sm);color:var(--accent);font-weight:700;white-space:nowrap}
 .edFreeWrap{display:flex;gap:8px;align-items:stretch}
 .edFreeWrap .edFree{flex:1;min-width:0}
+.edFreeWrap > .edHl{flex:1 1 auto;min-width:0}
 .structKit{flex:0 0 104px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--card2);padding:8px 7px;align-self:flex-start;position:sticky;top:8px}
 .structKit .skH{font-size:var(--fs-xs);font-weight:700;color:var(--accent);text-align:center;margin-bottom:2px;letter-spacing:-.2px}
 .skChip{display:block;text-align:center;font-size:var(--fs-sm);font-weight:700;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:7px 4px;cursor:grab;user-select:none;transition:border-color .12s,background .12s}
@@ -1686,8 +1687,6 @@ body.edPaper:not(.focusMode) #editorPane .edFree{font-family:var(--edSerif);font
   border:none;border-left:3px solid transparent;border-radius:0;padding:4px 4px 4px 12px;box-shadow:none}
 body.edPaper:not(.focusMode) #editorPane .edTa:focus,
 body.edPaper:not(.focusMode) #editorPane .edFree:focus{border-left-color:var(--line2);background:color-mix(in srgb,var(--accent) 3%,transparent)}
-body.edPaper:not(.focusMode) #editorPane .edHasQuote,
-body.edPaper:not(.focusMode) #editorPane .edHasQuote:focus{border-left-color:#d40000}
 body.edPaper:not(.focusMode) #editorPane ::placeholder{color:#b3aea4}
 body.edPaper:not(.focusMode) #editorPane .edPoint{background:transparent;border:none;border-top:1px solid var(--line);border-radius:0;padding:20px 0 6px;margin:0 0 6px}
 body.edPaper:not(.focusMode) #editorPane .edTitle{font-family:var(--edSerif);font-size:var(--fs-2xl)}
@@ -1786,6 +1785,26 @@ body.fmPhase1 #edStyleBar{opacity:0;pointer-events:none}
 .stCtxMe .stCtxTag{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
 .stCtxBody{flex:1 1 auto;min-width:0;font-size:var(--fs-sm);line-height:1.6;color:var(--text)}
 .stCtxRef{color:var(--accent2)}
+
+/* ===== 작성칸 안 성경 인용 빨간 글자 (v629) =====
+   textarea 는 글자 일부만 칠할 수 없어서, 같은 글꼴·여백·줄바꿈의 글자층(.edHlBk)을 뒤에 깔고 입력칸 글자는 투명하게 둔다.
+   커서·선택·맞춤법 밑줄·한글 조합은 입력칸이 그대로 맡는다. 글자층이 준비된 칸에만 .on 이 붙는다(실패하면 원래 입력칸이 그대로 보인다). */
+:root{--q-red:#ff7b7b}
+html[data-theme="light"]{--q-red:#d40000}
+html[data-theme="sepia"]{--q-red:#c4001e}
+body.edPaper:not(.focusMode) #editorPane{--q-red:#d40000}
+.edHl{position:relative;min-width:0}
+.edHl > .edTa{display:block}   /* 줄 안 요소면 아래에 몇 px 틈이 생겨 글자층과 높이가 어긋난다 */
+.edHlBk{display:none;position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none;box-sizing:border-box;
+  white-space:pre-wrap;overflow-wrap:break-word;color:var(--text);border-style:solid;border-color:transparent;background:var(--card2);border-radius:var(--r-md)}
+.edHl.on > .edHlBk{display:block}
+.edHl.on > .edTa{color:transparent!important;-webkit-text-fill-color:transparent;caret-color:var(--text);background:transparent!important;position:relative}
+.edHl.on > .edTa::placeholder{color:var(--dim);-webkit-text-fill-color:var(--dim);opacity:.75}
+.edHl.on > .edTa::selection{background:color-mix(in srgb,var(--accent) 30%,transparent);color:transparent}
+.edHlQ{color:var(--q-red);-webkit-text-stroke:.35px currentColor}   /* 굵기는 글자 폭이 바뀌지 않게 외곽선으로 */
+body.edPaper:not(.focusMode) #editorPane .edHlBk{background:transparent;border-radius:0}
+body.edPaper:not(.focusMode) #editorPane .edHl:focus-within > .edHlBk{background:color-mix(in srgb,var(--accent) 3%,transparent)}
+body.focusMode #editorPane .edHlBk{background:transparent}
 </style>
 </head>
 <body>
@@ -2381,10 +2400,10 @@ body.fmPhase1 #edStyleBar{opacity:0;pointer-events:none}
         <div class="cnt" style="margin-top:6px">앱 전체 색상을 바꿉니다. 선택은 이 기기에 저장됩니다.</div>
         <label style="margin-top:14px">원고 작성창</label>
         <div class="chips" id="edPaperChips">
-          <span class="chip" data-edpaper="">기본</span>
-          <span class="chip" data-edpaper="1">종이 · 명조</span>
+          <span class="chip" data-edpaper="1">종이 · 명조 (기본)</span>
+          <span class="chip" data-edpaper="0">이전 방식 · 테마 색 칸</span>
         </div>
-        <div class="cnt" style="margin-top:6px">「종이」는 설교 작성 오른쪽 작성창을 흰 종이처럼 바꾸고 본문을 명조로 보여 줍니다(기기에 설치된 명조 글꼴만 씁니다 — 없으면 기본 글꼴). 성경 인용이 든 칸은 왼쪽에 빨간 표지가 붙습니다. 집중 모드에는 적용되지 않으며, 이 기기에만 저장됩니다.</div>
+        <div class="cnt" style="margin-top:6px">「종이」는 설교 작성 오른쪽 작성창을 흰 종이처럼 바꾸고 본문을 명조로 보여 줍니다(기기에 설치된 명조 글꼴만 씁니다 — 없으면 기본 글꼴). 어느 쪽이든 작성칸 안의 성경 인용은 빨간 글자로 보입니다. 집중 모드에는 종이가 적용되지 않으며, 이 기기에만 저장됩니다.</div>
         <label style="margin-top:14px">화면 크기</label>
         <div class="chips" id="zoomChips">
           <span class="chip" data-zoom="1">기본</span>
@@ -11057,8 +11076,9 @@ function saveTaHeight(t){
 function ta(k, pi, pk, rows, ph, val, cls, bi){
   var attrs = k ? 'data-k="' + k + '"' : 'data-pi="' + pi + '" data-pk="' + pk + '"' + (bi != null ? ' data-bi="' + bi + '"' : '');
   var hh = taSavedHeight(k, pi, pk, bi);
-  return '<textarea class="edTa' + (cls ? ' ' + cls : '') + '" rows="' + rows + '" placeholder="' + esc(ph) + '" ' +
-    attrs + (hh ? ' style="height:' + esc(hh) + '"' : '') + '>' + esc(val) + '</textarea>';
+  /* v629: 글자층(.edHlBk)을 입력칸 뒤에 겹쳐 성경 인용을 빨간 글자로 보여 준다(edHl* — 마지막 스크립트) */
+  return '<div class="edHl"><div class="edHlBk" aria-hidden="true"></div><textarea class="edTa' + (cls ? ' ' + cls : '') + '" rows="' + rows + '" placeholder="' + esc(ph) + '" ' +
+    attrs + (hh ? ' style="height:' + esc(hh) + '"' : '') + '>' + esc(val) + '</textarea></div>';
 }
 /* 구조화 도구 칩 정의 — 라벨 + 삽입 코드(줄 맨 앞 토큰). 내보내기 땐 토큰이 보이지 않는다. */
 var STRUCT_CHIPS = [
@@ -28911,7 +28931,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v628';
+var APP_VER = 'v629';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -30650,37 +30670,91 @@ function cmReveal(el){
 })();
 
 
-/* ===================== C안 원고 작성창 「종이」 (v626) ===================== */
-/* 성경 인용(빨간 볼드와 같은 판별 refQuoteTracker)이 든 칸에 빨간 표지 — 칸 안의 일부 글자만 칠할 수는 없어서(textarea) 칸 단위로 표시 */
-function edQuoteMark(ta){
-  if (!ta) return;
-  var on = false;
-  if (document.body.classList.contains('edPaper')){
-    try { var tr = refQuoteTracker(); on = String(ta.value || '').split('\n').some(function(l){ return !!tr(l); }); } catch (e) {}
-  }
-  ta.classList.toggle('edHasQuote', on);
+/* ===================== C안 원고 작성창 「종이」 (v626 · v629 기본값) ===================== */
+/* ── 작성칸 안 성경 인용 빨간 글자 (v629) ─────────────────────────────────────
+   판별은 미리보기·내보내기의 빨간 볼드와 같은 refQuoteTracker(줄 단위, 여러 줄 인용 이어짐 포함).
+   입력칸(textarea) 글자는 투명, 뒤 글자층이 같은 자리에 같은 글을 그리되 인용만 빨갛게.
+   ★ 프로그램이 .value 를 바꿔도(초안 복원·AI 채움 등) 글자층이 따라오도록 value 설정자를 감쌌다 — 지우면 옛 글이 보인다. */
+var ED_HL_STYLE = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing', 'wordSpacing', 'textAlign', 'textIndent',
+  'wordBreak', 'overflowWrap', 'tabSize', 'textTransform', 'fontFeatureSettings', 'fontVariantLigatures',
+  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'];
+function edHlHtml(text){
+  var tr = refQuoteTracker(), out = [];
+  String(text || '').split('\n').forEach(function(l){
+    var r = null; try { r = tr(l); } catch (e) { r = null; }
+    if (!r) { out.push(esc(l)); return; }
+    var lead = l.length - l.replace(/^\s+/, '').length, core = l.trim(), tail = l.slice(lead + core.length);
+    var mid = (r === true) ? '<span class="edHlQ">' + esc(core) + '</span>'
+      : r.map(function(p){ return p[1] ? '<span class="edHlQ">' + esc(p[0]) + '</span>' : esc(p[0]); }).join('');
+    out.push(esc(l.slice(0, lead)) + mid + esc(tail));
+  });
+  var html = out.join('\n');
+  return /\n$/.test(String(text || '')) ? html + ' ' : html;   /* 끝이 줄바꿈이면 그 빈 줄도 입력칸처럼 한 줄로 */
 }
-function edQuoteMarkAll(){ Array.prototype.forEach.call(document.querySelectorAll('#editorPane .edTa, #editorPane .edFree'), edQuoteMark); }
+function edHlSync(ta){
+  var w = ta && ta.parentNode, bk = w && w.firstChild;
+  if (!bk || !w.classList || !w.classList.contains('edHl')) return;
+  var cs = getComputedStyle(ta), st = bk.style;
+  ED_HL_STYLE.forEach(function(k){ st[k] = cs[k]; });
+  /* 입력칸에 세로 스크롤바가 생기면 그만큼 줄 폭이 줄어든다 — 글자층도 같은 폭으로 */
+  var sb = ta.offsetWidth - ta.clientWidth - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0);
+  if (sb > 0) st.paddingRight = ((parseFloat(cs.paddingRight) || 0) + sb) + 'px';
+  st.borderRadius = cs.borderRadius;
+}
+function edHlRender(ta){
+  var w = ta && ta.parentNode, bk = w && w.firstChild; if (!bk || !w.classList || !w.classList.contains('edHl')) return;
+  try { bk.innerHTML = edHlHtml(ta.value); bk.scrollTop = ta.scrollTop; w.classList.add('on'); }
+  catch (e) { w.classList.remove('on'); }   /* 실패하면 원래 입력칸 글자가 보이게 */
+}
+var _edHlRO = window.ResizeObserver ? new ResizeObserver(function(es){ es.forEach(function(e){ edHlSync(e.target); }); }) : null;
+function edHlSetup(ta){
+  if (!ta || ta._edHl) return;
+  ta._edHl = true;
+  ta.addEventListener('scroll', function(){ var bk = ta.parentNode && ta.parentNode.firstChild; if (bk) bk.scrollTop = ta.scrollTop; });
+  if (_edHlRO) _edHlRO.observe(ta);
+  edHlSync(ta); edHlRender(ta);
+}
+function edHlNew(){ Array.prototype.forEach.call(document.querySelectorAll('#editorPane .edHl > textarea'), function(ta){ if (!ta._edHl) edHlSetup(ta); }); }
+function edHlAll(){ Array.prototype.forEach.call(document.querySelectorAll('#editorPane .edHl > textarea'), function(ta){ if (!ta._edHl) edHlSetup(ta); else { edHlSync(ta); edHlRender(ta); } }); }
+function edQuoteMarkAll(){ edHlAll(); }   /* 옛 이름 호환 */
+(function(){
+  var d = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+  if (d && d.set && d.get) Object.defineProperty(HTMLTextAreaElement.prototype, 'value', {
+    configurable: true, enumerable: d.enumerable,
+    get: function(){ return d.get.call(this); },
+    set: function(v){ d.set.call(this, v); if (this._edHl) edHlRender(this); }
+  });
+})();
 (function(){
   var box = document.getElementById('edPaperChips'), pane = document.getElementById('editorPane');
+  /* v629: 종이가 기본. 「이전 방식」을 고른 기기만 '0' 을 저장한다 */
   function apply(on){
     document.body.classList.toggle('edPaper', !!on);
-    try { if (on) localStorage.setItem('tsa.edPaper', '1'); else localStorage.removeItem('tsa.edPaper'); } catch (e) {}
-    if (box) Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(c){ c.classList.toggle('on', (c.dataset.edpaper || '') === (on ? '1' : '')); });
-    edQuoteMarkAll();
+    try { localStorage.setItem('tsa.edPaper', on ? '1' : '0'); } catch (e) {}
+    if (box) Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(c){ c.classList.toggle('on', c.dataset.edpaper === (on ? '1' : '0')); });
+    requestAnimationFrame(edHlAll);
   }
-  var on0 = false; try { on0 = localStorage.getItem('tsa.edPaper') === '1'; } catch (e) {}
+  var on0 = true; try { on0 = localStorage.getItem('tsa.edPaper') !== '0'; } catch (e) {}
   apply(on0);
   if (box) box.addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (c) apply(c.dataset.edpaper === '1'); });
   if (!pane) return;
-  var t = 0;
-  pane.addEventListener('input', function(e){
-    var ta = e.target; if (!ta || !ta.classList || !(ta.classList.contains('edTa') || ta.classList.contains('edFree'))) return;
-    clearTimeout(t); t = setTimeout(function(){ edQuoteMark(ta); }, 350);
-  });
-  /* 작성창을 다시 그리면(설교 열기·구조 바꾸기) 표지도 다시 */
+  /* 타이핑마다 바로(지연 없이) 다시 그린다 — 입력칸 글자가 투명이라 늦으면 친 글자가 늦게 보인다 */
+  pane.addEventListener('input', function(e){ var ta = e.target; if (ta && ta._edHl) edHlRender(ta); });
+  /* 작성창을 다시 그리면(설교 열기·구조 바꾸기) 새 칸을 준비 */
   var t2 = 0;
-  if (window.MutationObserver) new MutationObserver(function(){ clearTimeout(t2); t2 = setTimeout(edQuoteMarkAll, 120); }).observe(pane, { childList: true, subtree: true });
+  if (window.MutationObserver) {
+    /* ★ 글자층 자체를 다시 그린 변화는 무시한다(안 그러면 다시 그리기 → 감지 → 다시 그리기가 끝없이 돈다) */
+    new MutationObserver(function(ms){
+      var real = ms.some(function(m){ var t = m.target; return !(t && t.nodeType === 1 && (t.classList.contains('edHlBk') || (t.parentElement && t.parentElement.closest('.edHlBk')))); });
+      if (real) { clearTimeout(t2); t2 = setTimeout(edHlNew, 30); }
+    }).observe(pane, { childList: true, subtree: true });
+    /* 집중 모드·글꼴·글자 크기(body 의 class·style)가 바뀌면 글자층 서식도 다시 맞춘다 */
+    var t3 = 0;
+    new MutationObserver(function(){ clearTimeout(t3); t3 = setTimeout(edHlAll, 60); }).observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
+  }
+  window.addEventListener('resize', function(){ clearTimeout(t2); t2 = setTimeout(edHlAll, 120); });
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function(){ edHlAll(); });
+  edHlAll();
 })();
 
 /* ===================== 색상 테마 ===================== */
