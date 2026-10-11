@@ -1805,10 +1805,15 @@ body.edPaper:not(.focusMode) #editorPane{--q-red:#d40000}
 body.edPaper:not(.focusMode) #editorPane .edHlBk{background:transparent;border-radius:0}
 body.edPaper:not(.focusMode) #editorPane .edHl:focus-within > .edHlBk{background:color-mix(in srgb,var(--accent) 3%,transparent)}
 body.focusMode #editorPane .edHlBk{background:transparent}
+
+/* v630: 아이콘 의미 색 — 이모지 대신 선 아이콘, 강조가 필요한 것만 색으로 */
+.ico[data-c=w]{color:var(--warn)} .ico[data-c=g]{color:var(--good)} .ico[data-c=r]{color:var(--req)}
+.ico[data-c=d]{color:var(--dim)} .ico[data-c=a]{color:var(--accent)} .ico[data-c=y]{color:var(--accent2)} .ico[data-c=b]{color:var(--bad)}
+.toast .ico{vertical-align:-.18em}
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="i-book" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></symbol><symbol id="i-library" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol><symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol><symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol><symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></symbol><symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol><symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z"/></symbol><symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></symbol><symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol><symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol><symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol><symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol><symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.2"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/></symbol><symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol><symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol><symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol><symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol><symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="m19 15 .7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></symbol><symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14M5 2h14"/><path d="M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"/></symbol><symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></symbol><symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol><symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol><symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></symbol><symbol id="i-map" viewBox="0 0 24 24"><path d="m1 6 7-3 8 3 7-3v15l-7 3-8-3-7 3z"/><path d="M8 3v15M16 6v15"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></symbol><symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/></symbol><symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/></symbol><symbol id="i-pen" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="m2 2 7.6 7.6"/><circle cx="11" cy="11" r="2"/></symbol><symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></symbol><symbol id="i-cmd" viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 0 0 0-6z"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol><symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></symbol><symbol id="i-insta" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/></symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="i-book" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></symbol><symbol id="i-library" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol><symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol><symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol><symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol><symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></symbol><symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol><symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z"/></symbol><symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></symbol><symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol><symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol><symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol><symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol><symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.2"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/></symbol><symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol><symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol><symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol><symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol><symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="m19 15 .7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/></symbol><symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14M5 2h14"/><path d="M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"/></symbol><symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></symbol><symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol><symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol><symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></symbol><symbol id="i-map" viewBox="0 0 24 24"><path d="m1 6 7-3 8 3 7-3v15l-7 3-8-3-7 3z"/><path d="M8 3v15M16 6v15"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></symbol><symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/></symbol><symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/></symbol><symbol id="i-pen" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="m2 2 7.6 7.6"/><circle cx="11" cy="11" r="2"/></symbol><symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></symbol><symbol id="i-cmd" viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 0 0 0-6z"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol><symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></symbol><symbol id="i-insta" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></symbol><symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></symbol><symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3z"/></symbol><symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol><symbol id="i-folders" viewBox="0 0 24 24"><path d="M20 17a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-3H8a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2z"/><path d="M2 8v11a2 2 0 0 0 2 2h14"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></symbol><symbol id="i-highlighter" viewBox="0 0 24 24"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></symbol><symbol id="i-note" viewBox="0 0 24 24"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5z"/><path d="M15 3v6h6"/></symbol><symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol></defs></svg>
 <div id="app">
 
   <!-- ============ 사이드바 (데스크탑) ============ -->
@@ -1852,7 +1857,7 @@ body.focusMode #editorPane .edHlBk{background:transparent}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><span class="navLbl">인박스</span></button>
     <button class="nav" data-page="settings" title="설정">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="navLbl">설정</span></button>
-    <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none">⏳</span><span id="statusPillTxt"></span></div>
+    <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none"><svg class=ico data-c=r aria-hidden=true><use href=#i-hourglass></use></svg></span><span id="statusPillTxt"></span></div>
     <div class="foot">
       <button class="queueBadge" id="queueBadgeD" type="button" aria-label="전송 대기 항목 — 설정에서 동기화"></button>
       <div class="syncState" id="syncStateD">—</div>
@@ -2784,6 +2789,21 @@ body.focusMode #editorPane .edHlBk{background:transparent}
 <script>
 /* 선 아이콘 마크업 (v624) — 스프라이트(#i-*)는 <body> 맨 앞. 새 버튼 라벨은 이모지 대신 이것을 쓴다. */
 function uiIco(n){ return '<svg class=ico aria-hidden=true><use href=#i-' + n + '></use></svg>'; }
+/* v630: 이모지 → 선 아이콘. 강조가 필요한 것은 색(data-c: w 경고 · g 좋음 · r 대기 · d 흐림 · a 강조 · y 금색).
+   토스트·확인창처럼 글자로 넣던 문구는 esc() 뒤 이것을 거쳐 innerHTML 로 넣는다. 새 문구에 이모지를 쓰면 여기 표에 있어야 아이콘이 된다. */
+var EMO_ICO = { '⚠': ['alert', 'w'], '✅': ['check', 'g'], '❓': ['help', 'd'], '⏳': ['hourglass', 'r'], '⏱': ['clock', ''], '💾': ['save', ''],
+  '📎': ['paperclip', 'd'], '📖': ['book', ''], '📓': ['library', ''], '📚': ['library', ''], '📕': ['library', ''], '🔗': ['link', 'a'],
+  '🧭': ['compass', ''], '💡': ['bulb', 'y'], '🏷': ['tag', ''], '💬': ['message', 'y'], '🗂': ['folders', ''], '🤖': ['spark', ''], '✨': ['spark', ''],
+  '✦': ['spark', ''], '✂': ['scissors', ''], '♻': ['refresh', ''], '🔄': ['refresh', ''], '⚖': ['scale', ''], '🖼': ['image', ''], '✏': ['edit', ''],
+  '📥': ['download', ''], '📤': ['upload', ''], '🎵': ['music', ''], '✍': ['pen', ''], '🛡': ['shield', 'a'], '📸': ['insta', ''], '📅': ['calendar', ''],
+  '🗓': ['calendar', ''], '🔎': ['search', ''], '🔍': ['search', ''], '📮': ['send', ''], '📄': ['file', ''], '📜': ['file', ''], '💤': ['moon', 'd'],
+  '😴': ['moon', 'd'], '🏠': ['home', ''], '🌍': ['globe', ''], '🖍': ['highlighter', ''], '🗒': ['note', ''], '📂': ['folder', ''], '⚙': ['gear', ''],
+  '🗑': ['trash', ''], '📋': ['clipboard', ''], '🖨': ['printer', ''], '🔒': ['lock', ''], '👥': ['users', ''], '📦': ['package', ''], '🔀': ['shuffle', ''], '⚡': ['zap', ''] };
+var _EMO_RE = null;
+function emoIco(html){
+  if (!_EMO_RE) _EMO_RE = new RegExp('(' + Object.keys(EMO_ICO).join('|') + ')\ufe0f?', 'g');
+  return String(html == null ? '' : html).replace(_EMO_RE, function(m0, k){ var x = EMO_ICO[k]; return '<svg class=ico' + (x[1] ? ' data-c=' + x[1] : '') + ' aria-hidden=true><use href=#i-' + x[0] + '></use></svg>'; });
+}
 'use strict';
 /* ===================== 상태 ===================== */
 var LS = { settings: 'tsa.settings', data: 'tsa.data', queue: 'tsa.queue', autoImg: 'tsa.autoImg' };
@@ -2839,7 +2859,7 @@ function anyOverlayOpen(){
   return false;
 }
 function toast(msg){
-  var t = $('#toast'); t.textContent = msg;
+  var t = $('#toast'); t.innerHTML = emoIco(esc(msg));   /* v630: 이모지 → 아이콘 */
   /* 모달 위에서도 확실히 보이도록 — 열린 오버레이가 있으면 화면 중앙에 크게 띄운다 */
   document.body.classList.toggle('ovOpen', anyOverlayOpen());
   t.classList.add('show'); clearTimeout(t._h);
@@ -4174,7 +4194,7 @@ function illShardCleanup(){
 /* 예화 출처 표시(확정/전언/미상). 확정은 정자체, 전언·미상은 이탤릭. note는 작은 보조줄. */
 /* 출처 등급 아이콘(카테고리 배지 왼쪽에 작게). 확정=✅ 전언=⚠️ 미상=❓ */
 function illGrade(conf){
-  var m = { '확정': '✅', '전언': '⚠️', '미상': '❓' };
+  var m = { '확정': '<svg class=ico data-c=g aria-hidden=true><use href=#i-check></use></svg>', '전언': '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg>', '미상': '<svg class=ico data-c=d aria-hidden=true><use href=#i-help></use></svg>' };
   if (!m[conf]) return '';
   return '<span title="출처 ' + conf + '" style="font-size:12px;margin-right:4px;vertical-align:middle">' + m[conf] + '</span>';
 }
@@ -4182,7 +4202,7 @@ function illSrc(src, conf, note){
   if (!src) return '';
   var em = (conf === '확정') ? 'normal' : 'italic';
   var tag = conf ? '[' + conf + '] ' : '';
-  var html = '<div style="margin-top:5px;font-size:11px;color:var(--dim);font-style:' + em + '">📎 ' + esc(tag + src) + '</div>';
+  var html = '<div style="margin-top:5px;font-size:11px;color:var(--dim);font-style:' + em + '"><svg class=ico data-c=d aria-hidden=true><use href=#i-paperclip></use></svg> ' + esc(tag + src) + '</div>';
   if (note) html += '<div style="margin-top:2px;font-size:11px;color:var(--dim);opacity:.75">※ ' + esc(note) + '</div>';
   return html;
 }
@@ -4191,7 +4211,7 @@ function illCard(it){
     + '<summary style="cursor:pointer;list-style:none">' + illGrade(it.sourceConfidence) + '<span class="badge b-idea">' + esc(it.category || '') + '</span> <b>' + esc(it.title || '') + '</b>'
     + (it.message ? '<div class="snippet" style="color:var(--accent);font-weight:600;margin-top:3px">▶ ' + esc(it.message) + '</div>' : '') + '</summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story || '') + '</div>'
-    + ((it.bibleRefs && it.bibleRefs.length) ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">📖 ' + esc(it.bibleRefs.join('  ·  ')) + '</div>' : '')
+    + ((it.bibleRefs && it.bibleRefs.length) ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + esc(it.bibleRefs.join('  ·  ')) + '</div>' : '')
     + illSrc(it.source, it.sourceConfidence, it.sourceNote)
     + '<div style="margin-top:6px"><button class="linkbtn illInsert" data-illid="' + esc(it.id) + '">＋ 이 예화를 대지에 삽입</button></div></details>';
 }
@@ -4250,7 +4270,7 @@ function renderRefIllust(){
     if (same.length) html += '<div class="pastSec">이 본문(장·절)에 연결된 예화</div>' + same.slice(0, 8).map(illCardU).join('');
     if (book.length) html += '<div class="pastSec">같은 책의 다른 본문 예화</div>' + book.slice(0, 6).map(illCardU).join('');
     if (reso.length) html += '<div class="pastSec">핵심메시지와 공명하는 예화</div>' + reso.map(illCardU).join('');
-    if (arcHit.length) html += '<div class="pastSec">📓 예전에 이 본문에서 쓴 예화</div>' + arcHit.slice(0, 6).map(illCardArc).join('');
+    if (arcHit.length) html += '<div class="pastSec"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 예전에 이 본문에서 쓴 예화</div>' + arcHit.slice(0, 6).map(illCardArc).join('');
     html += '</div>';
     box.innerHTML = html;
   }).catch(function(){ box.innerHTML = '<div class="cnt" style="margin:6px 2px">연결 예화 데이터를 불러오지 못했습니다.</div>'; });
@@ -4324,7 +4344,7 @@ function illSeedBadges(it){
   var h = '';
   (s[0] ? s[0].split('|') : []).forEach(function(t){ h += '<span class="badge" style="margin-right:4px">' + esc(t) + '</span>'; });
   if (s[1]) h += '<span class="badge" style="opacity:.7">' + esc(s[1]) + '</span>';
-  if (s[2]) h += '<div style="margin-top:3px;font-size:11px;color:var(--accent2)">🔗 ' + esc(s[2]) + '</div>';
+  if (s[2]) h += '<div style="margin-top:3px;font-size:11px;color:var(--accent2)"><svg class=ico data-c=a aria-hidden=true><use href=#i-link></use></svg> ' + esc(s[2]) + '</div>';
   return h ? '<div style="margin-top:5px">' + h + '</div>' : '';
 }
 function illSeedHay(it){
@@ -4341,7 +4361,7 @@ function illThemesOf(it){
 function illToneOf(it){ var s = illSeedFor(it); return (s && s[1]) ? s[1] : ''; }
 /* 예화 3층위(자기일화·시사문화·성경평행) 접근자 — 도서관 필터·작성 균형 코칭용(#5) */
 function illLayersOf(it){ return (it && it.layer && it.layer.length) ? it.layer : []; }
-var ILL_LAYER_ICON = { '자기일화': '🏠', '시사문화': '🌍', '성경평행': '📖' };
+var ILL_LAYER_ICON = { '자기일화': '<svg class=ico aria-hidden=true><use href=#i-home></use></svg>', '시사문화': '<svg class=ico aria-hidden=true><use href=#i-globe></use></svg>', '성경평행': '<svg class=ico aria-hidden=true><use href=#i-book></use></svg>' };
 function illLayerBadges(it){
   var L = illLayersOf(it); if (!L.length) return '';
   return '<div style="margin-top:4px">' + L.map(function(l){ return '<span class="badge" style="opacity:.8;margin-right:4px">' + (ILL_LAYER_ICON[l] || '') + ' ' + esc(l) + '</span>'; }).join('') + '</div>';
@@ -4375,7 +4395,7 @@ function illLayerCoachHtml(){
   if (!miss.length || miss.length === 3) return '';
   var haveTxt = order.filter(function(l){ return bal.have[l]; }).map(function(l){ return (ILL_LAYER_ICON[l] || '') + l + ' ' + bal.have[l]; }).join(' · ');
   return '<div class="cnt" style="margin:2px 2px 8px;padding:7px 9px;background:var(--card,#0000000a);border-radius:8px;color:var(--accent2);line-height:1.55">'
-    + '🧭 지금 원고 예화 층위 — ' + haveTxt + '<br><b>' + miss.map(function(l){ return (ILL_LAYER_ICON[l] || '') + l; }).join(' · ') + '</b> 층위를 하나 더하면 메시지가 입체적으로 박힙니다.</div>';
+    + '<svg class=ico aria-hidden=true><use href=#i-compass></use></svg> 지금 원고 예화 층위 — ' + haveTxt + '<br><b>' + miss.map(function(l){ return (ILL_LAYER_ICON[l] || '') + l; }).join(' · ') + '</b> 층위를 하나 더하면 메시지가 입체적으로 박힙니다.</div>';
 }
 /* ── 출처 등급 코칭(2026-07-14, 2차제안 후속 ③) ──
    작성 중 원고에 삽입된 서랍 예화 중 출처 '미상'·'전언'을 모아, 설교 전 확인 또는
@@ -4390,7 +4410,7 @@ function illGradeForKey(key){
   }
   return '';
 }
-var ILL_GRADE_ICON = { '확정': '✅', '전언': '⚠️', '미상': '❓' };
+var ILL_GRADE_ICON = { '확정': '<svg class=ico data-c=g aria-hidden=true><use href=#i-check></use></svg>', '전언': '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg>', '미상': '<svg class=ico data-c=d aria-hidden=true><use href=#i-help></use></svg>' };
 function illSourceCoachHtml(){
   var rows = [];
   (state.compose.points || []).forEach(function(p){
@@ -4402,7 +4422,7 @@ function illSourceCoachHtml(){
   });
   if (!rows.length) return '';
   return '<div class="cnt" style="margin:2px 2px 8px;padding:7px 9px;background:var(--card,#0000000a);border-radius:8px;color:var(--warn);line-height:1.55">'
-    + '🔍 출처 미검증 예화 ' + rows.length + '편 — ' + rows.map(function(r){ return (ILL_GRADE_ICON[r.g] || '') + '「' + esc(r.t) + '」'; }).join(' · ')
+    + '<svg class=ico aria-hidden=true><use href=#i-search></use></svg> 출처 미검증 예화 ' + rows.length + '편 — ' + rows.map(function(r){ return (ILL_GRADE_ICON[r.g] || '') + '「' + esc(r.t) + '」'; }).join(' · ')
     + '<br>설교 전 사실을 확인하거나, <b>"전해지는 이야기입니다"</b> 화법으로 여지를 남겨 두세요.</div>';
 }
 /* ===================== 내가 쓴 예화(설교 아카이브) =====================
@@ -4484,7 +4504,7 @@ function illCardArc(it){
     + '<div class="snippet" style="margin-top:3px;color:var(--dim)">' + esc(snip) + (it.story.length > 90 ? '…' : '') + '</div></summary>'
     + '<div class="fulltext" style="margin-top:7px">' + esc(it.story) + '</div>'
     + '<div style="margin-top:6px;font-size:12px;color:var(--dim)">↩ 출처: ' + esc(it.date || '날짜 미상') + ' 「' + esc(it.sermonTitle || it.sid) + '」' + (it.live ? ' (이 기기 원고)' : '')
-    + (it.refs.length ? ' · 📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join(' · ') : '') + '</div>'
+    + (it.refs.length ? ' · <svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + it.refs.map(function(r){ return linkifyRefs(r); }).join(' · ') : '') + '</div>'
     + '<div style="margin-top:6px"><button class="linkbtn illInsertU" data-illkey="' + esc(it.key) + '">＋ 작성 중 설교에 삽입</button></div></details>';
 }
 /* 이 예화가 사용된 설교(역링크): 인박스 예화의 직접 연결(사용설교ID) + 설교 예화 텍스트 휴리스틱 매칭. */
@@ -4939,7 +4959,7 @@ function illInsightPull(){
 function illInsightRow(key){
   var v = illInsightFor(key);
   return '<div class="illInsightRow" style="margin-top:8px">'
-    + '<label style="display:block;font-size:11px;color:var(--dim);margin-bottom:3px">💡 인사이트 — 읽다 떠오른 생각을 적어 두세요</label>'
+    + '<label style="display:block;font-size:11px;color:var(--dim);margin-bottom:3px"><svg class=ico data-c=y aria-hidden=true><use href=#i-bulb></use></svg> 인사이트 — 읽다 떠오른 생각을 적어 두세요</label>'
     + '<textarea class="illInsightIn" data-illkey="' + esc(key) + '" rows="2" placeholder="이 예화에서 떠오른 설교 아이디어·적용점·연결되는 본문 등"'
     + ' style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;font-size:12.5px;line-height:1.55;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card2);color:var(--text)">' + esc(v) + '</textarea>'
     + '</div>';
@@ -5006,7 +5026,7 @@ function illRefListHtml(it, key){
 function illRefRow(it){
   var key = it.key;
   return '<div class="illRefRow" data-illkey="' + esc(key) + '" style="margin-top:6px;font-size:12px;color:var(--dim);display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap">'
-    + '<span style="flex:0 0 auto">📖</span>'
+    + '<span style="flex:0 0 auto"><svg class=ico aria-hidden=true><use href=#i-book></use></svg></span>'
     + '<span class="illRefList" data-illkey="' + esc(key) + '" style="flex:1 1 auto;min-width:0;line-height:1.9">' + illRefListHtml(it, key) + '</span>'
     + '<button type="button" class="linkbtn illAnchorAddBtn" data-illkey="' + esc(key) + '" style="flex:0 0 auto" title="앵커 본문 추가">＋ 본문</button>'
     + '</div>'
@@ -5127,7 +5147,7 @@ function illTopicRow(it){
   var key = it.key;
   var s = illSeedFor(it), baseThemes = (s && s[0]) ? s[0].split('|').filter(Boolean).join(' · ') : '';
   return '<div class="illTopicRow" data-illkey="' + esc(key) + '" style="margin-top:7px;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
-    + '<span style="flex:0 0 auto">🏷 주제</span>'
+    + '<span style="flex:0 0 auto"><svg class=ico aria-hidden=true><use href=#i-tag></use></svg> 주제</span>'
     + (baseThemes ? '<span class="illTopicBase" style="opacity:.72;flex:0 1 auto;min-width:0">' + esc(baseThemes) + '</span>' : '')
     + '<span class="illTopicList" data-illkey="' + esc(key) + '">' + illTopicChipsHtml(key) + '</span>'
     + '<button type="button" class="linkbtn illTopicAddBtn" data-illkey="' + esc(key) + '" style="flex:0 0 auto" title="주제 추가 연결">＋ 주제</button>'
@@ -5200,7 +5220,7 @@ function illRateRow(key){
   var note = illNoteFor(key);
   return '<div class="illRateRow" style="margin-top:7px;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'
     + '<span style="font-size:11px;color:var(--dim)">이 예화 반응:</span>' + btns + '</div>'
-    + (note ? '<div style="margin-top:3px;font-size:11.5px;color:var(--accent2)">💬 ' + esc(note) + '</div>' : '');
+    + (note ? '<div style="margin-top:3px;font-size:11.5px;color:var(--accent2)"><svg class=ico data-c=y aria-hidden=true><use href=#i-message></use></svg> ' + esc(note) + '</div>' : '');
 }
 document.addEventListener('click', function(e){
   var b = e.target.closest && e.target.closest('.illRateBtn'); if (!b) return;
@@ -5291,7 +5311,7 @@ function renderIllLib(){
       var tones = ['공통', '새벽·장년', '대학부'].filter(function(t){ return toC[t]; });
       var layers = ['자기일화', '시사문화', '성경평행'].filter(function(t){ return lyC[t]; });
       var grades = ['확정', '전언', '미상'].filter(function(g){ return grC[g]; });
-      var GR_LABEL = { '확정': '✅ 확정', '전언': '⚠️ 전언', '미상': '❓ 미상' };
+      var GR_LABEL = { '확정': '<svg class=ico data-c=g aria-hidden=true><use href=#i-check></use></svg> 확정', '전언': '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 전언', '미상': '<svg class=ico data-c=d aria-hidden=true><use href=#i-help></use></svg> 미상' };
       var fh = '';
       if (themes.length) fh += '<div class="fgrp"><span class="fgrp-l">주제</span><div class="chips"><span class="chip' + (ILLIB.theme ? '' : ' on') + '" data-fk="theme" data-v="">전체 ' + base.length + '</span>'
         + themes.map(function(t){ return '<span class="chip' + (ILLIB.theme === t ? ' on' : '') + '" data-fk="theme" data-v="' + esc(t) + '">' + esc(t) + ' ' + thC[t] + '</span>'; }).join('') + '</div></div>';
@@ -5319,7 +5339,7 @@ function renderIllLib(){
     var arcSec = '', arcN = 0;
     if (ILLIB.src === 'all' && terms.length){
       var lb = arc.filter(hitArc); arcN = lb.length;
-      if (lb.length) arcSec = '<div class="pastSec" style="margin:12px 2px 6px">🗂 내가 쓴 예화 ' + lb.length + '건' + (lb.length > 20 ? ' — 상위 20건 (전부 보려면 [내가 쓴 예화] 칩)' : '') + '</div>'
+      if (lb.length) arcSec = '<div class="pastSec" style="margin:12px 2px 6px"><svg class=ico aria-hidden=true><use href=#i-folders></use></svg> 내가 쓴 예화 ' + lb.length + '건' + (lb.length > 20 ? ' — 상위 20건 (전부 보려면 [내가 쓴 예화] 칩)' : '') + '</div>'
         + lb.slice(0, 20).map(illCardArc).join('');
     }
     if (cnt) cnt.textContent = (ILLIB.src === 'sleep' ? '잠자는 예화 ' + list.length + '편 — 아직 설교에 안 쓴 소장분' : '총 ' + list.length + '편') + (list.length > 80 ? ' (상위 80편 표시)' : '') + (arcN ? ' · 내가 쓴 예화 ' + arcN + '건' : '');
@@ -5373,7 +5393,7 @@ function illViewHtml(it){
     + (it.message ? '<div style="margin-top:5px;color:var(--accent);font-weight:600">▶ ' + esc(it.message) + '</div>' : '')
     + illSeedBadges(it) + illLayerBadges(it)
     + '<div class="fulltext" style="margin-top:9px">' + esc(it.story || '') + '</div>'
-    + (refs.length ? '<div style="margin-top:7px;font-size:12px;color:var(--dim)">📖 ' + refs.map(function(r){ return linkifyRefs(r); }).join(' · ') + '</div>' : '')
+    + (refs.length ? '<div style="margin-top:7px;font-size:12px;color:var(--dim)"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + refs.map(function(r){ return linkifyRefs(r); }).join(' · ') + '</div>' : '')
     + illSrc(it.source, it.sourceConf, it.sourceNote)
     + (it.src === 'arc' ? '<div style="margin-top:6px;font-size:12px;color:var(--dim)">↩ 출처: ' + esc(it.date || '날짜 미상') + ' 「' + esc(it.sermonTitle || it.sid || '') + '」</div>' : '')
     + (used.length ? '<div style="margin-top:6px;font-size:12px;color:var(--accent2)">↩ 사용된 설교 ' + used.length + '편: '
@@ -5601,7 +5621,7 @@ function renderPrepDash(){
     +     (q ? '<span class="pdQ" title="설정에서 [보기·관리]로 확인">미전송 ' + q + '</span>' : '')
     +   '</div>'
     +   '<div class="pdTitle prepOpen" data-id="' + esc(s['ID'] || '') + '" title="이 설교 열기">' + esc(String(s['제목'] || '(제목 없음)')) + '</div>'
-    +   '<div class="pdRef">📖 ' + esc(String(s['본문'] || '')) + (s['예배구분'] ? ' · ' + esc(String(s['예배구분'])) : '') + '</div>'
+    +   '<div class="pdRef"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + esc(String(s['본문'] || '')) + (s['예배구분'] ? ' · ' + esc(String(s['예배구분'])) : '') + '</div>'
     + '</div></div>'
     + '<div class="pdProg"><div class="pdSegs">' + segs + '</div><span class="pdCnt"><b>' + doneN + '</b>/' + checks.length + '</span></div>'
     + '<div class="pdChips">' + chips + '</div>'
@@ -6905,7 +6925,7 @@ async function studyWordStudy(code, word, force){
     }
     /* 이 기기엔 없지만 시트에 예전 방식('ws:'+코드)으로 저장된 것이 있을 수 있다 — 확인 후 이관 */
     if (state.settings && state.settings.url && state.settings.token){
-      box.innerHTML = '<div class="cnt">💾 저장된 원어 심층 연구를 찾는 중…</div>';
+      box.innerHTML = '<div class="cnt"><svg class=ico aria-hidden=true><use href=#i-save></use></svg> 저장된 원어 심층 연구를 찾는 중…</div>';
       try {
         var old = await studyNotePull('ws:', code, SWS, SWS_LS);
         if (old && old.j){
@@ -7994,7 +8014,7 @@ function svzBannerHtml(){
   if (SVZ_BUSY) return '<div class="svzBan"><span class="svzTag">분석</span>본문 구조 분석 중…</div>';
   /* 저장본(다른 기기) 확인 중에는 "구조 분석" 버튼 대신 안내 — 확인 전 재분석 방지 */
   if ((!d || !d.ai) && SVZ_PROBING === studyRangeKey())
-    return '<div class="svzBan"><span class="svzTag">확인</span>💾 저장된 구조 분석을 불러오는 중…</div>';
+    return '<div class="svzBan"><span class="svzTag">확인</span><svg class=ico aria-hidden=true><use href=#i-save></use></svg> 저장된 구조 분석을 불러오는 중…</div>';
   if (!d || !d.ai){
     /* AI 분석 전 — 내가 직접 나누는 단계. AI는 [🤖 구조화 도움받기]를 눌렀을 때만 움직인다. */
     var mine = !!(d && d.user && (svzBreaks(d).length || svzThemeCv(d) > 0));
@@ -8013,11 +8033,11 @@ function svzBannerHtml(){
     if (mine && aiKey()) h0 += '<button class="btn gold mini svzVerify" type="button">✓ 내 구조 검증</button>';
     if (mine) h0 += '<button class="btn sub mini svzReset" type="button">↺ 내 구조 지우기</button>';
     h0 += '<button class="btn ' + (hasAi ? 'gold' : 'sub') + ' mini svzGenBtn" type="button">'
-      + (hasAi ? '🤖 AI 분석 보기' : '🤖 구조화 도움받기') + '</button></div>';
+      + (hasAi ? '<svg class=ico aria-hidden=true><use href=#i-spark></use></svg> AI 분석 보기' : '<svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 구조화 도움받기') + '</button></div>';
     return h0
       + (hasAi ? '<div class="cnt" style="margin-top:6px">이 구간에는 저장된 AI 구조 분석이 있습니다 — 내가 먼저 나눠 본 뒤 눌러서 비교해 보세요.</div>'
         : aiKey() ? '<div class="cnt" style="margin-top:6px">도움을 받으면 AI가 단락·주제절과 구간 진단을 제시합니다. 내가 나눈 것은 지워지지 않습니다.</div>'
-                  : '<div class="cnt" style="margin-top:6px">AI 도움에는 설정의 Claude API 키 또는 브라우저 에이전트 모드가 필요합니다. (도움 없이도 ✂·★로 얼마든지 구조화할 수 있습니다)</div>')
+                  : '<div class="cnt" style="margin-top:6px">AI 도움에는 설정의 Claude API 키 또는 브라우저 에이전트 모드가 필요합니다. (도움 없이도 <svg class=ico aria-hidden=true><use href=#i-scissors></use></svg>·★로 얼마든지 구조화할 수 있습니다)</div>')
       + '</div>';
   }
   var g = d.ai.구간진단 || {};
@@ -8039,7 +8059,7 @@ function svzBannerHtml(){
   h += '<button class="btn sub mini svzHideAi" type="button">↩ 내 구조만 보기</button>';
   h += '<button class="btn sub mini svzGenBtn" type="button" data-regen="1">↻ 재분석</button>';
   var rm = SVZ_REMOTE[studyRangeKey()];
-  h += '<span class="svzTheme0" style="align-self:center;font-size:11px">' + (rm === '☁' ? '☁ 시트 동기화됨' : rm === '구버전' ? '⚠ 시트 동기화엔 Code.gs 갱신 필요' : rm === '대기' ? '⏳ 동기화 대기' : '') + '</span>';
+  h += '<span class="svzTheme0" style="align-self:center;font-size:11px">' + (rm === '☁' ? '☁ 시트 동기화됨' : rm === '구버전' ? '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 시트 동기화엔 Code.gs 갱신 필요' : rm === '대기' ? '<svg class=ico data-c=r aria-hidden=true><use href=#i-hourglass></use></svg> 동기화 대기' : '') + '</span>';
   h += '</div></div>';
   return h;
 }
@@ -8386,10 +8406,10 @@ function snApplyToolClass(){
   st.classList.toggle('snMemoTool', SNS.on && SNS.tool === 'memo');
   snSwapPaint();
 }
-var SN_ICONS = { sel: '↖', hl: '🖍', box: '▭', cir: '◯', memo: '🗒', pen: '✒' };
+var SN_ICONS = { sel: '↖', hl: '<svg class=ico aria-hidden=true><use href=#i-highlighter></use></svg>', box: '▭', cir: '◯', memo: '<svg class=ico aria-hidden=true><use href=#i-note></use></svg>', pen: '✒' };
 function snSwapPaint(){
   var b = $('#snSwap'); if (!b) return;
-  b.textContent = SNS.tool === 'erase' ? (SN_ICONS[SNS.prevTool || 'pen'] || '✒') : '◌';
+  b.innerHTML = SNS.tool === 'erase' ? (SN_ICONS[SNS.prevTool || 'pen'] || '✒') : '◌';   /* v630: 형광·메모는 아이콘 마크업 */
   b.classList.toggle('on', SNS.tool === 'erase');
   b.title = SNS.tool === 'erase' ? '이전 도구로 돌아가기' : '지우개로 전환';
 }
@@ -8414,10 +8434,10 @@ function snBarHtml(){
     return '<button type="button" data-snw="' + p[0] + '"' + (SNS.penW === p[0] ? ' class="on"' : '') + '>' + p[1] + '</button>'; }).join('');
   return '<div class="snBar">'
     + tb('sel', '↖ 선택', '메모 이동·편집, 단어 원어 보기')
-    + tb('hl', '🖍 형광', '펜슬로 본문을 긋는 대로 칠해집니다 · 단어는 탭, 손가락은 선택 후 [칠하기]')
+    + tb('hl', '<svg class=ico aria-hidden=true><use href=#i-highlighter></use></svg> 형광', '펜슬로 본문을 긋는 대로 칠해집니다 · 단어는 탭, 손가락은 선택 후 [칠하기]')
     + tb('box', '▭ 박스', '어절 탭 · 펜슬로 죽 그으면 그 줄의 어절들이 한 박스로 (줄이 바뀌면 따로)')
     + tb('cir', '◯ 원', '어절 탭 · 펜슬로 죽 그으면 그 줄의 어절들이 한 원으로 (줄이 바뀌면 따로)')
-    + tb('memo', '🗒 메모', '본문 탭=연결 메모, 여백 탭=자유 메모')
+    + tb('memo', '<svg class=ico aria-hidden=true><use href=#i-note></use></svg> 메모', '본문 탭=연결 메모, 여백 탭=자유 메모')
     + tb('pen', '✒ 펜', '자유 필기 — 펜슬·손가락 (오른쪽 아래 ◌ 버튼으로 지우개와 빠른 전환)')
     + tb('erase', '◌ 지우개', '획·형광·박스·원을 탭해 지우기')
     + '<span class="snSep"></span>'
@@ -8556,7 +8576,7 @@ function snShowApply(){
     btn.addEventListener('pointerdown', function(ev){ ev.preventDefault(); ev.stopPropagation(); snSelApply(); });
     pg.appendChild(btn);
   }
-  btn.textContent = SNS.tool === 'hl' ? '🖍 칠하기' : SNS.tool === 'box' ? '▭ 박스 치기' : '◯ 원 강조';
+  btn.innerHTML = SNS.tool === 'hl' ? uiIco('highlighter') + ' 칠하기' : SNS.tool === 'box' ? '▭ 박스 치기' : '◯ 원 강조';
   btn.style.left = Math.max(4, (rc.left - pr.left) / z) + 'px';
   btn.style.top = Math.max(4, (rc.top - pr.top) / z - 42) + 'px';
 }
@@ -9218,7 +9238,7 @@ function ppOpen(t){
       PP.selS = PP.selE = (t.value || '').length;
     }
   }
-  $('#ppTitle').textContent = '✍ ' + ppLabel(t);
+  $('#ppTitle').innerHTML = uiIco('pen') + ' ' + esc(ppLabel(t));
   $('#ppTx').value = '';
   PP.el.style.display = 'flex';
   ppPlace(); ppAutoPaint();
@@ -9748,7 +9768,7 @@ async function selfAuditCompose(){
     });
     var over = n > x.max || per.length;
     if (over) bad++;
-    wr.push('<div class="saRow">' + (over ? '<span class="saBad">⚠</span> ' : '<span class="saOk">✓</span> ')
+    wr.push('<div class="saRow">' + (over ? '<span class="saBad"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg></span> ' : '<span class="saOk">✓</span> ')
       + (n ? jump('「' + x.w + '」', x.w) : '「' + esc(x.w) + '」') + ' ' + n + '회'
       + ' <span class="saDim">(전체 ' + x.max + '회까지' + (x.per ? ' · 대지당 ' + x.per + '회' : '') + ')</span>'
       + (per.length ? ' — <span class="saBad">' + esc(per.join(', ')) + '</span>' : '') + '</div>');
@@ -9768,7 +9788,7 @@ async function selfAuditCompose(){
   bad += qBad.length;
   function qRow(x, cls){
     var snip = x.q.quote.replace(/\s+/g, ' ').trim();
-    return '<div class="saRow"><span class="' + cls + '">' + (cls === 'saBad' ? '⚠' : '·') + '</span> '
+    return '<div class="saRow"><span class="' + cls + '">' + (cls === 'saBad' ? '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg>' : '·') + '</span> '
       + jump(x.q.ref, full.slice(x.q.start, Math.min(x.q.end, x.q.start + 30)).split('\n')[0]) + ' — ' + esc(x.why)
       + (x.v ? '<span class="saQ">원고: ' + esc(snip.length > 90 ? snip.slice(0, 90) + '…' : snip) + '<br>개역개정 ' + esc(x.v.ref) + ': ' + esc(x.v.text.length > 160 ? x.v.text.slice(0, 160) + '…' : x.v.text) + '</span>' : '')
       + '</div>';
@@ -9802,13 +9822,13 @@ async function selfAuditCompose(){
       if (summ) gal.push([i, (summ.match(/[^.?!]+[.?!]*/g) || []).filter(function(s){ return !SA_EXHORT.test(s); }).join(' ') || summ]);
       if (notes.length) bad++;
       var label = (i + 1) + '대지' + (p.text ? ' ' + String(p.text).trim().slice(0, 24) : '');
-      pr.push('<div class="saRow">' + (notes.length ? '<span class="saBad">⚠</span> ' : '<span class="saOk">✓</span> ')
+      pr.push('<div class="saRow">' + (notes.length ? '<span class="saBad"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg></span> ' : '<span class="saOk">✓</span> ')
         + (p.text ? jump(label, String(p.text).trim().slice(0, 30)) : esc(label))
         + (notes.length ? ' — ' + esc(notes.join(' / ')) : ' — 명제·근거·예화·적용·실천·정리(권면) 갖춤') + '</div>');
     });
     for (var a = 0; a < gal.length; a++) for (var b2 = a + 1; b2 < gal.length; b2++) {
       var sm = similarity(saGalNorm(gal[a][1]), saGalNorm(gal[b2][1]));
-      if (sm >= 0.6) { bad++; pr.push('<div class="saRow"><span class="saBad">⚠</span> ' + (gal[a][0] + 1) + '대지·' + (gal[b2][0] + 1) + '대지의 갈무리 표현이 비슷합니다(' + Math.round(sm * 100) + '%) — 대지마다 다르게</div>'); }
+      if (sm >= 0.6) { bad++; pr.push('<div class="saRow"><span class="saBad"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg></span> ' + (gal[a][0] + 1) + '대지·' + (gal[b2][0] + 1) + '대지의 갈무리 표현이 비슷합니다(' + Math.round(sm * 100) + '%) — 대지마다 다르게</div>'); }
     }
     if (!pts.length) pr.push('<div class="saRow saDim">작성된 대지가 없습니다.</div>');
   }
@@ -9826,10 +9846,10 @@ async function selfAuditCompose(){
     var ln = [];
     if (pl.length >= 2) {
       var mx = Math.max.apply(null, pl), mn = Math.min.apply(null, pl);
-      if (mn && mx / mn > 1.8) { bad++; ln.push('<div class="saRow"><span class="saBad">⚠</span> 대지 분량 편차가 큽니다 — 가장 긴 대지가 가장 짧은 대지의 ' + (mx / mn).toFixed(1) + '배</div>'); }
+      if (mn && mx / mn > 1.8) { bad++; ln.push('<div class="saRow"><span class="saBad"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg></span> 대지 분량 편차가 큽니다 — 가장 긴 대지가 가장 짧은 대지의 ' + (mx / mn).toFixed(1) + '배</div>'); }
     }
     var cs = saSentences(String(sv.concBody || ''));
-    if (cs.length > 6) { bad++; ln.push('<div class="saRow"><span class="saBad">⚠</span> 결론 본문이 ' + cs.length + '문장입니다 — 단문 3~4개 + 축복 선언으로 짧게</div>'); }
+    if (cs.length > 6) { bad++; ln.push('<div class="saRow"><span class="saBad"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg></span> 결론 본문이 ' + cs.length + '문장입니다 — 단문 3~4개 + 축복 선언으로 짧게</div>'); }
   }
   h += '<div class="saSec"><h5>분량 <span class="saDim">— 공백 제외 · 분당 300자 기준</span></h5>'
     + '<div class="saRow">전체 <b>' + tot.toLocaleString() + '자</b> · 약 <b>' + mins + '분</b>' + (parts.length ? '<br><span class="saDim">' + esc(parts.join(' · ')) + '</span>' : '') + '</div>'
@@ -10182,15 +10202,15 @@ function illPick(i, bi, role, arr){
   $('#illOvTitle').textContent = (role === 'apply' ? '적용 강화' : '본문 이해') + ' 예화 추천' + (hasDrawer ? ' — 서랍 우선, 부족분만 창작' : ' — 여러 개 추가하거나 도서관에 저장하세요');
   $('#illOvBody').innerHTML = arr.map(function(d, k){
     var badge = d._src === '서랍'
-      ? '<span class="badge" style="color:var(--accent);border-color:var(--accent);margin-right:6px">📚 서랍</span>'
+      ? '<span class="badge" style="color:var(--accent);border-color:var(--accent);margin-right:6px"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 서랍</span>'
       : '<span class="badge" style="opacity:.7;margin-right:6px">창작</span>';
     var meta = '';
     if (d._why) meta += '<div style="margin-top:5px;font-size:12.5px;color:var(--accent2)">✓ ' + esc(d._why) + '</div>';
     if (d._adapt) meta += '<div style="margin-top:2px;font-size:12.5px;color:var(--dim)">✎ 각색: ' + esc(d._adapt) + '</div>';
     /* 출처 — 서랍 예화는 도서관 출처(등급·비고 포함), 창작은 사실 확인이 필요하다는 표시 (v621) */
     if (d._src === '서랍') meta += d._source ? illSrc(d._source, d._sourceConf, d._sourceNote).replace(/font-size:11px/g, 'font-size:12px')
-      : '<div style="margin-top:5px;font-size:12px;color:var(--dim);font-style:italic">📎 출처 기록 없음</div>';
-    else meta += '<div style="margin-top:5px;font-size:12px;color:var(--dim);font-style:italic">📎 AI 창작 예화 — 출처 없음(실화처럼 쓸 경우 사실 확인 필요)</div>';
+      : '<div style="margin-top:5px;font-size:12px;color:var(--dim);font-style:italic"><svg class=ico data-c=d aria-hidden=true><use href=#i-paperclip></use></svg> 출처 기록 없음</div>';
+    else meta += '<div style="margin-top:5px;font-size:12px;color:var(--dim);font-style:italic"><svg class=ico data-c=d aria-hidden=true><use href=#i-paperclip></use></svg> AI 창작 예화 — 출처 없음(실화처럼 쓸 경우 사실 확인 필요)</div>';
     return '<div class="illOpt" data-k="' + k + '">'
       + '<div class="illOptT">' + badge + esc(d.제목 || '') + '</div>'
       + '<div class="illOptB">' + esc(d.내용 || '') + '</div>' + meta
@@ -10268,7 +10288,7 @@ function renderInbox(){
       (isIll && (d['제목'] || d['강조메시지']) ? '<div class="snippet" style="color:var(--text);font-weight:700">' + esc(ttl) + '</div>' : '') +
       (d['강조메시지'] ? '<div class="snippet" style="color:var(--accent);font-weight:600">▶ ' + esc(d['강조메시지']) + '</div>' : '') +
       (isIll && d['강조메시지'] ? '' : '<div class="snippet" style="color:var(--text)">' + esc(d['내용']) + '</div>') +
-      (d['관련본문'] ? '<div class="snippet">📖 ' + esc(d['관련본문']) + '</div>' : '') +
+      (d['관련본문'] ? '<div class="snippet"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + esc(d['관련본문']) + '</div>' : '') +
       (isIll && d['강조메시지'] ? '<div class="snippet idHint" style="color:var(--dim);font-size:12px">… 클릭하면 강화 스토리를 봅니다</div>' : '') +
       (isIll && d['강조메시지'] ?
         '<div class="idDetail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">' +
@@ -10425,7 +10445,7 @@ function updateComposeBadge(){
     var s = findSermon(state.editing);
     el.innerHTML = '수정 중: <b style="color:var(--accent)">' + esc(state.editing) + '</b> ' + esc(s ? s['제목'] : '');
     if (state.remoteConflict) {
-      el.innerHTML += '<div class="cnt" style="margin:5px 0 0;color:var(--warn);font-weight:700">⚠ 이 설교가 다른 기기에서 수정되었습니다' +
+      el.innerHTML += '<div class="cnt" style="margin:5px 0 0;color:var(--warn);font-weight:700"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 이 설교가 다른 기기에서 수정되었습니다' +
         (state.remoteConflict['수정일'] ? ' (' + esc(state.remoteConflict['수정일']) + ')' : '') +
         '. 지금 저장하면 그 변경을 덮어씁니다.</div>' +
         '<button class="linkbtn" style="padding:2px 0;color:var(--accent2)" onclick="loadRemoteConflict()">다른 기기 내용 불러오기 (현재 작성분은 버려짐)</button>';
@@ -11643,7 +11663,7 @@ function fmTmLabel(){
   var ms = _fmTm.acc + (_fmTm.run ? Date.now() - _fmTm.t0 : 0);
   var s = Math.floor(ms / 1000), mm = Math.floor(s / 60), ss = ('0' + (s % 60)).slice(-2);
   var est = fmRehearseEstimate();
-  if (!_fmTm.run && !_fmTm.acc) b.textContent = '⏱ 리허설' + (est ? ' · 예상 ' + est + '분' : '');
+  if (!_fmTm.run && !_fmTm.acc) b.innerHTML = uiIco('clock') + ' 리허설' + (est ? ' · 예상 ' + est + '분' : '');
   else b.textContent = (_fmTm.run ? '⏸ ' : '▶ ') + mm + ':' + ss + (est ? ' / ' + est + '분' : '');
   b.style.color = (est && _fmTm.run && mm >= est) ? 'var(--accent2)' : '';
 }
@@ -12199,7 +12219,7 @@ function cwRender(){
       '<div class="meta"><span class="badge b-state">' + esc(s['상태']) + '</span>' +
       (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
       (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') +
-      (saved ? '<span style="color:var(--dim)" title="시트 최종 저장 시각">💾 ' + esc(saved) + '</span>' : '') + '</div>' +
+      (saved ? '<span style="color:var(--dim)" title="시트 최종 저장 시각"><svg class=ico aria-hidden=true><use href=#i-save></use></svg> ' + esc(saved) + '</span>' : '') + '</div>' +
       '<div class="title" style="font-size:15.5px;margin-top:2px">' + esc(s['제목'] || '(제목 없음)') +
       (s['본문'] ? ' <span style="color:var(--dim);font-weight:400;font-size:13px">' + esc(s['본문']) + '</span>' : '') + '</div></div>';
   }).join('');
@@ -14822,7 +14842,7 @@ function renderDevo(){
   var saved = note['ID'] ? ' <span class="badge b-state">기록 있음</span>' : '';
   body.className = 'split';
   body.innerHTML =
-    '<div class="card" id="devoScript"><div class="cnt devoScHd"><span>📖 ' + esc(e['본문범위'] || '') + '</span>'
+    '<div class="card" id="devoScript"><div class="cnt devoScHd"><span><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + esc(e['본문범위'] || '') + '</span>'
       + '<span id="devoSavedBadge">' + saved + '</span>'
       + '<button class="linkbtn" id="devoOpenStudy" type="button" style="font-size:12.5px;margin-left:auto">본문연구 창으로 ↗</button></div>'
       + '<div id="devoStudyPane"></div></div>' +
@@ -14889,12 +14909,12 @@ function fillDevoIllust(refStr){
     if (!best){ box.innerHTML = ''; return; }
     var it = illNormLib(best);
     box.innerHTML = '<div class="card" style="opacity:.94">'
-      + '<div class="cnt" style="margin-bottom:4px">📖 이 본문의 예화'
+      + '<div class="cnt" style="margin-bottom:4px"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> 이 본문의 예화'
       + (bestLvl === 2 ? '' : ' <span style="color:var(--dim)">(같은 책)</span>') + '</div>'
       + '<details><summary style="cursor:pointer;list-style:none;font-size:13.5px"><b>' + esc(it.title || '') + '</b>'
       + (it.message ? ' <span style="color:var(--accent)">▶ ' + esc(it.message) + '</span>' : '') + '</summary>'
       + '<div style="font-size:12.5px;color:var(--dim);line-height:1.65;margin-top:5px">' + esc(it.story || '') + '</div>'
-      + (it.refs && it.refs.length ? '<div style="margin-top:5px;font-size:12px;color:var(--dim)">📖 ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
+      + (it.refs && it.refs.length ? '<div style="margin-top:5px;font-size:12px;color:var(--dim)"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + it.refs.map(function(r){ return linkifyRefs(r); }).join('  ·  ') + '</div>' : '')
       + '</details></div>';
   }).catch(function(){ box.innerHTML = ''; });
 }
@@ -16219,7 +16239,7 @@ async function cmpOpen(id){
   ov.innerHTML =
     '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;justify-content:space-between;' +
       'padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line);background:var(--card)">' +
-      '<div style="min-width:0"><div style="font-weight:800;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">⚖ 원고 ↔ 실제 설교</div>' +
+      '<div style="min-width:0"><div style="font-weight:800;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><svg class=ico aria-hidden=true><use href=#i-scale></use></svg> 원고 ↔ 실제 설교</div>' +
       '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + esc(s['제목'] || '') + ' · ' + esc(src.basis) + '</div></div>' +
       '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="cmpClose()">× 닫기</button></div>' +
     '<div style="flex:0 0 auto;display:flex;gap:6px;padding:10px 14px 0">' +
@@ -16567,7 +16587,7 @@ function cnPresentShare(p){
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(6,8,13,.82);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)';
   ov.innerHTML = '<div style="background:#15171d;border:1px solid #2a2d36;border-radius:20px;padding:26px 24px;max-width:340px;width:100%;text-align:center;color:#fff">'
-    + '<div style="font-size:38px;line-height:1;margin-bottom:12px">🖼</div>'
+    + '<div style="font-size:38px;line-height:1;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-image></use></svg></div>'
     + '<div style="font-weight:800;font-size:17px;margin-bottom:6px">카드뉴스 ' + (p.files.length) + '장 준비 완료</div>'
     + '<div style="color:#9aa0ad;font-size:13.5px;line-height:1.55;margin-bottom:20px">아래 버튼을 누르면 카카오톡·메시지로<br>카드를 한 번에 공유합니다.</div>'
     + '<button id="cnGo" style="width:100%;padding:14px;border:none;border-radius:12px;background:#2AA78E;color:#fff;font-weight:800;font-size:15.5px"><svg class=ico aria-hidden=true><use href=#i-upload></use></svg> 공유하기</button>'
@@ -18800,7 +18820,7 @@ function renderOccPane(){
   var box = $('#occPane'), O = state.occ;
   if (!O.opts.length) { box.innerHTML = '<div class="empty">설교일과 상황을 입력하고 [개요생성]을 눌러 주세요.</div>'; return; }
   var h = '<div class="card"><b>설교 개요 선택지 3세트</b><div class="cnt" style="margin-top:4px">' +
-    (O.at ? '생성 ' + esc(O.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [✏ 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div></div>';
+    (O.at ? '생성 ' + esc(O.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [<svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div></div>';
   h += O.opts.map(function(o, i){
     return '<div class="edPoint zvOpt" id="occOpt' + i + '">' +
       '<div id="occVis' + i + '">' + occVisHtml(o, i) + '</div>' +
@@ -19243,12 +19263,12 @@ async function aiZoneGen(){
 function renderZonePane(){
   var box = $('#zonePane'); if (!box) return;
   var Z = state.zone, opts = Z.opts || [];
-  if (!Z.sermon && !Z.guide && !opts.length) { box.innerHTML = '<div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [📥 자료 읽기]를 눌러 주세요.</div>'; return; }
+  if (!Z.sermon && !Z.guide && !opts.length) { box.innerHTML = '<div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [<svg class=ico aria-hidden=true><use href=#i-download></use></svg> 자료 읽기]를 눌러 주세요.</div>'; return; }
   var n = function(t){ return String(t || '').length.toLocaleString() + '자'; };
   var h = '';
   if (opts.length) {
     h += '<div class="card"><b>설교 개요 선택지 ' + opts.length + '세트</b><div class="cnt" style="margin-top:4px">' +
-      (Z.at ? '생성 ' + esc(Z.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [✏ 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div></div>';
+      (Z.at ? '생성 ' + esc(Z.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [<svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div></div>';
     h += opts.map(function(o, i){
       return '<div class="edPoint zvOpt" id="zoneOpt' + i + '">' +
         '<div id="zoneVis' + i + '">' + zoneVisHtml(o, i) + '</div>' +
@@ -19264,7 +19284,7 @@ function renderZonePane(){
   }
   h += '<div class="edPoint"><b style="font-size:15px">① 주일 설교</b> <span class="cnt">' +
     esc([Z.srcTitle, Z.srcRef].filter(Boolean).join(' · ') || '아직 읽지 않음') + (Z.sermon ? ' · ' + n(Z.sermon) : '') + '</span>' +
-    '<textarea class="zoneF edTa" data-f="sermon" rows="10" style="margin-top:6px" placeholder="[📥 자료 읽기]로 전사문·원고가 들어옵니다. 직접 붙여넣어도 됩니다.">' + esc(Z.sermon) + '</textarea></div>';
+    '<textarea class="zoneF edTa" data-f="sermon" rows="10" style="margin-top:6px" placeholder="[자료 읽기]로 전사문·원고가 들어옵니다. 직접 붙여넣어도 됩니다.">' + esc(Z.sermon) + '</textarea></div>';
   h += '<div class="edPoint"><b style="font-size:15px">② 소그룹 교재</b> <span class="cnt">' +
     esc(Z.guideName || '아직 읽지 않음') + (Z.guide ? ' · ' + n(Z.guide) : '') + '</span>' +
     '<textarea class="zoneF edTa" data-f="guide" rows="8" style="margin-top:6px" placeholder="교재 파일을 고르면 내용이 들어옵니다. 직접 붙여넣어도 됩니다.">' + esc(Z.guide) + '</textarea></div>';
@@ -19298,7 +19318,7 @@ function optVisHtml(o, i, opt){
       '<div class="zvTitle">' + esc(o['제목'] || '(제목 없음)') + '</div>' +
       (o['본문'] ? '<span class="zvRef">' + linkifyRefs(o['본문']) + '</span>' : '') +
       (opt.actions ? '<span class="zvAct">' + opt.actions + '</span>' : '') + '</div>' +
-    (hymn ? '<div class="zvHymn">🎵 ' + esc(hymn) + '</div>' : '') +
+    (hymn ? '<div class="zvHymn"><svg class=ico aria-hidden=true><use href=#i-music></use></svg> ' + esc(hymn) + '</div>' : '') +
     (o['핵심메시지'] ? '<div class="zvMsg">' + L(o['핵심메시지']) + '</div>' : '') +
     (bad.length ? '<div style="margin-top:8px">' + refAuditHtml(bad, '선택지 ' + (i + 1)) + '</div>' : '') +
     (cards ? '<div class="zvPts">' + cards + '</div>' : '') +
@@ -19724,10 +19744,10 @@ function renderLbtPane(){
   if (state.lbt.mode === 'year') { renderLbtYearPane(); return; }
   var box = $('#lbtPane'); if (!box) return;
   var L = state.lbt, opts = L.opts || [];
-  if (!opts.length) { box.innerHTML = '<div class="empty">왼쪽에서 질문을 고르고 [✍ 설교 개요 구상]을 눌러 주세요.</div>'; return; }
+  if (!opts.length) { box.innerHTML = '<div class="empty">왼쪽에서 질문을 고르고 [<svg class=ico aria-hidden=true><use href=#i-pen></use></svg> 설교 개요 구상]을 눌러 주세요.</div>'; return; }
   var qs = (L.qs || []).map(lbtQ).filter(Boolean);
   var h = '<div class="card"><b>설교 개요 선택지 ' + opts.length + '세트</b><div class="cnt" style="margin-top:4px">' +
-    (L.at ? '생성 ' + esc(L.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [✏ 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div>' +
+    (L.at ? '생성 ' + esc(L.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [<svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div>' +
     (qs.length ? '<ol style="margin:8px 0 0;padding-left:20px;font-size:13px;line-height:1.6">' + qs.map(function(x){ return '<li><span style="color:var(--dim)">' + x.id + '</span> ' + esc(x.q) + '</li>'; }).join('') + '</ol>' : '') + '</div>';
   h += opts.map(function(o, i){ return lbtOptHtml(o, i, 't:' + i); }).join('');
   h += '<div class="toolrow"><button class="btn sub" id="lbtRegen" type="button">개요 재구상 — 선택지가 모두 마음에 안 들 때</button></div>';
@@ -19750,7 +19770,7 @@ function lbtVisHtml(o, i, a){
       (o['본문'] ? '<span class="zvRef">' + esc(o['본문']) + '</span>' : '') +
       '<button class="btn sub lbtInstaBtn" type="button" data-a="' + a + '" title="이 선택지를 인스타그램 카드 4~5장으로">insta 카드</button>' +
       '<button class="btn lbtPickBtn" type="button" data-a="' + a + '">이 개요로 설교 작성</button></div>' +
-    (o['변증방법'] ? '<div class="lbtMeth">🛡 ' + esc(o['변증방법']) + '</div>' : '') +
+    (o['변증방법'] ? '<div class="lbtMeth"><svg class=ico data-c=a aria-hidden=true><use href=#i-shield></use></svg> ' + esc(o['변증방법']) + '</div>' : '') +
     (o['핵심메시지'] ? '<div class="zvMsg">' + esc(o['핵심메시지']) + '</div>' : '') +
     (qa.length ? '<div class="zvQs"><span class="zvLbl">질문에 답하기</span><ul>' + qa.map(function(a){
       return '<li>' + (a['질문'] ? '<b>' + esc(a['질문']) + '</b><br>' : '') + esc(a['답']) + '</li>'; }).join('') + '</ul></div>' : '') +
@@ -19934,7 +19954,7 @@ function lbtInstaPresent(p){
     return '<img src="' + u + '" alt="카드 ' + (k + 1) + '" style="flex:0 0 auto;width:132px;aspect-ratio:4/5;border-radius:8px;border:1px solid #2a2d36;scroll-snap-align:start">';
   }).join('');
   ov.innerHTML = '<div style="background:#15171d;border:1px solid #2a2d36;border-radius:20px;padding:20px;max-width:600px;width:100%;max-height:calc(100vh - 36px);overflow:auto;color:#fff">' +
-    '<div style="font-weight:800;font-size:17px">📸 인스타 카드 ' + p.files.length + '장</div>' +
+    '<div style="font-weight:800;font-size:17px"><svg class=ico aria-hidden=true><use href=#i-insta></use></svg> 인스타 카드 ' + p.files.length + '장</div>' +
     '<div style="color:#9aa0ad;font-size:12.5px;margin-top:2px">1080×1350 (4:5 세로) · 순서대로 올리면 캐러셀이 됩니다</div>' +
     '<div style="display:flex;gap:8px;overflow-x:auto;margin-top:12px;padding-bottom:6px;scroll-snap-type:x mandatory">' + thumbs + '</div>' +
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
@@ -20169,7 +20189,7 @@ async function aiLbtYearPlan(){
 function renderLbtYearPane(){
   var box = $('#lbtPane'); if (!box) return;
   var Y = state.lbt.year, P = Y.plan;
-  if (!P) { box.innerHTML = '<div class="empty">왼쪽에서 연도와 빠지는 월·주일을 정한 뒤 [📅 연간 계획 구상]을 눌러 주세요.</div>'; return; }
+  if (!P) { box.innerHTML = '<div class="empty">왼쪽에서 연도와 빠지는 월·주일을 정한 뒤 [<svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> 연간 계획 구상]을 눌러 주세요.</div>'; return; }
   lbtYearRelayout();
   var ok = !!Y.confirmed, used = lbtUsedMap();
   var nW = 0, nSel = 0, nOpt = 0, nOver = 0, nEmpty = 0, nMon = 0;
@@ -20195,7 +20215,7 @@ function renderLbtYearPane(){
           '<button class="btn sub" id="lbtY_refs" type="button"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> 추천 본문 채우기</button>' +
           '<button class="btn sub" id="lbtY_regen" type="button"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 계획 다시 구상</button>') +
     '</div>' +
-    (ok ? ((nOver || nEmpty) ? '<div class="cnt" style="margin-top:6px;font-size:12.5px;color:var(--accent2)">넘치는 주·빈 주일은 [✏ 계획 고치기]에서 정리할 수 있습니다.</div>' : '')
+    (ok ? ((nOver || nEmpty) ? '<div class="cnt" style="margin-top:6px;font-size:12.5px;color:var(--accent2)">넘치는 주·빈 주일은 [<svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 계획 고치기]에서 정리할 수 있습니다.</div>' : '')
         : '<div class="cnt" style="margin-top:6px;font-size:12.5px">⠿ 손잡이를 끌어 다른 <b>달 묶음</b>이나 같은 달의 다른 <b>주제</b> 위에 놓으면 서로 자리가 바뀝니다(빈 주일 위에 놓으면 그 주일로 옮겨 갑니다). 월의 대주제·월 주제, 주마다의 가제와 질문 번호(예: 「Ⅰ-1, Ⅰ-3」 또는 그 달 분류면 「1, 3」)도 여기서 고칩니다.</div>') +
     '</div>';
   h += '<div id="lbtYMons">';
@@ -20217,7 +20237,7 @@ function renderLbtYearPane(){
       var w = rows[k];
       if (w._empty) {   /* 빈 주일 — 주제를 끌어다 놓을 수도 있다 */
         h += '<div class="lbtYWk empty" data-mi="' + mi + '" data-d="' + w._empty + '"><span class="lbtYDate">' + lbtMd(w._empty) + '</span>' +
-          (ok ? '<span class="cnt">빈 주일 — [✏ 계획 고치기]에서 주제를 채우세요.</span>'
+          (ok ? '<span class="cnt">빈 주일 — [<svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 계획 고치기]에서 주제를 채우세요.</span>'
               : '<span class="cnt">빈 주일</span><button class="btn sub lbtYGenSlot" type="button" data-mi="' + mi + '" data-d="' + w._empty + '"' + (mo.g ? '' : ' disabled title="먼저 대주제를 고르세요"') + '><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 주제 생성</button>') +
           '</div>';
         continue;
@@ -20347,9 +20367,9 @@ function lbtRefsLine(w){ return (w.refs || []).map(function(x){ return x.r + (x.
 function lbtRefsHtml(w){
   var rs = w.refs || [], warn = lbtRefsWarn(w);
   if (!rs.length) return '';
-  return '<div class="lbtYRefs"><span class="lbl">📖 추천 본문</span>' + rs.map(function(x){
+  return '<div class="lbtYRefs"><span class="lbl"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> 추천 본문</span>' + rs.map(function(x){
     return '<span class="lbtYRef"' + (x.why ? ' title="' + esc(x.why) + '"' : '') + '><span class="bref" data-ref="' + esc(x.r) + '">' + esc(x.r) + '</span>' + (x.story ? '<span class="story">이야기</span>' : '') + '</span>';
-  }).join('') + (warn ? '<span class="warn">⚠ ' + esc(warn) + '</span>' : '') + '</div>';
+  }).join('') + (warn ? '<span class="warn"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> ' + esc(warn) + '</span>' : '') + '</div>';
 }
 var P_LBT_YEAR_REFS = [
 '당신은 영락교회 대학부 설교 기획 비서다. 연간 시리즈 「Why에서 Way로 — 질문이 길이 되는 한 해」(요 14:6)의 주마다 설교 본문 후보를 추천한다. 청년들이 실제로 묻는 신앙 질문을 기독교 변증의 방법으로, 믿지 않는 친구도 납득하게 성경으로 답하는 설교이며, 뼈대는 한 본문 강해다.',
@@ -20962,7 +20982,7 @@ function lbtDevoHtml(mo, mi){
     + (has ? '<button class="btn sub" type="button" data-devo="reg" data-mi="' + mi + '"><svg class=ico aria-hidden=true><use href=#i-download></use></svg> 묵상집 시트 등록</button>'
       + '<button class="btn sub" type="button" data-devo="print" data-mi="' + mi + '"><svg class=ico aria-hidden=true><use href=#i-printer></use></svg> 묵상집 인쇄(PDF)</button>' : '')
     + '</div>';
-  if (stale) h += '<div class="lbtDevoWarn" style="display:block;margin-top:6px">계획(주제·질문·추천 본문)이 이 묵상을 만든 뒤 바뀌었습니다 — 필요하면 [🔄 본문 다시 고르기]를 누르세요.</div>';
+  if (stale) h += '<div class="lbtDevoWarn" style="display:block;margin-top:6px">계획(주제·질문·추천 본문)이 이 묵상을 만든 뒤 바뀌었습니다 — 필요하면 [<svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 본문 다시 고르기]를 누르세요.</div>';
   if (!has) return h + '<div class="cnt" style="margin-top:6px">첫 주일 앞 월요일(' + lbtMd(wks[0].days[0]) + ')부터 마지막 주일 앞 토요일(' + lbtMd(wks[wks.length - 1].days[5]) + ')까지. 설교 주일 앞 주는 그 주일의 질문을 향하고(토요일 = 추천 본문 중 이야기 본문), 설교가 없는 주일 앞 주는 대주제로 자유 묵상합니다.</div></details>';
   var G = lbtG(mo.g);
   wks.forEach(function(x){
@@ -20976,7 +20996,7 @@ function lbtDevoHtml(mo, mi){
         + '<input type="text" class="lbtDevoIn" data-mk="' + mk + '" data-i="' + i + '" data-f="본문범위" value="' + esc(r['본문범위']) + '" placeholder="본문 (예: 시 13:1-6)">'
         + (r['본문범위'] && !r.bad ? '<span class="bref" data-ref="' + esc(r['본문범위']) + '">보기</span>' : '')
         + '<input type="text" class="lbtDevoIn" data-mk="' + mk + '" data-i="' + i + '" data-f="제목" value="' + esc(r['제목']) + '" placeholder="제목"></div>'
-        + (r.bad ? '<div class="lbtDevoWarn" style="display:block">⚠ ' + esc(r.bad) + '</div>' : '')
+        + (r.bad ? '<div class="lbtDevoWarn" style="display:block"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> ' + esc(r.bad) + '</div>' : '')
         + '<details class="lbtDevoQs"><summary>질문 3개' + ((!r['관찰질문'] || !r['묵상질문'] || !r['적용질문']) ? ' <span class="lbtDevoWarn">비어 있음</span>' : '') + '</summary>'
         + ['관찰질문', '묵상질문', '적용질문'].map(function(k){ return '<label>' + k + '</label><textarea class="lbtDevoIn" rows="2" data-mk="' + mk + '" data-i="' + i + '" data-f="' + k + '">' + esc(r[k] || '') + '</textarea>'; }).join('')
         + '</details></div>';
@@ -21678,7 +21698,7 @@ function transStale(meta){
 function transStaleHtml(meta){
   if (!transStale(meta)) return '';
   return '<div class="cnt" style="margin-bottom:10px;padding:8px 10px;border:1px solid var(--warn);border-radius:8px;color:var(--warn);line-height:1.6">'
-    + '⚠ 이 표를 잡은 뒤 <b>원고가 바뀌었습니다.</b><br>컷 번호·이미지를 그대로 두고 위치만 새 문장에 맞추려면 <b>[♻ 원고 수정 반영]</b>, 표를 처음부터 새로 잡으려면 위 <b>[🔄 다시 잡기]</b>를 누르세요.</div>';
+    + '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 이 표를 잡은 뒤 <b>원고가 바뀌었습니다.</b><br>컷 번호·이미지를 그대로 두고 위치만 새 문장에 맞추려면 <b>[<svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 원고 수정 반영]</b>, 표를 처음부터 새로 잡으려면 위 <b>[<svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 다시 잡기]</b>를 누르세요.</div>';
 }
 async function transTableOpen(){
   var id = state.editing || '';
@@ -21694,7 +21714,7 @@ async function transTableOpen(){
   ov.innerHTML =
     '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;justify-content:space-between;' +
       'padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line);background:var(--card)">' +
-      '<div style="min-width:0"><div style="font-weight:800;font-size:15px">🔎 이미지 전환표</div>' +
+      '<div style="min-width:0"><div style="font-weight:800;font-size:15px"><svg class=ico aria-hidden=true><use href=#i-search></use></svg> 이미지 전환표</div>' +
       '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + esc(meta['제목'] || '') + ' — 카드원고·전환표시본·이미지가 함께 쓰는 기준표</div></div>' +
       '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="transTableClose()">× 닫기</button></div>' +
     '<div style="flex:0 0 auto;display:flex;gap:6px;padding:10px 14px 0;flex-wrap:wrap">' +
@@ -22152,7 +22172,7 @@ function bulletinShare(text){
     var ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
     ov.innerHTML = '<div style="background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:16px;max-width:340px;width:100%;padding:20px;text-align:center">'
-      + '<div style="font-weight:800;font-size:15px;margin-bottom:14px">📮 주보내용 준비 완료</div>'
+      + '<div style="font-weight:800;font-size:15px;margin-bottom:14px"><svg class=ico aria-hidden=true><use href=#i-send></use></svg> 주보내용 준비 완료</div>'
       + '<button type="button" data-go style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">↗ 공유하기 (카카오·메시지)</button>'
       + '<button type="button" data-x style="width:100%;padding:10px;margin-top:8px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--dim);font-size:13px;cursor:pointer;font-family:inherit">취소</button></div>';
     function close(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }
@@ -23270,12 +23290,12 @@ function illPlanRow(src){
     var rows = cands.map(function(c){
       var it = c.it;
       return '<details style="margin:3px 0 0"><summary style="cursor:pointer;list-style:none;font-size:12.5px">'
-        + '📖 <b>' + esc(it.title || '') + '</b>'
+        + '<svg class=ico aria-hidden=true><use href=#i-book></use></svg> <b>' + esc(it.title || '') + '</b>'
         + (it.message ? ' <span style="color:var(--accent)">▶ ' + esc(it.message) + '</span>' : '')
         + '</summary><div style="font-size:12px;color:var(--dim);line-height:1.55;margin:3px 0 0">' + esc(it.story || '') + '</div></details>';
     }).join('');
     return '<div style="margin:0 0 10px;padding:8px 11px;border:1px dashed var(--accent2);border-radius:9px;background:color-mix(in srgb,var(--accent) 4%,transparent)">'
-      + '<div style="font-size:11.5px;color:var(--dim);margin-bottom:3px">📚 이 주제에 어울리는 서랍 예화 (계획 선배정)</div>'
+      + '<div style="font-size:11.5px;color:var(--dim);margin-bottom:3px"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 이 주제에 어울리는 서랍 예화 (계획 선배정)</div>'
       + rows + '</div>';
   } catch (e){ return ''; }
 }
@@ -23314,13 +23334,13 @@ function illPlanBudget(weeks, isTp){
         + '<span style="flex:0 0 64px;color:var(--dim);font-weight:600">' + esc(r.label) + '</span>'
         + '<span style="color:var(--txt)">' + (r.cands.length ? r.cands.map(function(it){
             var dup = useCount[it.title] && useCount[it.title].length >= 2;
-            return (dup ? '<span style="color:var(--warn);font-weight:700">⚠ ' : '<span>') + esc(it.title || '') + '</span>';
+            return (dup ? '<span style="color:var(--warn);font-weight:700"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> ' : '<span>') + esc(it.title || '') + '</span>';
           }).join(' <span style="color:var(--dim)">·</span> ') : '<span style="color:var(--dim)">후보 없음</span>') + '</span></div>';
     }).join('');
     return '<div class="card" style="margin-bottom:10px"><details><summary style="cursor:pointer;list-style:none;font-size:13.5px"><b><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 시리즈 예화 예산</b> <span class="cnt">— 확정 ' + confirmedN + (isTp ? '회' : '주') + ' 선배정 조망'
       + (dups.length ? ' · <span style="color:var(--warn);font-weight:700">중복 ' + dups.length + '편</span>' : ' · 중복 없음') + '</span></summary>'
       + '<div style="margin-top:7px">' + body + '</div>'
-      + (dups.length ? '<div style="margin-top:7px;font-size:12px;color:var(--warn)">⚠ ' + dups.map(function(t){ return '「' + esc(t) + '」(' + useCount[t].join('·') + ')'; }).join(' , ') + ' — 같은 예화가 여러 ' + (isTp ? '회차' : '주') + '에 앉아 있습니다. 한쪽은 다른 예화로 바꿔 보세요.</div>' : '')
+      + (dups.length ? '<div style="margin-top:7px;font-size:12px;color:var(--warn)"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> ' + dups.map(function(t){ return '「' + esc(t) + '」(' + useCount[t].join('·') + ')'; }).join(' , ') + ' — 같은 예화가 여러 ' + (isTp ? '회차' : '주') + '에 앉아 있습니다. 한쪽은 다른 예화로 바꿔 보세요.</div>' : '')
       + (themes.length ? '<div class="cnt" style="margin-top:6px;font-size:11.5px">주제 분포: ' + themes.slice(0, 5).map(function(t){ return esc(t) + ' ' + themeCount[t]; }).join(' · ') + (themes.length > 5 ? ' 외' : '') + '</div>' : '')
       + '<div class="cnt" style="margin-top:4px;font-size:11.5px;color:var(--dim)">후보는 각 주차 카드의 선배정과 동일한 로컬 추천입니다. 원고 작성 시 [예화 추천]에서 최종 선택하세요.</div>'
       + '</details></div>';
@@ -25166,13 +25186,13 @@ async function runCascade(target, id, meta){
     ck();
     toast(fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인');
     if (fails.length) {   /* 실패 단계를 화면에 남겨 둠(토스트는 금방 사라지므로) */
-      var cnf = $('#cascNow'); if (cnf) cnf.innerHTML = '⚠ 실패: ' + esc(fails.join(' · '));
+      var cnf = $('#cascNow'); if (cnf) cnf.innerHTML = '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 실패: ' + esc(fails.join(' · '));
       var ccf = $('#cascCnt'); if (ccf) ccf.textContent = '문제가 생긴 단계입니다 — 콘솔(F12)에 상세 오류가 찍힙니다. 잠시 후 닫힘.';
       await new Promise(function(r){ setTimeout(r, 8000); });
     }
   } catch (e) {
     if ((e && e.message) === '__ABORT__') { toast('생성을 중단했습니다 — 만들던 단계까지만 저장됩니다.'); var cna = $('#cascNow'); if (cna) cna.textContent = '⏹ 중단되었습니다.'; await new Promise(function(r){ setTimeout(r, 1500); }); }
-    else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = '⚠ 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
+    else { console.error('[Total Sermon] 중단:', e); toast('생성 실패: ' + (e.message || e)); var cne = $('#cascNow'); if (cne) cne.innerHTML = uiIco('alert') + ' 중단: ' + esc(e.message || String(e)); await new Promise(function(r){ setTimeout(r, 8000); }); }
   }
   finally { window._cascForce = false; window._cascForceCard = false; window._cascTableFresh = false; window._cascNoTrans = false; window._cascKeepTrans = false; cascHide(); try { await pullData(); } catch (e) {} renderSyncState(); try { refreshCascBtns(state.editing || id); } catch (e) {} }
   /* 전환표 단독 실행은 끝나고 표를 바로 펼쳐 보여 준다 — 옛 [🔎 보기·다시 잡기] 버튼을 이 버튼 하나로 합쳤다(v553).
@@ -25598,7 +25618,7 @@ function renderImport(){
     });
     return '<div class="imp">' +
       '<label style="margin:0;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)"><input type="checkbox" style="width:auto" ' + (r.use ? 'checked' : '') + ' onchange="state.importRows[' + i + '].use=this.checked"> <span class="fname">' + esc(r.fname) + ' · ' + (IMPORT_KIND_LABEL[r.kind] || '') + r['원고텍스트'].length.toLocaleString() + '자</span></label>' +
-      (dup ? '<div class="warn">⚠ 같은 날짜·제목 또는 같은 원본의 설교가 이미 시트에 있습니다.</div>' : '') +
+      (dup ? '<div class="warn"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 같은 날짜·제목 또는 같은 원본의 설교가 이미 시트에 있습니다.</div>' : '') +
       '<div class="row2"><div><label>날짜</label><input type="date" value="' + esc(r['날짜']) + '" onchange="state.importRows[' + i + '][\'날짜\']=this.value"></div>' +
       '<div><label>예배구분</label><input type="text" value="' + esc(r['예배구분']) + '" onchange="state.importRows[' + i + '][\'예배구분\']=this.value"></div></div>' +
       '<div class="row2"><div><label>제목</label><input type="text" value="' + esc(r['제목']) + '" onchange="state.importRows[' + i + '][\'제목\']=this.value"></div>' +
@@ -27107,7 +27127,7 @@ async function imgRegenOpen(){
       'padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line);background:var(--card)">' +
       '<div style="min-width:0"><div style="font-weight:700;font-size:15px">' + uiIco('image') + ' 이미지 낱장 재생성 · 프롬프트 수정</div>' +
       '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + esc(meta['제목'] || '') +
-      (pack ? ' · ' + esc(pack.name) : ' · ⚠ 저장된 zip 없음 — 낱장 PNG로 저장됩니다') + '</div></div>' +
+      (pack ? ' · ' + esc(pack.name) : ' · <svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 저장된 zip 없음 — 낱장 PNG로 저장됩니다') + '</div></div>' +
       '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="imgRegenClose()">× 닫기</button></div>' +
     '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:10px 14px 0;flex-wrap:wrap">' +
       '<span style="font-size:13px;color:var(--dim)">생성 엔진</span>' +
@@ -27595,7 +27615,7 @@ function onLibToggle(e){
   var s = findSermon(box.getAttribute('data-relid')); if (!s) return;
   var rel = relatedSermons(s, 6);
   if (!rel.length){ box.innerHTML = '<div class="cnt" style="color:var(--dim)">관련 설교를 찾지 못했습니다.</div>'; return; }
-  box.innerHTML = '<div class="kv"><span class="k">🔗 관련</span><span class="v">' + rel.map(function(r){
+  box.innerHTML = '<div class="kv"><span class="k"><svg class=ico data-c=a aria-hidden=true><use href=#i-link></use></svg> 관련</span><span class="v">' + rel.map(function(r){
     return '<a href="#" data-relgo="' + esc(r.s['ID']) + '" style="color:var(--accent)">' + esc(r.s['제목'] || '(제목 없음)') + '</a>'
       + (r.s['본문'] ? ' <small style="color:var(--accent2)">' + esc(r.s['본문']) + '</small>' : '')
       + ' <small style="color:var(--dim)">' + esc(r.reasons.join(' · ')) + '</small>';
@@ -27912,7 +27932,7 @@ function anDrawerUsage(){
     + '<div style="height:1px;background:var(--line);margin:2px 0 7px"></div>'
     + cats.map(function(c){ return bar(c, cat[c].u, cat[c].t, false); }).join('')
     + '<div style="height:1px;background:var(--line);margin:8px 0 7px"></div>'
-    + '<div style="font-size:12.5px;color:var(--txt)">💤 미사용 <b>' + unusedTotal + '편</b> — 도서관 <b>[😴 잠자는 예화]</b> 칩에서 바로 꺼내 쓰세요.</div>'
+    + '<div style="font-size:12.5px;color:var(--txt)"><svg class=ico data-c=d aria-hidden=true><use href=#i-moon></use></svg> 미사용 <b>' + unusedTotal + '편</b> — 도서관 <b>[<svg class=ico data-c=d aria-hidden=true><use href=#i-moon></use></svg> 잠자는 예화]</b> 칩에서 바로 꺼내 쓰세요.</div>'
     + (themeTop.length ? '<div style="margin-top:6px;font-size:11.5px;color:var(--dim)">표준주제 분포: ' + themeTop.slice(0, 6).map(function(t){ return esc(t) + ' ' + themeC[t]; }).join(' · ') + '</div>' : '')
     + '<div class="cnt" style="margin-top:7px;color:var(--dim);font-size:11.5px">소진 판정: 인박스·편입 예화의 사용 이력(사용설교ID) 또는 제목이 실제 전한 설교의 예화 요약에 등장. 새벽 시리즈에서 미소진 카테고리를 우선 소진해 보세요.</div>'
     + '</div></div>';
@@ -27959,7 +27979,7 @@ function anCoverageCompass(){
     + '<table style="border-collapse:separate;border-spacing:3px 2px;width:100%"><thead><tr><th></th>'
     + TONES.map(function(n){ return '<th style="font-size:11.5px;color:var(--dim);font-weight:600;padding:2px">' + esc(n) + '</th>'; }).join('')
     + '</tr></thead><tbody>' + rows + '</tbody></table>'
-    + (sparse.length ? '<div style="margin-top:7px;font-size:12.5px;color:var(--txt)">🧭 이번 주 새벽 스캔 목표 — ' + goal + ' 칸이 얇습니다. 이런 결의 예화를 만나면 우선 등록해 보세요.</div>' : '')
+    + (sparse.length ? '<div style="margin-top:7px;font-size:12.5px;color:var(--txt)"><svg class=ico aria-hidden=true><use href=#i-compass></use></svg> 이번 주 새벽 스캔 목표 — ' + goal + ' 칸이 얇습니다. 이런 결의 예화를 만나면 우선 등록해 보세요.</div>' : '')
     + '<div class="cnt" style="margin-top:5px;color:var(--dim);font-size:11.5px">복수 주제 예화는 각 주제에 함께 셉니다. 3편 이하 칸은 주황 테두리. 칸을 누르면 도서관이 해당 필터로 열립니다.</div>'
     + '</div></div>';
 }
@@ -28050,10 +28070,10 @@ function renderTopicHub(q){
       + (sim.length ? '<div class="cnt" style="margin-bottom:8px">비슷한 주제: ' + sim.map(function(k){
           return '<button class="btn sub mini topicHubPick" type="button" data-topic="' + esc(k) + '">' + esc(k) + ' ' + topicTotal(idx[k]) + '</button>';
         }).join(' ') + '</div>' : '')
-      + (topicRowsHtml('설교', e.sermons, '📜')
-        + topicRowsHtml('예화', e.ills, '💡')
-        + topicRowsHtml('아이디어', e.ideas, '📥')
-        + topicRowsHtml('성경앱 노트', e.notes, '📖')
+      + (topicRowsHtml('설교', e.sermons, '<svg class=ico aria-hidden=true><use href=#i-file></use></svg>')
+        + topicRowsHtml('예화', e.ills, '<svg class=ico data-c=y aria-hidden=true><use href=#i-bulb></use></svg>')
+        + topicRowsHtml('아이디어', e.ideas, '<svg class=ico aria-hidden=true><use href=#i-download></use></svg>')
+        + topicRowsHtml('성경앱 노트', e.notes, '<svg class=ico aria-hidden=true><use href=#i-book></use></svg>')
         || '<div class="cnt">이 주제로 묶인 자료가 없습니다.</div>');
     return;
   }
@@ -28460,7 +28480,7 @@ function serverFullText(){
     var terms = (state.lastTerms && state.lastTerms.length) ? state.lastTerms : q.toLowerCase().split(/\s+/).filter(Boolean);
     var add = (ids || []).map(findSermon).filter(function(s){ return s && !shown[s['ID']] && isLiveSermon(s); });
     if (!add.length) { toast('원고 전문에서 추가로 찾은 결과가 없습니다.'); return; }
-    var html = '<div class="cnt" style="margin:12px 2px 6px;color:var(--accent2)">📄 원고 전문 일치 ' + add.length + '건 (클릭하면 원고를 불러옵니다)</div>' +
+    var html = '<div class="cnt" style="margin:12px 2px 6px;color:var(--accent2)"><svg class=ico aria-hidden=true><use href=#i-file></use></svg> 원고 전문 일치 ' + add.length + '건 (클릭하면 원고를 불러옵니다)</div>' +
       add.map(function(s){
         return '<div class="item" data-kind="sermon" data-id="' + esc(s['ID']) + '"><div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
           (s['시리즈'] ? '<span>' + esc(s['시리즈']) + '</span>' : '') + '<span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
@@ -28527,7 +28547,7 @@ function renderStats(){
   var _qn = (state.queue && state.queue.length) || 0;
   ['#queueBadge', '#queueBadgeD'].forEach(function(sel){
     var el = $(sel); if (!el) return;
-    if (_qn){ el.style.display = ''; el.textContent = '⏳ 전송 대기 ' + _qn + '건'; }
+    if (_qn){ el.style.display = ''; el.innerHTML = uiIco('hourglass') + ' 전송 대기 ' + _qn + '건'; }
     else { el.style.display = 'none'; }
   });
 }
@@ -28931,7 +28951,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v629';
+var APP_VER = 'v630';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -29304,7 +29324,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   function show(opts){
     return new Promise(function(resolve){
       lastFocus = document.activeElement;
-      msgEl.textContent = opts.message || '';
+      msgEl.innerHTML = emoIco(esc(opts.message || ''));   /* v630: 이모지 → 아이콘(줄바꿈은 pre-line 그대로) */
       inWrap.innerHTML = '';
       var input = null;
       if (opts.isPrompt){
@@ -29317,10 +29337,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         if (opts.mono) input.style.font = '12px/1.6 ui-monospace,Menlo,monospace';
         inWrap.appendChild(input);
       }
-      okBtn.textContent = opts.okText || '확인';
-      cancelBtn.textContent = opts.cancelText || '취소';
+      okBtn.innerHTML = emoIco(esc(opts.okText || '확인'));
+      cancelBtn.innerHTML = emoIco(esc(opts.cancelText || '취소'));
       okBtn.classList.toggle('danger', !!opts.danger);
-      if (opts.extraText){ extraBtn.textContent = opts.extraText; extraBtn.style.display = ''; }
+      if (opts.extraText){ extraBtn.innerHTML = emoIco(esc(opts.extraText)); extraBtn.style.display = ''; }
       else { extraBtn.style.display = 'none'; }
       cur = { resolve: resolve, isPrompt: !!opts.isPrompt, multiline: !!opts.multiline, input: input, choose: !!opts.choose };
       ov.classList.add('on');
@@ -29500,7 +29520,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   <span class="fbSep"></span>
   <button id="fmFontBtn" data-act="font" type="button" title="글꼴 바꾸기 (눌러서 순환 · 화면 표시용)">글꼴</button>
   <span class="fbSep"></span>
-  <button id="fmTimerBtn" data-act="timer" type="button" title="리허설 타이머 — 시작/일시정지 (예상 시간은 낭독 분당 300자 기준)">⏱ 리허설</button>
+  <button id="fmTimerBtn" data-act="timer" type="button" title="리허설 타이머 — 시작/일시정지 (예상 시간은 낭독 분당 300자 기준)"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> 리허설</button>
   <button data-act="timer0" type="button" title="리허설 시간 재설정">↺</button>
   <span class="fbSep fbPosSep"></span>
   <button class="fbPos" data-act="shiftL" type="button" title="본문을 왼쪽으로 (⌃⌥←) — 빈 여백을 마우스로 끌어도 옮겨집니다">◀</button>
@@ -30273,7 +30293,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         var hasImg = Array.isArray(m.content) && m.content.some(function(b){ return b && b.type === 'text' && b.text === '[이미지 첨부]'; });
         var t = cleanUserText(m.content);
         var el = addMsg('user', t || (hasImg ? '(이미지 첨부)' : ''), null, extractCtx(m.content));
-        if (hasImg && t){ var note = document.createElement('div'); note.style.cssText = 'font-size:11px;opacity:.7;margin-top:4px'; note.textContent = '🖼 이미지 첨부됨'; el.appendChild(note); }
+        if (hasImg && t){ var note = document.createElement('div'); note.style.cssText = 'font-size:11px;opacity:.7;margin-top:4px'; note.innerHTML = uiIco('image') + ' 이미지 첨부됨'; el.appendChild(note); }
       } else {
         var a = addMsg('assistant', m.content || '');
         addCopy(a, (function(txt){ return function(){ return txt; }; })(m.content || ''));
