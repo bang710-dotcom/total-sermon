@@ -1810,6 +1810,34 @@ body.focusMode #editorPane .edHlBk{background:transparent}
 .ico[data-c=w]{color:var(--warn)} .ico[data-c=g]{color:var(--good)} .ico[data-c=r]{color:var(--req)}
 .ico[data-c=d]{color:var(--dim)} .ico[data-c=a]{color:var(--accent)} .ico[data-c=y]{color:var(--accent2)} .ico[data-c=b]{color:var(--bad)}
 .toast .ico{vertical-align:-.18em}
+
+/* ===== v632 화면 머리줄(.pgHead) — 상황 설교·구역권찰·Why에서 Way로·시리즈 계획 =====
+   설교 작성 머리줄(#cmHead)과 같은 모양. 주요 동작 단추는 왼쪽 열 맨 아래에서 옮겨 온 원래 단추(id·핸들러 그대로). */
+.pgHead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg);z-index:20;padding:0 0 12px;margin:0 0 4px;border-bottom:1px solid var(--line)}
+.pgHead h2{font-size:var(--fs-xl);font-weight:700;letter-spacing:-.01em;margin:0;white-space:nowrap}
+.pgHead .cmHeadSub{white-space:normal}
+.pgHead .cmActs{display:flex;align-items:center;gap:8px;flex:0 0 auto;flex-wrap:wrap}
+.pgHead .btn{width:auto;padding:8px 14px;font-size:var(--fs-md);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pgMode,.pgWiz{display:inline-flex;gap:8px;align-items:center}
+#page-lbt:has(#lbtYearMeta[hidden]) .pgMode[data-pgmode="year"],
+#page-lbt:has(#lbtTopicMeta[hidden]) .pgMode[data-pgmode="topic"]{display:none}
+#page-series:has(#seriesMeta[style*="none"]) .pgWiz{display:none}
+.pgHelp{margin:12px 0 6px}
+@media (min-width: 900px) and (hover: hover){
+  #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
+  #occHead,#zoneHead,#lbtHead,#seriesHead{grid-column:1 / -1}
+  #occMeta,#zoneMeta,#lbtMeta{top:18px}
+}
+@media (hover: none) and (orientation: landscape) and (min-width: 1000px){
+  #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
+  #occHead,#zoneHead,#lbtHead,#seriesHead{grid-column:1 / -1}
+}
+@media (max-width: 899px), (hover: none){
+  .pgHead{position:sticky;top:0;margin:-10px 0 12px;padding:10px 0}
+  .pgHead h2{font-size:var(--fs-lg)}
+  .pgHead .btn{padding:9px 12px;min-height:40px}
+}
+@media (max-width: 600px){ .pgHead .cmHeadL{flex-basis:100%} .pgHead .cmActs{flex:1 1 auto} }
 </style>
 </head>
 <body>
@@ -2110,23 +2138,27 @@ body.focusMode #editorPane .edHlBk{background:transparent}
 
     <!-- ============ 상황 설교 구상 ============ -->
     <section class="page" id="page-occ">
+      <div class="pgHead" id="occHead">
+        <div class="cmHeadL"><h2>상황 설교 구상</h2><div class="cmHeadSub">특정 상황(대상·시기·목적)에 맞는 설교 개요를 구상합니다</div></div>
+        <div class="cmActs"><button class="btn sub" id="occ_new" type="button">✚ 새로 시작</button><button class="btn" id="occ_gen"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 개요 생성</button></div>
+      </div>
       <div id="occMeta">
-        <div class="cnt" style="margin-bottom:8px">특정 상황(대상·시기·목적)에 맞는 설교 개요를 구상합니다.</div>
         <label style="margin-top:0">설교일</label><input type="date" id="occ_date">
         <label>설교 상황 — 대상, 시기, 목적 등</label>
         <textarea id="occ_sit" rows="8" placeholder="예) 여름 수련회 둘째 날 저녁 집회. 대학 새내기가 절반, 신앙의 첫 결단을 끌어내는 자리. 찬양 후 바로 설교."></textarea>
-        <div class="toolrow"><button class="btn" id="occ_gen">개요생성</button></div>
-        <div class="cnt" style="margin-top:8px">Opus가 본문·주제(근거 포함)·대지 3개(근거·적용 포함) 선택지 3세트를 만듭니다. 세트를 그 자리에서 다듬은 뒤 [이 개요로 설교 작성]을 누르면 설교 작성으로 넘어갑니다.</div>
-        <button class="btn sub" id="occ_new" type="button" style="width:100%;margin-top:14px">✚ 새 설교 시작하기</button>
-        <div class="cnt" style="margin-top:6px;color:var(--dim);font-size:var(--fs-sm)">오른쪽에 생성된 선택지를 비웁니다. 설교일·상황 입력은 그대로 두므로, 상황만 고쳐 다시 [개요생성]을 누르시면 됩니다.</div>
+        <div class="cmSec pgHelp"><span>개요 생성 안내</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+        <div class="hlpTx" hidden>Opus가 본문·주제(근거 포함)·대지 3개(근거·적용 포함) 선택지 3세트를 만듭니다. 세트를 그 자리에서 다듬은 뒤 [이 개요로 설교 작성]을 누르면 설교 작성으로 넘어갑니다.<br><br>[새로 시작]은 오른쪽에 생성된 선택지를 비웁니다. 설교일·상황 입력은 그대로 두므로, 상황만 고쳐 다시 [개요 생성]을 누르시면 됩니다.</div>
       </div>
-      <div id="occPane"><div class="empty">설교일과 상황을 입력하고 [개요생성]을 눌러 주세요.</div></div>
+      <div id="occPane"><div class="empty">설교일과 상황을 입력하고 [개요 생성]을 눌러 주세요.</div></div>
     </section>
 
     <!-- ============ 구역권찰 설교 구상 (v579) ============ -->
     <section class="page" id="page-zone">
+      <div class="pgHead" id="zoneHead">
+        <div class="cmHeadL"><h2>구역권찰 설교 구상</h2><div class="cmHeadSub">주일 담임목사님 설교와 소그룹 교재를 바탕으로 금요 구역권찰 예배 설교(3대지) 개요를 구상합니다</div></div>
+        <div class="cmActs"><button class="btn sub" id="zone_new" type="button">✚ 새로 시작</button><button class="btn" id="zone_gen" type="button"><svg class=ico aria-hidden=true><use href=#i-pen></use></svg> 3대지 설교 구상</button></div>
+      </div>
       <div id="zoneMeta">
-        <div class="cnt" style="margin-bottom:8px">주일 담임목사님 설교와 소그룹 교재를 바탕으로 금요 구역권찰 예배 설교(3대지) 개요를 구상합니다.</div>
         <label style="margin-top:0">설교일</label><input type="date" id="zone_date">
         <label>① 주일 설교 — 유튜브 링크 또는 설교원고 홈페이지 주소</label>
         <input type="url" id="zone_src" placeholder="https://www.youtube.com/watch?v=… 또는 https://www.youngnak.net/…" autocomplete="off">
@@ -2137,23 +2169,26 @@ body.focusMode #editorPane .edHlBk{background:transparent}
         <label>② 소그룹 교재 — HWPX · DOCX · PDF</label>
         <input type="file" id="zone_guideFile" accept=".hwpx,.docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
         <div class="toolrow"><button class="btn sub" id="zone_read" type="button"><svg class=ico aria-hidden=true><use href=#i-download></use></svg> 자료 읽기</button></div>
-        <div class="cnt" style="margin-top:6px;font-size:var(--fs-sm);color:var(--dim)">유튜브는 Gemini로 받아쓰고(수 분), 홈페이지 원고 이미지는 Claude가 읽습니다. 읽은 내용은 오른쪽에서 확인·수정할 수 있습니다.</div>
-        <div class="cnt" style="margin-top:10px;font-size:var(--fs-sm);color:var(--dim)">[3대지 설교 구상]은 개요 선택지 3세트를 만듭니다. 하나를 골라 [이 개요로 설교 작성]을 누르면 설교 작성 탭에서 원고를 이어 씁니다.</div>
-        <div class="toolrow"><button class="btn" id="zone_gen" type="button"><svg class=ico aria-hidden=true><use href=#i-pen></use></svg> 3대지 설교 구상</button></div>
-        <button class="btn sub" id="zone_new" type="button" style="width:100%;margin-top:14px">✚ 새로 시작하기</button>
+        <div class="cmSec pgHelp"><span>자료 읽기 · 구상 안내</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+        <div class="hlpTx" hidden>유튜브는 Gemini로 받아쓰고(수 분), 홈페이지 원고 이미지는 Claude가 읽습니다. 읽은 내용은 오른쪽에서 확인·수정할 수 있습니다.<br><br>[3대지 설교 구상]은 개요 선택지 3세트를 만듭니다. 하나를 골라 [이 개요로 설교 작성]을 누르면 설교 작성 탭에서 원고를 이어 씁니다.</div>
       </div>
       <div id="zonePane"><div class="empty">주일 설교 링크와 소그룹 교재를 넣고 [<svg class=ico aria-hidden=true><use href=#i-download></use></svg> 자료 읽기]를 눌러 주세요.</div></div>
     </section>
 
     <!-- ============ Why에서 Way로 (v590 리더의 뒷담화 → v597 이름·연간 구상) ============ -->
     <section class="page" id="page-lbt">
+      <div class="pgHead" id="lbtHead">
+        <div class="cmHeadL"><h2>Why에서 Way로</h2><div class="cmHeadSub">청년들의 신앙 질문으로 설교 개요와 1년 설교 계획을 구상합니다</div></div>
+        <div class="cmActs"><span class="pgMode" data-pgmode="year"><button class="btn sub" id="lbtY_new" type="button">✚ 새로 시작</button><button class="btn" id="lbtY_gen" type="button"><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> 연간 계획 구상</button></span><span class="pgMode" data-pgmode="topic"><button class="btn sub" id="lbt_new" type="button">✚ 새로 시작</button><button class="btn" id="lbt_gen" type="button"><svg class=ico aria-hidden=true><use href=#i-pen></use></svg> 설교 개요 구상</button></span></div>
+      </div>
       <div id="lbtMeta">
         <div class="lbtModes">
           <button class="lbtModeBtn" data-mode="year" type="button"><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> 연간 설교 구상</button>
           <button class="lbtModeBtn" data-mode="topic" type="button"><svg class=ico aria-hidden=true><use href=#i-search></use></svg> 주제별 설교 구상</button>
         </div>
         <div id="lbtYearMeta" hidden>
-          <div class="cnt" style="margin-bottom:8px">한 달에 대주제(질문 분류) 하나, 그 달의 주일마다 그 분류의 질문을 설교하는 1년 계획을 세웁니다. 먼저 빠지는 월·주일을 표시해 주세요.</div>
+          <div class="cmSec pgHelp"><span>연간 구상 안내</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+          <div class="hlpTx" hidden>한 달에 대주제(질문 분류) 하나, 그 달의 주일마다 그 분류의 질문을 설교하는 1년 계획을 세웁니다. 먼저 빠지는 월·주일을 표시해 주세요.<br><br>계획이 나오면 오른쪽에서 월 주제·주별 질문을 고친 뒤 [계획 확정]을 누르세요. 확정하면 주차를 골라 개요 초안 선택지를 만들 수 있습니다.</div>
           <div class="row2">
             <div><label style="margin-top:0">연도</label><input type="number" id="lbtY_year" min="2025" max="2100"></div>
             <div><label style="margin-top:0">예배구분</label><input type="text" id="lbtY_service" placeholder="대학부"></div>
@@ -2165,12 +2200,10 @@ body.focusMode #editorPane .edHlBk{background:transparent}
           <div id="lbtY_sum" class="cnt" style="margin-top:8px;font-size:var(--fs-sm)"></div>
           <label>요청사항 (선택)</label>
           <textarea id="lbtY_req" rows="3" placeholder="예) 3월은 새내기가 많으니 교회와 공동체로 / 12월은 한 해를 정리하는 달로"></textarea>
-          <div class="toolrow"><button class="btn" id="lbtY_gen" type="button"><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> 연간 계획 구상</button></div>
-          <div class="cnt" style="margin-top:6px;font-size:var(--fs-sm);color:var(--dim)">계획이 나오면 오른쪽에서 월 주제·주별 질문을 고친 뒤 [계획 확정]을 누르세요. 확정하면 주차를 골라 개요 초안 선택지를 만들 수 있습니다.</div>
-          <button class="btn sub" id="lbtY_new" type="button" style="width:100%;margin-top:14px">✚ 연간 계획 새로 시작</button>
         </div>
         <div id="lbtTopicMeta" hidden>
-        <div class="cnt" style="margin-bottom:8px">LTC에서 리더들과 나누는 청년들의 신앙 질문 100개입니다. 질문 하나, 또는 서로 이어진 질문 여러 개를 골라 설교 개요를 구상합니다.</div>
+        <div class="cmSec pgHelp"><span>주제별 구상 안내</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+        <div class="hlpTx" hidden>LTC에서 리더들과 나누는 청년들의 신앙 질문 100개입니다. 질문 하나, 또는 서로 이어진 질문 여러 개를 골라 설교 개요를 구상합니다.<br><br>개요 선택지 3세트를 만듭니다. 하나를 골라 [이 개요로 설교 작성]을 누르면 설교 작성 탭에서 원고를 이어 씁니다. 저장한 설교는 질문 옆에 ✓ 표시가 붙습니다.</div>
         <div class="row2">
           <div><label style="margin-top:0">설교일</label><input type="date" id="lbt_date"></div>
           <div><label style="margin-top:0">예배구분</label><input type="text" id="lbt_service" placeholder="대학부"></div>
@@ -2181,9 +2214,6 @@ body.focusMode #editorPane .edHlBk{background:transparent}
         <div id="lbtQList"></div>
         <label>요청사항 (선택)</label>
         <textarea id="lbt_req" rows="3" placeholder="예) 본문은 시편에서 / 이번 주 LTC에서 나온 이야기: … / 새가족이 많은 주"></textarea>
-        <div class="toolrow"><button class="btn" id="lbt_gen" type="button"><svg class=ico aria-hidden=true><use href=#i-pen></use></svg> 설교 개요 구상</button></div>
-        <div class="cnt" style="margin-top:6px;font-size:var(--fs-sm);color:var(--dim)">개요 선택지 3세트를 만듭니다. 하나를 골라 [이 개요로 설교 작성]을 누르면 설교 작성 탭에서 원고를 이어 씁니다. 저장한 설교는 질문 옆에 ✓ 표시가 붙습니다.</div>
-        <button class="btn sub" id="lbt_new" type="button" style="width:100%;margin-top:14px">✚ 새로 시작하기</button>
         </div>
       </div>
       <div id="lbtPane"><div class="empty">왼쪽에서 질문을 고르고 [<svg class=ico aria-hidden=true><use href=#i-pen></use></svg> 설교 개요 구상]을 눌러 주세요.</div></div>
@@ -2204,6 +2234,10 @@ body.focusMode #editorPane .edHlBk{background:transparent}
 
     <!-- ============ 시리즈 계획 (데스크탑) ============ -->
     <section class="page" id="page-series">
+      <div class="pgHead" id="seriesHead">
+        <div class="cmHeadL"><h2>시리즈 계획</h2><div class="cmHeadSub">시리즈 설교 계획을 세우고 회차별 설교 주제와 묵상 일정을 만듭니다</div></div>
+        <div class="cmActs"><span class="pgWiz"><button class="btn sub" id="sp_back">← 시리즈 목록</button><button class="btn sub" id="sp_resync">↻ 시트에서 재동기화</button></span></div>
+      </div>
       <div id="seriesListView">
         <div class="toolrow seriesCreateRow" style="max-width:560px;margin-bottom:6px;gap:8px"><button class="btn" id="sl_new"><span class="addic" aria-hidden="true">＋</span><span>대학부 시리즈</span></button><button class="btn" id="sl_topic"><span class="addic" aria-hidden="true">＋</span><span>주제별 시리즈</span></button><button class="btn gold" id="sl_dawn"><svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg><span>새벽기도 시리즈</span></button></div>
         <div class="cnt" style="margin-bottom:12px">시리즈를 선택하면 마법사로 들어가 단계별로 확인·수정하고 그 시점부터 재사용할 수 있습니다.</div>
@@ -2211,10 +2245,6 @@ body.focusMode #editorPane .edHlBk{background:transparent}
         <div id="slItems"></div>
       </div>
       <div id="seriesMeta">
-        <div style="display:flex;align-items:center;gap:10px;padding-bottom:10px">
-          <button class="linkbtn" id="sp_back">← 시리즈 목록</button>
-          <button class="linkbtn" id="sp_resync" style="margin-left:auto;color:var(--accent2);font-size:var(--fs-sm)">↻ 시트에서 재동기화</button>
-        </div>
         <div id="regMeta">
         <div class="cnt" style="margin-bottom:8px">시리즈 설교 계획 마법사</div>
         <label style="margin-top:0">성경 (책 또는 범위) *</label><input type="text" id="sp_book" placeholder="예: 로마서 / 요한복음 13-21장">
@@ -2229,7 +2259,8 @@ body.focusMode #editorPane .edHlBk{background:transparent}
         <div class="cnt" id="sp_status" style="margin-top:6px;line-height:1.8"></div>
         <div class="toolrow"><button class="btn" id="sp_reqDevo">① 묵상 일정 요청</button></div>
         <div class="toolrow"><button class="btn" id="sp_reqSermon" disabled>② 설교 주제 요청</button></div>
-        <div class="cnt" style="margin-top:10px">흐름: ① 요청 → Cowork "요청함 처리해줘" → 버튼이 파래지면 [요청 결과] → 오른쪽에서 검토·수정 → 확정(묵상집 등록) → ② 요청 → [요청 결과] → 주일별 선택지 고르고 수정 → 확정(설교마스터 [구상/연구]) → [묵상집 PDF 요청]. 위 타임라인의 단계를 누르면 해당 화면으로 이동합니다.</div>
+        <div class="cmSec pgHelp"><span>진행 순서</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+        <div class="hlpTx" hidden>흐름: ① 요청 → Cowork "요청함 처리해줘" → 버튼이 파래지면 [요청 결과] → 오른쪽에서 검토·수정 → 확정(묵상집 등록) → ② 요청 → [요청 결과] → 주일별 선택지 고르고 수정 → 확정(설교마스터 [구상/연구]) → [묵상집 PDF 요청]. 위 타임라인의 단계를 누르면 해당 화면으로 이동합니다.</div>
         </div>
         <div id="dawnMeta" style="display:none">
           <div class="cnt" style="margin-bottom:8px">새벽기도 주간 설교 마법사 — 한 주(주일~금 6일)를 한 번에. 토요일은 담임목사님 담당이라 제외됩니다.</div>
@@ -2241,7 +2272,8 @@ body.focusMode #editorPane .edHlBk{background:transparent}
           <label>요청사항 (선택)</label><textarea id="dw_note" rows="2" placeholder="예: 화요일은 절기 강조 / 특정 인물·주제 우선 등"></textarea>
           <div class="cnt" id="dw_preview" style="margin-top:8px"></div>
           <div class="toolrow"><button class="btn" id="dw_gen">주간 설교 주제 생성</button></div>
-          <div class="cnt" style="margin-top:10px">흐름: 날짜 입력 → 그 주 주일~금 6일의 통독 범위 자동 확정 → [주간 설교 주제 생성] → 날마다 3개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로, 주일 설교는 묵상집용 요약도 함께 저장됩니다.</div>
+          <div class="cmSec pgHelp"><span>진행 순서</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+          <div class="hlpTx" hidden>흐름: 날짜 입력 → 그 주 주일~금 6일의 통독 범위 자동 확정 → [주간 설교 주제 생성] → 날마다 3개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로, 주일 설교는 묵상집용 요약도 함께 저장됩니다.</div>
         </div>
         <div id="topicMeta" style="display:none">
           <div class="cnt" style="margin-bottom:8px">주제별 시리즈 마법사 — 본문 범위 대신 <b>주제</b>로 묶는 시리즈입니다. 묵상 일정 없이 회차마다 설교 주제 선택지를 바로 생성합니다. (예: 수련회 4회 — 여는예배·집회1·집회2·닫는예배 / 국내선교 3회 / 주일 4주간 한 주제 등)</div>
@@ -2257,7 +2289,8 @@ body.focusMode #editorPane .edHlBk{background:transparent}
           <label>요청사항 (선택)</label><textarea id="tp_note" rows="2" placeholder="예: 특정 본문·인물 우선 / 피하고 싶은 주제 등"></textarea>
           <div class="cnt" id="tp_preview" style="margin-top:8px"></div>
           <div class="toolrow"><button class="btn" id="tp_gen">주제별 설교 주제 생성</button></div>
-          <div class="cnt" style="margin-top:10px">흐름: 주제·횟수·회차·배경 입력 → [주제별 설교 주제 생성] → 회차마다 3~4개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로. 묵상 일정·묵상집은 만들지 않습니다.</div>
+          <div class="cmSec pgHelp"><span>진행 순서</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+          <div class="hlpTx" hidden>흐름: 주제·횟수·회차·배경 입력 → [주제별 설교 주제 생성] → 회차마다 3~4개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로. 묵상 일정·묵상집은 만들지 않습니다.</div>
         </div>
       </div>
       <div id="seriesPane"><div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.</div></div>
@@ -18818,7 +18851,7 @@ function occVisHtml(o, i){
 }
 function renderOccPane(){
   var box = $('#occPane'), O = state.occ;
-  if (!O.opts.length) { box.innerHTML = '<div class="empty">설교일과 상황을 입력하고 [개요생성]을 눌러 주세요.</div>'; return; }
+  if (!O.opts.length) { box.innerHTML = '<div class="empty">설교일과 상황을 입력하고 [개요 생성]을 눌러 주세요.</div>'; return; }
   var h = '<div class="card"><b>설교 개요 선택지 3세트</b><div class="cnt" style="margin-top:4px">' +
     (O.at ? '생성 ' + esc(O.at) + ' · ' : '') + '마음에 드는 선택지를 골라 [이 개요로 설교 작성]을 누르세요. 고칠 곳은 카드 아래 [<svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 개요 다듬기]에서 바로 고치면 카드에 반영됩니다.</div></div>';
   h += O.opts.map(function(o, i){
@@ -18948,14 +18981,14 @@ $('#occ_gen').addEventListener('click', aiOccGen);
 /* [✚ 새 설교 시작하기] — 오른쪽 선택지 3세트를 비운다 (v564).
    v563까지는 작성 버퍼를 지우고 [설교 작성] 화면으로 넘어가 버려서, 여기서 구상을 다시 시작하려던
    의도와 어긋났다(작성 화면의 같은 이름 버튼 #c_new 가 그 역할을 따로 갖고 있다).
-   설교일·상황 입력은 그대로 두어, 상황만 고쳐 [개요생성]을 다시 누를 수 있게 한다. */
+   설교일·상황 입력은 그대로 두어, 상황만 고쳐 [개요 생성]을 다시 누를 수 있게 한다. */
 $('#occ_new').addEventListener('click', async function(){
   var O = state.occ;
   if (!O || !O.opts || !O.opts.length){ toast('비울 선택지가 없습니다.'); return; }
-  if (!await uiConfirm('생성된 선택지 ' + O.opts.length + '세트를 비울까요?\n\n설교일·상황 입력은 그대로 두므로, 상황을 고쳐 [개요생성]을 다시 누르시면 됩니다.', { okText: '비우기', danger: true })) return;
+  if (!await uiConfirm('생성된 선택지 ' + O.opts.length + '세트를 비울까요?\n\n설교일·상황 입력은 그대로 두므로, 상황을 고쳐 [개요 생성]을 다시 누르시면 됩니다.', { okText: '비우기', danger: true })) return;
   O.opts = []; O.at = '';
   occSaveNow(); renderOccPane();
-  toast('선택지를 비웠습니다 — 상황을 고쳐 [개요생성]을 눌러 주세요.');
+  toast('선택지를 비웠습니다 — 상황을 고쳐 [개요 생성]을 눌러 주세요.');
 });
 $('#occPane').addEventListener('click', async function(e){
   if (e.target.closest('#occRegen') && await uiConfirm('선택지 3세트를 새로 생성할까요? 현재 선택지는 사라집니다.')) aiOccGen();
@@ -28951,7 +28984,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v631';
+var APP_VER = 'v632';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
