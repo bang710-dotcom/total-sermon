@@ -1740,24 +1740,34 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
 /* ===== 원고 스타일 전환 = 오른쪽 작성창 머리 (v625) =====
    #editorPane 은 renderEditor 가 통째로 다시 그리므로 그 안에 넣지 않고, 바로 위 형제(#edStyleBar)로 둔다.
    칩 핸들러는 $$('#c_style .chip') 으로 걸려 있어 위치와 무관하다. */
-#edStyleBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+#edStyleBar{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}
+#edStyleBar .esbInfo{flex:1 1 260px;min-width:0;display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap}
+#edStyleBar .edTitle{min-width:0;font-size:var(--fs-xl);line-height:1.35;overflow-wrap:anywhere}
+#edStyleBar .edRef{margin-top:0;white-space:nowrap}
+#edStyleBar .esbStyle{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:10px}
+#editorPane .edHeader:empty{display:none}
 #edStyleBar .esbLab{font-size:var(--fs-sm);color:var(--dim);font-weight:600}
 #edStyleBar #c_style{display:inline-flex;gap:2px;flex-wrap:nowrap;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:3px}
 #edStyleBar #c_style .chip{border:none;background:none;border-radius:7px;padding:6px 14px;font-size:var(--fs-md);font-weight:600;color:var(--dim)}
 #edStyleBar #c_style .chip:hover:not(.on){color:var(--text);background:var(--card2)}
 #edStyleBar #c_style .chip.on{background:var(--accent);color:var(--on-accent)}
 #edStyleBar #c_style .chip.gold.on{background:var(--accent2);color:var(--on-gold)}
+/* v626: 스타일 줄은 오른쪽 열(#edCol) 맨 위에 고정 — 왼쪽 열의 [정보·구조·점검·산출물] 탭과 같은 높이에 붙는다.
+   (그리드 칸에 혼자 있으면 칸 높이가 줄 높이뿐이라 sticky 가 걸리지 않아서 작성창과 한 묶음으로 감쌌다) */
+#edCol{min-width:0}
+#edStyleBar{position:sticky;top:0;z-index:15;background:var(--bg)}
 @media (min-width: 900px) and (hover: hover){
-  #page-compose.on{grid-template-rows:auto auto minmax(0,1fr)}
-  #page-compose.on #composeMeta{grid-row:2 / span 2}
-  #page-compose.on #edStyleBar{grid-column:2;margin:0}
-  #page-compose.on #editorPane{grid-column:2}
+  #edStyleBar{top:72px;margin:0 0 14px;padding:0 0 12px}
 }
+@media (max-width: 899px), (hover: none){
+  #edStyleBar{top:var(--cmHeadH,112px);padding:8px 0 10px;margin:0 0 12px}
+  #edStyleBar .edTitle{font-size:var(--fs-lg)}
+}
+/* 아이패드 가로: 오른쪽 열이 스스로 스크롤하는 칸이 아니라 작성창이 스크롤한다 — 스타일 줄은 그 위에 그대로 서 있다 */
 @media (hover: none) and (orientation: landscape) and (min-width: 1000px){
-  #page-compose.on{grid-template-rows:auto auto minmax(0,1fr)}
-  #page-compose.on #composeMeta{grid-row:2 / span 2}
-  #page-compose.on #edStyleBar{grid-column:2;margin:0}
-  #page-compose.on #editorPane{grid-column:2}
+  #page-compose.on #edCol{min-height:0;display:flex;flex-direction:column}
+  #page-compose.on #edStyleBar{position:static;flex:0 0 auto;padding:0 0 10px;margin:0 0 12px}
+  #page-compose.on #editorPane{flex:1 1 auto}
 }
 body.focusMode #edStyleBar{display:none!important}
 #edStyleBar{transition:opacity .5s ease}
@@ -2046,14 +2056,18 @@ body.fmPhase1 #edStyleBar{opacity:0;pointer-events:none}
           <button class="linkbtn" id="checkInbox">요청함 상태 확인</button>
         </div>
       </div>
-      <div id="edStyleBar"><span class="esbLab">원고 스타일</span>
-        <div class="chips" id="c_style">
-        <span class="chip gold" data-v="카드원고">카드원고</span>
-        <span class="chip on" data-v="기본원고">기본원고</span>
-        <span class="chip" data-v="자유원고">자유원고</span>
+      <div id="edCol">
+        <div id="edStyleBar">
+          <div class="esbInfo"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div></div>
+          <div class="esbStyle"><span class="esbLab">원고 스타일</span>
+          <div class="chips" id="c_style">
+          <span class="chip gold" data-v="카드원고">카드원고</span>
+          <span class="chip on" data-v="기본원고">기본원고</span>
+          <span class="chip" data-v="자유원고">자유원고</span>
+          </div></div>
         </div>
+        <div id="editorPane"></div>
       </div>
-      <div id="editorPane"></div>
     </section>
 
     <!-- ============ 상황 설교 구상 ============ -->
@@ -10962,7 +10976,8 @@ var FREE_PARSE_LEGEND =
 
 function renderEditor(){
   var c = state.compose;
-  var html = '<div class="edHeader"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div>' +
+  /* v626: 제목·본문(#edTitle·#edRef)은 작성창 위 고정 줄(#edStyleBar)로 옮겼다 — 스크롤해도 보이게. 여기엔 집중 모드 단추만 */
+  var html = '<div class="edHeader">' +
     (c.style === '자유원고'
       ? '<button class="edFocusBtn" type="button" title="집중 모드 — 다른 화면을 숨기고 글쓰기에만 집중 (자유원고 전용)">' +
         '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>집중 모드</button>'
@@ -28767,7 +28782,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v625';
+var APP_VER = 'v626';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
