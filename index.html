@@ -1775,6 +1775,17 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
 body.focusMode #edStyleBar{display:none!important}
 #edStyleBar{transition:opacity .5s ease}
 body.fmPhase1 #edStyleBar{opacity:0;pointer-events:none}
+
+/* 본문연구 AI 정리 — 책 전체 구조 · 앞뒤 관계 (v628) */
+.stSeg.stHere{background:var(--accent-soft);border-radius:var(--r-sm);padding:6px 8px;border-top-color:transparent}
+.stSeg.stHere + .stSeg{border-top-color:transparent}
+.stHereTag{color:var(--accent);font-weight:700;margin-left:6px;font-size:var(--fs-xs)}
+.stCtxRow{display:flex;gap:9px;align-items:flex-start;padding:6px 0;border-top:1px dashed var(--line)}
+.stCtxRow:first-of-type{border-top:none}
+.stCtxTag{flex:0 0 34px;text-align:center;font-size:var(--fs-xs);font-weight:700;color:var(--dim);border:1px solid var(--line);border-radius:var(--r-sm);padding:2px 0}
+.stCtxMe .stCtxTag{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
+.stCtxBody{flex:1 1 auto;min-width:0;font-size:var(--fs-sm);line-height:1.6;color:var(--text)}
+.stCtxRef{color:var(--accent2)}
 </style>
 </head>
 <body>
@@ -6404,10 +6415,10 @@ function refAuditBare(list, bookIdx){
   if (bookIdx == null) return [];
   var out = [], seen = {};
   (list || []).forEach(function(x){
-    var m = String(x || '').match(/^\s*(\d+)\s*[:장]\s*(\d+)(?:\s*[-~–—]\s*(\d+))?\s*$/);
+    var m = String(x || '').match(/^\s*(\d+)\s*[:장]\s*(\d+)(?:\s*[-~–—]\s*(?:(\d+)\s*:\s*)?(\d+))?\s*$/);   /* v628: 장을 넘는 범위도 */
     if (!m) return;
     var label = String(x).trim(); if (seen[label]) return; seen[label] = 1;
-    var why = refWhyBad(bookIdx, +m[1], +m[2], +m[1], m[3] ? +m[3] : +m[2]);
+    var why = refWhyBad(bookIdx, +m[1], +m[2], m[3] ? +m[3] : +m[1], m[4] ? +m[4] : +m[2]);
     if (why) out.push({ ref: (BOOK_FULL[bookIdx] || '') + ' ' + label, why: why });
   });
   return out;
@@ -6477,12 +6488,13 @@ var MSG_DIVERSITY_RULE = '\n★선택지 다양성(필수·5결 매트릭스): �
 var MISUSE_RULE = '\n★"흔한 오용"(필수): 이 본문을 강단에서 다룰 때 실제로 자주 나오는 잘못된 해석을 0~3개 짚는다. 유형은 다섯 가지 — ①가짜 어원(원어의 어원·구성 요소로 본문에 없는 뜻을 만들어 냄) ②풍유적 곡해(서사의 사물·숫자·인물에 본문이 주지 않은 상징을 붙임) ③아전인수 적용(1차 독자의 특수 정황에 매인 약속을 오늘 청중 개인에게 그대로 옮김) ④문맥 이탈(앞뒤 문맥을 끊고 한 구절만 떼어 반대 뜻으로 씀) ⑤근거 없는 인용(확인되지 않은 고고학·풍습·통계·일화를 사실처럼 인용함). 자주 지적되는 사례로는 물맷돌 다섯 개의 상징화, 야베스의 기도, 아가페와 필레오의 과장된 대비, 렘 29:11·빌 4:13·시 91편의 개인 번영 약속화, "바늘귀 문"처럼 출처 없는 풍습 설명 등이 있다. ★규칙: 이 본문에 실제로 해당하는 것만 적고, 억지로 채우지 않는다(없으면 빈 배열 []). 특정 설교자를 지목하지 말고 해석 내용만 다룬다. "바로잡기"에는 본문이 실제로 무엇을 말하는지를 한두 문장으로 적는다.';
 
 var P_STUDYSYN = [
-'당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·개역개정 절들·원문[히브리어/헬라어]·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석·ESV 스터디바이블 주석·Holman 핸드북 발췌)을 읽고 목사님 설교 방법에 맞춰 주해 재료를 정리한다.',
+'당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·책·개역개정 절들·원문[히브리어/헬라어]·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석·ESV 스터디바이블 주석·Holman 핸드북 발췌·책개요[Holman 핸드북의 큰 단락·소단락 제목과 범위 — "← 이 본문" 표시]·책소개·앞문맥/뒤문맥[본문 바로 앞뒤의 개역개정 절])을 읽고 목사님 설교 방법에 맞춰 주해 재료를 정리한다.',
 '목사님 방법: ①한 단어를 깊이 판다(두나미스·아케다·하-니글로트처럼 결정적 원어 1~2개) ②1차 독자의 정황을 짧고 분명히 ③본문 자체의 구조·흐름을 빌려온다 ④본문의 절정 한 구절(클라이맥스)을 정확히 짚는다.',
 '출력은 반드시 JSON 객체만(설명·코드펜스 금지):',
-'{"장르":"내러티브/시가/지혜/예언/율법/복음서/서신/묵시 중 하나 + 그 장르가 이 본문 해석에 주는 단서 한 줄","핵심원어":[{"단어":"한글단어","원어":"히브리어/헬라어","발음":"...","스트롱":"H또는G번호","뜻":"한 문장","왜":"이 본문에서 이 단어를 깊이 팔 이유 1~2문장"}],"정황":"1차 독자의 상황·배경 2~3문장","구속사위치":"이 본문이 구속사 흐름에서 차지하는 위치와 그리스도로의 연결 2~3문장","상호본문":[{"본문":"구약/신약 장:절 ref","관계":"인용/암시/성취/대조 등 한 줄"}],"구조":{"유형":"교차대구(chiasm)/평행/점층·발전/수미상관/내러티브 플롯 등","단락":[{"범위":"장:절-절","요지":"이 단락 한 줄 요지"}],"설명":"구조가 메시지를 어떻게 실어 나르는지 1~2문장"},"클라이맥스":{"절":"책 장:절","이유":"이 절이 다른 절들을 호명하는 중심인 이유 1~2문장"},"해석이견":[{"쟁점":"해석이 갈리는 지점 한 줄","견해":["견해A 요약","견해B 요약"],"택함":"어느 쪽이 본문에 더 충실한지와 이유 1~2문장"}],"신학주제":["이 본문이 여는 신학 주제 2~4개"],"흔한오용":[{"주장":"강단에서 자주 들리는 잘못된 해석 한 줄","유형":"가짜어원/풍유곡해/아전인수/문맥이탈/근거없는인용 중 하나","바로잡기":"본문이 실제로 말하는 것 1~2문장"}],"설교다리":"주해에서 오늘 청중의 삶으로 넘어가는 다리 2~3문장(대지를 대신 쓰지는 말 것)"}',
+'{"장르":"내러티브/시가/지혜/예언/율법/복음서/서신/묵시 중 하나 + 그 장르가 이 본문 해석에 주는 단서 한 줄","핵심원어":[{"단어":"한글단어","원어":"히브리어/헬라어","발음":"...","스트롱":"H또는G번호","뜻":"한 문장","왜":"이 본문에서 이 단어를 깊이 팔 이유 1~2문장"}],"정황":"1차 독자의 상황·배경 2~3문장","구속사위치":"이 본문이 구속사 흐름에서 차지하는 위치와 그리스도로의 연결 2~3문장","책구조":{"개요":[{"범위":"장:절-장:절","제목":"큰 단락 제목","이본문":true}],"자리":"이 본문이 속한 큰 단락 안에서 어디쯤인지 한 줄","의미":"책 전체의 흐름·주제 전개에서 이 본문이 맡는 구조적 역할 2~4문장(무엇을 열고·잇고·닫는지, 책의 목적과 어떻게 맞물리는지)"},"앞뒤문맥":{"앞":{"범위":"장:절-장:절","요지":"바로 앞 단락 요지 한 줄","관계":"이 본문이 앞에서 무엇을 이어받고 어떻게 잇거나 뒤집는지 1~2문장"},"뒤":{"범위":"장:절-장:절","요지":"바로 뒤 단락 요지 한 줄","관계":"이 본문이 뒤로 무엇을 넘겨주는지 1~2문장"},"기능":"앞뒤 사이에서 이 본문이 하는 일 한 문장"},"상호본문":[{"본문":"구약/신약 장:절 ref","관계":"인용/암시/성취/대조 등 한 줄"}],"구조":{"유형":"교차대구(chiasm)/평행/점층·발전/수미상관/내러티브 플롯 등","단락":[{"범위":"장:절-절","요지":"이 단락 한 줄 요지"}],"설명":"구조가 메시지를 어떻게 실어 나르는지 1~2문장"},"클라이맥스":{"절":"책 장:절","이유":"이 절이 다른 절들을 호명하는 중심인 이유 1~2문장"},"해석이견":[{"쟁점":"해석이 갈리는 지점 한 줄","견해":["견해A 요약","견해B 요약"],"택함":"어느 쪽이 본문에 더 충실한지와 이유 1~2문장"}],"신학주제":["이 본문이 여는 신학 주제 2~4개"],"흔한오용":[{"주장":"강단에서 자주 들리는 잘못된 해석 한 줄","유형":"가짜어원/풍유곡해/아전인수/문맥이탈/근거없는인용 중 하나","바로잡기":"본문이 실제로 말하는 것 1~2문장"}],"설교다리":"주해에서 오늘 청중의 삶으로 넘어가는 다리 2~3문장(대지를 대신 쓰지는 말 것)"}',
+'책구조.개요는 책 전체를 3~7개 큰 단락으로 — 입력 책개요가 있으면 그 큰 단락 구분과 범위를 그대로 따르고(제목만 간결하게), 없으면 널리 인정되는 구분을 쓴다. 이 본문이 속한 단락 하나만 "이본문":true. 범위는 책 이름 없이 "장:절-장:절". 앞뒤문맥은 앞문맥·뒤문맥 절과 책개요의 소단락을 근거로 바로 앞·뒤 단락을 잡고, 책의 처음이나 끝이라 앞·뒤가 없으면 그 칸은 null.',
 '핵심원어는 1~2개만. 구조.단락은 본문 절 범위 안에서만 나눈다. 상호본문·해석이견은 실제로 있을 때만 채우고 없으면 빈 배열 []로 둔다(억지로 만들지 않는다).',
-'근거는 입력의 원문·원어후보·NET·호크마·ESV스터디·Holman에서만 끌어오고 없는 사실을 지어내지 않는다. 주석 입력이 비어 있으면 원문과 절 본문만으로 정리한다.',
+'근거는 입력의 원문·원어후보·NET·호크마·ESV스터디·Holman·책개요·앞뒤문맥에서만 끌어오고 없는 사실을 지어내지 않는다. 주석 입력이 비어 있으면 원문과 절 본문만으로 정리한다.',
 '한국어로, 통찰이 번뜩이되 간결하게. 설교 대지를 대신 쓰지 말고 "연구 재료"를 정리하는 데 집중한다.'].join('\n') + MISUSE_RULE;
 function studyRangeKey(){ var R = STUDY.range; return R ? (R.idx + ':' + R.r.c1 + ':' + R.r.v1 + '-' + R.r.c2 + ':' + R.r.v2) : ''; }
 function studyGatherContext(){
@@ -6500,6 +6512,57 @@ function studyGatherContext(){
   var words = Object.keys(wmap).map(function(code){ var L = STUDY.lex[code] || {}; var w = wmap[code]; return { 단어: w.단어, 스트롱: code, 원어: L.w || '', 발음: L.t || '', 뜻: String(L.d || '').slice(0, 80), 빈도: w.n }; });
   words.sort(function(a, b){ return b.빈도 - a.빈도; });
   return { 절: verses, 원어후보: words.slice(0, 40) };
+}
+/* 책 전체 구조·앞뒤 문맥 근거 (v628) — 「책 전체에서 본문이 갖는 구조적 의미」「앞뒤 내용과의 관계」용.
+   ① 책개요 = Holman 핸드북의 범위 달린 제목(##·###)을 순서대로 + 「개요」 목록, 이 본문과 겹치는 줄에 「← 이 본문」
+   ② 책소개 = Holman 의 개요·목적·주제·신학 절 앞부분  ③ 앞문맥·뒤문맥 = 본문 바로 앞뒤 개역개정 18절씩(장 경계를 넘는다) */
+var STUDY_CTX_N = 18;
+function studyNeighborVerses(){
+  var R = STUDY.range, out = { 앞문맥: [], 뒤문맥: [] };
+  var book = (R && STUDY.nkrv && STUDY.nkrv.books) ? STUDY.nkrv.books[R.idx] : null;
+  if (!book) return out;
+  var chs = book.chapters || [], r = R.r;
+  function line(c, v){ var raw = (chs[c - 1] || [])[v - 1]; return raw ? c + ':' + v + ' ' + String(raw).replace(/\[[HG]\d+\]/g, '') : ''; }
+  var c = r.c1, v = r.v1 - 1, guard = 0;
+  while (out.앞문맥.length < STUDY_CTX_N && c >= 1 && guard++ < 400){
+    if (v < 1){ c--; v = c >= 1 ? (chs[c - 1] || []).length : 0; continue; }
+    var a = line(c, v); if (a) out.앞문맥.unshift(a); v--;
+  }
+  c = r.c2; v = Math.min(r.v2 || 0, (chs[c - 1] || []).length) + 1; guard = 0;
+  while (out.뒤문맥.length < STUDY_CTX_N && c <= chs.length && guard++ < 400){
+    if (v > (chs[c - 1] || []).length){ c++; v = 1; continue; }
+    var b = line(c, v); if (b) out.뒤문맥.push(b); v++;
+  }
+  return out;
+}
+function studyBookOutline(){
+  var R = STUDY.range; if (!R) return Promise.resolve({ 책개요: '', 책소개: '' });
+  var tlo = R.r.c1 * 1000 + R.r.v1, thi = R.r.c2 * 1000 + R.r.v2;
+  return studyLoadHolman(R.idx).then(function(d){
+    var t = d && d.chapters && d.chapters[0] && d.chapters[0][0]; if (!t) return { 책개요: '', 책소개: '' };
+    var src = '\n' + t, re = /\n(#{2,3}) ([^\n]*)/g, m, heads = [];
+    while ((m = re.exec(src))) heads.push({ lv: m[1].length, title: m[2].trim(), start: m.index, at: m.index + m[0].length });
+    function clean(x){ return String(x || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\s+/g, ' ').trim(); }
+    function hit(txt){ var rg = hbTitleRange(txt); return !!(rg && rg.lo <= thi && tlo <= rg.hi); }
+    var lines = [], intro = [];
+    heads.forEach(function(h, k){
+      var body = src.slice(h.at, k + 1 < heads.length ? heads[k + 1].start : src.length);
+      if (hbTitleRange(h.title)) { lines.push({ lv: h.lv, t: (h.lv === 3 ? '  · ' : '') + h.title + (hit(h.title) ? '  ← 이 본문' : '') }); return; }
+      if (/개요/.test(h.title)) {   /* 「개요」 목록(요한복음·로마서 등)은 줄마다 범위가 있다 */
+        body.split('\n').forEach(function(l){ l = l.replace(/^\s*[-*]\s*/, '').trim(); if (l && hbTitleRange(l) && !/^!\[/.test(l)) lines.push({ lv: 1, t: '[개요] ' + l + (hit(l) ? '  ← 이 본문' : '') }); });
+      } else if (/목적|주제|신학|Theme|Purpose/i.test(h.title) && intro.length < 2) {
+        var c0 = clean(body); if (c0) intro.push(h.title + ' — ' + c0.slice(0, 900));
+      }
+    });
+    /* 길면 큰 제목·개요 목록은 모두 두고, 소단락은 이 본문 근처(±6줄)만 남긴다 — 시편처럼 제목이 아주 많은 책 대비 */
+    var txt = lines.map(function(x){ return x.t; }).join('\n');
+    if (txt.length > 3500) {
+      var marks = []; lines.forEach(function(x, i){ if (/← 이 본문/.test(x.t)) marks.push(i); });
+      txt = lines.filter(function(x, i){ return x.lv !== 3 || marks.some(function(k){ return Math.abs(k - i) <= 6; }); })
+        .map(function(x){ return x.t; }).join('\n').slice(0, 3500);
+    }
+    return { 책개요: txt, 책소개: intro.join('\n\n') };
+  }).catch(function(){ return { 책개요: '', 책소개: '' }; });
 }
 /* 원문(히브리어/헬라어) 절들 — ORIG 역본에서 STUDY.range만 추출(코드 제거, 절당 캡) */
 function studyOrigVerses(){
@@ -6664,15 +6727,18 @@ async function studyAiSynth(){
     var esvD = await esvLoad().catch(function(){ return null; });
     var esvBk = esvD && esvD.books ? esvD.books[R.idx] : null;
     var ctx = studyGatherContext();
+    var frame = await studyBookOutline(), nb = studyNeighborVerses();
     var input = {
       본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''),
+      책: BOOK_FULL[R.idx] || '',
       절: ctx.절, 원문: orig, 원어후보: ctx.원어후보,
+      책개요: frame.책개요, 책소개: frame.책소개, 앞문맥: nb.앞문맥, 뒤문맥: nb.뒤문맥,
       NET노트: net ? studyVerseList(net) : [],
       호크마: com ? studyVerseList(com) : [],
       ESV스터디: (esvBk && esvBk.chapters) ? studyVerseList(esvBk) : [],
       Holman발췌: holman || ''
     };
-    var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 9000, aiTick('본문연구 정리'));
+    var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 12000, aiTick('본문연구 정리'));
     var _j = aiJson(out);
     studyAiSet(key, _j);             /* 로컬 저장 + 시트 동기화(다기기) */
     if (STUDY.tab === 'ai') studyRenderPane();
@@ -6701,6 +6767,34 @@ function renderStudyStruct(st, climaxRef){
     + '<div class="stStruct">' + rows + '</div>'
     + (st.설명 ? '<div class="stWhy" style="margin-top:6px">' + stMd(st.설명) + '</div>' : '') + '</div>';
 }
+/* v628: 책 전체에서의 구조적 의미 · 앞뒤 내용과의 관계 */
+function studyBookName(){ var R = STUDY.range; return (R && BOOK_FULL[R.idx]) || '이 책'; }
+function renderStudyFrame(j){
+  var h = '', B = j.책구조, C = j.앞뒤문맥;
+  if (B && ((B.개요 && B.개요.length) || B.의미)){
+    h += '<div class="stAiSec"><h4>' + esc(studyBookName()) + ' 전체에서 본문이 갖는 구조적 의미</h4>';
+    if (B.개요 && B.개요.length) h += '<div class="stStruct">' + B.개요.map(function(x){
+      var on = !!(x && (x.이본문 === true || x.이본문 === 'true'));
+      return '<div class="stSeg' + (on ? ' stHere' : '') + '"><span class="stSegRange">' + esc((x && x.범위) || '') + '</span>'
+        + '<span class="stSegPt">' + esc((x && x.제목) || '') + (on ? '<span class="stHereTag">◀ 이 본문</span>' : '') + '</span></div>';
+    }).join('') + '</div>';
+    if (B.자리) h += '<div class="stWhy" style="margin-top:6px">' + stMd(B.자리) + '</div>';
+    if (B.의미) h += '<div class="stAiBody" style="margin-top:6px">' + stMd(B.의미) + '</div>';
+    h += '</div>';
+  }
+  if (C && (C.앞 || C.뒤 || C.기능)){
+    var row = function(tag, x){
+      if (!x || !(x.범위 || x.요지 || x.관계)) return '<div class="stCtxRow"><span class="stCtxTag">' + tag + '</span><div class="stCtxBody"><span class="stWhy">' + (tag === '앞' ? '책의 처음 — 앞 단락 없음' : '책의 끝 — 뒤 단락 없음') + '</span></div></div>';
+      return '<div class="stCtxRow"><span class="stCtxTag">' + tag + '</span><div class="stCtxBody">'
+        + (x.범위 ? '<b class="stCtxRef">' + esc(x.범위) + '</b> ' : '') + esc(x.요지 || '')
+        + (x.관계 ? '<div class="stWhy">↳ ' + stMd(x.관계) + '</div>' : '') + '</div></div>';
+    };
+    h += '<div class="stAiSec"><h4>앞뒤 내용과의 관계</h4>' + row('앞', C.앞)
+      + '<div class="stCtxRow stCtxMe"><span class="stCtxTag">본문</span><div class="stCtxBody">' + (C.기능 ? stMd(C.기능) : '') + '</div></div>'
+      + row('뒤', C.뒤) + '</div>';
+  }
+  return h;
+}
 function renderStudyAi(j){
   var h = '';
   if (j.장르){ var gs = String(j.장르), gm = gs.match(/^([^+·:—-]+)[+·:—-]\s*(.*)$/); var gLabel = gm ? gm[1].trim() : gs.trim(), gDesc = gm ? gm[2].trim() : '';
@@ -6720,6 +6814,7 @@ function renderStudyAi(j){
   }
   if (j.정황) h += '<div class="stAiSec"><h4>1차 독자 정황</h4><div class="stAiBody">' + stMd(j.정황) + '</div></div>';
   if (j.구속사위치) h += '<div class="stAiSec"><h4>구속사적 위치</h4><div class="stAiBody">' + stMd(j.구속사위치) + '</div></div>';
+  h += renderStudyFrame(j);
   h += renderStudyStruct(j.구조, j.클라이맥스 && j.클라이맥스.절);
   if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) h += '<div class="stAiSec"><h4>클라이맥스 절</h4><div class="stAiBody"><b>' + esc(j.클라이맥스.절 || '') + '</b><br>' + stMd(j.클라이맥스.이유 || '') + '</div></div>';
   if (j.상호본문 && j.상호본문.length) h += '<div class="stAiSec"><h4>상호본문 (인용·암시)</h4>' + j.상호본문.map(function(x){ return '<div class="stXrefRow"><b>' + esc(x.본문 || '') + '</b> — ' + esc(x.관계 || '') + '</div>'; }).join('') + '</div>';
@@ -6736,6 +6831,7 @@ function renderStudyAi(j){
   }).join('') + '</div>';
   if (j.설교다리) h += '<div class="stAiSec"><h4>설교로 넘어가는 다리</h4><div class="stBridge">' + stMd(j.설교다리) + '</div></div>';
   if (!h) return '<div class="cnt">결과가 비었습니다 — 다시 시도해 주세요.</div>';
+  if (!j.책구조 && !j.앞뒤문맥) h += '<div class="cnt" style="margin-top:4px">이 정리는 「' + esc(studyBookName()) + ' 전체에서의 구조적 의미 · 앞뒤 내용과의 관계」가 생기기 전에 만든 것입니다 — 아래 [↻ 다시 정리]를 누르면 함께 정리됩니다.</div>';
   /* 검증 게이트 — AI가 적은 상호본문·클라이맥스·단락 범위가 실재하는 절인지 로컬 성경과 대조 */
   var vf = [];
   try {
@@ -6745,6 +6841,10 @@ function renderStudyAi(j){
     var bi = STUDY.range ? STUDY.range.idx : null;
     var bare = (j.구조 && j.구조.단락 ? j.구조.단락 : []).map(function(sg){ return sg && sg.범위; });
     if (j.클라이맥스 && j.클라이맥스.절) bare.push(j.클라이맥스.절);
+    /* v628: 책 구조·앞뒤 단락 범위(책 이름이 붙어 와도 떼고 대조) */
+    var _bx = []; if (j.책구조 && j.책구조.개요) j.책구조.개요.forEach(function(x){ if (x && x.범위) _bx.push(x.범위); });
+    if (j.앞뒤문맥){ ['앞', '뒤'].forEach(function(k){ var x = j.앞뒤문맥[k]; if (x && x.범위) _bx.push(x.범위); }); }
+    _bx.forEach(function(x){ bare.push(String(x).replace(/^[^\d]+/, '')); });
     vf = vf.concat(refAuditBare(bare, bi));
   } catch (e){ vf = []; }
   return refAuditHtml(vf, '본문 연구 정리') + h;
@@ -6881,6 +6981,18 @@ function studyBibleNoteText(j){
   }
   if (j.정황){ sec('1차 독자 정황'); put(j.정황); }
   if (j.구속사위치){ sec('구속사적 위치'); put(j.구속사위치); }
+  if (j.책구조 && ((j.책구조.개요 && j.책구조.개요.length) || j.책구조.의미)){
+    sec(studyBookName() + ' 전체에서 본문이 갖는 구조적 의미');
+    (j.책구조.개요 || []).forEach(function(x){ L.push('- **' + ((x && x.범위) || '') + '** ' + ((x && x.제목) || '') + (x && (x.이본문 === true || x.이본문 === 'true') ? ' ◀ 이 본문' : '')); });
+    if (j.책구조.자리) put('↳ ' + j.책구조.자리);
+    put(j.책구조.의미);
+  }
+  if (j.앞뒤문맥 && (j.앞뒤문맥.앞 || j.앞뒤문맥.뒤 || j.앞뒤문맥.기능)){
+    sec('앞뒤 내용과의 관계');
+    [['앞', j.앞뒤문맥.앞], ['뒤', j.앞뒤문맥.뒤]].forEach(function(p){ var x = p[1]; if (!x) return;
+      L.push('- **' + p[0] + ' ' + (x.범위 || '') + '** ' + (x.요지 || '')); if (x.관계) put('↳ ' + x.관계); });
+    if (j.앞뒤문맥.기능) put('본문의 기능: ' + j.앞뒤문맥.기능);
+  }
   if (j.구조){
     sec('본문 구조');
     if (typeof j.구조 === 'string') put(j.구조);
@@ -6922,6 +7034,18 @@ function studyResearchText(j, title){
   if (j.핵심원어 && j.핵심원어.length) L.push('핵심원어:\n  ' + j.핵심원어.map(function(w){ return (w.단어 || '') + '(' + (w.원어 || '') + '/' + (w.발음 || '') + ', ' + (w.스트롱 || '') + ') — ' + (w.뜻 || '') + (w.왜 ? ' · ' + w.왜 : ''); }).join('\n  '));
   if (j.정황) L.push('1차 독자 정황: ' + j.정황);
   if (j.구속사위치) L.push('구속사적 위치: ' + j.구속사위치);
+  if (j.책구조 && ((j.책구조.개요 && j.책구조.개요.length) || j.책구조.의미)){
+    L.push(studyBookName() + ' 전체 구조:');
+    (j.책구조.개요 || []).forEach(function(x){ L.push('  ' + ((x && x.범위) || '') + ' ' + ((x && x.제목) || '') + (x && (x.이본문 === true || x.이본문 === 'true') ? '  ◀ 이 본문' : '')); });
+    if (j.책구조.자리) L.push('  자리: ' + j.책구조.자리);
+    if (j.책구조.의미) L.push('  구조적 의미: ' + j.책구조.의미);
+  }
+  if (j.앞뒤문맥){
+    var _P = j.앞뒤문맥;
+    if (_P.앞) L.push('앞 문맥(' + (_P.앞.범위 || '') + '): ' + (_P.앞.요지 || '') + (_P.앞.관계 ? ' — ' + _P.앞.관계 : ''));
+    if (_P.뒤) L.push('뒤 문맥(' + (_P.뒤.범위 || '') + '): ' + (_P.뒤.요지 || '') + (_P.뒤.관계 ? ' — ' + _P.뒤.관계 : ''));
+    if (_P.기능) L.push('앞뒤 사이의 기능: ' + _P.기능);
+  }
   if (j.구조){ if (typeof j.구조 === 'string') L.push('구조: ' + j.구조); else { L.push('구조(' + (j.구조.유형 || '') + '):'); (j.구조.단락 || []).forEach(function(s){ L.push('  ' + (s.범위 || '') + ' — ' + (s.요지 || '')); }); if (j.구조.설명) L.push('  ↳ ' + j.구조.설명); } }
   if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) L.push('클라이맥스: ' + (j.클라이맥스.절 || '') + ' — ' + (j.클라이맥스.이유 || ''));
   if (j.상호본문 && j.상호본문.length) L.push('상호본문: ' + j.상호본문.map(function(x){ return (x.본문 || '') + '(' + (x.관계 || '') + ')'; }).join(', '));
@@ -6980,6 +7104,8 @@ function studyToCompose(){
     if (j.핵심원어 && j.핵심원어.length) ex.push(j.핵심원어.map(function(w){ return (w.단어 || '') + '(' + (w.원어 || '') + ', ' + (w.발음 || '') + ') — ' + (w.뜻 || '') + (w.왜 ? '. ' + w.왜 : ''); }).join(' '));
     if (j.정황) ex.push('1차 독자 정황: ' + j.정황);
     if (j.구속사위치) ex.push(j.구속사위치);
+    if (j.책구조 && j.책구조.의미) ex.push(studyBookName() + ' 전체에서: ' + j.책구조.의미);
+    if (j.앞뒤문맥 && j.앞뒤문맥.기능) ex.push('앞뒤 문맥: ' + j.앞뒤문맥.기능);
     if (j.구조 && typeof j.구조 === 'object' && (j.구조.단락 || []).length){
       ex.push('구조' + (j.구조.유형 ? '(' + j.구조.유형 + ')' : '') + ': '
         + j.구조.단락.map(function(s){ return (s.범위 || '') + ' ' + (s.요지 || ''); }).join(' / ')
@@ -7451,7 +7577,7 @@ function studyRenderPane(){
       pane.innerHTML = '<div class="cnt">\ud83d\udcbe 저장된 본문연구 정리를 불러오는 중\u2026</div>';
       return;
     }
-    pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
+    pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·책 전체에서의 구조적 의미·앞뒤 내용과의 관계·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
       + '<button class="btn gold" id="stAiGen" type="button">본문연구 정리 생성</button>';
     return;
   }
@@ -28785,7 +28911,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v627';
+var APP_VER = 'v628';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
