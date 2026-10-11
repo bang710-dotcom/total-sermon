@@ -1183,9 +1183,10 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
 html{transition:background .2s}
 /* 라이트 = 밝은 회백 바탕·순백 카드·근검정 텍스트·블루 */
 html[data-theme="light"]{
-  --bg:#fbfbfd; --card:#ffffff; --card2:#f5f5f7; --line:#d2d2d7; --line2:#b4b4bb;
-  --text:#1d1d1f; --dim:#6e6e73; --accent:#0071e3; --accent2:#bf4800;
-  --ok:#1a7f37; --warn:#bf4800;
+  --bg:#f0f0f3; --card:#ffffff; --card2:#f7f7f9; --line:#d2d2d7; --line2:#b4b4bb;   /* v634: 바탕 한 톤 아래 — 흰 판이 떠 보이게 */
+  --text:#1d1d1f; --dim:#66666b; --accent:#0066cc; --accent2:#b04200;               /* v634: 내려간 바탕에서도 대비 4.5 이상 */
+  --ok:#1a7f37; --warn:#b04200;
+  --line-soft:#e2e2e7; --raise:0 1px 2px rgba(20,20,40,.07); --raise-hover:0 2px 6px rgba(20,20,40,.10); --track:#e4e4e9;
   --on-accent:#fff; --on-gold:#fff;
   --info:#0058b8; --info-bg:#e8f1fd; --info-line:#9cc4f0;
   --req:#9a6a10; --req-bg:#fdf0db; --req-line:#e0a93a;
@@ -1196,8 +1197,9 @@ html[data-theme="light"]{
 }
 /* 세피아 = 따뜻한 크림 바탕·짙은 녹색 텍스트·그린 강조 */
 html[data-theme="sepia"]{
-  --bg:#f3efe7; --card:#fbf9f3; --card2:#ece6d8; --line:#d9d0bd; --line2:#c2b69c;
-  --text:#1e3932; --dim:#5b6b60; --accent:#00704a; --accent2:#855528;   /* v633: 금색 글자 대비 3.4→5.1 */
+  --bg:#ece6da; --card:#fdfbf6; --card2:#f5f0e6; --line:#d9d0bd; --line2:#c2b69c;   /* v634: 바탕 한 톤 아래 */
+  --line-soft:#e5ddcc; --raise:0 1px 2px rgba(70,50,20,.08); --raise-hover:0 2px 6px rgba(70,50,20,.12); --track:#e2dac9;
+  --text:#1e3932; --dim:#4f5e55; --accent:#00704a; --accent2:#855528;   /* v634: dim 은 탭 회색 판 위에서도 4.5 이상 */   /* v633: 금색 글자 대비 3.4→5.1 */
   --ok:#00704a; --warn:#a6431f;
   --on-accent:#fff; --on-gold:#fff;
   --info:#1e6b4f; --info-bg:#dceee6; --info-line:#7cc0a8;
@@ -1838,6 +1840,33 @@ body.focusMode #editorPane .edHlBk{background:transparent}
   .pgHead .btn{padding:9px 12px;min-height:40px}
 }
 @media (max-width: 600px){ .pgHead .cmHeadL{flex-basis:100%} .pgHead .cmActs{flex:1 1 auto} }
+
+/* ===== v634 밝은 테마 「올린 카드」 — 라이트·세피아만 (다크는 선 버튼 그대로) =====
+   밝은 바탕에서는 투명한 선 버튼이 바탕에 묻혀 밋밋해 보여서, 바탕을 한 톤 내리고 보조 버튼·칩을 흰 판 + 옅은 그림자로 올린다.
+   결과 있음·요청 중·켜짐(.done·.fin·.req·.on) 상태색은 건드리지 않는다. */
+:is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub:not(.done):not(.fin):not(.req):not(.on),
+:is(html[data-theme="light"],html[data-theme="sepia"]) .chip:not(.on),
+:is(html[data-theme="light"],html[data-theme="sepia"]) .lbtModeBtn:not(.on),
+:is(html[data-theme="light"],html[data-theme="sepia"]) .mmBtn,
+:is(html[data-theme="light"],html[data-theme="sepia"]) .navCmd{background:var(--card);border-color:var(--line-soft);box-shadow:var(--raise)}
+:is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub:not(.done):not(.fin):not(.req):not(.on):hover:not(:disabled),
+:is(html[data-theme="light"],html[data-theme="sepia"]) .chip:not(.on):hover,
+:is(html[data-theme="light"],html[data-theme="sepia"]) .lbtModeBtn:not(.on):hover,
+:is(html[data-theme="light"],html[data-theme="sepia"]) .mmBtn:hover{background:var(--card);border-color:var(--line2);box-shadow:var(--raise-hover)}
+:is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub:active:not(:disabled){box-shadow:inset 0 1px 3px rgba(0,0,0,.10)}
+:is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub.done,
+:is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub.fin,
+:is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub.req{box-shadow:var(--raise)}
+/* 입력칸 = 흰 판(내려간 바탕과 구분). 작성창(.edTa)은 자기 규칙을 따른다 */
+:is(html[data-theme="light"],html[data-theme="sepia"]) :is(input[type=text],input[type=date],input[type=url],input[type=number],select,textarea:not(.edTa)){background:var(--card)}
+/* 전환 버튼(탭·원고 스타일): 회색 판 위에 고른 칸만 흰 판으로 */
+:is(html[data-theme="light"],html[data-theme="sepia"]) .cmTabs,
+:is(html[data-theme="light"],html[data-theme="sepia"]) #edStyleBar #c_style{background:var(--track);border-color:transparent}
+:is(html[data-theme="light"],html[data-theme="sepia"]) .cmTabs button.on{background:var(--card);box-shadow:var(--raise)}
+:is(html[data-theme="light"],html[data-theme="sepia"]) #edStyleBar #c_style .chip:not(.on){background:none;border:none;box-shadow:none}
+:is(html[data-theme="light"],html[data-theme="sepia"]) #edStyleBar #c_style .chip:not(.on):hover{background:color-mix(in srgb,var(--card) 60%,transparent)}
+/* 사이드바 현재 화면 표시도 흰 판으로 */
+:is(html[data-theme="light"],html[data-theme="sepia"]) .sidebar button.nav.on{background:var(--card);box-shadow:var(--raise)}
 </style>
 </head>
 <body>
@@ -28984,7 +29013,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v633';
+var APP_VER = 'v634';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
