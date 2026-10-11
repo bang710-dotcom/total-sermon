@@ -1756,6 +1756,9 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
    (그리드 칸에 혼자 있으면 칸 높이가 줄 높이뿐이라 sticky 가 걸리지 않아서 작성창과 한 묶음으로 감쌌다) */
 #edCol{min-width:0}
 #edStyleBar{position:sticky;top:0;z-index:15;background:var(--bg)}
+/* v627: 머리줄 아래 끝과 고정 줄 사이의 틈(데스크탑 약 14px)으로 스크롤되는 작성창이 비치지 않게 위쪽을 같은 배경으로 덮는다.
+   머리줄(#cmHead, z-index 20)이 이 가림막(줄의 z-index 15 안)보다 위라 머리줄은 가리지 않는다. */
+#edStyleBar::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:28px;background:var(--bg);pointer-events:none}
 @media (min-width: 900px) and (hover: hover){
   #edStyleBar{top:72px;margin:0 0 14px;padding:0 0 12px}
 }
@@ -28782,7 +28785,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v626';
+var APP_VER = 'v627';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
