@@ -40,6 +40,12 @@
   → 설명 문단은 `.cmSec` 의 ⓘ(`.hlpBtn`)를 눌러야 보이는 `.hlpTx` 로 접었다.
   → 집중 모드에서는 머리줄도 숨긴다(`body.focusMode #cmHead`, `fmPhase1` 페이드 포함).
 - **원고 작성창 「종이」**(설정 → 원고 작성창, `tsa.edPaper` → `body.edPaper`): 오른쪽 작성창을 테마와 무관한 흰 종이로(`#snPage` 처럼 `#editorPane` 안에서 토큰을 다시 정의), 본문은 **기기에 설치된 명조**(`--edSerif`: AppleMyungjo → 나눔명조 → 바탕 → serif — 웹 글꼴 없음, 없는 기기는 기본 글꼴). 성경 인용이 든 칸은 왼쪽에 빨간 표지(`edQuoteMark` = 빨간 볼드와 같은 `refQuoteTracker`). textarea 라 칸 안 글자 일부만 칠할 수는 없다. 집중 모드에는 적용하지 않는다(`:not(.focusMode)`).
+- **v625 — 내보내기 메뉴의 가지 트리 · 프롬프트 HWPX 삭제 · 컷별 프롬프트 편집 · 원고 스타일 위치** (2026-10-12 목사님 요청)
+  - 머리줄 [내보내기 ▾] 안에 **Total Sermon 내보내기 아래 전환표 + 카드 가지(카드 원고·PDF·PPTX) + 이미지 가지(배경 이미지·전환 표시 HWPX·전환 표시 PDF)** 트리를 되살렸다(`.cmxTree`, 데스크탑 전용). 이름을 누르면 그 단계만(`data-proxy` → 산출물 탭의 실제 `[data-casc]` 버튼), 오른쪽 토글은 **산출물 탭 토글(`.cascsw[data-cascsel]`)의 거울**(`.cmxSw[data-mirror]` → `cascSwToggle`, 종속 관계도 그대로). ⚠ 거울에 `data-cascsel` 을 붙이지 말 것 — `cascSwEl` 이 `#composeMeta` 안의 정본만 찾아야 한다. 이미 만든 산출물은 이름 옆 초록 점(원래 버튼의 `casc-done`).
+  - **[프롬프트 HWPX] 가지(`imgdata`)를 없앴다** — 캐스케이드 단계·`CASC_SEL_KEYS`·`CASC_DEPS`·`CASC_TARGET_KEYS` 에서 모두 뺐고, 옛 저장값(`localStorage.cascSel.imgdata`)은 무시된다. 프롬프트 자체(컷 사이드카 JSON, `ensureCuts`)는 그대로 [배경 이미지 생성]의 앞 단계다. 검색 상세의 요청함 경유 [이미지 프롬프트] 버튼(`reqBtnRow`, 데스크탑 클로드 요청)과 `genImgDataInApp` 은 건드리지 않았다.
+  - **[이미지 낱장 재생성] 창 = 컷별 프롬프트 편집**(`irToggleEd`/`irSave`/`irRevert`/`irAiEn`): 일반·표지 = 표현(사실적/추상적)·한국어 설명(`ko`)·영문 장면(`en` — 엔진이 읽는 부분), 본문 컷 = 합성할 성구(`ref`·`verse`). 「엔진에 보내는 전체 프롬프트」는 `buildBgPrompt`/`buildCoverPrompt` 로 실시간 표시(엔진 선택을 따라감). [한국어 설명으로 영문 다시 쓰기] = 기능별 모델 **`imgprompt`**(기본 Sonnet 자동) + `P_IMGDATA` 의 표현·인물·안전 규칙 줄 + `cutFixGender`. 저장은 **불러온 사이드카 파일에 그대로 덮어쓰고 `origSig` 는 처음 값을 유지**(지금 서명으로 바꾸면 원고 수정 감지가 꺼진다), 고친 컷에 `userEdited:true`. 재생성은 고친 내용을 먼저 저장한 뒤 그 값으로 만든다. 컷이 아직 없으면 창을 열 때 [컷·프롬프트 만들기](이미지 없이 `ensureCuts`)를 제안한다 — 이미지를 만들기 전에 프롬프트부터 고치는 길.
+  - ⚠ **Total(다시 생성)이 고친 프롬프트를 말없이 지우지 않게**: `ensureCuts` 가 `_cascForce` 일 때 `userEdited` 컷이 있고 전환표를 유지하는 실행(`_cascKeepTrans`)이면 「고친 프롬프트 유지 / 새로 만들기」를 묻는다(바깥 클릭 = 유지). 전환표를 새로 잡으면 컷이 바뀌므로 예전처럼 새로 만든다.
+  - **원고 스타일 칩(`#c_style`)은 오른쪽 작성창 바로 위 `#edStyleBar`** 로 옮겼다. `#editorPane` 은 `renderEditor` 가 통째로 다시 그리므로 그 안에 넣지 말 것. 데스크탑·아이패드 가로 그리드는 3행(머리줄 / 스타일 줄 / 작성창)이고 `#composeMeta` 가 2·3행에 걸친다. 집중 모드에서는 숨긴다.
 - **로컬 테스트 요령**: 저장소 폴더를 그대로 띄우면 이전에 등록된 서비스워커가 `index.html` 외 경로(작업 사본)를 가로채 오류 페이지가 뜬다. 작업 사본을 `index.html` 로 심볼릭 링크한 별도 폴더를 다른 포트로 띄워 시험했다. 브라우저 창이 가려져 있으면 rAF·ResizeObserver·스크롤 이벤트가 돌지 않아 집중 모드·머리줄 높이 측정이 멈춘 것처럼 보인다(앱 문제 아님).
 
 ## 새벽설교 제목 옆 찬송 — v607

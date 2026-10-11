@@ -1694,6 +1694,74 @@ body.edPaper:not(.focusMode) #editorPane .edTitle{font-family:var(--edSerif);fon
 body.edPaper:not(.focusMode) #editorPane .edPointTitle{font-family:var(--edSerif);font-size:var(--fs-xl);font-weight:700}
 body.edPaper:not(.focusMode) #editorPane .edAuto{font-family:var(--edSerif);font-size:17px}
 body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-left:14px}
+
+/* ===== v625 내보내기 메뉴의 가지 트리 · 낱장 재생성 프롬프트 편집 ===== */
+.cmExport{min-width:460px}
+.cmxTree{border:1px solid var(--line);border-radius:var(--r-md);padding:8px;margin:6px 2px 2px;background:var(--bg)}
+.cmxHd{font-size:var(--fs-sm);font-weight:700;color:var(--text);padding:2px 4px 8px;display:flex;flex-direction:column;gap:1px}
+.cmxHd small{font-weight:400;font-size:var(--fs-xs);color:var(--dim)}
+.cmxCols{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;margin-top:6px}
+.cmxGrp{font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;color:var(--dim);text-align:center;padding:4px 0 2px}
+.cmxRow{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--card);padding:2px 6px 2px 2px;margin-top:4px}
+.cmMenu .cmxRun{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--text);font-family:inherit;font-size:var(--fs-sm);font-weight:600;padding:7px 6px;border-radius:var(--r-sm);cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmMenu .cmxRun:hover{background:var(--card2)}
+.cmMenu .cmxRun .pxl{overflow:hidden;text-overflow:ellipsis}
+.cmxRow .cascsw{position:relative;top:auto;right:auto;transform:none;flex:0 0 auto}
+.cmMenu .cmxTotal{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:8px;background:var(--accent2);color:var(--on-gold);border:none;border-radius:var(--r-sm);padding:10px;font-family:inherit;font-size:var(--fs-md);font-weight:700;cursor:pointer}
+.cmMenu .cmxTotal:hover{filter:brightness(1.06)}
+.cmMenu .cmxTotal .ico{color:inherit}
+.cmMenu [data-proxy].isDone .pxl::after{content:'●';color:var(--good);font-size:9px;margin-left:6px;vertical-align:2px}
+.cmMenu button:disabled{opacity:.45;cursor:default}
+/* 낱장 재생성 창 */
+.irRow{display:flex;gap:10px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid var(--line)}
+.irNo{flex:0 0 46px;font-weight:700}
+.irMain{flex:1 1 0;min-width:0}
+.irRole{font-size:var(--fs-md)}
+.irTag{font-size:var(--fs-xs);font-weight:700;color:var(--accent2);border:1px solid currentColor;border-radius:var(--r-pill);padding:0 7px;margin-left:4px;vertical-align:1px}
+.irKo{font-size:var(--fs-sm);color:var(--dim);margin-top:2px}
+.irBtns{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
+.irBtns .btn{width:auto}
+.irEd{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--card)}
+.irEd textarea{min-height:0;font-size:var(--fs-md);line-height:1.6}
+.irEd textarea[data-irf="en"]{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:var(--fs-sm)}
+.irLab{display:block;margin:10px 0 4px;font-size:var(--fs-sm);color:var(--text);font-weight:600}
+.irLab span{font-weight:400;color:var(--dim)}
+.irGrid{display:flex;align-items:center;gap:10px}
+.irGrid select{width:auto;flex:1 1 auto;padding:8px 10px;font-size:var(--fs-md)}
+.irRowBtns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.irRowBtns .btn{width:auto;flex:0 0 auto}
+.irState{font-size:var(--fs-xs);color:var(--warn)}
+.irHint{font-size:var(--fs-xs);color:var(--dim);margin-top:6px}
+.irDet{margin-top:10px}
+.irDet summary{font-size:var(--fs-sm);color:var(--accent);padding:2px 0}
+.irPre{white-space:pre-wrap;word-break:break-word;font-size:var(--fs-xs);line-height:1.6;color:var(--dim);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;margin-top:6px;max-height:220px;overflow:auto}
+@media (max-width:600px){ .irRow{flex-wrap:wrap} .irBtns{flex-direction:row;margin-left:56px} }
+
+/* ===== 원고 스타일 전환 = 오른쪽 작성창 머리 (v625) =====
+   #editorPane 은 renderEditor 가 통째로 다시 그리므로 그 안에 넣지 않고, 바로 위 형제(#edStyleBar)로 둔다.
+   칩 핸들러는 $$('#c_style .chip') 으로 걸려 있어 위치와 무관하다. */
+#edStyleBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+#edStyleBar .esbLab{font-size:var(--fs-sm);color:var(--dim);font-weight:600}
+#edStyleBar #c_style{display:inline-flex;gap:2px;flex-wrap:nowrap;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:3px}
+#edStyleBar #c_style .chip{border:none;background:none;border-radius:7px;padding:6px 14px;font-size:var(--fs-md);font-weight:600;color:var(--dim)}
+#edStyleBar #c_style .chip:hover:not(.on){color:var(--text);background:var(--card2)}
+#edStyleBar #c_style .chip.on{background:var(--accent);color:var(--on-accent)}
+#edStyleBar #c_style .chip.gold.on{background:var(--accent2);color:var(--on-gold)}
+@media (min-width: 900px) and (hover: hover){
+  #page-compose.on{grid-template-rows:auto auto minmax(0,1fr)}
+  #page-compose.on #composeMeta{grid-row:2 / span 2}
+  #page-compose.on #edStyleBar{grid-column:2;margin:0}
+  #page-compose.on #editorPane{grid-column:2}
+}
+@media (hover: none) and (orientation: landscape) and (min-width: 1000px){
+  #page-compose.on{grid-template-rows:auto auto minmax(0,1fr)}
+  #page-compose.on #composeMeta{grid-row:2 / span 2}
+  #page-compose.on #edStyleBar{grid-column:2;margin:0}
+  #page-compose.on #editorPane{grid-column:2}
+}
+body.focusMode #edStyleBar{display:none!important}
+#edStyleBar{transition:opacity .5s ease}
+body.fmPhase1 #edStyleBar{opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -1839,10 +1907,26 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
               <button class="btn sub" id="c_hist" type="button" title="이 기기에 남은 이전 버전 보기·비교·되돌리기"><svg class=ico aria-hidden=true><use href=#i-history></use></svg> 이전 버전</button>
             </div></div>
           <div class="cmMenuWrap"><button class="btn gold" type="button" id="cmExportBtn" data-cmmenu="cmExportMenu" aria-haspopup="true" aria-expanded="false"><svg class=ico aria-hidden=true><use href=#i-file></use></svg><span class="cmBtnTx"> 내보내기</span> <svg class=ico aria-hidden=true><use href=#i-chevron></use></svg></button>
-            <div class="cmMenu cmMenuR" id="cmExportMenu" hidden>
+            <div class="cmMenu cmMenuR cmExport" id="cmExportMenu" hidden>
               <button type="button" data-proxy='[data-casc="docx"]'><svg class=ico aria-hidden=true><use href=#i-file></use></svg><span class="pxl">원고 내보내기</span></button>
-              <button type="button" class="desktop-only" data-proxy='[data-casc="total"]'><svg class=ico aria-hidden=true><use href=#i-package></use></svg><span class="pxl">Total Sermon 내보내기</span></button>
-              <button type="button" class="desktop-only" data-proxy='[data-casc="transtable"]'><svg class=ico aria-hidden=true><use href=#i-shuffle></use></svg><span class="pxl">이미지 전환표 생성/수정</span></button>
+              <div class="desktop-only cmxTree">
+                <div class="cmxHd">Total Sermon 내보내기<small>오른쪽 토글을 켠 산출물을 한 번에 · 이름을 누르면 그것만</small></div>
+                <div class="cmxRow"><button type="button" class="cmxRun" data-proxy='[data-casc="transtable"]'><svg class=ico aria-hidden=true><use href=#i-shuffle></use></svg><span class="pxl"></span></button><span class="cascsw cmxSw" data-mirror="transtable" role="switch" aria-checked="false" tabindex="0" title="Total Sermon 내보내기에 포함"></span></div>
+                <div class="cmxCols">
+                  <div class="cmxCol"><div class="cmxGrp">카드 가지</div>
+                  <div class="cmxRow"><button type="button" class="cmxRun" data-proxy='[data-casc="card"]'><svg class=ico aria-hidden=true><use href=#i-file></use></svg><span class="pxl"></span></button><span class="cascsw cmxSw" data-mirror="card" role="switch" aria-checked="false" tabindex="0" title="Total Sermon 내보내기에 포함"></span></div>
+                  <div class="cmxRow"><button type="button" class="cmxRun" data-proxy='[data-casc="cardpdf"]'><svg class=ico aria-hidden=true><use href=#i-file></use></svg><span class="pxl"></span></button><span class="cascsw cmxSw" data-mirror="cardpdf" role="switch" aria-checked="false" tabindex="0" title="Total Sermon 내보내기에 포함"></span></div>
+                  <div class="cmxRow"><button type="button" class="cmxRun" data-proxy='[data-casc="cardpptx"]'><svg class=ico aria-hidden=true><use href=#i-file></use></svg><span class="pxl"></span></button><span class="cascsw cmxSw" data-mirror="cardpptx" role="switch" aria-checked="false" tabindex="0" title="Total Sermon 내보내기에 포함"></span></div>
+                  </div>
+                  <div class="cmxCol"><div class="cmxGrp">이미지 가지</div>
+                  <div class="cmxRow"><button type="button" class="cmxRun" data-proxy='[data-casc="bgimg"]'><svg class=ico aria-hidden=true><use href=#i-image></use></svg><span class="pxl"></span></button><span class="cascsw cmxSw" data-mirror="bgimg" role="switch" aria-checked="false" tabindex="0" title="Total Sermon 내보내기에 포함"></span></div>
+                  <div class="cmxRow"><button type="button" class="cmxRun" data-proxy='[data-casc="trans"]'><svg class=ico aria-hidden=true><use href=#i-file></use></svg><span class="pxl"></span></button><span class="cascsw cmxSw" data-mirror="trans" role="switch" aria-checked="false" tabindex="0" title="Total Sermon 내보내기에 포함"></span></div>
+                  <div class="cmxRow"><button type="button" class="cmxRun" data-proxy='[data-casc="transpdf"]'><svg class=ico aria-hidden=true><use href=#i-file></use></svg><span class="pxl"></span></button><span class="cascsw cmxSw" data-mirror="transpdf" role="switch" aria-checked="false" tabindex="0" title="Total Sermon 내보내기에 포함"></span></div>
+                  </div>
+                </div>
+                <button type="button" class="cmxTotal" data-proxy='[data-casc="total"]'><svg class=ico aria-hidden=true><use href=#i-package></use></svg><span class="pxl">Total Sermon 내보내기</span></button>
+              </div>
+              <div class="cmMenuSep"></div>
               <button type="button" class="desktop-only" data-proxy="#btnImgRegen"><svg class=ico aria-hidden=true><use href=#i-image></use></svg><span class="pxl">이미지 낱장 재생성</span></button>
               <button type="button" class="desktop-only" data-proxy="#btnRetrans"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg><span class="pxl">원고 수정 반영</span></button>
               <button type="button" data-proxy="#c_kakao"><svg class=ico aria-hidden=true><use href=#i-send></use></svg><span class="pxl">주보내용 공유하기</span></button>
@@ -1890,12 +1974,6 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
           <label>상태</label>
           <select id="c_state"><option>구상/연구</option><option>작성중</option><option>완료</option><option>설교함</option></select>
           <label>핵심메시지</label><input type="text" id="c_msg">
-          <label>원고 스타일</label>
-          <div class="chips" id="c_style">
-            <span class="chip gold" data-v="카드원고">카드원고</span>
-            <span class="chip on" data-v="기본원고">기본원고</span>
-            <span class="chip" data-v="자유원고">자유원고</span>
-          </div>
           <div id="c_dupCheck"></div>
           <label>키워드</label><input type="text" id="c_kw" placeholder="쉼표로 구분">
           <label>비고</label><input type="text" id="c_note">
@@ -1950,7 +2028,6 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
                 </div>
                 <div style="flex:1;display:flex;flex-direction:column;gap:6px">
                   <div class="cnt" style="text-align:center;margin:0">이미지 가지</div>
-                  <div class="cascitem"><button class="btn sub" data-casc="imgdata" style="width:100%"><span class="blab">프롬프트 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="imgdata" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                   <div class="cascitem"><button class="btn sub" data-casc="bgimg" style="width:100%"><span class="blab">배경 이미지 생성</span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="bgimg" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                   <div class="cascitem"><button class="btn sub" data-casc="trans" style="width:100%"><span class="blab">전환 표시 <span class="fmtLbl">HWPX</span></span><small class="bpath">claude-exchange / 결과함</small></button><span class="cascsw" data-cascsel="trans" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함"></span></div>
                   <div class="cascitem"><button class="btn sub" data-casc="transpdf" style="width:100%"><span class="blab">전환 표시 PDF</span><small class="bpath">전환표시본 + 생성 이미지 삽입</small></button><span class="cascsw" data-cascsel="transpdf" role="switch" aria-checked="false" tabindex="0" title="Total 내보내기에 포함 (생성해 둔 배경 이미지가 있어야 만들어집니다)"></span></div>
@@ -1958,7 +2035,7 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
               </div>
             </div>
             <button class="btn gold" data-casc="total" style="width:100%;margin-top:8px"><span class="blab">Total Sermon 내보내기</span><small class="bpath">01 Sermons + claude-exchange / 결과함</small></button>
-            <button class="btn sub" id="btnImgRegen" style="width:100%;margin-top:6px"><span class="blab"><svg class=ico aria-hidden=true><use href=#i-image></use></svg> 이미지 낱장 재생성</span><small class="bpath">번호별 · 엔진 선택 · 뒤따르는 본문 컷 자동 포함</small></button>
+            <button class="btn sub" id="btnImgRegen" style="width:100%;margin-top:6px"><span class="blab"><svg class=ico aria-hidden=true><use href=#i-image></use></svg> 이미지 낱장 재생성</span><small class="bpath">번호별 프롬프트 수정 · 엔진 선택 · 뒤따르는 본문 컷 자동 포함</small></button>
             <button class="btn sub" id="btnRetrans" style="width:100%;margin-top:6px"><span class="blab"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 원고 수정 반영 (전환표·이미지 유지)</span><small class="bpath">고친 문장에 전환 지점만 다시 맞춰 전환표시본 · 전환 PDF 재생성</small></button>
           </div>
           <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab"><svg class=ico aria-hidden=true><use href=#i-send></use></svg> 주보내용 공유하기</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 카카오·메시지로 바로 공유</small></button>
@@ -1967,6 +2044,13 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
           <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
           <button class="linkbtn" id="pickLtc">LTC 저장 폴더 지정</button>
           <button class="linkbtn" id="checkInbox">요청함 상태 확인</button>
+        </div>
+      </div>
+      <div id="edStyleBar"><span class="esbLab">원고 스타일</span>
+        <div class="chips" id="c_style">
+        <span class="chip gold" data-v="카드원고">카드원고</span>
+        <span class="chip on" data-v="기본원고">기본원고</span>
+        <span class="chip" data-v="자유원고">자유원고</span>
         </div>
       </div>
       <div id="editorPane"></div>
@@ -14768,6 +14852,7 @@ var AI_FEATURES = [
   { k: 'transdoc', label: '전환표시본',       def: 'auto:sonnet',      effort: 'high', desc: '원고에 이미지 전환 바 끼워 넣기(원고 전문을 그대로 옮겨 씀)' },
   { k: 'devoplan', label: '묵상 본문 배분',   def: 'auto:sonnet',      effort: 'high', desc: '시리즈 묵상집의 날짜별 본문 나누기' },
   { k: 'ocr',      label: '원고·교재 읽기',   def: 'auto:sonnet',      effort: 'high', desc: '구역권찰 — 설교·교재 이미지와 스캔 PDF 옮겨 적기' },
+  { k: 'imgprompt', label: '이미지 프롬프트 다시 쓰기', def: 'auto:sonnet', effort: '', desc: '이미지 낱장 재생성 창 — 한국어 설명을 반영해 영문 장면 프롬프트를 다시 쓰기' },
   { k: 'illocr',   label: '예화 이미지 인식', def: 'auto:haiku',       effort: '',     desc: '예화 사진·캡처 글 옮겨 적기(인식 뒤 다듬기는 「기본 생성」 모델)' }
 ];
 /* 목록을 못 받을 때(키 없음·에이전트 모드·오프라인) 쓰는 기본 목록 */
@@ -24637,7 +24722,14 @@ async function saveCutsSidecar(id, meta, cuts){
   if (id) { try { storeTransIfEmpty(id, cuts.filter(function(c){ return c.n !== 1; }).map(function(c){ return { n: c.n, t: c.type === '본문' ? '본문' : '일반', a: String(c.anchor || '').slice(0, 30) }; })); } catch (e) {} }
 }
 async function ensureCuts(id, meta){
-  var raw = window._cascForce ? null : await loadCutsSidecarRaw(meta);   /* [다시 생성]이면 사이드카 무시하고 새로 만든다 */
+  var raw = await loadCutsSidecarRaw(meta);
+  /* [다시 생성](Total)이면 사이드카를 무시하고 새로 만든다. 단 전환표를 유지하는 실행에서 [이미지 낱장 재생성] 창으로
+     직접 고친 프롬프트가 있으면 먼저 묻는다(v625) — 기본값(바깥 클릭)은 유지 쪽. 전환표를 새로 잡으면 컷이 달라지므로 새로 만든다. */
+  if (window._cascForce && raw) {
+    var nEd = (raw.cuts || []).filter(function(c){ return c && c.userEdited; }).length;
+    if (!(nEd && window._cascKeepTrans && !await uiConfirm('직접 고친 이미지 프롬프트가 ' + nEd + '장 있습니다.\n\n[고친 프롬프트 유지]를 고르면 그 컷 목록·프롬프트를 그대로 써서 이미지만 새로 만듭니다.',
+          { okText: '프롬프트 새로 만들기', cancelText: '고친 프롬프트 유지' }))) raw = null;
+  }
   if (raw && raw.cuts && raw.cuts.length) {
     /* 전환표가 만들어진 뒤 원고가 바뀌었으면 재생성 여부 확인 (origSig가 있는 경우에만 비교 — 구버전 사이드카는 그냥 사용) */
     if (raw.origSig && raw.origSig !== manuscriptSig(meta)) {
@@ -24702,7 +24794,7 @@ function cascWantTrans(target, sel, inA, inB){
 function cascStepList(target){
   var sel = (target === 'total') ? cascSel() : null;   /* Total은 켜둔 산출물만 단계로 표시 */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
-  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg || sel.transpdf));
+  var inB = (target === 'trans' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.bgimg || sel.transpdf));
   var s = [];
   if (cascWantTrans(target, sel, inA, inB)) s.push({ label: '이미지 전환표' });
   if (target === 'docx' || target === 'total') s.push({ label: fmtTag() + ' 원고' });
@@ -24713,7 +24805,6 @@ function cascStepList(target){
   }
   if (inB) {
     s.push({ label: '이미지 컷' });
-    if (target === 'imgdata' || (sel && sel.imgdata)) s.push({ label: '이미지 프롬프트' });
     if (target === 'bgimg' || (sel && sel.bgimg)) s.push({ label: '배경 이미지' });
     if (target === 'trans' || (sel && sel.trans)) s.push({ label: '이미지 전환표시본' });
     if (target === 'transpdf' || (sel && sel.transpdf)) s.push({ label: '전환 표시 PDF' });
@@ -24751,7 +24842,7 @@ function cascDone(id){
   var dt = (id && typeof doneTypes === 'function') ? doneTypes(id) : {};
   var tt = false; try { tt = !!(id && sermonTrans(id)); } catch (e) {}   /* 전환표는 시트 산출물이 아니라 파일맵 보유 여부로 판정 */
   return { docx: !!dt['원고DOCX'], transtable: tt, card: !!dt['카드원고'], cardpdf: !!dt['카드PDF'], cardpptx: !!dt['카드PPTX'],
-           trans: !!dt['이미지전환표시본'], imgdata: !!dt['이미지프롬프트'], bgimg: !!dt['이미지생성'],
+           trans: !!dt['이미지전환표시본'], bgimg: !!dt['이미지생성'],
            transpdf: !!dt['이미지전환표시PDF'] };
 }
 /* 원고가 (전환표를 만든 시점 이후) 바뀌었는가 — 바뀌었으면 묻지 않고 새로 만든다. */
@@ -24763,8 +24854,8 @@ function manuscriptChanged(id, meta){
 }
 /* 버튼별 산출물 키 — 이 키들이 모두 '만든 적 있음'이면 다시 만들지 묻는다. */
 var CASC_TARGET_KEYS = { docx: ['docx'], transtable: ['transtable'], card: ['card'], cardpdf: ['card', 'cardpdf'], cardpptx: ['card', 'cardpptx'],
-  trans: ['trans'], imgdata: ['imgdata'], bgimg: ['bgimg'], transpdf: ['transpdf'],
-  total: ['docx', 'transtable', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'] };
+  trans: ['trans'], bgimg: ['bgimg'], transpdf: ['transpdf'],
+  total: ['docx', 'transtable', 'card', 'cardpdf', 'cardpptx', 'trans', 'bgimg', 'transpdf'] };
 /* 이미 만든 적 있을 때: 결과물 보기 / 다시 생성하기 / 닫기 — 선택을 Promise로 반환 */
 function askCascRegen(){
   return new Promise(function(resolve){
@@ -24843,7 +24934,7 @@ async function runCascade(target, id, meta){
   if ((target === 'bgimg' || (sel && sel.bgimg)) && !await uiConfirm('배경 이미지 생성을 포함합니다 — 수 분 걸릴 수 있어요. 진행할까요?')) return;
   if (target === 'total') window._cascForce = true;   /* ★ Total Sermon = 켜둔 산출물 전체 재생성(이전 산출물 유무와 무관) */
   var inA = (target === 'card' || target === 'cardpdf' || target === 'cardpptx') || !!(sel && (sel.card || sel.cardpdf || sel.cardpptx));
-  var inB = (target === 'trans' || target === 'imgdata' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.imgdata || sel.bgimg || sel.transpdf));
+  var inB = (target === 'trans' || target === 'bgimg' || target === 'transpdf') || !!(sel && (sel.trans || sel.bgimg || sel.transpdf));
   var wantTrans = cascWantTrans(target, sel, inA, inB);
   window._cascNoTrans = !wantTrans;   /* 카드 가지가 안에서 부르는 ensureTransTable 이 새 표를 만들지 않도록 */
   /* ★ Total 은 켜둔 산출물을 전부 새로 만들지만, 전환표만은 한 번 묻는다 (v555).
@@ -24896,12 +24987,11 @@ async function runCascade(target, id, meta){
     /* 4) 이미지 가지 — 요청한 산출물만. 이미지 컷(이전 단계)은 사이드카가 있으면 재사용(없으면 생성). */
     if (inB) {
       var doTrans = (target === 'trans' || !!(sel && sel.trans));
-      var doImg = (target === 'imgdata' || !!(sel && sel.imgdata));
       var doBg = (target === 'bgimg' || !!(sel && sel.bgimg));
       var doTransPdf = (target === 'transpdf' || !!(sel && sel.transpdf));
       var cuts = null;
       ck(); cascStep(k++, '이미지 컷(전환표) 확인 중…'); try { cuts = await ensureCuts(id, meta); if (!cuts || !cuts.length) throw new Error('빈 결과'); } catch (e) { rec('이미지 컷', e); cuts = null; }
-      if (doImg) { ck(); cascStep(k++, '이미지 프롬프트 ' + fmtTag() + ' 저장 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await saveImgDataDocxFile(meta, cuts); await markOutput(id, '이미지프롬프트', '앱 직접 생성'); } catch (e) { rec('이미지 프롬프트', e); } }
+      /* v625: [프롬프트 HWPX] 가지는 없앴다 — 프롬프트는 컷 사이드카(JSON)에 있고 [이미지 낱장 재생성] 창에서 컷마다 고친다. */
       if (doBg) { ck(); cascStep(k++, '배경 이미지 생성 중…'); try { if (!cuts) throw new Error('이미지 컷 없음'); await generateImageSetFromCuts(id, meta, cuts); } catch (e) { rec('배경 이미지', e); } }
       /* 전환표시본은 배경 이미지 뒤에 만든다(v608) — HWPX 가 생성 이미지를 바마다 얹으므로(v588) 같은 실행에서 만든 그림이 한 번에 들어간다.
          (v588~v607 은 전환표시본을 먼저 만들고 이미지 생성 뒤 다시 저장했다) */
@@ -24945,13 +25035,13 @@ $$('#composeMeta [data-casc]').forEach(function(b){
   });
 })();
 /* ===== Total 포함 토글(가지 6개) — 선택·종속관계·기억 ===== */
-var CASC_SEL_KEYS = ['transtable', 'card', 'cardpdf', 'cardpptx', 'trans', 'imgdata', 'bgimg', 'transpdf'];
+var CASC_SEL_KEYS = ['transtable', 'card', 'cardpdf', 'cardpptx', 'trans', 'bgimg', 'transpdf'];   /* v625: imgdata(프롬프트 HWPX) 삭제 — 옛 저장값의 imgdata 는 무시된다 */
 /* 켤 때 함께 켜질 필수 하위 소스 — 이미지 가지 4종은 전환표가 없으면 만들 수 없다(카드 가지는 선택). */
 var CASC_DEPS = { cardpdf: ['card'], cardpptx: ['card'],
-  trans: ['transtable'], imgdata: ['transtable'], bgimg: ['transtable'], transpdf: ['transtable'] };
+  trans: ['transtable'], bgimg: ['transtable'], transpdf: ['transtable'] };
 /* 끌 때 함께 꺼질 상위(이 소스가 필요함) */
 var CASC_DEPENDENTS = { card: ['cardpdf', 'cardpptx'],
-  transtable: ['trans', 'imgdata', 'bgimg', 'transpdf'] };
+  transtable: ['trans', 'bgimg', 'transpdf'] };
 function cascSwEl(k){ return document.querySelector('#composeMeta .cascsw[data-cascsel="' + k + '"]'); }
 function cascSwSet(k, on){ var el = cascSwEl(k); if (el) { el.classList.toggle('on', !!on); el.setAttribute('aria-checked', on ? 'true' : 'false'); } }
 function cascSwOn(k){ var el = cascSwEl(k); return !!(el && el.classList.contains('on')); }
@@ -24960,7 +25050,7 @@ function cascSwSave(){ try { var o = {}; CASC_SEL_KEYS.forEach(function(k){ o[k]
 function cascSel(){
   var s = {}; CASC_SEL_KEYS.forEach(function(k){ s[k] = cascSwOn(k); });
   if (s.cardpdf || s.cardpptx) s.card = true;   /* PDF/PPTX는 카드 원고를 소스로 필요 */
-  if (s.trans || s.imgdata || s.bgimg || s.transpdf) s.transtable = true;   /* 이미지 가지는 전환표가 필수 */
+  if (s.trans || s.bgimg || s.transpdf) s.transtable = true;   /* 이미지 가지는 전환표가 필수 */
   return s;
 }
 function cascSelAny(s){ return CASC_SEL_KEYS.some(function(k){ return s[k]; }); }
@@ -24976,7 +25066,7 @@ function cascSwToggle(k){
   var o = {}; try { o = JSON.parse(localStorage.getItem('cascSel') || '{}') || {}; } catch (e) {}
   CASC_SEL_KEYS.forEach(function(k){ cascSwSet(k, !!o[k]); });
   if (cascSwOn('cardpdf') || cascSwOn('cardpptx')) cascSwSet('card', true);   /* 저장값 종속 보정 */
-  if (cascSwOn('trans') || cascSwOn('imgdata') || cascSwOn('bgimg') || cascSwOn('transpdf')) cascSwSet('transtable', true);
+  if (cascSwOn('trans') || cascSwOn('bgimg') || cascSwOn('transpdf')) cascSwSet('transtable', true);
   sw.forEach(function(el){
     el.addEventListener('click', function(ev){ ev.stopPropagation(); ev.preventDefault(); cascSwToggle(el.dataset.cascsel); });
     el.addEventListener('keydown', function(ev){ if (ev.key === ' ' || ev.key === 'Enter') { ev.stopPropagation(); ev.preventDefault(); cascSwToggle(el.dataset.cascsel); } });
@@ -26606,7 +26696,7 @@ async function loadCutsSidecarRaw(meta){
     var f = await hit.h.getFile();
     var j = JSON.parse(await f.text());
     var cuts = Array.isArray(j.cuts) ? j.cuts : (Array.isArray(j) ? j : null);
-    return cuts ? { cuts: cuts, origSig: (j && j.origSig) || '' } : null;
+    return cuts ? { cuts: cuts, origSig: (j && j.origSig) || '', h: hit.h, name: hit.name } : null;
   } catch (e) { return null; }
 }
 async function loadCutsSidecar(meta){ var r = await loadCutsSidecarRaw(meta); return r ? r.cuts : null; }
@@ -26828,11 +26918,21 @@ async function imgRegenOpen(){
   var meta = (typeof collectCompose === 'function') ? collectCompose() : {};
   if (id) meta['ID'] = id;
   if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
-  var cuts = await loadCutsSidecar(meta);
-  if (!cuts || !cuts.length) { toast('먼저 [프롬프트] 또는 [배경 이미지 생성]으로 컷 목록을 만들어 주세요.'); return; }
+  var raw = await loadCutsSidecarRaw(meta);
+  if (!raw || !raw.cuts || !raw.cuts.length) {
+    /* v625: 프롬프트 HWPX 가지가 없어졌으므로, 이미지를 만들기 전에 프롬프트부터 보고 고치려면 여기서 컷을 만든다 */
+    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+    if (!await uiConfirm('아직 이미지 컷(프롬프트)이 없습니다.\n\n지금 전환표에 맞춰 컷과 프롬프트를 만들까요? 이미지는 만들지 않으며, 만든 뒤 컷마다 프롬프트를 고치고 원하는 번호만 생성할 수 있습니다.',
+        { okText: '컷·프롬프트 만들기', cancelText: '닫기' })) return;
+    try { var made0 = await ensureCuts(id, meta); hideGenOverlay(); renderSyncState(); if (!made0 || !made0.length) throw new Error('빈 결과'); }
+    catch (e0) { hideGenOverlay(); renderSyncState(); toast('컷 만들기 실패: ' + ((e0 && e0.message) || e0)); return; }
+    raw = await loadCutsSidecarRaw(meta);
+    if (!raw || !raw.cuts || !raw.cuts.length) { toast('컷을 저장하지 못했습니다 — claude-exchange 폴더 연결을 확인해 주세요.'); return; }
+  }
+  var cuts = raw.cuts;
   renumberCuts(cuts);
   var pack = await loadImgSetZip(meta);
-  window._irState = { id: id, meta: meta, cuts: cuts, zipName: pack ? pack.name : '' };
+  window._irState = { id: id, meta: meta, cuts: cuts, zipName: pack ? pack.name : '', origSig: raw.origSig || '', sideH: raw.h || null, draft: {}, open: {} };
 
   imgRegenClose();
   var ov = document.createElement('div');
@@ -26841,7 +26941,7 @@ async function imgRegenOpen(){
   ov.innerHTML =
     '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;justify-content:space-between;' +
       'padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--line);background:var(--card)">' +
-      '<div style="min-width:0"><div style="font-weight:800;font-size:15px">🖼 이미지 낱장 재생성</div>' +
+      '<div style="min-width:0"><div style="font-weight:700;font-size:15px">' + uiIco('image') + ' 이미지 낱장 재생성 · 프롬프트 수정</div>' +
       '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + esc(meta['제목'] || '') +
       (pack ? ' · ' + esc(pack.name) : ' · ⚠ 저장된 zip 없음 — 낱장 PNG로 저장됩니다') + '</div></div>' +
       '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="imgRegenClose()">× 닫기</button></div>' +
@@ -26849,12 +26949,13 @@ async function imgRegenOpen(){
       '<span style="font-size:13px;color:var(--dim)">생성 엔진</span>' +
       '<select id="irEngine" class="libsel">' + IMG_ENGINES.map(function(e){
         return '<option value="' + e.v + '"' + (e.v === imgEngine() ? ' selected' : '') + '>' + e.t + '</option>'; }).join('') + '</select>' +
-      '<span class="cnt" style="margin:0">이번 재생성에만 적용됩니다(설정의 기본 엔진은 그대로).</span></div>' +
+      '<span class="cnt" style="margin:0">이번 재생성에만 적용됩니다(설정의 기본 엔진은 그대로). 컷마다 [✎ 프롬프트]로 그림 설명을 고친 뒤 [↻ 재생성]하세요.</span></div>' +
     '<div id="irStatus" style="flex:0 0 auto;display:none;margin:10px 14px 0;padding:10px 12px;border-radius:10px;' +
       'background:var(--card);border:1px solid var(--line);font-size:13.5px"></div>' +
     '<div id="irBody" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(20px + env(safe-area-inset-bottom))"></div>';
   document.body.appendChild(ov);
   document.body.style.overflow = 'hidden';
+  var se = document.getElementById('irEngine'); if (se) se.addEventListener('change', irPreviewAll);
   imgRegenList();
 }
 window.imgRegenOpen = imgRegenOpen;
@@ -26872,6 +26973,7 @@ function irBusy(on, n){
   Array.prototype.forEach.call(body.querySelectorAll('button'), function(b){ b.disabled = !!on; });
   var btn = document.getElementById('ir-btn-' + n);
   if (btn) btn.innerHTML = on ? '생성 중…' : '↻ 재생성';
+  Array.prototype.forEach.call(body.querySelectorAll('textarea,input,select'), function(x){ x.disabled = !!on; });
 }
 function imgRegenList(){
   var S = window._irState; if (!S) return;
@@ -26881,25 +26983,138 @@ function imgRegenList(){
     /* 이 컷 뒤에 딸린 본문 컷(파생본) — 함께 다시 만들어진다 */
     var follow = [];
     if (!isScr) { for (var k = i + 1; k < S.cuts.length && S.cuts[k].type === '본문'; k++) follow.push(S.cuts[k].n); }
-    return '<div id="ir-row-' + c.n + '" style="display:flex;gap:10px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid var(--line)">' +
-      '<div style="flex:0 0 46px;font-weight:800;color:' + (isScr ? 'var(--accent2)' : 'var(--accent)') + '">#' + c.n + '</div>' +
-      '<div style="flex:1 1 0;min-width:0">' +
-        '<div style="font-size:13.5px">' + esc(c.role || (isScr ? '본문' : '일반')) + '</div>' +
-        (c.ko ? '<div style="font-size:12.5px;color:var(--dim);margin-top:2px">' + esc(String(c.ko).slice(0, 90)) + '</div>' : '') +
+    return '<div id="ir-row-' + c.n + '" class="irRow">' +
+      '<div class="irNo" style="color:' + (isScr ? 'var(--accent2)' : 'var(--accent)') + '">#' + c.n + '</div>' +
+      '<div class="irMain">' +
+        '<div class="irRole">' + esc(c.role || (isScr ? '본문' : '일반')) + '<span class="irEdMark" id="ir-mk-' + c.n + '">' + irMarkHtml(c) + '</span></div>' +
+        (c.ko ? '<div class="irKo" id="ir-ko-' + c.n + '">' + esc(String(c.ko).slice(0, 90)) + '</div>' : '<div class="irKo" id="ir-ko-' + c.n + '"></div>') +
         (follow.length ? '<div style="font-size:12px;color:var(--ok);margin-top:3px">↳ 본문 #' + follow.join(', #') + ' 도 함께 다시 만듭니다</div>' : '') +
         (isScr ? '<div style="font-size:12px;color:var(--dim);margin-top:3px">직전 일반 이미지에서 다시 파생합니다(새로 그리지 않음)</div>' : '') +
+        '<div class="irEd" id="ir-ed-' + c.n + '" hidden></div>' +
         '<div id="ir-pv-' + c.n + '" style="margin-top:6px"></div>' +
       '</div>' +
-      '<button id="ir-btn-' + c.n + '" class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="imgRegenOne(' + c.n + ')">↻ 재생성</button>' +
+      '<div class="irBtns">' +
+        '<button id="ir-pbtn-' + c.n + '" class="btn sub mini" type="button" onclick="irToggleEd(' + c.n + ')">' + uiIco('edit') + ' ' + (isScr ? '성구' : '프롬프트') + '</button>' +
+        '<button id="ir-btn-' + c.n + '" class="btn sub mini" type="button" onclick="imgRegenOne(' + c.n + ')">↻ 재생성</button>' +
+      '</div>' +
     '</div>';
-  }).join('') + '<div class="cnt" style="margin-top:10px">재생성한 번호는 저장된 zip 안에서 바로 교체됩니다. 다른 번호와 표지는 그대로 둡니다.</div>';
+  }).join('') + '<div class="cnt" style="margin-top:10px">재생성한 번호는 저장된 zip 안에서 바로 교체됩니다. 다른 번호와 표지는 그대로 둡니다. 고친 프롬프트는 컷 목록(JSON)에 저장되어 다음 [배경 이미지 생성]에도 쓰입니다.</div>';
 }
+/* ── 컷별 프롬프트 편집 (v625) ───────────────────────────────────────────
+   예전 [프롬프트 HWPX] 문서로 보고 고치던 것을 이 창 안으로 옮겼다. 고친 값은 컷 사이드카(JSON)에 저장되고
+   (userEdited 표시), 재생성·다음 [배경 이미지 생성]이 그대로 쓴다. 일반·표지 = 영문 장면(en)·표현(style)·한국어 설명(ko),
+   본문 컷 = 화면에 합성할 성구(ref·verse). 실제로 엔진에 보내는 전체 문장은 buildBgPrompt/buildCoverPrompt 가 감싼다. */
+var IR_FIELDS = ['style', 'ko', 'en', 'ref', 'verse'];
+function irCut(n){ var S = window._irState; if (!S) return null; for (var k = 0; k < S.cuts.length; k++) if (S.cuts[k].n === n) return S.cuts[k]; return null; }
+function irMarkHtml(c){ return c && c.userEdited ? ' <span class="irTag">고침</span>' : ''; }
+function irDraft(n){
+  var S = window._irState, c = irCut(n); if (!S || !c) return null;
+  if (!S.draft[n]) { var d = {}; IR_FIELDS.forEach(function(f){ d[f] = String(c[f] || ''); }); S.draft[n] = d; }
+  return S.draft[n];
+}
+function irDirty(n){ var c = irCut(n), d = (window._irState || {}).draft ? window._irState.draft[n] : null; if (!c || !d) return false;
+  return IR_FIELDS.some(function(f){ return String(c[f] || '') !== String(d[f] || ''); }); }
+function irFullPrompt(c, d){
+  var eng = (document.getElementById('irEngine') || {}).value || imgEngine();
+  var x = Object.assign({}, c, { en: d.en, style: d.style });
+  return (c.n === 1 || c.type === '표지') ? buildCoverPrompt(x, eng) : buildBgPrompt(x, eng);
+}
+function irToggleEd(n){
+  var S = window._irState, c = irCut(n), box = document.getElementById('ir-ed-' + n); if (!S || !c || !box) return;
+  if (!box.hidden) { box.hidden = true; return; }
+  var d = irDraft(n), isScr = (c.type === '본문');
+  var ex = String(c['발췌'] || '').trim();
+  box.innerHTML = isScr
+    ? '<label class="irLab">성구 표기</label><input type="text" data-irf="ref" data-n="' + n + '" value="' + esc(d.ref) + '" placeholder="예: 수 1:9">' +
+      '<label class="irLab">화면에 합성할 성구 문구</label><textarea data-irf="verse" data-n="' + n + '" rows="3">' + esc(d.verse) + '</textarea>' +
+      '<div class="irHint">본문 컷은 그림을 새로 그리지 않고, 직전 일반 이미지를 어둡게·흐리게 가공한 위에 이 성구를 얹습니다.</div>'
+    : '<div class="irGrid"><label class="irLab" style="margin:0">표현</label>' +
+        '<select data-irf="style" data-n="' + n + '"><option value="사실적"' + (d.style !== '추상적' ? ' selected' : '') + '>사실적 — 시대·장소·상황을 보여 주는 장면</option>' +
+        '<option value="추상적"' + (d.style === '추상적' ? ' selected' : '') + '>추상적 — 상징·빛·색·질감</option></select></div>' +
+      '<label class="irLab">한국어 설명 <span>— 무엇을 그릴지 우리말로. 고친 뒤 아래 [영문 다시 쓰기]를 누르면 반영됩니다</span></label>' +
+      '<textarea data-irf="ko" data-n="' + n + '" rows="2">' + esc(d.ko) + '</textarea>' +
+      '<label class="irLab">영문 장면 프롬프트 <span>— 이미지 엔진이 실제로 읽는 부분</span></label>' +
+      '<textarea data-irf="en" data-n="' + n + '" rows="5" spellcheck="false">' + esc(d.en) + '</textarea>' +
+      '<div class="irRowBtns"><button type="button" class="btn sub mini" onclick="irAiEn(' + n + ')">' + uiIco('spark') + ' 한국어 설명으로 영문 다시 쓰기</button></div>' +
+      (ex ? '<details class="irDet"><summary>이 컷이 덮는 원고 구간</summary><div class="irPre">' + esc(ex) + '</div></details>' : '') +
+      '<details class="irDet"><summary>엔진에 보내는 전체 프롬프트(화풍·화면 규격 지시 포함)</summary><div class="irPre" id="ir-full-' + n + '"></div></details>';
+  box.innerHTML += '<div class="irRowBtns"><button type="button" class="btn mini" id="ir-save-' + n + '" onclick="irSave(' + n + ')">' + uiIco('save') + ' 저장</button>' +
+    '<button type="button" class="btn sub mini" onclick="irRevert(' + n + ')">고친 것 취소</button><span class="irState" id="ir-st-' + n + '"></span></div>';
+  box.hidden = false;
+  irRefresh(n);
+}
+function irRefresh(n){
+  var c = irCut(n), d = irDraft(n); if (!c || !d) return;
+  var full = document.getElementById('ir-full-' + n); if (full) full.textContent = irFullPrompt(c, d);
+  var st = document.getElementById('ir-st-' + n); if (st) st.textContent = irDirty(n) ? '저장 안 됨 — [↻ 재생성]을 누르면 저장 후 생성합니다' : '';
+}
+function irPreviewAll(){ var S = window._irState; if (!S) return; Object.keys(S.draft || {}).forEach(function(n){ irRefresh(+n); }); }
+document.addEventListener('input', function(e){
+  var el = e.target; if (!el || !el.dataset || !el.dataset.irf || !el.closest('#irOv')) return;
+  var n = +el.dataset.n, d = irDraft(n); if (!d) return;
+  d[el.dataset.irf] = el.value; irRefresh(n);
+});
+document.addEventListener('change', function(e){
+  var el = e.target; if (!el || !el.dataset || el.dataset.irf !== 'style' || !el.closest('#irOv')) return;
+  var n = +el.dataset.n, d = irDraft(n); if (!d) return; d.style = el.value; irRefresh(n);
+});
+async function irWriteSidecar(){
+  var S = window._irState; if (!S) return;
+  var blob = new Blob([JSON.stringify({ cuts: S.cuts, origSig: S.origSig || manuscriptSig(S.meta) }, null, 1)], { type: 'application/json' });
+  /* 원고 서명(origSig)은 처음 만들 때 값을 그대로 둔다 — 지금 서명으로 바꾸면 원고 수정 감지(askCutsStale)가 꺼진다 */
+  if (S.sideH) { var w = await S.sideH.createWritable(); await w.write(blob); await w.close(); }
+  else await saveBlobToResults(blob, imgDataNames(S.meta).json);
+}
+async function irSave(n, quiet){
+  var S = window._irState, c = irCut(n), d = irDraft(n); if (!S || !c || !d) return true;
+  if (!irDirty(n)) { if (!quiet) toast('바뀐 내용이 없습니다.'); return true; }
+  var prev = {}; IR_FIELDS.forEach(function(f){ prev[f] = c[f]; });
+  IR_FIELDS.forEach(function(f){ if (d[f] !== String(c[f] || '')) c[f] = d[f]; });
+  c.userEdited = true;
+  try { await irWriteSidecar(); }
+  catch (e) { IR_FIELDS.forEach(function(f){ c[f] = prev[f]; }); toast('저장 실패: ' + ((e && e.message) || e)); return false; }
+  var mk = document.getElementById('ir-mk-' + n); if (mk) mk.innerHTML = irMarkHtml(c);
+  var ko = document.getElementById('ir-ko-' + n); if (ko) ko.textContent = String(c.ko || '').slice(0, 90);
+  irRefresh(n);
+  if (!quiet) toast('#' + n + ' 프롬프트를 저장했습니다.');
+  return true;
+}
+function irRevert(n){
+  var S = window._irState; if (!S) return;
+  delete S.draft[n];
+  var box = document.getElementById('ir-ed-' + n); if (box) { box.hidden = true; irToggleEd(n); }
+}
+/* 한국어 설명(ko)을 반영해 영문 장면(en)을 다시 쓴다 — 전체 컷 생성(P_IMGDATA)과 같은 표현·인물·안전 규칙을 쓴다 */
+async function irAiEn(n){
+  var S = window._irState, c = irCut(n), d = irDraft(n); if (!S || !c || !d) return;
+  if (!String(d.ko || '').trim()) { toast('한국어 설명을 먼저 적어 주세요.'); return; }
+  var rules = P_IMGDATA.split('\n').filter(function(l){ return /^(★표현 방식|en\(일반|★★인물 고증|★en 안전 규칙)/.test(l); }).join('\n');
+  var sys = '너는 설교 LED 배경 이미지의 영문 장면 프롬프트(en) 한 개를 다시 쓴다. 사용자가 고친 "한국어 설명"이 무엇을 그릴지의 최우선 기준이다. ' +
+    '출력은 영문 장면 묘사 한 단락(2~4문장)만 — 설명·따옴표·코드펜스·머리말 금지. 장면(주어)을 맨 앞에 두고 긍정형으로만 쓴다. 글자·문자는 넣지 않는다. "발췌" 밖의 내용은 그리지 않는다.\n' + rules;
+  var inp = { '역할': c.role || '', '종류': c.type || '', '표현': d.style || '사실적', '한국어 설명': d.ko, '발췌': c['발췌'] || '', '기존 영문': d.en || '' };
+  var btns = document.querySelectorAll('#ir-ed-' + n + ' button'); Array.prototype.forEach.call(btns, function(b){ b.disabled = true; });
+  irStage('#' + n + ' 영문 프롬프트를 다시 쓰는 중…', 'busy');
+  try {
+    var out = String(await callClaude(sys, JSON.stringify(inp), 2000, aiTick('이미지 프롬프트'), 'imgprompt') || '').trim();
+    out = out.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').replace(/^["“]+|["”]+$/g, '').trim();
+    if (!out) throw new Error('빈 응답');
+    var g = cutGender((c['발췌'] || '') + ' ' + d.ko + ' ' + (c.role || ''));
+    if (g) out = cutFixGender(out, g);
+    d.en = out;
+    var ta = document.querySelector('#ir-ed-' + n + ' textarea[data-irf="en"]'); if (ta) ta.value = out;
+    irRefresh(n);
+    irStage('#' + n + ' 영문 프롬프트를 새로 썼습니다 — 확인 후 [저장] 또는 [↻ 재생성]을 누르세요.', 'ok');
+  } catch (e) { irStage('<b style="color:var(--warn)">다시 쓰기 실패</b> — ' + esc((e && e.message) || String(e)), 'err'); }
+  finally { Array.prototype.forEach.call(btns, function(b){ b.disabled = false; }); }
+}
+window.irToggleEd = irToggleEd; window.irSave = irSave; window.irRevert = irRevert; window.irAiEn = irAiEn;
 
 async function imgRegenOne(n){
   var S = window._irState; if (!S) return;
   var cuts = S.cuts, i = -1;
   for (var k = 0; k < cuts.length; k++) if (cuts[k].n === n) { i = k; break; }
   if (i < 0) return;
+  if (irDirty(n) && !await irSave(n, true)) return;   /* v625: 고친 프롬프트를 먼저 저장하고 그 값으로 생성 */
   var eng = (document.getElementById('irEngine') || {}).value || imgEngine();
   var c = cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
   var made = [];
@@ -28552,7 +28767,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v624';
+var APP_VER = 'v625';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -30142,12 +30357,29 @@ function cmReveal(el){
       var el = document.querySelector(px.dataset.proxy), lab = el && el.querySelector('.blab'), sp = px.querySelector('.pxl');
       if (lab && sp) sp.textContent = lab.textContent.replace(/\s+/g, ' ').trim();
       px.disabled = !el || !!el.disabled;
+      px.classList.toggle('isDone', !!(el && el.classList.contains('casc-done')));
+    });
+    syncMirrors(m);
+  }
+  /* v625: Total 포함 토글 — 산출물 탭의 토글(.cascsw[data-cascsel])이 정본이고 메뉴의 것은 거울이다.
+     켜고 끌 때 종속 관계(카드 PDF·PPTX → 카드 원고, 이미지 가지 → 전환표)는 cascSwToggle 이 그대로 맞춘다. */
+  function syncMirrors(m){
+    Array.prototype.forEach.call((m || document).querySelectorAll('.cmxSw[data-mirror]'), function(sw){
+      var on = (typeof cascSwOn === 'function') && cascSwOn(sw.dataset.mirror);
+      sw.classList.toggle('on', !!on); sw.setAttribute('aria-checked', on ? 'true' : 'false');
     });
   }
+  function flipMirror(sw){ if (typeof cascSwToggle === 'function') cascSwToggle(sw.dataset.mirror); syncMirrors(); }
+  document.addEventListener('keydown', function(e){
+    var sw = e.target && e.target.closest && e.target.closest('.cmMenu .cmxSw');
+    if (sw && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); flipMirror(sw); }
+  });
   document.addEventListener('click', function(e){
     var t = e.target.closest('[data-cmmenu]');
     if (t){ var m = document.getElementById(t.dataset.cmmenu); if (!m) return;
       var open = m.hidden; closeAll(m); m.hidden = !open; t.setAttribute('aria-expanded', open ? 'true' : 'false'); if (open) refresh(m); return; }
+    var msw = e.target.closest('.cmMenu .cmxSw');
+    if (msw){ e.preventDefault(); flipMirror(msw); return; }
     var px = e.target.closest('.cmMenu [data-proxy]');
     if (px){ closeAll(); var el = document.querySelector(px.dataset.proxy); if (el && !el.disabled){ cmReveal(el); el.click(); } return; }
     var gt = e.target.closest('.cmMenu [data-gotab]');
@@ -30189,7 +30421,7 @@ function cmReveal(el){
     ['Total Sermon 내보내기', 'compose', '[data-casc="total"]', 'package', '토탈 전체 산출물', 1],
     ['이미지 전환표 생성/수정', 'compose', '[data-casc="transtable"]', 'shuffle', '전환표', 1],
     ['배경 이미지 생성', 'compose', '[data-casc="bgimg"]', 'image', '이미지', 1],
-    ['이미지 낱장 재생성', 'compose', '#btnImgRegen', 'image', '', 1],
+    ['이미지 낱장 재생성 · 프롬프트 수정', 'compose', '#btnImgRegen', 'image', '프롬프트 이미지', 1],
     ['원고 수정 반영 (전환표 재정렬)', 'compose', '#btnRetrans', 'refresh', '전환표', 1],
     ['주보내용 공유하기', 'compose', '#c_kakao', 'send', '카카오 카톡 주보'],
     ['요약본·주제어 생성', 'compose', '[data-req="설교요약"]', 'spark', '요약'],
