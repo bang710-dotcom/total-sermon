@@ -1675,7 +1675,7 @@ body.fmPhase1 #cmHead{opacity:0;pointer-events:none}
 
 /* ===== C안 원고 작성창 「종이」 (v626) — 설정 → 원고 작성창 ===== */
 /* 테마와 무관한 종이: #snPage 처럼 작성창 안에서만 토큰을 다시 정의한다(안쪽 컴포넌트가 저절로 따라온다). */
-:root{--edSerif:"AppleMyungjo","Apple Myungjo","Nanum Myeongjo","NanumMyeongjo","Batang","바탕",serif}
+:root{--edSerif:"함초롬바탕","HCR Batang","HCRBatang","AppleMyungjo","Apple Myungjo","Nanum Myeongjo","NanumMyeongjo","Batang","바탕",serif}   /* v636: 내보낸 한글 원고와 같은 함초롬바탕(설치된 기기만) → 없으면 명조 */
 body.edPaper:not(.focusMode) #editorPane{
   --bg:#fcfbf8; --card:#fffefb; --card2:#f5f2ea; --line:#e3ddd0; --line2:#cbc3b2;
   --text:#1f1f22; --dim:#6a665e; --accent:#3b52c4; --accent2:#87570f; --on-accent:#fff; --on-gold:#fff;   /* v633: 대비 4.5 이상 */
@@ -1917,10 +1917,10 @@ body.cardView.edPaper:not(.focusMode) #editorPane{--bg:inherit;--card:inherit;--
   color-scheme:light;position:relative;box-sizing:border-box;width:calc(310 * var(--cdS,3px));min-height:calc(210 * var(--cdS,3px));
   padding:calc(12.49 * var(--cdS,3px)) calc(10 * var(--cdS,3px));background:var(--bg);color:var(--text);border-radius:3px;
   box-shadow:0 0 0 1px var(--line),0 2px 16px rgba(0,0,0,.16)}
-.cdTitle{font-family:"함초롬바탕","HCR Batang",var(--edSerif);font-weight:700;text-align:center;font-size:calc(6.35 * var(--cdS,3px));line-height:1.3;color:var(--text);word-break:keep-all}
-.cdTitleGap{height:calc(5.962 * var(--cdS,3px))}
+.cdTitle{font-family:"함초롬바탕","HCR Batang",var(--edSerif);font-weight:700;text-align:center;font-size:calc(7.7611 * var(--cdS,3px));line-height:1.3;color:var(--text);word-break:keep-all}
+.cdTitleGap{height:calc(10.0894 * var(--cdS,3px))}
 body #editorPane .cdPage textarea.edTa.cdTa{display:block;width:100%;box-sizing:border-box;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;resize:none;overflow:hidden;
-  font-family:"함초롬바탕","HCR Batang",var(--edSerif);font-size:calc(4.5861 * var(--cdS,3px));line-height:calc(5.9619 * var(--cdS,3px));font-weight:400;letter-spacing:0;
+  font-family:"함초롬바탕","HCR Batang",var(--edSerif);font-size:calc(7.7611 * var(--cdS,3px));line-height:calc(10.0894 * var(--cdS,3px));font-weight:400;letter-spacing:0;
   white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word;color:var(--text);min-height:0}
 body #editorPane .cdPage textarea.edTa.cdTa:focus{outline:none;background:transparent;border:0}
 body #editorPane .cdPage .edHlBk{background:transparent!important;border-radius:0}
@@ -10524,19 +10524,22 @@ function newCompose(){ return { style: '기본원고', introTitle: '', intro: ''
 /* ===================== 카드원고 = 따로 저장되는 문서 (v635) =====================
    기본원고·자유원고는 같은 원고(원고텍스트)를 보여 주는 방식만 다르다. 카드원고는 그 원고를 추려 강단 화면용으로
    다시 쓴 「다른 내용」이라 시트의 「카드원고」 칸에 따로 저장한다(요약본처럼 — 원고텍스트는 건드리지 않는다).
-   - 형식: 카드 사이에 「(카드)」 한 줄. 카드 한 장 = 내보낸 카드원고의 한 쪽(card.hwpx 310×210 가로, 13pt·줄간격 130%).
+   - 형식: 카드 사이에 「(카드)」 한 줄. 카드 한 장 = 내보낸 카드원고의 한 쪽(card.hwpx 310×210 가로, 22pt·줄간격 130%).
    - 작성 버퍼: state.compose.cards(문자열 배열). null = 아직 카드원고가 없음 → 저장할 때 그 칸을 건드리지 않는다.
    - c.baseStyle = 카드원고를 보는 동안의 원고 형식(기본원고/자유원고). 원고유형·원고텍스트는 늘 이 형식으로 저장한다.
    - 처음 카드원고로 바꾸면 AI 초안(P_CARDDRAFT). 기본원고 대지 제목 옆 [이 대지를 카드원고로 내보내기]는 그 범위만 새로 만든다. */
 var CARD_MARK = '(카드)';
 var CARD_MARK_RE = /^\s*\(카드\)\s*$/;
 var CARD_FONT = '"함초롬바탕","HCR Batang","HCRBatang","AppleMyungjo","Apple Myungjo","Nanum Myeongjo","NanumMyeongjo","Batang","바탕",serif';
-/* 쪽 규격(mm) — card.hwpx: 용지 87875×59530 HWPUNIT, 여백 좌우 2835·위아래 3540, 본문 13pt(줄간격 130%)·제목 18pt */
-var CARD_GEO = { w: 310, h: 210, l: 10, r: 10, t: 12.49, b: 12.49, fs: 13 * 25.4 / 72, lh: 1.3, tfs: 18 * 25.4 / 72 };
+/* 쪽 규격(mm) — card.hwpx: 용지 87875×59530 HWPUNIT, 여백 좌우 2835·위아래 3540, 줄간격 130%.
+   v636: 글자는 22pt(제목도 22pt) — 서식 파일의 13pt 로는 한 장이 반쯤 비어 「카드」 느낌이 안 났다(목사님 확인).
+   한 장 18줄·한 줄 약 38자, 첫 장은 제목줄+빈 줄을 빼고 16줄. 크기를 바꾸면 CARD_PT 하나와 아래 CSS(.cdTa·.cdTitle·.cdTitleGap)를 함께. */
+var CARD_PT = 22;
+var CARD_GEO = { w: 310, h: 210, l: 10, r: 10, t: 12.49, b: 12.49, fs: CARD_PT * 25.4 / 72, lh: 1.3, tfs: CARD_PT * 25.4 / 72 };
 CARD_GEO.cw = CARD_GEO.w - CARD_GEO.l - CARD_GEO.r;     /* 본문 폭 290mm */
 CARD_GEO.ch = CARD_GEO.h - CARD_GEO.t - CARD_GEO.b;     /* 본문 높이 185mm */
 CARD_GEO.line = CARD_GEO.fs * CARD_GEO.lh;              /* 한 줄 5.96mm → 한 장 31줄 */
-var CARD_BAR_LINES = 3;   /* ▶ 전환 바(표 높이 4610 HWPUNIT ≈ 16mm)는 줄 셈에서 3줄로 친다 */
+var CARD_BAR_LINES = 2;   /* ▶ 전환 바(표 높이 4610 HWPUNIT ≈ 16mm)는 줄 셈에서 2줄로 친다(22pt 한 줄 ≈ 10mm) */
 function cardTrim(t){ return String(t == null ? '' : t).replace(/\r/g, '').replace(/^(?:[ \t]*\n)+/, '').replace(/\s+$/, ''); }
 function cardHasMarks(t){ return /(^|\n)[ \t]*\(카드\)[ \t]*(?=\n|$)/.test(String(t || '')); }
 function cardsSplit(t){
@@ -10656,7 +10659,7 @@ function cardReplaceSec(cards, key, fresh){
 var P_CARDDRAFT = [
 '당신은 영락대학부 설교 카드원고(가로 화면용) 편집 비서다. 입력(JSON)의 설교 원고를 추려, 설교자가 강단에서 슬쩍 봐도 한눈에 들어오는 카드원고 초안을 만든다.',
 '★ 형태: 「대지 + 내용 핵심 요약」. 원고 문장을 그대로 옮기지 말고, 무대에서 말하듯 짧은 문장으로 핵심만 남긴다 — 원고보다 훨씬 짧게 조인다.',
-'★ 카드 = 가로 화면 한 장(내보내면 한 쪽). 한 카드는 최대 24줄(빈 줄 포함), 한 줄은 최대 50자. 한 줄 = 한 생각 — 글자 수가 아니라 의미가 끊기는 자리·강조·호흡에서 줄을 나눈다. 생각 덩어리 사이엔 빈 줄 하나.',
+'★ 카드 = 가로 화면 한 장(내보내면 한 쪽, 큰 글씨). 한 카드는 12~16줄(빈 줄 포함)로 화면을 넉넉히 채우고 16줄을 넘기지 않는다. 한 줄은 30자 안팎(최대 34자, 띄어쓰기 포함). 한 줄 = 한 생각 — 글자 수가 아니라 의미가 끊기는 자리·강조·호흡에서 줄을 나눈다. 생각 덩어리 사이엔 빈 줄 하나.',
 '★ 카드 나누기: 흐름이 바뀌는 곳(새 예화·새 국면·인용 뒤 해석 전환)에서 새 카드를 시작한다. 한 카드에 한 흐름. 대지마다 새 카드에서 시작한다.',
 '★ 대지 명제·결론 머리("말씀을 정리합니다")는 앱이 각 범위 첫 카드 맨 위에 넣는다 — lines 에 쓰지 말 것.',
 '대지 구성: ① 선언 1~2줄(이 대지가 말하려는 바) ② 근거 — 핵심 본문 인용 한 줄(「약어 장:절, "절 전문"」, 개역개정) 또는 원고의 핵심 논지 2~4줄 ③ 예화가 있으면 「ex) 예화 제목」 한 줄 + 핵심 장면 2~4줄 ④ 적용 — "그래서 우리는 ~합시다" 식 1~2줄.',
@@ -10747,7 +10750,9 @@ function cardTitleNow(meta){ return msTitleLine(meta || cardMetaNow(), '카드�
 function hwpxCardDoc(paras){
   var ps = (paras || []).slice();
   var title = ps.length ? String(ps.shift().text || '') : '';
-  return { type: 'card', slots: [null, title], blocks: hwpxParasToBlocks(ps) };
+  var h = Math.round(CARD_PT * 100), ch = {};
+  [0, 10, 11, 12, 16].forEach(function(id){ ch[id] = h; });   /* 본문·굵게·제목·빨강·파랑 (card.hwpx 의 charPr — 원래 13pt·제목 18pt) */
+  return { type: 'card', slots: [null, title], blocks: hwpxParasToBlocks(ps), charHeights: ch };
 }
 async function cardDocBlob(meta, text){
   var built = parasFromText(meta, text, '카드원고', { cards: true });
@@ -13855,6 +13860,14 @@ async function hwpxBuild(content){
     bins.push({ id: b.img.bin, ext: ext, b64: mm[2] });
   });
   sec = sec.replace('</hs:sec>', hwpxBlocks(spec, content.blocks) + '</hs:sec>');
+  /* v636: content.charHeights = {charPr id: HWPUNIT 높이} — 서식 파일은 그대로 두고 이 문서의 글자 크기만 바꾼다(카드원고 문서 22pt) */
+  var hdrName = 'Contents/header.xml', hdr = null;
+  if (content.charHeights && zip.file(hdrName)){
+    hdr = await zip.file(hdrName).async('string');
+    Object.keys(content.charHeights).forEach(function(id){
+      hdr = hdr.replace(new RegExp('(<hh:charPr id="' + id + '" height=")\\d+"'), '$1' + content.charHeights[id] + '"');
+    });
+  }
   var hpfName = 'Contents/content.hpf', hpf = null;
   if (bins.length && zip.file(hpfName)){
     hpf = await zip.file(hpfName).async('string');
@@ -13866,7 +13879,7 @@ async function hwpxBuild(content){
   var names = Object.keys(zip.files).filter(function(n){ return n !== 'mimetype' && !zip.files[n].dir; });
   for (var i = 0; i < names.length; i++){
     var n = names[i];
-    var data = (n === 'Contents/section0.xml') ? sec : (n === hpfName && hpf) ? hpf : await zip.file(n).async('uint8array');
+    var data = (n === 'Contents/section0.xml') ? sec : (n === hpfName && hpf) ? hpf : (n === hdrName && hdr) ? hdr : await zip.file(n).async('uint8array');
     out.file(n, data, { compression: 'DEFLATE', createFolders: false });
   }
   bins.forEach(function(x){ out.file('BinData/' + x.id + '.' + x.ext, x.b64, { base64: true, compression: 'STORE', createFolders: false }); });
@@ -14038,11 +14051,11 @@ async function zipDocParas(buf){
 }
 /* 원고 스타일별 DOCX 서식 — 전체 폰트 함초롬바탕
    기본·자유원고: 아이패드 13" 화면용 216×290mm, 여백 10mm, 13pt, 줄간격 1.5
-   카드원고(v635 — 작성창 카드원고 문서 전용): card.hwpx 와 같은 310×210 가로, 위아래 12.5·좌우 10mm, 13pt, 줄간격 130%, 제목 18pt */
+   카드원고(v635 — 작성창 카드원고 문서 전용): card.hwpx 와 같은 310×210 가로, 위아래 12.5·좌우 10mm, 줄간격 130%, 본문·제목 22pt(v636 — CARD_PT) */
 var DOCX_STYLES = {
   '기본원고': { font: '함초롬바탕', size: 26, line: 360, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
   '자유원고': { font: '함초롬바탕', size: 26, line: 360, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
-  '카드원고': { font: '함초롬바탕', size: 26, line: 312, titleSize: 36, page: { w: 310, h: 210, t: 12.49, b: 12.49, l: 10, r: 10 }, cards: true }
+  '카드원고': { font: '함초롬바탕', size: 44, line: 312, titleSize: 44, page: { w: 310, h: 210, t: 12.49, b: 12.49, l: 10, r: 10 }, cards: true }
 };
 var EX_BLUE = '4C94D8';
 var REF_RED = 'EE0000';   /* 성경 인용 — 빨간 볼드(카드원고 quote 색과 동일) */
@@ -29675,7 +29688,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v635';
+var APP_VER = 'v636';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
