@@ -133,6 +133,7 @@
 - **저작권 자료** — 워커 `mukseol-private`(ACCESS_KEY 는 다른 저작권 워커와 같은 값, CORS 에 이 앱 주소 포함 → 설교앱이 직접 받는다)에서 받는다. 설정 → 저작권 자료(`GATED` 의 `type:'muk'`). 성경앱 [파일]로 저장한 `mukseol.json` 은 [파일에서 가져오기](`mukImport`).
 - IndexedDB 에 **책별로** 둔다: `mukseol_idx` + `mukseol_b<bi>`(`mukSave`/`mukClear`, 약 45MB 를 통째로 메모리에 올리지 않게). 탭은 `mukLoad`(목차) → `mukLoadBook(R.idx)` → `mukPaneHtml(bk, R)`: 본문연구 범위와 겹치는 단원 + 책 개관(접힘).
 - 단원 모양: 요약 · 꼭지 칩(`#stPane [data-mkgo]` 문서 단위 클릭) · 단락구분 목차(누르면 그 본문주해 소제목) · 배경이해 상자 · 도움말 「절 배지 + 표제어(개역개정과 대조해 뽑음) + 설명」 · 묵상 Point · 설교 아웃라인 카드(제목·주제·핵심 질문·도입/본문/결론) · 주간예화(인용·출처). 색·글자는 토큰만(`.mk*` 클래스). 성구는 `mukText` = `linkifyRefs(글, 책)` + 한 장짜리 단원의 「12절」 → `.bref`.
+- **v640 바로가기 줄 고정**: 꼭지 칩 줄(`.mkToc.mkSticky`, 맨 앞 `.mkCur` = 범위)은 그 단원을 읽는 동안 본문연구 창 위에 붙는다(sticky, `#stPane` 위 여백 12px 만큼 `top:-12px`). 읽는 꼭지 칩 `.on` = `mukSpy`/`mukSpyBind`(스크롤 rAF). ⚠ 칩을 보이게 할 때 `scrollIntoView` 금지 — 창의 부드러운 스크롤을 끊는다(줄의 `scrollLeft` 만). 이동 목표 `scroll-margin-top:48px`.
 - **책에 적힌 날짜는 넣지 않았다**(목사님: 앱에서 의미 없음).
 
 ## 새벽설교 제목 옆 찬송 — v607
