@@ -7364,6 +7364,7 @@ async function studyAiSynth(){
     var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 12000, aiTick('본문연구 정리'));
     var _j = aiJson(out);
     studyAiSet(key, _j);             /* 로컬 저장 + 시트 동기화(다기기) */
+    studyBibleAutoUpdate(R, _j);     /* 성경앱에 이미 보낸 노트면 새 정리로 덮어쓴다(v642) — 기다리지 않는다 */
     if (STUDY.tab === 'ai') studyRenderPane();
     await studyDeepAll(key, _j);     /* 핵심 원어 심층연구까지 이어서 일괄 생성·저장 */
     if (STUDY.tab === 'ai' && studyRangeKey() === key) studyRenderPane();
@@ -7689,11 +7690,10 @@ function studyCopyNote(){
    그 목록을 AI 정리가 화면에 뜨는 순간 미리 받아 두면 사용자가 결과를 읽는 동안 받아지고, 버튼을 누를 땐
    upsert 1회만 기다린다. tsaMemoLoad 가 프라미스를 캐시하므로 받는 중에 눌러도 같은 요청을 이어받는다. */
 function studyPrefetchMemos(){ try { if (tsaMemoCfg()) tsaMemoLoad().catch(function(){}); } catch (e){} }
-function studyToBible(){
-  var j = studyAiGet(studyRangeKey());
-  if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
-  if (!tsaMemoCfg()){ toast('설정에 성경앱 설교메모 URL·키를 먼저 입력해 주세요.'); return; }
-  var R = STUDY.range; if (!R || !R.r){ toast('본문 범위를 알 수 없습니다.'); return; }
+/* AI 정리 → 성경앱 [노트] 한 건. 노트 id = study-<책><범위> — 같은 범위면 같은 노트를 덮어쓴다(createdAt 보존).
+   onlyIfSent: 성경앱에 그 노트가 이미 있을 때만(v642 「다시 정리」 뒤 자동 갱신 — 한 번도 안 보낸 본문·성경앱에서 지운 노트는 건드리지 않는다).
+   돌려주는 값 {sent} · {skipped}(없어서 건너뜀) · {unknown}(목록을 못 받아 확인 못 함) */
+function studyBibleSend(R, j, onlyIfSent){
   var r = R.r;
   var c = { bookIdx: R.idx, startChap: r.c1, startVerse: r.v1 || 1,
             endChap: r.c2 || r.c1, endVerse: (r.wholeChapter ? 999 : (r.v2 || r.v1 || 1)) };
@@ -7705,8 +7705,10 @@ function studyToBible(){
   /* v565: 프라미스를 돌려준다 — 예전엔 버리고 끝나서 버튼이 완료를 기다릴 수 없었다(무반응처럼 보인 원인).
      ⏳ 느린 이유: 기존 노트의 createdAt 을 보존하려고 성경앱 메모 전체를 먼저 받아 온 뒤(tsaMemoLoad)
      upsert 한다 — Apps Script 왕복 2번. */
-  return tsaMemoLoad().catch(function(){ return []; }).then(function(all){
+  return tsaMemoLoad().catch(function(){ return null; }).then(function(all){
     var prev = (all || []).filter(function(x){ return String(x.id) === id; })[0];
+    if (onlyIfSent && !all) return { unknown: true, refShort: refShort };
+    if (onlyIfSent && !prev) return { skipped: true, refShort: refShort };
     return bmUpsert({
       id: id, kind: '노트', ref: refShort, title: '본문연구 · ' + refShort,
       memo: txt, color: '', tags: JSON.stringify(['본문연구'].concat(themes)),
@@ -7714,9 +7716,26 @@ function studyToBible(){
       endChap: c.endChap, endVerse: c.endVerse,
       createdAt: (prev && prev.createdAt) || new Date().toISOString(),
       updatedAt: new Date().toISOString(), deleted: ''
-    });
-  }).then(function(){ toast('성경앱 [노트]로 보냈습니다 — ' + refShort); })
+    }).then(function(){ return { sent: true, refShort: refShort }; });
+  });
+}
+function studyToBible(){
+  var j = studyAiGet(studyRangeKey());
+  if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  if (!tsaMemoCfg()){ toast('설정에 성경앱 설교메모 URL·키를 먼저 입력해 주세요.'); return; }
+  var R = STUDY.range; if (!R || !R.r){ toast('본문 범위를 알 수 없습니다.'); return; }
+  return studyBibleSend(R, j, false).then(function(res){ toast('성경앱 [노트]로 보냈습니다 — ' + res.refShort); })
     .catch(function(e){ toast('성경앱 전송 실패(대기열에 보관): ' + (e && e.message || e)); });
+}
+/* 「다시 정리」 뒤: 성경앱에 이미 보낸 노트면 새 정리로 덮어쓴다(v642, 2026-10-13 목사님 요청).
+   다른 기기에서 보낸 노트도 잡도록 메모 목록을 새로 받는다(읽기 캐시 비움) */
+function studyBibleAutoUpdate(R, j){
+  if (!R || !R.r || !j || !tsaMemoCfg()) return;
+  STUDY._memoP = null;
+  studyBibleSend(R, j, true).then(function(res){
+    if (res && res.sent) toast('성경앱 [노트]도 새 정리로 바꿨습니다 — ' + res.refShort);
+    else if (res && res.unknown) toast('성경앱 노트를 확인하지 못해 자동 갱신은 건너뛰었습니다 — 필요하면 [성경앱 노트로]를 눌러 주세요.');
+  }).catch(function(e){ toast('성경앱 노트 자동 갱신 실패(대기열에 보관): ' + (e && e.message || e)); });
 }
 function studyToCompose(){
   var j = studyAiGet(studyRangeKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
@@ -30311,7 +30330,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v641';
+var APP_VER = 'v642';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
