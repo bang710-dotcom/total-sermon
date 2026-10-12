@@ -1810,6 +1810,15 @@ body.edPaper:not(.focusMode) #editorPane{--q-red:#d40000}
 body.edPaper:not(.focusMode) #editorPane .edHlBk{background:transparent;border-radius:0}
 body.edPaper:not(.focusMode) #editorPane .edHl:focus-within > .edHlBk{background:color-mix(in srgb,var(--accent) 3%,transparent)}
 body.focusMode #editorPane .edHlBk{background:transparent}
+/* v638 작성칸 크기 조절 손잡이(아이패드·휴대폰) — iOS·iPadOS Safari 는 textarea 의 resize 손잡이를 그리지 않아(caniuse css-resize)
+   기본원고 칸 크기를 바꿀 수 없었다. 손가락·펜으로 끄는 손잡이를 따로 둔다(body.touchResize 일 때만 — 데스크탑은 기본 손잡이 그대로).
+   보이는 표시는 작게, 누르는 자리는 넉넉하게(40×30). 끄는 동안 화면이 스크롤되지 않게 touch-action:none. */
+.edGrip{display:none}
+body.touchResize #editorPane .edHl > .edGrip{display:block;position:absolute;right:0;bottom:0;width:40px;height:30px;z-index:2;touch-action:none;cursor:ns-resize;border-radius:0 0 var(--r-md) 0}
+body.touchResize #editorPane .edHl > .edGrip::before{content:"";position:absolute;right:7px;bottom:7px;width:14px;height:9px;
+  background:repeating-linear-gradient(to bottom,color-mix(in srgb,var(--dim) 80%,transparent) 0 1.5px,transparent 1.5px 3.75px)}
+body.touchResize #editorPane .edHl > .edGrip.drag{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!important}   /* 집중 모드는 높이 자동, 카드원고 칸은 고정 */
 
 /* v630: 아이콘 의미 색 — 이모지 대신 선 아이콘, 강조가 필요한 것만 색으로 */
 .ico[data-c=w]{color:var(--warn)} .ico[data-c=g]{color:var(--good)} .ico[data-c=r]{color:var(--req)}
@@ -11940,8 +11949,9 @@ function ta(k, pi, pk, rows, ph, val, cls, bi){
   var attrs = k ? 'data-k="' + k + '"' : 'data-pi="' + pi + '" data-pk="' + pk + '"' + (bi != null ? ' data-bi="' + bi + '"' : '');
   var hh = taSavedHeight(k, pi, pk, bi);
   /* v629: 글자층(.edHlBk)을 입력칸 뒤에 겹쳐 성경 인용을 빨간 글자로 보여 준다(edHl* — 마지막 스크립트) */
+  /* v638: 맨 뒤 .edGrip = 아이패드·휴대폰용 크기 조절 손잡이(CSS 가 body.touchResize 일 때만 보인다). 글자층은 늘 첫 자식이어야 한다(edHlSync) */
   return '<div class="edHl"><div class="edHlBk" aria-hidden="true"></div><textarea class="edTa' + (cls ? ' ' + cls : '') + '" rows="' + rows + '" placeholder="' + esc(ph) + '" ' +
-    attrs + (hh ? ' style="height:' + esc(hh) + '"' : '') + '>' + esc(val) + '</textarea></div>';
+    attrs + (hh ? ' style="height:' + esc(hh) + '"' : '') + '>' + esc(val) + '</textarea><span class="edGrip" aria-hidden="true"></span></div>';
 }
 /* 구조화 도구 칩 정의 — 라벨 + 삽입 코드(줄 맨 앞 토큰). 내보내기 땐 토큰이 보이지 않는다. */
 var STRUCT_CHIPS = [
@@ -12131,6 +12141,36 @@ document.addEventListener('mouseup', function(){
   var els = pane.querySelectorAll('.edTa:not(.cdTa)');
   for (var i = 0; i < els.length; i++) { if (els[i].style.height) saveTaHeight(els[i]); }
 });
+/* v638 아이패드·휴대폰 크기 조절 손잡이(.edGrip, ta() 가 만든다) — iOS·iPadOS Safari 는 textarea 기본 손잡이를 그리지 않는다.
+   터치가 주 입력인 기기(또는 iPad·iPhone)에서만 body.touchResize 를 켠다 — 데스크탑은 기본 손잡이 그대로.
+   pointer 이벤트라 손가락·애플펜슬·트랙패드 모두 된다. 끝나면 데스크탑과 같은 saveTaHeight 로 높이를 기억한다. */
+(function(){
+  var ios = /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var coarse = false; try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (e) {}
+  if (ios || coarse) document.body.classList.add('touchResize');
+  var pane = document.getElementById('editorPane'); if (!pane) return;
+  pane.addEventListener('pointerdown', function(e){
+    var g = e.target && e.target.closest && e.target.closest('.edGrip'); if (!g) return;
+    var t = g.parentNode && g.parentNode.querySelector('textarea.edTa'); if (!t) return;
+    e.preventDefault(); e.stopPropagation();
+    var cs = getComputedStyle(t), border = cs.boxSizing === 'border-box';
+    var extra = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    var minBox = (parseFloat(cs.minHeight) || 40) + (border ? 0 : extra);   /* 테두리 상자 기준 최소 높이 */
+    var h0 = t.offsetHeight, y0 = e.clientY;
+    try { g.setPointerCapture(e.pointerId); } catch (e2) {}
+    g.classList.add('drag');
+    function move(ev){
+      var h = Math.max(minBox, Math.min(6000, h0 + ev.clientY - y0));
+      t.style.height = Math.round(border ? h : h - extra) + 'px';
+    }
+    function up(){
+      g.classList.remove('drag');
+      g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+      if (t.style.height) saveTaHeight(t);
+    }
+    g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+  });
+})();
 ['c_title', 'c_ref', 'c_series', 'c_seriesNo', 'c_msg'].forEach(function(id){
   $('#' + id).addEventListener('input', debounce(updateAutoBits, 150));
 });
@@ -29944,7 +29984,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v637';
+var APP_VER = 'v638';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
