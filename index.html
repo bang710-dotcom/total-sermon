@@ -581,6 +581,15 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .mkBox{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:9px 12px}
 .mkBox p:last-child{margin-bottom:0}
 .mkNote{padding:7px 0;border-top:1px dashed var(--line)}
+/* WBC(v643) — 묵상과 설교 부품(.mk*) + 아래 몇 가지 */
+.wbcPath{font-size:var(--fs-xs);color:var(--dim);margin:0 0 8px}
+.wbcVol{font-weight:600;font-size:var(--fs-xs);color:var(--dim)}
+.wbcEn{border:1px solid var(--line);border-radius:var(--r-md);background:var(--card2)}
+.wbcEn>summary{cursor:pointer;padding:6px 10px;font-size:var(--fs-sm);font-weight:600;color:var(--dim)}
+.wbcEnB{padding:2px 12px 10px;font-size:var(--fs-sm);line-height:1.6}
+.wbcEnB>div{margin:0 0 4px}
+.wbcV{scroll-margin-top:calc(48px * var(--stz, 1))}
+.wbcMng{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:9px;border-top:1px dashed var(--line);font-size:var(--fs-xs);color:var(--dim)}
 .mkNote:first-child{border-top:none;padding-top:0}
 .mkPtT{font-weight:700;margin:12px 0 4px;padding-left:9px;border-left:3px solid var(--accent2)}
 .mkPtT:first-child{margin-top:0}
@@ -2951,6 +2960,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
           <button type="button" data-sttab="calvin">칼뱅 주석(영문)</button>
           <button type="button" data-sttab="esvsb">ESV 스터디</button>
           <button type="button" data-sttab="muk">묵상과 설교</button>
+          <button type="button" data-sttab="wbc">WBC</button>
           <button type="button" data-sttab="map"><svg class=ico aria-hidden=true><use href=#i-map></use></svg> 지도</button>
           <button type="button" data-sttab="dict"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 성경사전</button>
           <button type="button" data-sttab="hymn"><svg class=ico aria-hidden=true><use href=#i-music></use></svg> 찬송가</button>
@@ -6747,7 +6757,7 @@ function mukSpy(pane){
 }
 function mukSpyBind(pane){
   if (pane._mkSpy) return; pane._mkSpy = true; var raf = 0;
-  pane.addEventListener('scroll', function(){ if (raf) return; raf = requestAnimationFrame(function(){ raf = 0; if (STUDY.tab === 'muk') mukSpy(pane); }); }, { passive: true });
+  pane.addEventListener('scroll', function(){ if (raf) return; raf = requestAnimationFrame(function(){ raf = 0; if (STUDY.tab === 'muk' || STUDY.tab === 'wbc') mukSpy(pane); }); }, { passive: true });
 }
 /* 본문연구 범위(R)와 겹치는 단원 + 그 책의 개관 */
 function mukPaneHtml(bk, R){
@@ -6807,6 +6817,175 @@ async function mukStudyInput(R){
 function mukGateHtml(){
   return '<div class="cnt" style="margin-bottom:8px"><b>묵상과 설교</b>(성서유니온) — 비공개 개인 자료입니다. 설정 → <b>저작권 자료</b>에서 성경앱과 같은 <b>키코드</b>로 이 기기에 한 번 받아 두면, 본문 구간을 다룬 단원(단락구분·본문주해·배경이해·도움말·묵상 Point·설교 아웃라인)이 여기 표시됩니다.</div>'
     + '<button class="btn sub mini" type="button" data-mukgate="1">설정에서 받기</button>';
+}
+/* ── WBC 성경주석(솔로몬 한글판) — 묵상과 설교와 같은 비공개 키코드·워커 방식, 다만 전체가 약 100MB 라 책별로 받는다 (v643, 2026-10-13) ──
+   [받기] = 목차(wbc/index.json)만 → IndexedDB wbc_idx. 책은 본문연구에서 그 책을 처음 열 때 저장된 키코드로 받아 wbc_b<책>(다음부터는 기기에서).
+   책별 = {bi, ko, vols, intro:[{vol, items}], units:[{vol, r:[c1,v1,c2,v2], t, path, secs:[[꼭지,[[k,…]]]]}]}
+   k: 'p' 문단 · 'h' 소제목 · 'v' 절 문단([v,'12',글]) · 'n' 원문주해 항목([n,'a' 또는 '1.a',글]) · 'e' 저자 영어 번역 절([e,'18',글])
+   목사님 결정(2026-10-13): 참고문헌은 뺐다 · 본문 꼭지는 개역한글 단을 빼고 저자 영어 번역만(접어서) · AI 정리에는 양식/구조/배경 + 해설만.
+   없는 책: 호세아~요나, 사도행전, 고린도전서(이 시리즈 원본에 없음). 신명기는 21:10 부터, 욥기는 37장까지.
+   만든 과정: Dropbox/total-sermon/work/WBC_20261013/README.md */
+var WBC_WORKER = 'https://wbc-private.bang710.workers.dev';
+var WBCSB = { idx: undefined, books: {}, loading: null, fetching: {} };
+function wbcReady(){ try { return localStorage.getItem('tsa.wbcReady') === '1'; } catch (e){ return false; } }
+function wbcHave(){ try { return JSON.parse(localStorage.getItem('tsa.wbcHave') || '[]'); } catch (e){ return []; } }
+function wbcHaveSet(a){ try { localStorage.setItem('tsa.wbcHave', JSON.stringify(a)); } catch (e){} }
+function wbcLoad(){
+  if (WBCSB.idx !== undefined) return Promise.resolve(WBCSB.idx);
+  if (WBCSB.loading) return WBCSB.loading;
+  WBCSB.loading = idbGet('wbc_idx').then(function(d){ WBCSB.idx = (d && d.books) ? d : null; WBCSB.loading = null; return WBCSB.idx; })
+    .catch(function(){ WBCSB.idx = null; WBCSB.loading = null; return null; });
+  return WBCSB.loading;
+}
+async function wbcGet(f, key){
+  var r;
+  try { r = await fetch(WBC_WORKER + '?f=' + f, { headers: { 'x-access-key': key } }); }
+  catch (e){ throw new Error('CORS'); }
+  if (r.status === 403) throw new Error('키코드가 올바르지 않습니다.');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+/* [받기] — 목차만. 자료를 다시 만들어 올렸으면(built 가 바뀜) 받아 둔 책을 지워 새로 받게 한다 */
+async function wbcFetch(key){
+  var ix = await wbcGet('index', key);
+  if (!ix || !ix.books) throw new Error('자료 형식 오류');
+  var old = await idbGet('wbc_idx').catch(function(){ return null; });
+  if (old && old.built !== ix.built) await wbcClearBooks();
+  await idbSet('wbc_idx', ix);
+  WBCSB.idx = ix; WBCSB.books = {};
+  try { localStorage.setItem('tsa.wbcReady', '1'); } catch (e){}
+  gateKeySet(key);
+  return ix;
+}
+function wbcBookInfo(bi){ var L = (WBCSB.idx && WBCSB.idx.books) || []; for (var i = 0; i < L.length; i++) if (L[i].bi === bi) return L[i]; return null; }
+/* 책 하나 — 기기에 있으면 그것, 없으면(fetch=true) 저장된 키코드로 워커에서 받아 저장 */
+function wbcLoadBook(bi, fetchIt){
+  if (WBCSB.books[bi]) return Promise.resolve(WBCSB.books[bi]);
+  return idbGet('wbc_b' + bi).catch(function(){ return null; }).then(function(bk){
+    if (bk){ WBCSB.books[bi] = bk; return bk; }
+    if (!fetchIt || !wbcBookInfo(bi)) return null;
+    if (WBCSB.fetching[bi]) return WBCSB.fetching[bi];
+    var key = gateKeyGet();
+    if (!key) return Promise.reject(new Error('키코드가 없습니다'));
+    WBCSB.fetching[bi] = wbcGet('b' + bi, key).then(function(d){
+      if (!d || !d.units) throw new Error('자료 형식 오류');
+      return idbSet('wbc_b' + bi, d).then(function(){
+        WBCSB.books[bi] = d; delete WBCSB.fetching[bi];
+        var h = wbcHave(); if (h.indexOf(bi) < 0){ h.push(bi); wbcHaveSet(h); }
+        return d;
+      });
+    }).catch(function(e){ delete WBCSB.fetching[bi]; throw e; });
+    return WBCSB.fetching[bi];
+  });
+}
+async function wbcClearBooks(){
+  var ix = await idbGet('wbc_idx').catch(function(){ return null; });
+  var bl = ((ix && ix.books) || []).map(function(b){ return b.bi; });
+  wbcHave().forEach(function(b){ if (bl.indexOf(b) < 0) bl.push(b); });
+  for (var i = 0; i < bl.length; i++) await idbSet('wbc_b' + bl[i], null);
+  WBCSB.books = {}; wbcHaveSet([]);
+}
+async function wbcClear(){
+  await wbcClearBooks();
+  await idbSet('wbc_idx', null);
+  WBCSB.idx = null;
+  try { localStorage.removeItem('tsa.wbcReady'); } catch (e){}
+}
+/* 모든 책 미리 받기(오프라인용) — 한 권씩 차례로 */
+async function wbcFetchAll(){
+  var ix = await wbcLoad(); if (!ix) throw new Error('목차가 없습니다');
+  var have = wbcHave(), todo = ix.books.filter(function(b){ return have.indexOf(b.bi) < 0; });
+  for (var i = 0; i < todo.length; i++){
+    showWaitOverlay('WBC 책을 받고 있어요', (i + 1) + ' / ' + todo.length + ' · ' + todo[i].ko);
+    await wbcLoadBook(todo[i].bi, true);
+  }
+  return todo.length;
+}
+function wbcVolName(id){
+  var v = WBCSB.idx && WBCSB.idx.vols ? WBCSB.idx.vols[id] : null;
+  return 'WBC ' + id + (v && v.author ? ' · ' + v.author : '');
+}
+var WBC_CHIP = { '서론': '서론', '본문': '번역', '원문주해': '원문', '양식/구조/배경': '구조', '주석': '주석', '해설': '해설' };
+var WBC_HEAD = { '서론': '단원 서론', '본문': '저자 번역(영어)', '원문주해': '원문주해', '양식/구조/배경': '양식 · 구조 · 배경', '주석': '주석', '해설': '해설' };
+function wbcItemsHtml(items, bk, r, uid){
+  return items.map(function(x){
+    if (x[0] === 'h') return '<div class="mkSubh"><span>' + esc(x[1]) + '</span></div>';
+    if (x[0] === 'v') return '<p class="wbcV" id="' + uid + '-v' + esc(x[1]) + '">' + mukVr(x[1] + (/[상하]$/.test(x[1]) ? '' : '절')) + mukText(x[2], bk, r) + '</p>';
+    if (x[0] === 'n') return '<div class="mkNote">' + mukVr(x[1]) + mukText(x[2], bk, r) + '</div>';
+    if (x[0] === 'e') return '<div>' + (x[1] ? mukVr(x[1]) : '') + esc(x[2]) + '</div>';
+    return '<p>' + mukText(x[1], bk, r) + '</p>';
+  }).join('');
+}
+function wbcSecHtml(name, items, bk, r, uid){
+  if (name === '본문'){
+    var n = items.filter(function(x){ return x[0] === 'e'; }).length;
+    return '<details class="wbcEn"><summary>저자의 영어 번역' + (n ? ' · ' + n + '절' : '') + ' (개역한글 단은 뺐습니다)</summary><div class="wbcEnB">' + wbcItemsHtml(items, bk, r, uid) + '</div></details>';
+  }
+  return wbcItemsHtml(items, bk, r, uid);
+}
+function wbcUnitHtml(u, bk, ui, bi){
+  var r = u.r, uid = 'wbu' + ui, toc = '', body = '', h = '';
+  (u.secs || []).forEach(function(s, j){
+    var id = uid + '-s' + j;
+    toc += '<button type="button" class="mkChip" data-mkgo="' + id + '">' + esc(WBC_CHIP[s[0]] || s[0]) + '</button>';
+    body += '<section class="mkSec" id="' + id + '"><div class="mkSh">' + esc(WBC_HEAD[s[0]] || s[0]) + '</div>' + wbcSecHtml(s[0], s[1], bk, r, uid) + '</section>';
+  });
+  if (u.path && u.path.length) h += '<div class="wbcPath">' + u.path.map(esc).join(' › ') + '</div>';
+  if (toc) h += '<div class="mkToc mkSticky"><span class="mkCur">' + esc(mukRangeTxt(bi, r)) + '</span>' + toc + '</div>';
+  return h + body;
+}
+function wbcPaneHtml(bk, R){
+  var name = (bk && bk.ko) || BOOKS.split('|')[R.idx] || '';
+  var r = R.r, lo = r.c1 * 1000 + r.v1, hi = r.c2 * 1000 + r.v2;
+  var us = (bk.units || []).filter(function(u){ return !(u.r[2] * 1000 + u.r[3] < lo || u.r[0] * 1000 + u.r[1] > hi); });
+  var h = '';
+  if (us.length > 1) h += '<div class="mkToc mkUnits"><span>단원</span>' + us.map(function(u, i){ return '<button type="button" class="mkChip" data-mkgo="wbu' + i + '">' + esc(mukRangeTxt(R.idx, u.r)) + '</button>'; }).join('') + '</div>';
+  us.forEach(function(u, i){
+    h += '<details class="mkU" id="wbu' + i + '" open><summary>' + esc(name + ' ' + mukRangeTxt(R.idx, u.r)) + (u.t ? ' · ' + esc(u.t) : '') + ' <span class="wbcVol">' + esc(wbcVolName(u.vol)) + '</span></summary><div class="mkB">' + wbcUnitHtml(u, name, i, R.idx) + '</div></details>';
+  });
+  if (!us.length) h += '<div class="cnt">이 범위를 다루는 WBC 단원이 없습니다. 이 책에서 다룬 범위: '
+    + esc((bk.units || []).map(function(u){ return mukRangeTxt(R.idx, u.r); }).join(', ')) + '</div>';
+  (bk.intro || []).forEach(function(it, i){
+    h += '<details class="mkU"><summary>' + esc(name) + ' 서론 <span class="wbcVol">' + esc(wbcVolName(it.vol)) + '</span></summary><div class="mkB">' + wbcItemsHtml(it.items || [], name, [0, 0, -1, 0], 'wbi' + i) + '</div></details>';
+  });
+  return h;
+}
+function wbcManageHtml(){
+  var ix = WBCSB.idx, have = wbcHave(), all = (ix && ix.books) || [];
+  var mb = function(n){ return (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + 'MB'; };
+  var hs = all.filter(function(b){ return have.indexOf(b.bi) >= 0; }).reduce(function(a, b){ return a + (b.size || 0); }, 0);
+  var rest = all.filter(function(b){ return have.indexOf(b.bi) < 0; }).reduce(function(a, b){ return a + (b.size || 0); }, 0);
+  return '<div class="wbcMng"><span>이 기기에 받은 WBC 책 ' + have.length + '/' + all.length + '권(' + mb(hs) + ') — 처음 여는 책은 그때 받습니다.</span>'
+    + (rest ? '<button class="btn sub mini" type="button" data-wbcact="all">모든 책 미리 받기(' + mb(rest) + ')</button>' : '')
+    + (have.length ? '<button class="btn sub mini" type="button" data-wbcact="clear">받은 책 지우기</button>' : '') + '</div>';
+}
+function wbcGateHtml(){
+  return '<div class="cnt" style="margin-bottom:8px"><b>WBC 성경주석</b>(솔로몬 한글판) — 비공개 개인 자료입니다. 설정 → <b>저작권 자료</b>에서 다른 자료와 같은 <b>키코드</b>로 목차를 받아 두면, 본문 구간을 다룬 단원(저자 번역·원문주해·양식/구조/배경·주석·해설)이 여기 표시됩니다. 책은 처음 열 때 받습니다.</div>'
+    + '<button class="btn sub mini" type="button" data-mukgate="1">설정에서 받기</button>';
+}
+/* AI 정리 입력(v643) — 범위와 겹치는 WBC 단원의 양식/구조/배경 + 해설(목사님 결정). 주석 꼭지는 길어서(단원마다 수만 자) 넣지 않는다.
+   책이 아직 기기에 없으면 키코드로 받아 온다. 약 12,000자에서 자른다. 받지 못하면 [] */
+async function wbcStudyInput(R){
+  var ix = await wbcLoad(); if (!ix || !wbcBookInfo(R.idx)) return [];
+  var bk = await wbcLoadBook(R.idx, true).catch(function(){ return null; }); if (!bk) return [];
+  var r = R.r, lo = r.c1 * 1000 + r.v1, hi = r.c2 * 1000 + r.v2, out = [], total = 0, CAP = 12000;
+  var txt = function(items){ return items.map(function(x){ return x[0] === 'h' ? '【' + x[1] + '】' : (x[0] === 'v' || x[0] === 'n') ? x[1] + ' ' + x[2] : x[0] === 'e' ? '' : x[1]; }).filter(Boolean).join('\n'); };
+  (bk.units || []).forEach(function(u){
+    if (u.r[2] * 1000 + u.r[3] < lo || u.r[0] * 1000 + u.r[1] > hi || total >= CAP - 1500) return;
+    var o = { 범위: mukRangeTxt(R.idx, u.r), 제목: u.t || '', 출처: wbcVolName(u.vol) };
+    (u.secs || []).forEach(function(sx){
+      if (sx[0] === '양식/구조/배경') o.양식구조배경 = txt(sx[1]);
+      if (sx[0] === '해설') o.해설 = txt(sx[1]);
+    });
+    var len = JSON.stringify(o).length;
+    if (total + len > CAP){
+      var cut = total + len - CAP;
+      ['양식구조배경', '해설'].forEach(function(k){ if (cut > 0 && o[k] && o[k].length > 1200){ var n = Math.min(cut, o[k].length - 1200); o[k] = o[k].slice(0, o[k].length - n) + '…'; cut -= n; } });
+      len = JSON.stringify(o).length;
+    }
+    total += len; out.push(o);
+  });
+  return out;
 }
 function esvManageHtml(){
   return '<div style="display:flex;gap:6px;margin-top:12px;padding-top:8px;border-top:1px dashed var(--line)"><button class="btn sub mini" id="esvGet" type="button">↻ 다시 받기</button><button class="btn sub mini" id="esvDel" type="button">이 기기에서 삭제</button></div>';
@@ -7108,14 +7287,15 @@ var MSG_DIVERSITY_RULE = '\n★선택지 다양성(필수·5결 매트릭스): �
 var MISUSE_RULE = '\n★"흔한 오용"(필수): 이 본문을 강단에서 다룰 때 실제로 자주 나오는 잘못된 해석을 0~3개 짚는다. 유형은 다섯 가지 — ①가짜 어원(원어의 어원·구성 요소로 본문에 없는 뜻을 만들어 냄) ②풍유적 곡해(서사의 사물·숫자·인물에 본문이 주지 않은 상징을 붙임) ③아전인수 적용(1차 독자의 특수 정황에 매인 약속을 오늘 청중 개인에게 그대로 옮김) ④문맥 이탈(앞뒤 문맥을 끊고 한 구절만 떼어 반대 뜻으로 씀) ⑤근거 없는 인용(확인되지 않은 고고학·풍습·통계·일화를 사실처럼 인용함). 자주 지적되는 사례로는 물맷돌 다섯 개의 상징화, 야베스의 기도, 아가페와 필레오의 과장된 대비, 렘 29:11·빌 4:13·시 91편의 개인 번영 약속화, "바늘귀 문"처럼 출처 없는 풍습 설명 등이 있다. ★규칙: 이 본문에 실제로 해당하는 것만 적고, 억지로 채우지 않는다(없으면 빈 배열 []). 특정 설교자를 지목하지 말고 해석 내용만 다룬다. "바로잡기"에는 본문이 실제로 무엇을 말하는지를 한두 문장으로 적는다.';
 
 var P_STUDYSYN = [
-'당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·책·개역개정 절들·원문[히브리어/헬라어]·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석·ESV 스터디바이블 주석·Holman 핸드북 발췌·책개요[Holman 핸드북의 큰 단락·소단락 제목과 범위 — "← 이 본문" 표시]·책소개·앞문맥/뒤문맥[본문 바로 앞뒤의 개역개정 절]·묵상과설교[성서유니온 「묵상과 설교」에서 이 본문을 다룬 단원 — 요약·단락구분·본문주해·배경이해·도움말·설교아웃라인 요지, 같은 본문을 다른 해에 다룬 단원이 여럿일 수 있다])을 읽고 목사님 설교 방법에 맞춰 주해 재료를 정리한다.',
+'당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·책·개역개정 절들·원문[히브리어/헬라어]·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석·ESV 스터디바이블 주석·Holman 핸드북 발췌·책개요[Holman 핸드북의 큰 단락·소단락 제목과 범위 — "← 이 본문" 표시]·책소개·앞문맥/뒤문맥[본문 바로 앞뒤의 개역개정 절]·묵상과설교[성서유니온 「묵상과 설교」에서 이 본문을 다룬 단원 — 요약·단락구분·본문주해·배경이해·도움말·설교아웃라인 요지, 같은 본문을 다른 해에 다룬 단원이 여럿일 수 있다]·WBC[WBC 성경주석에서 이 본문을 다룬 단원의 양식/구조/배경·해설])을 읽고 목사님 설교 방법에 맞춰 주해 재료를 정리한다.',
 '목사님 방법: ①한 단어를 깊이 판다(두나미스·아케다·하-니글로트처럼 결정적 원어 1~2개) ②1차 독자의 정황을 짧고 분명히 ③본문 자체의 구조·흐름을 빌려온다 ④본문의 절정 한 구절(클라이맥스)을 정확히 짚는다.',
 '출력은 반드시 JSON 객체만(설명·코드펜스 금지):',
 '{"장르":"내러티브/시가/지혜/예언/율법/복음서/서신/묵시 중 하나 + 그 장르가 이 본문 해석에 주는 단서 한 줄","핵심원어":[{"단어":"한글단어","원어":"히브리어/헬라어","발음":"...","스트롱":"H또는G번호","뜻":"한 문장","왜":"이 본문에서 이 단어를 깊이 팔 이유 1~2문장"}],"정황":"1차 독자의 상황·배경 2~3문장","구속사위치":"이 본문이 구속사 흐름에서 차지하는 위치와 그리스도로의 연결 2~3문장","책구조":{"개요":[{"범위":"장:절-장:절","제목":"큰 단락 제목","이본문":true}],"자리":"이 본문이 속한 큰 단락 안에서 어디쯤인지 한 줄","의미":"책 전체의 흐름·주제 전개에서 이 본문이 맡는 구조적 역할 2~4문장(무엇을 열고·잇고·닫는지, 책의 목적과 어떻게 맞물리는지)"},"앞뒤문맥":{"앞":{"범위":"장:절-장:절","요지":"바로 앞 단락 요지 한 줄","관계":"이 본문이 앞에서 무엇을 이어받고 어떻게 잇거나 뒤집는지 1~2문장"},"뒤":{"범위":"장:절-장:절","요지":"바로 뒤 단락 요지 한 줄","관계":"이 본문이 뒤로 무엇을 넘겨주는지 1~2문장"},"기능":"앞뒤 사이에서 이 본문이 하는 일 한 문장"},"상호본문":[{"본문":"구약/신약 장:절 ref","관계":"인용/암시/성취/대조 등 한 줄"}],"구조":{"유형":"교차대구(chiasm)/평행/점층·발전/수미상관/내러티브 플롯 등","단락":[{"범위":"장:절-절","요지":"이 단락 한 줄 요지"}],"설명":"구조가 메시지를 어떻게 실어 나르는지 1~2문장"},"클라이맥스":{"절":"책 장:절","이유":"이 절이 다른 절들을 호명하는 중심인 이유 1~2문장"},"해석이견":[{"쟁점":"해석이 갈리는 지점 한 줄","견해":["견해A 요약","견해B 요약"],"택함":"어느 쪽이 본문에 더 충실한지와 이유 1~2문장"}],"신학주제":["이 본문이 여는 신학 주제 2~4개"],"흔한오용":[{"주장":"강단에서 자주 들리는 잘못된 해석 한 줄","유형":"가짜어원/풍유곡해/아전인수/문맥이탈/근거없는인용 중 하나","바로잡기":"본문이 실제로 말하는 것 1~2문장"}],"설교다리":"주해에서 오늘 청중의 삶으로 넘어가는 다리 2~3문장(대지를 대신 쓰지는 말 것)"}',
 '책구조.개요는 책 전체를 3~7개 큰 단락으로 — 입력 책개요가 있으면 그 큰 단락 구분과 범위를 그대로 따르고(제목만 간결하게), 없으면 널리 인정되는 구분을 쓴다. 이 본문이 속한 단락 하나만 "이본문":true. 범위는 책 이름 없이 "장:절-장:절". 앞뒤문맥은 앞문맥·뒤문맥 절과 책개요의 소단락을 근거로 바로 앞·뒤 단락을 잡고, 책의 처음이나 끝이라 앞·뒤가 없으면 그 칸은 null.',
 '핵심원어는 1~2개만. 구조.단락은 본문 절 범위 안에서만 나눈다. 상호본문·해석이견은 실제로 있을 때만 채우고 없으면 빈 배열 []로 둔다(억지로 만들지 않는다).',
-'근거는 입력의 원문·원어후보·NET·호크마·ESV스터디·Holman·묵상과설교·책개요·앞뒤문맥에서만 끌어오고 없는 사실을 지어내지 않는다. 주석 입력이 비어 있으면 원문과 절 본문만으로 정리한다.',
+'근거는 입력의 원문·원어후보·NET·호크마·ESV스터디·Holman·묵상과설교·WBC·책개요·앞뒤문맥에서만 끌어오고 없는 사실을 지어내지 않는다. 주석 입력이 비어 있으면 원문과 절 본문만으로 정리한다.',
 '묵상과설교가 있으면 그 단락구분은 구조.단락의 참고로, 본문주해·배경이해·도움말은 정황·핵심원어·해석이견·설교다리의 근거로 함께 쓴다(다른 주석과 다르면 해석이견에 드러낸다).',
+'WBC가 있으면 양식구조배경은 장르·구조·역사적 정황의 근거로, 해설은 신학적 의미·설교다리의 근거로 쓴다(학자 이름은 입력에 있는 것만, 다른 주석과 다르면 해석이견에 드러낸다).',
 '한국어로, 통찰이 번뜩이되 간결하게. 설교 대지를 대신 쓰지 말고 "연구 재료"를 정리하는 데 집중한다.'].join('\n') + MISUSE_RULE;
 function studyRangeKey(){ var R = STUDY.range; return R ? (R.idx + ':' + R.r.c1 + ':' + R.r.v1 + '-' + R.r.c2 + ':' + R.r.v2) : ''; }
 function studyGatherContext(){
@@ -7348,6 +7528,7 @@ async function studyAiSynth(){
     var esvD = await esvLoad().catch(function(){ return null; });
     var esvBk = esvD && esvD.books ? esvD.books[R.idx] : null;
     var mukIn = await mukStudyInput(R).catch(function(){ return []; });
+    var wbcIn = await wbcStudyInput(R).catch(function(){ return []; });
     var ctx = studyGatherContext();
     var frame = await studyBookOutline(), nb = studyNeighborVerses();
     var input = {
@@ -7359,7 +7540,8 @@ async function studyAiSynth(){
       호크마: com ? studyVerseList(com) : [],
       ESV스터디: (esvBk && esvBk.chapters) ? studyVerseList(esvBk) : [],
       Holman발췌: holman || '',
-      묵상과설교: mukIn
+      묵상과설교: mukIn,
+      WBC: wbcIn
     };
     var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 12000, aiTick('본문연구 정리'));
     var _j = aiJson(out);
@@ -8197,6 +8379,24 @@ function studyRenderPane(){
       if (STUDY.tab !== 'muk') return;
       if (!ix){ pane.innerHTML = mukGateHtml(); return; }
       return mukLoadBook(R.idx).then(function(bk){ if (STUDY.tab === 'muk' && STUDY.range === R){ pane.innerHTML = mukPaneHtml(bk, R); mukSpyBind(pane); mukSpy(pane); } });
+    });
+    return;
+  }
+  if (STUDY.tab === 'wbc'){
+    pane.innerHTML = '<div class="cnt">WBC 주석을 여는 중…</div>';
+    wbcLoad().then(function(ix){
+      if (STUDY.tab !== 'wbc') return;
+      if (!ix){ pane.innerHTML = wbcGateHtml(); return; }
+      var info = wbcBookInfo(R.idx), ko = BOOKS.split('|')[R.idx] || '';
+      if (!info){ pane.innerHTML = '<div class="cnt">' + esc(ko) + '은(는) 이 WBC 자료에 없습니다(원본에 없는 책: 호세아~요나, 사도행전, 고린도전서).</div>' + wbcManageHtml(); return; }
+      if (wbcHave().indexOf(R.idx) < 0) pane.innerHTML = '<div class="cnt">WBC ' + esc(ko) + '을(를) 받는 중… (' + ((info.size || 0) / 1048576).toFixed(1) + 'MB, 처음 한 번만)</div>';
+      return wbcLoadBook(R.idx, true).then(function(bk){
+        if (STUDY.tab === 'wbc' && STUDY.range === R){ pane.innerHTML = wbcPaneHtml(bk, R) + wbcManageHtml(); mukSpyBind(pane); mukSpy(pane); }
+      }).catch(function(e){
+        if (STUDY.tab !== 'wbc') return;
+        var m = (e && e.message) || String(e);
+        pane.innerHTML = '<div class="stWarn">WBC ' + esc(ko) + '을(를) 받지 못했습니다: ' + esc(m === 'CORS' ? '인터넷 연결' : m) + '<br>인터넷 연결과 키코드(설정 → 저작권 자료)를 확인해 주세요.</div>' + wbcManageHtml();
+      });
     });
     return;
   }
@@ -15562,6 +15762,20 @@ document.addEventListener('click', function(e){
     try { t.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e3){ t.scrollIntoView(); }
     return;
   }
+  var wa = e.target.closest && e.target.closest('[data-wbcact]');
+  if (wa){
+    var act = wa.getAttribute('data-wbcact');
+    if (act === 'clear'){
+      if (!confirm('이 기기에 받아 둔 WBC 책을 모두 지울까요?\n목차와 키코드는 남아 있어 책을 다시 열면 그때 받습니다.')) return;
+      wbcClearBooks().then(function(){ toast('받아 둔 WBC 책을 지웠습니다.'); if (STUDY.tab === 'wbc') studyRenderPane(); });
+    } else if (act === 'all'){
+      wa.disabled = true;
+      wbcFetchAll().then(function(n){ toast('WBC 책 ' + n + '권을 받았습니다 — 이제 인터넷 없이도 볼 수 있습니다.'); })
+        .catch(function(err){ toast('WBC 받기 중단: ' + ((err && err.message) || err)); })
+        .then(function(){ hideWaitOverlay(); if (STUDY.tab === 'wbc') studyRenderPane(); });
+    }
+    return;
+  }
   var b = e.target.closest && e.target.closest('[data-mukgate]'); if (!b) return;
   showPage('settings');
   setTimeout(function(){ var g = document.getElementById('sgGate'); if (g){ g.open = true; try { g.scrollIntoView({ block: 'start' }); } catch (e2){} } }, 80);
@@ -15577,26 +15791,31 @@ var GATED = [
   { id: 'NKT',  name: '새한글 성경',            where: '번역본 목록',             type: 'tr' },
   { id: 'CTBR', name: '공동번역 개정판',        where: '번역본 목록 · 외경 포함', type: 'tr' },
   { id: 'ESV',  name: 'ESV 스터디바이블(주석)', where: '본문연구 ESV 탭',         type: 'esv' },
-  { id: 'MUK',  name: '묵상과 설교(주석)',      where: '본문연구 묵상과 설교 탭',  type: 'muk' }
+  { id: 'MUK',  name: '묵상과 설교(주석)',      where: '본문연구 묵상과 설교 탭',  type: 'muk' },
+  { id: 'WBC',  name: 'WBC 성경주석',           where: '본문연구 WBC 탭 · 책은 열 때 받음', type: 'wbc', nofile: true }
 ];
 function gateDef(id){ return GATED.filter(function(g){ return g.id === id; })[0] || null; }
 function gateHas(g){
   if (!g) return false;
   if (g.type === 'tr'){ var t = localTrDef(g.id); return !!(t && localTrReady(t)); }
   if (g.type === 'muk') return mukReady();
+  if (g.type === 'wbc') return wbcReady();
   try { return localStorage.getItem('tsa.esvReady') === '1'; } catch (e){ return false; }
 }
 function gateFetchOne(g, key){
   if (g.type === 'muk') return mukFetch(key);
+  if (g.type === 'wbc') return wbcFetch(key);
   return (g.type === 'tr') ? localTrFetch(localTrDef(g.id), key) : esvFetch(key);
 }
 function gateImportOne(g, file){
   if (g.type === 'muk') return mukImport(file);
+  if (g.type === 'wbc') return Promise.reject(new Error('WBC 는 파일 가져오기를 쓰지 않습니다 — [받기]를 눌러 주세요.'));
   return (g.type === 'tr') ? localTrImport(localTrDef(g.id), file) : esvImport(file);
 }
 function gateDeleteOne(g){
   if (g.type === 'tr') return localTrDelete(localTrDef(g.id));
   if (g.type === 'muk') return mukClear();
+  if (g.type === 'wbc') return wbcClear();
   return idbSet('esv_com', null).then(function(){
     ESVSB.data = null;
     try { localStorage.removeItem('tsa.esvReady'); } catch (e){}
@@ -15605,7 +15824,7 @@ function gateDeleteOne(g){
 function gateAfterChange(){
   renderGateBox();
   try { if (STUDY.range) studyRenderText(); } catch (e){}
-  try { if (STUDY.tab === 'esvsb' || STUDY.tab === 'muk') studyRenderPane(); } catch (e){}
+  try { if (STUDY.tab === 'esvsb' || STUDY.tab === 'muk' || STUDY.tab === 'wbc') studyRenderPane(); } catch (e){}
 }
 /* 연결 설정 그룹의 상태 배지 — 열지 않고도 무엇이 채워졌는지 보인다 (v478) */
 function renderSetBadges(){
@@ -15655,7 +15874,7 @@ function renderGateBox(){
           + '<span class="cnt" style="margin:0">' + (on ? '받음 · ' + esc(g.where) : '아직 없음') + '</span></div>'
           + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
           + '<button class="btn ' + (on ? 'sub' : 'gold') + ' mini" type="button" data-gget="' + g.id + '">' + (on ? '↻ 다시 받기' : '받기') + '</button>'
-          + '<label class="btn sub mini" style="cursor:pointer;margin:0">파일에서 가져오기<input type="file" accept="application/json,.json" data-gfile="' + g.id + '" style="display:none"></label>'
+          + (g.nofile ? '' : '<label class="btn sub mini" style="cursor:pointer;margin:0">파일에서 가져오기<input type="file" accept="application/json,.json" data-gfile="' + g.id + '" style="display:none"></label>')
           + (on ? '<button class="btn sub mini" type="button" data-gdel="' + g.id + '">삭제</button>' : '')
           + '</div></div>';
       }).join('')
@@ -30330,7 +30549,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v642';
+var APP_VER = 'v643';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
