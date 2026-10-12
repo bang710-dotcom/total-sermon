@@ -477,6 +477,12 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .brefHd .t{font-weight:700;font-size:var(--fs-lg);color:var(--accent2);flex:1;min-width:0}
 .brefHd .x{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-md);width:34px;height:34px;font-size:var(--fs-body);cursor:pointer;flex:0 0 auto;font-family:inherit}
 .brefHd .x.on{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:700}   /* 오른쪽 패널 접힘 상태 표시 */
+.brefHd .x.stFsBtn{width:auto;min-width:34px;padding:0 8px;font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
+.brefHd .x.stFsBtn small{font-size:.82em}
+.brefHd .x:disabled{opacity:.4;cursor:default}
+/* 본문연구 오른쪽 창 글자 크기(v641): 창 안에서만 글자 토큰을 --stz 배로 다시 정한다(stFsApply, 기기별 tsa.stFs).
+   앱 전체 「화면 크기」(html zoom)와는 따로 곱해진다. 상속 글자(body 15px)도 함께 */
+#stPane{--stz:1;font-size:calc(15px * var(--stz));--fs-xs:calc(11.5px * var(--stz));--fs-sm:calc(12.5px * var(--stz));--fs-md:calc(13.5px * var(--stz));--fs-body:calc(14.5px * var(--stz));--fs-lg:calc(16px * var(--stz));--fs-xl:calc(19px * var(--stz));--fs-2xl:calc(22px * var(--stz))}
 .brefBody{padding:14px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .brefBody .verse{margin-bottom:7px;line-height:1.7}
 #illOv,#illViewOv,#histOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
@@ -563,7 +569,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .mkToc.mkSticky .mkChip{flex:0 0 auto;white-space:nowrap}
 .mkCur{flex:0 0 auto;font-size:var(--fs-xs);font-weight:700;color:var(--dim);margin-right:2px;white-space:nowrap}
 .mkChip.on{background:var(--accent2);border-color:var(--accent2);color:var(--on-gold)}
-.mkSec{margin-top:16px;scroll-margin-top:48px}
+.mkSec{margin-top:16px;scroll-margin-top:calc(48px * var(--stz, 1))}
 .mkSh{display:flex;align-items:center;gap:8px;font-weight:700;font-size:var(--fs-sm);color:var(--accent2);margin:0 0 8px}
 .mkSh::after{content:'';flex:1;border-bottom:1px solid var(--line)}
 .mkVr{display:inline-block;font-size:var(--fs-xs);font-weight:700;color:var(--accent2);background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 6px;margin-right:6px;white-space:nowrap;line-height:1.6;vertical-align:.06em}
@@ -571,7 +577,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .mkO1{font-weight:700;padding:4px 0 2px;cursor:pointer}
 .mkO2{padding:1px 0 1px 1.3em;color:var(--dim)}
 .mkO2 b{color:var(--text)}
-.mkSubh{font-weight:700;margin:14px 0 6px;scroll-margin-top:48px}
+.mkSubh{font-weight:700;margin:14px 0 6px;scroll-margin-top:calc(48px * var(--stz, 1))}
 .mkBox{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:9px 12px}
 .mkBox p:last-child{margin-bottom:0}
 .mkNote{padding:7px 0;border-top:1px dashed var(--line)}
@@ -2931,7 +2937,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
 </div>
 <div id="studyOv" aria-hidden="true">
   <div class="studyBox" role="dialog" aria-modal="true" aria-label="본문 원어 연구">
-    <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x" id="studySideBtn" type="button" aria-label="오른쪽 패널 접기/펴기" title="오른쪽 패널 접기/펴기">⇔</button><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x stFsBtn" id="stFsDown" type="button" aria-label="오른쪽 창 글자 작게" title="오른쪽 창 글자 작게"><small>가</small>−</button><button class="x stFsBtn" id="stFsUp" type="button" aria-label="오른쪽 창 글자 크게" title="오른쪽 창 글자 크게">가+</button><button class="x" id="studySideBtn" type="button" aria-label="오른쪽 패널 접기/펴기" title="오른쪽 패널 접기/펴기">⇔</button><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
     <div id="stMss" style="padding:0 12px"></div>
     <div class="studyBody">
       <div id="studyText" class="studyText"></div>
@@ -6768,6 +6774,36 @@ function mukPaneHtml(bk, R){
   });
   return h;
 }
+/* AI 정리 입력용(v641) — 본문연구 범위와 겹치는 단원의 요약·단락구분·본문주해·배경이해·도움말·설교 아웃라인 요지.
+   묵상 Point·주간예화는 뺀다(묵상·적용 글이라 주해 근거로는 약하다). 단원이 여럿(다른 해 해설)이면 차례로, 약 14,000자에서 자른다(입력 비용).
+   받아 두지 않은 기기는 [] — 프롬프트가 「입력에 있는 것만」 쓰므로 그대로 동작한다 */
+async function mukStudyInput(R){
+  var ix = await mukLoad(); if (!ix) return [];
+  var bk = await mukLoadBook(R.idx); if (!bk) return [];
+  var r = R.r, lo = r.c1 * 1000 + r.v1, hi = r.c2 * 1000 + r.v2, out = [], total = 0, CAP = 14000;
+  (bk.units || []).forEach(function(u){
+    if (u.r[2] * 1000 + u.r[3] < lo || u.r[0] * 1000 + u.r[1] > hi || total >= CAP - 1500) return;
+    var o = { 범위: mukRangeTxt(R.idx, u.r) };
+    if (u.sum) o.요약 = u.sum;
+    (u.secs || []).forEach(function(sx){
+      if (sx[0] === '묵상 Point') return;
+      o[sx[0].replace(/\s/g, '')] = sx[1].map(function(x){
+        if (x[0] === 'o1' || x[0] === 'h') return (x[1] ? x[1] + ' ' : '') + x[2];
+        if (x[0] === 'o2') return '  ' + x[1] + ' ' + x[2];
+        if (x[0] === 'n') return x[1] + ' ' + (x[2] ? '「' + x[2] + '」 ' : '') + x[3];
+        return x[1];
+      }).join('\n');
+    });
+    if (u.sermons && u.sermons.length) o.설교아웃라인 = u.sermons.map(function(sm){ return [sm.title, sm.theme, sm.q].filter(Boolean).join(' / '); });
+    var len = JSON.stringify(o).length;
+    if (total + len > CAP && o.본문주해){
+      o.본문주해 = o.본문주해.slice(0, Math.max(800, o.본문주해.length - (total + len - CAP))) + '…';
+      len = JSON.stringify(o).length;
+    }
+    total += len; out.push(o);
+  });
+  return out;
+}
 function mukGateHtml(){
   return '<div class="cnt" style="margin-bottom:8px"><b>묵상과 설교</b>(성서유니온) — 비공개 개인 자료입니다. 설정 → <b>저작권 자료</b>에서 성경앱과 같은 <b>키코드</b>로 이 기기에 한 번 받아 두면, 본문 구간을 다룬 단원(단락구분·본문주해·배경이해·도움말·묵상 Point·설교 아웃라인)이 여기 표시됩니다.</div>'
     + '<button class="btn sub mini" type="button" data-mukgate="1">설정에서 받기</button>';
@@ -7072,13 +7108,14 @@ var MSG_DIVERSITY_RULE = '\n★선택지 다양성(필수·5결 매트릭스): �
 var MISUSE_RULE = '\n★"흔한 오용"(필수): 이 본문을 강단에서 다룰 때 실제로 자주 나오는 잘못된 해석을 0~3개 짚는다. 유형은 다섯 가지 — ①가짜 어원(원어의 어원·구성 요소로 본문에 없는 뜻을 만들어 냄) ②풍유적 곡해(서사의 사물·숫자·인물에 본문이 주지 않은 상징을 붙임) ③아전인수 적용(1차 독자의 특수 정황에 매인 약속을 오늘 청중 개인에게 그대로 옮김) ④문맥 이탈(앞뒤 문맥을 끊고 한 구절만 떼어 반대 뜻으로 씀) ⑤근거 없는 인용(확인되지 않은 고고학·풍습·통계·일화를 사실처럼 인용함). 자주 지적되는 사례로는 물맷돌 다섯 개의 상징화, 야베스의 기도, 아가페와 필레오의 과장된 대비, 렘 29:11·빌 4:13·시 91편의 개인 번영 약속화, "바늘귀 문"처럼 출처 없는 풍습 설명 등이 있다. ★규칙: 이 본문에 실제로 해당하는 것만 적고, 억지로 채우지 않는다(없으면 빈 배열 []). 특정 설교자를 지목하지 말고 해석 내용만 다룬다. "바로잡기"에는 본문이 실제로 무엇을 말하는지를 한두 문장으로 적는다.';
 
 var P_STUDYSYN = [
-'당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·책·개역개정 절들·원문[히브리어/헬라어]·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석·ESV 스터디바이블 주석·Holman 핸드북 발췌·책개요[Holman 핸드북의 큰 단락·소단락 제목과 범위 — "← 이 본문" 표시]·책소개·앞문맥/뒤문맥[본문 바로 앞뒤의 개역개정 절])을 읽고 목사님 설교 방법에 맞춰 주해 재료를 정리한다.',
+'당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·책·개역개정 절들·원문[히브리어/헬라어]·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석·ESV 스터디바이블 주석·Holman 핸드북 발췌·책개요[Holman 핸드북의 큰 단락·소단락 제목과 범위 — "← 이 본문" 표시]·책소개·앞문맥/뒤문맥[본문 바로 앞뒤의 개역개정 절]·묵상과설교[성서유니온 「묵상과 설교」에서 이 본문을 다룬 단원 — 요약·단락구분·본문주해·배경이해·도움말·설교아웃라인 요지, 같은 본문을 다른 해에 다룬 단원이 여럿일 수 있다])을 읽고 목사님 설교 방법에 맞춰 주해 재료를 정리한다.',
 '목사님 방법: ①한 단어를 깊이 판다(두나미스·아케다·하-니글로트처럼 결정적 원어 1~2개) ②1차 독자의 정황을 짧고 분명히 ③본문 자체의 구조·흐름을 빌려온다 ④본문의 절정 한 구절(클라이맥스)을 정확히 짚는다.',
 '출력은 반드시 JSON 객체만(설명·코드펜스 금지):',
 '{"장르":"내러티브/시가/지혜/예언/율법/복음서/서신/묵시 중 하나 + 그 장르가 이 본문 해석에 주는 단서 한 줄","핵심원어":[{"단어":"한글단어","원어":"히브리어/헬라어","발음":"...","스트롱":"H또는G번호","뜻":"한 문장","왜":"이 본문에서 이 단어를 깊이 팔 이유 1~2문장"}],"정황":"1차 독자의 상황·배경 2~3문장","구속사위치":"이 본문이 구속사 흐름에서 차지하는 위치와 그리스도로의 연결 2~3문장","책구조":{"개요":[{"범위":"장:절-장:절","제목":"큰 단락 제목","이본문":true}],"자리":"이 본문이 속한 큰 단락 안에서 어디쯤인지 한 줄","의미":"책 전체의 흐름·주제 전개에서 이 본문이 맡는 구조적 역할 2~4문장(무엇을 열고·잇고·닫는지, 책의 목적과 어떻게 맞물리는지)"},"앞뒤문맥":{"앞":{"범위":"장:절-장:절","요지":"바로 앞 단락 요지 한 줄","관계":"이 본문이 앞에서 무엇을 이어받고 어떻게 잇거나 뒤집는지 1~2문장"},"뒤":{"범위":"장:절-장:절","요지":"바로 뒤 단락 요지 한 줄","관계":"이 본문이 뒤로 무엇을 넘겨주는지 1~2문장"},"기능":"앞뒤 사이에서 이 본문이 하는 일 한 문장"},"상호본문":[{"본문":"구약/신약 장:절 ref","관계":"인용/암시/성취/대조 등 한 줄"}],"구조":{"유형":"교차대구(chiasm)/평행/점층·발전/수미상관/내러티브 플롯 등","단락":[{"범위":"장:절-절","요지":"이 단락 한 줄 요지"}],"설명":"구조가 메시지를 어떻게 실어 나르는지 1~2문장"},"클라이맥스":{"절":"책 장:절","이유":"이 절이 다른 절들을 호명하는 중심인 이유 1~2문장"},"해석이견":[{"쟁점":"해석이 갈리는 지점 한 줄","견해":["견해A 요약","견해B 요약"],"택함":"어느 쪽이 본문에 더 충실한지와 이유 1~2문장"}],"신학주제":["이 본문이 여는 신학 주제 2~4개"],"흔한오용":[{"주장":"강단에서 자주 들리는 잘못된 해석 한 줄","유형":"가짜어원/풍유곡해/아전인수/문맥이탈/근거없는인용 중 하나","바로잡기":"본문이 실제로 말하는 것 1~2문장"}],"설교다리":"주해에서 오늘 청중의 삶으로 넘어가는 다리 2~3문장(대지를 대신 쓰지는 말 것)"}',
 '책구조.개요는 책 전체를 3~7개 큰 단락으로 — 입력 책개요가 있으면 그 큰 단락 구분과 범위를 그대로 따르고(제목만 간결하게), 없으면 널리 인정되는 구분을 쓴다. 이 본문이 속한 단락 하나만 "이본문":true. 범위는 책 이름 없이 "장:절-장:절". 앞뒤문맥은 앞문맥·뒤문맥 절과 책개요의 소단락을 근거로 바로 앞·뒤 단락을 잡고, 책의 처음이나 끝이라 앞·뒤가 없으면 그 칸은 null.',
 '핵심원어는 1~2개만. 구조.단락은 본문 절 범위 안에서만 나눈다. 상호본문·해석이견은 실제로 있을 때만 채우고 없으면 빈 배열 []로 둔다(억지로 만들지 않는다).',
-'근거는 입력의 원문·원어후보·NET·호크마·ESV스터디·Holman·책개요·앞뒤문맥에서만 끌어오고 없는 사실을 지어내지 않는다. 주석 입력이 비어 있으면 원문과 절 본문만으로 정리한다.',
+'근거는 입력의 원문·원어후보·NET·호크마·ESV스터디·Holman·묵상과설교·책개요·앞뒤문맥에서만 끌어오고 없는 사실을 지어내지 않는다. 주석 입력이 비어 있으면 원문과 절 본문만으로 정리한다.',
+'묵상과설교가 있으면 그 단락구분은 구조.단락의 참고로, 본문주해·배경이해·도움말은 정황·핵심원어·해석이견·설교다리의 근거로 함께 쓴다(다른 주석과 다르면 해석이견에 드러낸다).',
 '한국어로, 통찰이 번뜩이되 간결하게. 설교 대지를 대신 쓰지 말고 "연구 재료"를 정리하는 데 집중한다.'].join('\n') + MISUSE_RULE;
 function studyRangeKey(){ var R = STUDY.range; return R ? (R.idx + ':' + R.r.c1 + ':' + R.r.v1 + '-' + R.r.c2 + ':' + R.r.v2) : ''; }
 function studyGatherContext(){
@@ -7310,6 +7347,7 @@ async function studyAiSynth(){
     var holman = await studyHolmanMatched();
     var esvD = await esvLoad().catch(function(){ return null; });
     var esvBk = esvD && esvD.books ? esvD.books[R.idx] : null;
+    var mukIn = await mukStudyInput(R).catch(function(){ return []; });
     var ctx = studyGatherContext();
     var frame = await studyBookOutline(), nb = studyNeighborVerses();
     var input = {
@@ -7320,7 +7358,8 @@ async function studyAiSynth(){
       NET노트: net ? studyVerseList(net) : [],
       호크마: com ? studyVerseList(com) : [],
       ESV스터디: (esvBk && esvBk.chapters) ? studyVerseList(esvBk) : [],
-      Holman발췌: holman || ''
+      Holman발췌: holman || '',
+      묵상과설교: mukIn
     };
     var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 12000, aiTick('본문연구 정리'));
     var _j = aiJson(out);
@@ -8235,6 +8274,23 @@ function fillConc(code){
     + vlist.slice(0, 60).map(function(h){ return '<div class="sconcRow"><b>' + esc(h.ref) + '</b> ' + esc(h.text) + '</div>'; }).join('')
     + (vlist.length > 60 ? '<div class="cnt">…외 ' + (vlist.length - 60) + '곳</div>' : '');
 }
+/* 본문연구 오른쪽 창 글자 크기 (v641) — 90~160% 일곱 단계, 기기별로 기억 */
+var ST_FS = [0.9, 1, 1.1, 1.2, 1.32, 1.45, 1.6];
+function stFsGet(){ var z = 1; try { z = parseFloat(localStorage.getItem('tsa.stFs') || '1') || 1; } catch (e){} return ST_FS.indexOf(z) >= 0 ? z : 1; }
+function stFsApply(z){
+  var p = document.getElementById('stPane'); if (p) p.style.setProperty('--stz', String(z));
+  var pct = Math.round(z * 100) + '%', d = $('#stFsDown'), u = $('#stFsUp');
+  if (d){ d.disabled = z <= ST_FS[0]; d.title = '오른쪽 창 글자 작게 (지금 ' + pct + ')'; }
+  if (u){ u.disabled = z >= ST_FS[ST_FS.length - 1]; u.title = '오른쪽 창 글자 크게 (지금 ' + pct + ')'; }
+}
+function stFsStep(dir){
+  var i = ST_FS.indexOf(stFsGet()); i = Math.max(0, Math.min(ST_FS.length - 1, i + dir));
+  var z = ST_FS[i];
+  try { localStorage.setItem('tsa.stFs', String(z)); } catch (e){}
+  stFsApply(z);
+  toast('본문연구 글자 크기 ' + Math.round(z * 100) + '%');
+}
+stFsApply(stFsGet());
 (function(){
   var sb = $('#c_study');
   if (sb) sb.addEventListener('click', function(){ var ref = ($('#c_ref').value || '').trim(); if (!ref){ toast('먼저 본문을 입력해 주세요.'); return; } openStudy(ref); });
@@ -8243,6 +8299,7 @@ function fillConc(code){
   function studyDelegClick(e){
     if (ov && (e.target === ov || (e.target.closest && e.target.closest('#studyClose')))){ studyCloseOv(); return; }
     var sd = e.target.closest && e.target.closest('#studySideBtn'); if (sd){ var bd = ov.querySelector('.studyBody'); if (bd) studySetSide(!bd.classList.contains('noSide')); return; }
+    var fz = e.target.closest && e.target.closest('.stFsBtn'); if (fz){ stFsStep(fz.id === 'stFsUp' ? 1 : -1); return; }
     var nt = e.target.closest && e.target.closest('.snTBtn');
     if (nt){
       /* v589: 구조 나누기를 마치기 전에는 노트를 켜지 않는다(켠 뒤 구조를 나누면 손글씨가 밀린다) */
@@ -30254,7 +30311,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v640';
+var APP_VER = 'v641';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
