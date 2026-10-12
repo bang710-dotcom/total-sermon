@@ -557,7 +557,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .mkToc.mkUnits>span{font-size:var(--fs-xs);color:var(--dim);margin-right:2px}
 .mkChip{font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text);background:var(--card2);border:1px solid var(--line);border-radius:var(--r-pill);padding:2px 10px;cursor:pointer}
 .mkChip:hover{border-color:var(--accent2)}
-.mkSec{margin-top:16px;scroll-margin-top:8px}
+.mkToc.mkSticky{position:sticky;top:0;z-index:3;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px 6px;padding:6px 14px;background:var(--card);border-bottom:1px solid var(--line)}
+#stPane .mkToc.mkSticky{top:-12px}   /* 본문연구 창 위 여백(12px)만큼 올려 창 맨 위에 붙인다 */
+.mkToc.mkSticky::-webkit-scrollbar{display:none}
+.mkToc.mkSticky .mkChip{flex:0 0 auto;white-space:nowrap}
+.mkCur{flex:0 0 auto;font-size:var(--fs-xs);font-weight:700;color:var(--dim);margin-right:2px;white-space:nowrap}
+.mkChip.on{background:var(--accent2);border-color:var(--accent2);color:var(--on-gold)}
+.mkSec{margin-top:16px;scroll-margin-top:48px}
 .mkSh{display:flex;align-items:center;gap:8px;font-weight:700;font-size:var(--fs-sm);color:var(--accent2);margin:0 0 8px}
 .mkSh::after{content:'';flex:1;border-bottom:1px solid var(--line)}
 .mkVr{display:inline-block;font-size:var(--fs-xs);font-weight:700;color:var(--accent2);background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 6px;margin-right:6px;white-space:nowrap;line-height:1.6;vertical-align:.06em}
@@ -565,7 +571,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .mkO1{font-weight:700;padding:4px 0 2px;cursor:pointer}
 .mkO2{padding:1px 0 1px 1.3em;color:var(--dim)}
 .mkO2 b{color:var(--text)}
-.mkSubh{font-weight:700;margin:14px 0 6px;scroll-margin-top:8px}
+.mkSubh{font-weight:700;margin:14px 0 6px;scroll-margin-top:48px}
 .mkBox{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:9px 12px}
 .mkBox p:last-child{margin-bottom:0}
 .mkNote{padding:7px 0;border-top:1px dashed var(--line)}
@@ -6694,7 +6700,7 @@ function mukIllusHtml(s, bk, r){
   });
   return h + '</div>';
 }
-function mukUnitHtml(u, bk, ui){
+function mukUnitHtml(u, bk, ui, bi){
   var r = u.r, uid = 'mku' + ui, toc = '', body = '', h = '';
   (u.secs || []).forEach(function(s, j){
     var id = uid + '-s' + j;
@@ -6712,8 +6718,30 @@ function mukUnitHtml(u, bk, ui){
     body += '<section class="mkSec" id="' + id + '"><div class="mkSh">주간예화</div>' + mukIllusHtml(s, bk, r) + '</section>';
   });
   if (u.sum) h += '<p class="mkLead">' + mukText(u.sum, bk, r) + '</p>';
-  if (toc) h += '<div class="mkToc">' + toc + '</div>';
+  /* 바로가기 줄은 단원을 읽는 동안 창 위에 붙어 있다(sticky, v640) — 맨 앞에 지금 범위, 읽는 꼭지 칩은 .on(mukSpy) */
+  if (toc) h += '<div class="mkToc mkSticky"><span class="mkCur">' + esc(mukRangeTxt(bi, r)) + '</span>' + toc + '</div>';
   return h + body;
+}
+/* 읽는 꼭지 표시 — 고정 줄 바로 아래를 지난 마지막 꼭지의 칩을 .on. 켜진 칩이 줄 밖이면 줄만 가로로 민다
+   (scrollIntoView 는 창의 부드러운 스크롤을 끊는다) */
+function mukSpy(pane){
+  var top = pane.getBoundingClientRect().top;
+  Array.prototype.forEach.call(pane.querySelectorAll('.mkToc.mkSticky'), function(tc){
+    var u = tc.closest('.mkU'); if (!u) return;
+    var lim = top + tc.offsetHeight + 12, cur = null;
+    Array.prototype.forEach.call(u.querySelectorAll('.mkSec'), function(sx){ if (sx.getBoundingClientRect().top <= lim) cur = sx.id; });
+    Array.prototype.forEach.call(tc.querySelectorAll('.mkChip'), function(c){
+      var on = c.getAttribute('data-mkgo') === cur;
+      if (c.classList.contains('on') === on) return;
+      c.classList.toggle('on', on);
+      if (on){ var l = c.offsetLeft - tc.offsetLeft, rr = l + c.offsetWidth;
+        if (l < tc.scrollLeft) tc.scrollLeft = l - 14; else if (rr > tc.scrollLeft + tc.clientWidth) tc.scrollLeft = rr - tc.clientWidth + 14; }
+    });
+  });
+}
+function mukSpyBind(pane){
+  if (pane._mkSpy) return; pane._mkSpy = true; var raf = 0;
+  pane.addEventListener('scroll', function(){ if (raf) return; raf = requestAnimationFrame(function(){ raf = 0; if (STUDY.tab === 'muk') mukSpy(pane); }); }, { passive: true });
 }
 /* 본문연구 범위(R)와 겹치는 단원 + 그 책의 개관 */
 function mukPaneHtml(bk, R){
@@ -6726,7 +6754,7 @@ function mukPaneHtml(bk, R){
   us.forEach(function(u, i){
     var rg = mukRangeTxt(R.idx, u.r), n = (seen[rg] = (seen[rg] || 0) + 1);
     var tags = (u.sermons && u.sermons.length ? '<span class="mkTag">설교</span>' : '') + (u.illus && u.illus.length ? '<span class="mkTag">예화</span>' : '') + (n > 1 ? '<span class="mkTag">다른 해설 ' + n + '</span>' : '');
-    h += '<details class="mkU" id="mku' + i + '" open><summary>' + esc(name + ' ' + rg) + tags + '</summary><div class="mkB">' + mukUnitHtml(u, name, i) + '</div></details>';
+    h += '<details class="mkU" id="mku' + i + '" open><summary>' + esc(name + ' ' + rg) + tags + '</summary><div class="mkB">' + mukUnitHtml(u, name, i, R.idx) + '</div></details>';
   });
   if (!us.length) h += '<div class="cnt">이 범위를 다루는 묵상과 설교 단원이 없습니다. 이 책에서 다룬 범위: '
     + esc((bk.units || []).map(function(u){ return mukRangeTxt(R.idx, u.r); }).join(', ')) + '</div>';
@@ -8110,7 +8138,7 @@ function studyRenderPane(){
     mukLoad().then(function(ix){
       if (STUDY.tab !== 'muk') return;
       if (!ix){ pane.innerHTML = mukGateHtml(); return; }
-      return mukLoadBook(R.idx).then(function(bk){ if (STUDY.tab === 'muk' && STUDY.range === R) pane.innerHTML = mukPaneHtml(bk, R); });
+      return mukLoadBook(R.idx).then(function(bk){ if (STUDY.tab === 'muk' && STUDY.range === R){ pane.innerHTML = mukPaneHtml(bk, R); mukSpyBind(pane); mukSpy(pane); } });
     });
     return;
   }
@@ -30226,7 +30254,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v639';
+var APP_VER = 'v640';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
