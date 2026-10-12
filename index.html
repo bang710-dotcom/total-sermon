@@ -543,6 +543,47 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .stTabs button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
 .stPane{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px}
 .studyHint{color:var(--dim);font-size:var(--fs-md);line-height:1.7}
+.mkU{border:1px solid var(--line);border-radius:var(--r-md);margin:0 0 10px;background:var(--card)}
+.mkU>summary{cursor:pointer;padding:9px 12px;font-weight:700;font-size:var(--fs-md);list-style:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mkU>summary::-webkit-details-marker{display:none}
+.mkU>summary::before{content:'▸';display:inline-block;color:var(--accent2);transition:transform .15s}
+.mkU[open]>summary::before{transform:rotate(90deg)}
+.mkTag{font-weight:600;font-size:var(--fs-xs);color:var(--accent2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 6px}
+.mkB{padding:2px 14px 14px;font-size:var(--fs-md);line-height:1.75}
+.mkB p{margin:0 0 .6em}
+.mkLead{color:var(--dim);font-size:var(--fs-sm);padding-left:10px;border-left:3px solid var(--accent2)}
+.mkToc{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 4px;align-items:center}
+.mkToc.mkUnits{margin:0 0 10px}
+.mkToc.mkUnits>span{font-size:var(--fs-xs);color:var(--dim);margin-right:2px}
+.mkChip{font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text);background:var(--card2);border:1px solid var(--line);border-radius:var(--r-pill);padding:2px 10px;cursor:pointer}
+.mkChip:hover{border-color:var(--accent2)}
+.mkSec{margin-top:16px;scroll-margin-top:8px}
+.mkSh{display:flex;align-items:center;gap:8px;font-weight:700;font-size:var(--fs-sm);color:var(--accent2);margin:0 0 8px}
+.mkSh::after{content:'';flex:1;border-bottom:1px solid var(--line)}
+.mkVr{display:inline-block;font-size:var(--fs-xs);font-weight:700;color:var(--accent2);background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 6px;margin-right:6px;white-space:nowrap;line-height:1.6;vertical-align:.06em}
+.mkOutline{font-size:var(--fs-sm);line-height:1.6}
+.mkO1{font-weight:700;padding:4px 0 2px;cursor:pointer}
+.mkO2{padding:1px 0 1px 1.3em;color:var(--dim)}
+.mkO2 b{color:var(--text)}
+.mkSubh{font-weight:700;margin:14px 0 6px;scroll-margin-top:8px}
+.mkBox{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:9px 12px}
+.mkBox p:last-child{margin-bottom:0}
+.mkNote{padding:7px 0;border-top:1px dashed var(--line)}
+.mkNote:first-child{border-top:none;padding-top:0}
+.mkPtT{font-weight:700;margin:12px 0 4px;padding-left:9px;border-left:3px solid var(--accent2)}
+.mkPtT:first-child{margin-top:0}
+.mkCard{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-lg);padding:11px 13px}
+.mkCt{font-weight:700;font-size:var(--fs-lg);line-height:1.4}
+.mkCs{font-size:var(--fs-xs);color:var(--dim);margin:1px 0 8px}
+.mkKv{display:flex;gap:8px;font-size:var(--fs-sm);margin:3px 0}
+.mkKv b{flex:0 0 auto;min-width:4.6em;color:var(--accent2);font-size:var(--fs-xs);padding-top:2px}
+.mkStep{display:flex;gap:9px;margin-top:11px}
+.mkStN{flex:0 0 auto;height:fit-content;font-size:var(--fs-xs);font-weight:700;color:var(--on-gold);background:var(--accent2);border-radius:var(--r-pill);padding:1px 8px;margin-top:3px}
+.mkStB{flex:1;min-width:0}
+.mkStB p{margin:0 0 .5em}
+.mkQ{margin:6px 0 10px;padding:3px 0 3px 11px;border-left:3px solid var(--line);color:var(--dim)}
+.mkQ cite{display:block;font-style:normal;font-size:var(--fs-xs);margin-top:4px;text-align:right}
+.mkBy{font-size:var(--fs-xs);color:var(--dim);text-align:right}
 .stVnote{padding:7px 0;border-top:1px dashed var(--line);font-size:var(--fs-md);line-height:1.65}
 .stVnote:first-child{border-top:none}
 .stVnote .stvr{color:var(--accent2);font-weight:700;margin-right:5px}
@@ -2653,8 +2694,8 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
         <div class="cnt" style="margin:6px 0 12px">키코드로 받는 자료입니다. 필요할 때만 펼쳐 쓰세요.</div>
 
         <details class="setGrp" id="sgGate">
-          <summary>새한글 · 공동번역개정 · ESV <span class="sgSub">키코드 공용</span><span class="setBadge" data-badge="gate"></span></summary>
-        <div class="cnt" style="margin-top:6px">세 자료가 <b>같은 키코드</b>를 씁니다 — 키코드는 <b>한 번만</b> 넣고, 자료별로 받거나 지우세요. 본문과 키코드는 <b>이 기기에만</b> 저장되며 공개 코드에는 들어가지 않습니다. 기기마다 한 번씩 받으면 오프라인에서도 보입니다.</div>
+          <summary>새한글 · 공동번역개정 · ESV · 묵상과 설교 <span class="sgSub">키코드 공용</span><span class="setBadge" data-badge="gate"></span></summary>
+        <div class="cnt" style="margin-top:6px">네 자료가 <b>같은 키코드</b>를 씁니다 — 키코드는 <b>한 번만</b> 넣고, 자료별로 받거나 지우세요. 본문과 키코드는 <b>이 기기에만</b> 저장되며 공개 코드에는 들어가지 않습니다. 기기마다 한 번씩 받으면 오프라인에서도 보입니다.</div>
         <div id="gateBox" style="margin-top:10px"></div>
         </details>
       </div>
@@ -2897,6 +2938,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
           <button type="button" data-sttab="holman">Holman 핸드북</button>
           <button type="button" data-sttab="calvin">칼뱅 주석(영문)</button>
           <button type="button" data-sttab="esvsb">ESV 스터디</button>
+          <button type="button" data-sttab="muk">묵상과 설교</button>
           <button type="button" data-sttab="map"><svg class=ico aria-hidden=true><use href=#i-map></use></svg> 지도</button>
           <button type="button" data-sttab="dict"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 성경사전</button>
           <button type="button" data-sttab="hymn"><svg class=ico aria-hidden=true><use href=#i-music></use></svg> 찬송가</button>
@@ -6529,6 +6571,179 @@ function esvImport(file){
     fr.readAsText(file);
   });
 }
+/* ── 묵상과 설교(성서유니온) — ESV 와 같은 비공개 키코드·워커 방식 (v639, 2026-10-12) ──
+   자료는 공개 배포에 없고, 키코드로 워커(mukseol-private)에서 통째({index,books}) 받아 IndexedDB 에 책별로 나눠 둔다(mukseol_idx · mukseol_b<책>).
+   책별 = {ko, intro:[{title,paras}], units:[{r:[c1,v1,c2,v2], hymn, sum, secs:[[꼭지,[[k,글]]]], sermons, illus}]}
+   (k = 'p' 문단 · 'h' 소제목). 책에 적힌 날짜는 앱에서 의미가 없어 넣지 않았다 — 본문 범위만 쓴다.
+   만든 과정: Dropbox/total-sermon/work/묵상과설교_20261012/README.md */
+var MUK_WORKER = 'https://mukseol-private.bang710.workers.dev';
+/* 받은 자료는 약 45MB — IndexedDB 에 책별로 나눠 둔다: mukseol_idx(목차) + mukseol_b<bi>(책). 볼 때는 그 책만 읽는다. */
+var MUKSB = { idx: undefined, books: {}, loading: null };
+function mukReady(){ try { return localStorage.getItem('tsa.mukReady') === '1'; } catch (e){ return false; } }
+function mukLoad(){
+  if (MUKSB.idx !== undefined) return Promise.resolve(MUKSB.idx);
+  if (MUKSB.loading) return MUKSB.loading;
+  MUKSB.loading = idbGet('mukseol_idx').then(function(d){ MUKSB.idx = (d && d.books) ? d : null; MUKSB.loading = null; return MUKSB.idx; })
+    .catch(function(){ MUKSB.idx = null; MUKSB.loading = null; return null; });
+  return MUKSB.loading;
+}
+function mukLoadBook(bi){
+  if (MUKSB.books[bi] !== undefined) return Promise.resolve(MUKSB.books[bi]);
+  return idbGet('mukseol_b' + bi).then(function(bk){ MUKSB.books[bi] = bk || null; return MUKSB.books[bi]; })
+    .catch(function(){ return null; });
+}
+async function mukSave(data){
+  await idbSet('mukseol_idx', data.index);
+  var ks = Object.keys(data.books || {});
+  for (var i = 0; i < ks.length; i++) await idbSet('mukseol_b' + ks[i], data.books[ks[i]]);
+  MUKSB.idx = data.index; MUKSB.books = {};
+  try { localStorage.setItem('tsa.mukReady', '1'); } catch (e){}
+}
+async function mukClear(){
+  var ix = await idbGet('mukseol_idx').catch(function(){ return null; });
+  var bl = (ix && ix.books) || [];
+  for (var i = 0; i < bl.length; i++) await idbSet('mukseol_b' + bl[i].bookIdx, null);
+  await idbSet('mukseol_idx', null);
+  MUKSB.idx = null; MUKSB.books = {};
+  try { localStorage.removeItem('tsa.mukReady'); } catch (e){}
+}
+async function mukFetch(key){
+  var r;
+  try { r = await fetch(MUK_WORKER, { headers: { 'x-access-key': key } }); }
+  catch (e){ throw new Error('CORS'); }
+  if (r.status === 403) throw new Error('키코드가 올바르지 않습니다.');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  var data = await r.json();
+  if (!data || !data.index || !data.books) throw new Error('자료 형식 오류');
+  await mukSave(data);
+  gateKeySet(key);
+  return data.index;
+}
+/* 성경앱 설정 → 저작권 자료 → [파일]로 저장한 mukseol.json 을 그대로 넣는다 */
+function mukImport(file){
+  return new Promise(function(res, rej){
+    var fr = new FileReader();
+    fr.onload = function(){
+      var data;
+      try { data = JSON.parse(String(fr.result || '')); }
+      catch (e){ rej(new Error('JSON 파일이 아닙니다.')); return; }
+      if (!data || !data.index || !data.books || data.index.id !== 'mukseol'){ rej(new Error('묵상과 설교 파일이 아닙니다.')); return; }
+      mukSave(data).then(function(){ res(data.index); }).catch(rej);
+    };
+    fr.onerror = function(){ rej(new Error('파일을 읽지 못했습니다.')); };
+    fr.readAsText(file);
+  });
+}
+function mukRangeTxt(bi, r){
+  var ps = bi === 18, lv = function(c){ var t = verseCounts()[bi]; return t ? (t[c - 1] || 0) : 0; };
+  if (r[0] === r[2]){
+    if (r[1] === 1 && lv(r[0]) && r[3] === lv(r[0])) return r[0] + (ps ? '편' : '장');
+    return r[0] + ':' + r[1] + (r[3] !== r[1] ? '-' + r[3] : '');
+  }
+  return r[0] + ':' + r[1] + '-' + r[2] + ':' + r[3];
+}
+/* 글 → 성구 링크(.bref). 책 이름 표기·「(3:5)」는 linkifyRefs, 한 장짜리 단원의 「12절」은 그 장으로 */
+function mukText(t, name, r){
+  var h = linkifyRefs(String(t || ''), name);
+  if (r && r[0] === r[2]) h = h.replace(/(<span class="bref"[^>]*>[\s\S]*?<\/span>)|(\d{1,3})(?:-(\d{1,3}))?[ab]?절/g, function(m, sp, v1, v2){
+    if (sp) return sp;
+    return '<span class="bref" data-ref="' + esc(name + ' ' + r[0] + ':' + v1 + (v2 ? '-' + v2 : '')) + '">' + m + '</span>';
+  });
+  return h;
+}
+function mukVr(vr){ return vr ? '<span class="mkVr">' + esc(vr) + '</span>' : ''; }
+var MUK_SECS = { '단락구분': '단락', '본문주해': '주해', '배경이해': '배경', '도움말': '도움말', '묵상 Point': '묵상' };
+function mukSecHtml(name, ps, bk, r, uid){
+  var h = '';
+  if (name === '단락구분'){
+    return '<div class="mkOutline">' + ps.map(function(x){
+      if (x[0] === 'o1') return '<div class="mkO1" data-mkgo="' + uid + '-v' + esc(x[1]) + '">' + mukVr(x[1]) + '<span>' + esc(x[2]) + '</span></div>';
+      if (x[0] === 'o2') return '<div class="mkO2"><b>' + esc(x[1]) + '</b> ' + mukText(x[2], bk, r) + '</div>';
+      return '<div class="mkO2">' + mukText(x[1], bk, r) + '</div>';
+    }).join('') + '</div>';
+  }
+  ps.forEach(function(x){
+    if (x[0] === 'h'){ h += '<div class="mkSubh"' + (x[1] ? ' id="' + uid + '-v' + esc(x[1]) + '"' : '') + '>' + mukVr(x[1]) + '<span>' + esc(x[2]) + '</span></div>'; return; }
+    if (x[0] === 'n'){ h += '<div class="mkNote">' + mukVr(x[1]) + (x[2] ? '<b>' + esc(x[2]) + '</b> ' : '') + mukText(x[3], bk, r) + '</div>'; return; }
+    if (x[0] === 'b'){ h += '<div class="mkPtT">' + esc(x[1]) + '</div>'; return; }
+    h += '<p>' + mukText(x[1], bk, r) + '</p>';
+  });
+  if (name === '배경이해') return '<div class="mkBox">' + h + '</div>';
+  if (name === '묵상 Point') return '<div class="mkPt">' + h + '</div>';
+  return h;
+}
+function mukSermonHtml(s, bk, r){
+  var h = '<div class="mkCard">';
+  if (s.title) h += '<div class="mkCt">' + esc(s.title) + '</div>';
+  if (s.head) h += '<div class="mkCs">' + esc(s.head) + '</div>';
+  if (s.theme) h += '<div class="mkKv"><b>주제</b><span>' + mukText(s.theme, bk, r) + '</span></div>';
+  if (s.q) h += '<div class="mkKv"><b>핵심 질문</b><span>' + mukText(s.q, bk, r) + '</span></div>';
+  (s.steps || []).forEach(function(st, i){
+    h += '<div class="mkStep"><div class="mkStN">' + (st[0] ? esc(st[0]) : (i + 1)) + '</div><div class="mkStB">'
+      + st[1].map(function(x){ return x[0] === 's' ? '<p><b>' + esc(x[1]) + '</b> ' + mukText(x[2], bk, r) + '</p>' : '<p>' + mukText(x[1], bk, r) + '</p>'; }).join('')
+      + '</div></div>';
+  });
+  return h + '</div>';
+}
+function mukIllusHtml(s, bk, r){
+  var h = '<div class="mkCard">';
+  if (s.title) h += '<div class="mkCt">' + esc(s.title) + '</div>';
+  (s.paras || []).forEach(function(x){
+    if (x[0] === 'q') h += '<blockquote class="mkQ">' + mukText(x[1], bk, r) + '<cite>' + esc(x[2]) + '</cite></blockquote>';
+    else h += '<p>' + mukText(x[1], bk, r) + '</p>';
+  });
+  return h + '</div>';
+}
+function mukUnitHtml(u, bk, ui){
+  var r = u.r, uid = 'mku' + ui, toc = '', body = '', h = '';
+  (u.secs || []).forEach(function(s, j){
+    var id = uid + '-s' + j;
+    toc += '<button type="button" class="mkChip" data-mkgo="' + id + '">' + esc(MUK_SECS[s[0]] || s[0]) + '</button>';
+    body += '<section class="mkSec" id="' + id + '"><div class="mkSh">' + esc(s[0]) + '</div>' + mukSecHtml(s[0], s[1], bk, r, uid) + '</section>';
+  });
+  (u.sermons || []).forEach(function(s, j){
+    var id = uid + '-ser' + j;
+    toc += '<button type="button" class="mkChip" data-mkgo="' + id + '">설교</button>';
+    body += '<section class="mkSec" id="' + id + '"><div class="mkSh">설교 아웃라인</div>' + mukSermonHtml(s, bk, r) + '</section>';
+  });
+  (u.illus || []).forEach(function(s, j){
+    var id = uid + '-il' + j;
+    toc += '<button type="button" class="mkChip" data-mkgo="' + id + '">예화</button>';
+    body += '<section class="mkSec" id="' + id + '"><div class="mkSh">주간예화</div>' + mukIllusHtml(s, bk, r) + '</section>';
+  });
+  if (u.sum) h += '<p class="mkLead">' + mukText(u.sum, bk, r) + '</p>';
+  if (toc) h += '<div class="mkToc">' + toc + '</div>';
+  return h + body;
+}
+/* 본문연구 범위(R)와 겹치는 단원 + 그 책의 개관 */
+function mukPaneHtml(bk, R){
+  var name = (bk && bk.ko) || BOOKS.split('|')[R.idx] || '';
+  if (!bk) return '<div class="cnt">' + esc(name) + '은(는) 묵상과 설교에서 다룬 기록이 없습니다.</div>';
+  var r = R.r, lo = r.c1 * 1000 + r.v1, hi = r.c2 * 1000 + r.v2;
+  var us = (bk.units || []).filter(function(u){ return !(u.r[2] * 1000 + u.r[3] < lo || u.r[0] * 1000 + u.r[1] > hi); });
+  var h = '', seen = {};
+  if (us.length > 1) h += '<div class="mkToc mkUnits"><span>단원</span>' + us.map(function(u, i){ return '<button type="button" class="mkChip" data-mkgo="mku' + i + '">' + esc(mukRangeTxt(R.idx, u.r)) + '</button>'; }).join('') + '</div>';
+  us.forEach(function(u, i){
+    var rg = mukRangeTxt(R.idx, u.r), n = (seen[rg] = (seen[rg] || 0) + 1);
+    var tags = (u.sermons && u.sermons.length ? '<span class="mkTag">설교</span>' : '') + (u.illus && u.illus.length ? '<span class="mkTag">예화</span>' : '') + (n > 1 ? '<span class="mkTag">다른 해설 ' + n + '</span>' : '');
+    h += '<details class="mkU" id="mku' + i + '" open><summary>' + esc(name + ' ' + rg) + tags + '</summary><div class="mkB">' + mukUnitHtml(u, name, i) + '</div></details>';
+  });
+  if (!us.length) h += '<div class="cnt">이 범위를 다루는 묵상과 설교 단원이 없습니다. 이 책에서 다룬 범위: '
+    + esc((bk.units || []).map(function(u){ return mukRangeTxt(R.idx, u.r); }).join(', ')) + '</div>';
+  (bk.intro || []).forEach(function(it, i){
+    var b = (it.paras || []).map(function(x){
+      if (x[0] === 'a') return '<p class="mkBy">' + esc(x[1]) + '</p>';
+      if (x[0] === 'h') return '<div class="mkSubh"><span>' + esc(x[2] || x[1]) + '</span></div>';
+      return '<p>' + mukText(x[1], name, null) + '</p>';
+    }).join('');
+    h += '<details class="mkU"><summary>' + esc(it.title || (name + ' 개관')) + ((bk.intro.length > 1) ? '<span class="mkTag">' + (i + 1) + '</span>' : '') + '</summary><div class="mkB">' + b + '</div></details>';
+  });
+  return h;
+}
+function mukGateHtml(){
+  return '<div class="cnt" style="margin-bottom:8px"><b>묵상과 설교</b>(성서유니온) — 비공개 개인 자료입니다. 설정 → <b>저작권 자료</b>에서 성경앱과 같은 <b>키코드</b>로 이 기기에 한 번 받아 두면, 본문 구간을 다룬 단원(단락구분·본문주해·배경이해·도움말·묵상 Point·설교 아웃라인)이 여기 표시됩니다.</div>'
+    + '<button class="btn sub mini" type="button" data-mukgate="1">설정에서 받기</button>';
+}
 function esvManageHtml(){
   return '<div style="display:flex;gap:6px;margin-top:12px;padding-top:8px;border-top:1px dashed var(--line)"><button class="btn sub mini" id="esvGet" type="button">↻ 다시 받기</button><button class="btn sub mini" id="esvDel" type="button">이 기기에서 삭제</button></div>';
 }
@@ -7887,6 +8102,15 @@ function studyRenderPane(){
         return;
       }
       pane.innerHTML = studyRenderNotes(studyVerseList(bk), '이 구간에는 ESV 스터디바이블 주석이 없습니다.') + esvManageHtml();
+    });
+    return;
+  }
+  if (STUDY.tab === 'muk'){
+    pane.innerHTML = '<div class="cnt">묵상과 설교를 여는 중…</div>';
+    mukLoad().then(function(ix){
+      if (STUDY.tab !== 'muk') return;
+      if (!ix){ pane.innerHTML = mukGateHtml(); return; }
+      return mukLoadBook(R.idx).then(function(bk){ if (STUDY.tab === 'muk' && STUDY.range === R) pane.innerHTML = mukPaneHtml(bk, R); });
     });
     return;
   }
@@ -15225,6 +15449,19 @@ async function exportObsidianVault(){
   } catch (e){ toast('옵시디언 내보내기 실패: ' + (e && e.message || e)); }
 }
 window.exportObsidianVault = exportObsidianVault;
+/* 묵상과 설교 탭의 [설정에서 받기] → 설정의 저작권 자료 묶음을 펼쳐 보여 준다 */
+document.addEventListener('click', function(e){
+  var g = e.target.closest && e.target.closest('#stPane [data-mkgo]');
+  if (g){
+    var t = document.getElementById(g.getAttribute('data-mkgo')); if (!t) return;
+    var dd = t.closest('details'); if (dd) dd.open = true;
+    try { t.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e3){ t.scrollIntoView(); }
+    return;
+  }
+  var b = e.target.closest && e.target.closest('[data-mukgate]'); if (!b) return;
+  showPage('settings');
+  setTimeout(function(){ var g = document.getElementById('sgGate'); if (g){ g.open = true; try { g.scrollIntoView({ block: 'start' }); } catch (e2){} } }, 80);
+});
 (function(){ var b = $('#btnObsidianExport'); if (b) b.addEventListener('click', function(){ exportObsidianVault(); }); })();
 (function(){ var b = $('#btnPrefsTest'); if (b) b.addEventListener('click', function(){ prefsSelfTest(); }); })();
 (function(){ var b = $('#btnDevoMigrate'); if (b) b.addEventListener('click', function(){ devoMigrateToBible(); }); })();
@@ -15235,22 +15472,27 @@ window.exportObsidianVault = exportObsidianVault;
 var GATED = [
   { id: 'NKT',  name: '새한글 성경',            where: '번역본 목록',             type: 'tr' },
   { id: 'CTBR', name: '공동번역 개정판',        where: '번역본 목록 · 외경 포함', type: 'tr' },
-  { id: 'ESV',  name: 'ESV 스터디바이블(주석)', where: '본문연구 ESV 탭',         type: 'esv' }
+  { id: 'ESV',  name: 'ESV 스터디바이블(주석)', where: '본문연구 ESV 탭',         type: 'esv' },
+  { id: 'MUK',  name: '묵상과 설교(주석)',      where: '본문연구 묵상과 설교 탭',  type: 'muk' }
 ];
 function gateDef(id){ return GATED.filter(function(g){ return g.id === id; })[0] || null; }
 function gateHas(g){
   if (!g) return false;
   if (g.type === 'tr'){ var t = localTrDef(g.id); return !!(t && localTrReady(t)); }
+  if (g.type === 'muk') return mukReady();
   try { return localStorage.getItem('tsa.esvReady') === '1'; } catch (e){ return false; }
 }
 function gateFetchOne(g, key){
+  if (g.type === 'muk') return mukFetch(key);
   return (g.type === 'tr') ? localTrFetch(localTrDef(g.id), key) : esvFetch(key);
 }
 function gateImportOne(g, file){
+  if (g.type === 'muk') return mukImport(file);
   return (g.type === 'tr') ? localTrImport(localTrDef(g.id), file) : esvImport(file);
 }
 function gateDeleteOne(g){
   if (g.type === 'tr') return localTrDelete(localTrDef(g.id));
+  if (g.type === 'muk') return mukClear();
   return idbSet('esv_com', null).then(function(){
     ESVSB.data = null;
     try { localStorage.removeItem('tsa.esvReady'); } catch (e){}
@@ -15259,7 +15501,7 @@ function gateDeleteOne(g){
 function gateAfterChange(){
   renderGateBox();
   try { if (STUDY.range) studyRenderText(); } catch (e){}
-  try { if (STUDY.tab === 'esvsb') studyRenderPane(); } catch (e){}
+  try { if (STUDY.tab === 'esvsb' || STUDY.tab === 'muk') studyRenderPane(); } catch (e){}
 }
 /* 연결 설정 그룹의 상태 배지 — 열지 않고도 무엇이 채워졌는지 보인다 (v478) */
 function renderSetBadges(){
@@ -15296,7 +15538,7 @@ function renderGateBox(){
   } catch (eGb2){}
   box.innerHTML =
     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
-    + '<input type="password" autocomplete="off" id="gateKeyIn" placeholder="키코드 (세 자료 공용)" value="' + esc(gateKeyGet()) + '" style="flex:1;min-width:150px">'
+    + '<input type="password" autocomplete="off" id="gateKeyIn" placeholder="키코드 (자료 공용)" value="' + esc(gateKeyGet()) + '" style="flex:1;min-width:150px">'
     + '<button class="btn mini" type="button" id="gateGetAll">' + (n ? '↻ 못 받은 것 받기' : '모두 받기') + '</button>'
     + '</div>'
     + '<div class="cnt" style="margin:7px 0 2px">받은 자료 <b>' + n + '/' + GATED.length + '</b>'
@@ -15361,7 +15603,7 @@ function renderGateBox(){
       var key2 = curKey();
       if (!key2){ toast('키코드를 먼저 입력해 주세요.'); return; }
       var todo = GATED.filter(function(g2){ return !gateHas(g2); });
-      if (!todo.length){ toast('이미 세 자료를 모두 받아 두었습니다. 개별 [다시 받기]를 쓰세요.'); return; }
+      if (!todo.length){ toast('이미 모든 자료를 받아 두었습니다. 개별 [다시 받기]를 쓰세요.'); return; }
       ga.disabled = true;
       showWaitOverlay('저작권 자료를 받고 있어요', todo.length + '개 자료를 차례로 받습니다.');
       var okN = 0, fail = [];
@@ -29984,7 +30226,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v638';
+var APP_VER = 'v639';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
