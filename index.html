@@ -356,6 +356,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .linkbtn{background:none;border:none;color:var(--accent);font-size:var(--fs-sm);cursor:pointer;font-family:inherit;padding:4px 8px 4px 0}
 .fulltext{white-space:pre-wrap;font-size:var(--fs-body);line-height:1.85;color:var(--text);word-break:break-word}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;margin-right:7px;vertical-align:-2px;animation:spin .7s linear infinite}
+#c_save.saving svg.ico,#c_save.saving .ico{display:none}   /* v637 저장 중 표시 — 저장 아이콘 대신 도는 표시 */
+#c_save.saving::before,#fmSaveBtn.saving::before{content:"";display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-2px;animation:spin .7s linear infinite}
+#c_save.saving:disabled{opacity:1;cursor:progress}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* 좌측 하단 동작 상태 핀 — 동기화·생성·요청 대기 시 눈에 띄게 표시 */
 .statusPill{display:none;align-items:center;gap:8px;margin:6px 8px 2px;padding:10px 12px;border-radius:var(--r-md);font-size:var(--fs-md);font-weight:700;line-height:1.35;word-break:keep-all}
@@ -2549,6 +2552,12 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
           <span class="chip" data-edpaper="0">이전 방식 · 테마 색 칸</span>
         </div>
         <div class="cnt" style="margin-top:6px">「종이」는 설교 작성 오른쪽 작성창을 흰 종이처럼 바꾸고 본문을 명조로 보여 줍니다(기기에 설치된 명조 글꼴만 씁니다 — 없으면 기본 글꼴). 어느 쪽이든 작성칸 안의 성경 인용은 빨간 글자로 보입니다. 집중 모드에는 종이가 적용되지 않으며, 이 기기에만 저장됩니다.</div>
+        <label style="margin-top:14px">원고 저장 방식</label>
+        <div class="chips" id="saveQuietChips">
+          <span class="chip" data-savequiet="0">저장이 끝날 때까지 기다림 (기본)</span>
+          <span class="chip" data-savequiet="1">저장하는 동안 계속 쓰기</span>
+        </div>
+        <div class="cnt" style="margin-top:6px">「계속 쓰기」는 이미 있는 설교를 [저장]할 때 화면을 가리지 않고 뒤에서 보냅니다 — 저장 단추에만 도는 표시가 뜨고 그동안 계속 쓸 수 있습니다. 다른 기기 저장과 겹치면 예전처럼 확인창이 뜹니다. 새 Code.gs(서버 충돌 확인)가 배포된 뒤에만 동작하고, 새 설교의 첫 저장·잘라서 저장은 예전처럼 기다립니다. 이 기기에만 저장됩니다.</div>
         <label style="margin-top:14px">화면 크기</label>
         <div class="chips" id="zoomChips">
           <span class="chip" data-zoom="1">기본</span>
@@ -3005,7 +3014,7 @@ function toast(msg){
   t.classList.add('show'); clearTimeout(t._h);
   t._h = setTimeout(function(){ t.classList.remove('show'); }, 2400);
 }
-function debounce(fn, ms){ var h; return function(){ var a = arguments, c = this; clearTimeout(h); h = setTimeout(function(){ fn.apply(c, a); }, ms); }; }
+function debounce(fn, ms){ var h; var d = function(){ var a = arguments, c = this; clearTimeout(h); h = setTimeout(function(){ fn.apply(c, a); }, ms); }; d.cancel = function(){ clearTimeout(h); }; return d; }   /* v637: cancel — 저장하면 대기 중인 초안 백업 전송을 취소 */
 function isDesktop(){ return window.matchMedia('(min-width: 900px)').matches; }
 /* 스트리밍 응답 idle 워치독 — 지정 시간 동안 한 바이트도 안 오면 자동 중단(무한 로딩 방지).
    reader.read()마다 bump()로 타이머를 리셋하므로, 긴 생성이라도 데이터가 흐르는 한 끊기지 않는다. */
@@ -3051,13 +3060,43 @@ function similarity(a, b){
 
 /* ===================== API ===================== */
 /* Apps Script 웹앱은 요청을 직렬·락으로 처리한다. 동시에 여러 요청(저장+동기화+산출물 기록)이 겹치면
-   락 경합으로 일부 쓰기가 조용히 유실된다. 모든 시트 요청을 한 줄로 직렬화해 동시요청 충돌을 막는다. */
-var _netChain = Promise.resolve();
+   락 경합으로 일부 쓰기가 조용히 유실된다. 모든 시트 요청을 한 줄로 직렬화해 동시요청 충돌을 막는다.
+   ── v637 요청 두 줄 ──
+   - 쓰기(apiPost → _netRun) = 예전 그대로 한 줄. 앞서 나간 모든 요청(읽기 포함)이 끝난 뒤 출발한다 — 잠금 경합(원래 이유)과,
+     진행 중이던 동기화의 옛 응답이 방금 저장한 로컬 행을 덮는 일을 막는다.
+   - 읽기(api → _netRead) = 앞서 나간 '쓰기'만 기다리고 다른 읽기와는 나란히 간다(서버 doGet 은 잠금을 쓰지 않는다).
+     → 배경 동기화·개인설정·초안 정리 조회 뒤에 사용자가 누른 열기가 줄 서지 않는다. 쓰고 나서 읽으면 쓴 것이 보이는 순서는 그대로다. */
+var _netChain = Promise.resolve();   /* 쓰기 줄 */
+var _netReads = [];                   /* 진행 중인 읽기(끝나면 빠짐) — 다음 쓰기가 기다린다 */
+function _netNoop(){}
 function _netRun(fn){
-  var run = _netChain.then(fn, fn);                 /* 앞 호출 성공/실패와 무관하게 이어서 실행 */
-  _netChain = run.then(function(){}, function(){});  /* 체인은 항상 살아있게 유지 */
+  var gate = _netReads.length ? Promise.all([_netChain].concat(_netReads)) : _netChain;
+  var run = gate.then(fn, fn);                      /* 앞 호출 성공/실패와 무관하게 이어서 실행 */
+  _netChain = run.then(_netNoop, _netNoop);         /* 체인은 항상 살아있게 유지 */
   return run;
 }
+function _netRead(fn){
+  var run = _netChain.then(fn, fn);                 /* 앞선 쓰기만 기다린다 */
+  var settled = run.then(_netNoop, _netNoop);
+  _netReads.push(settled);
+  settled.then(function(){ var i = _netReads.indexOf(settled); if (i >= 0) _netReads.splice(i, 1); });
+  return run;
+}
+/* v637 서버 기능 표시(caps) — 새 Code.gs 는 목록·ping·open 응답에 caps 를 싣는다. 없으면(옛 Code.gs) 예전 방식 그대로.
+   시트 URL 별로 기억한다(URL 을 바꾸면 다시 확인). */
+var _srvCaps = (function(){ try { var o = JSON.parse(localStorage.getItem('tsa.srvCaps') || 'null'); return (o && o.url) ? o : null; } catch (e) { return null; } })();
+function srvCap(name){
+  try { var s = state.settings || {}; return !!(_srvCaps && s.url && _srvCaps.url === s.url && (_srvCaps.caps || []).indexOf(name) >= 0); } catch (e) { return false; }
+}
+function srvCapsSet(url, caps){
+  try {
+    caps = Array.isArray(caps) ? caps.slice() : [];
+    if (_srvCaps && _srvCaps.url === url && JSON.stringify(_srvCaps.caps || []) === JSON.stringify(caps)) return;
+    _srvCaps = { url: url, caps: caps };
+    localStorage.setItem('tsa.srvCaps', JSON.stringify(_srvCaps));
+  } catch (e) {}
+}
+var _lastSheetAt = 0;   /* 마지막 시트 응답 시각 — 오래 쉬었으면 미리 깨운다(sheetWarm) */
 /* 시트 fetch는 타임아웃·취소가 가능해야 한다 — 느리거나 멈춘 Apps Script 한 요청이 앱 전체를
    무한 정지(오버레이가 안 닫힘, 직렬 체인 정체)시키지 않도록. 진행 중 요청의 AbortController를
    모아두고 (a) 타임아웃 시 자동 중단 (b) 오버레이 [취소]로 사용자가 중단할 수 있게 한다.
@@ -3075,7 +3114,7 @@ function _sheetFetch(url, opts, ms){
   _netAborts.push(ctrl);
   var to = setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, ms || SHEET_TIMEOUT_MS);
   function done(){ clearTimeout(to); var i = _netAborts.indexOf(ctrl); if (i >= 0) _netAborts.splice(i, 1); }
-  return fetch(url, opts).then(function(r){ done(); return r; }, function(e){
+  return fetch(url, opts).then(function(r){ done(); _lastSheetAt = Date.now(); return r; }, function(e){
     done();
     if (e && e.name === 'AbortError') throw new Error('timeout: 시트 응답이 없어 중단했습니다');
     throw e;
@@ -3086,11 +3125,34 @@ function api(params, ms){
   var s = state.settings;
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
   var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
-  return _netRun(function(){
+  var url0 = s.url, act = params.action || 'list';
+  return _netRead(function(){
     return _sheetFetch(s.url + '?token=' + encodeURIComponent(s.token) + '&' + qs, null, ms)
       .then(function(r){ return r.json(); })
-      .then(function(j){ if (!j.ok) throw new Error(j.error); return j.data; });
+      .then(function(j){
+        if (!j.ok) {
+          /* v637: 새 기능을 기억하는데 서버가 모른다고 하면(Code.gs 를 옛 버전으로 되돌린 경우) 곧바로 잊는다 */
+          if (act === 'open' && /알 수 없는 action|unknown action/i.test(String(j.error || ''))) srvCapsSet(url0, []);
+          throw new Error(j.error);
+        }
+        if (act === 'list' || act === 'ping' || act === 'open') {   /* v637: 서버 기능 확인(옛 Code.gs 면 빈 목록) */
+          srvCapsSet(url0, j.caps || (j.data && j.data.caps) || []);
+          if (j.data && typeof j.data === 'object' && j.data.caps) delete j.data.caps;
+        }
+        return j.data;
+      });
   });
+}
+/* v637 개인설정(prefs) 한 번만 받기 — 부팅·동기화 때 별점·사용 기록·메모·인사이트·앵커·주제·성경앱 매핑이 같은 칸(_prefs A1)을
+   6~7번 따로 받았다(9/21 전반점검 「뒤의 저장이 6~15초 대기」). 몇 초 안의 요청은 한 번 받은 것을 나눠 쓴다.
+   이 기기에서 개인설정을 보내면(setPrefs) 버린다 — 보내기 전에 받은 옛 값이 방금 바꾼 값을 되돌리지 않게. */
+var _prefsP = null, _prefsAt = 0;
+function prefsGet(){
+  if (_prefsP && Date.now() - _prefsAt < 5000) return _prefsP;
+  _prefsAt = Date.now();
+  var p = _prefsP = api({ action: 'prefs' });
+  p.catch(function(){ if (_prefsP === p) _prefsP = null; });
+  return p;
 }
 /* 멱등 키 생성기: 통신 재시도(대기열 재전송)로 같은 add가 두 번 처리돼도 서버가 중복 행을
    만들지 않도록, add/bulkAdd 본문에 안정적 로컬ID를 부여한다. body 객체에 한 번 박히면
@@ -3149,6 +3211,7 @@ function apiPost(body){
   if (!s.url || !s.token) return Promise.reject(new Error('설정 탭에서 API URL과 토큰을 먼저 입력해 주세요.'));
   stampLocalId_(body);
   body.token = s.token;
+  if (body.action === 'setPrefs') _prefsP = null;   /* v637: 나눠 쓰던 개인설정은 낡았다 */
   return _netRun(function(){
     return _sheetFetch(s.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
       .then(function(r){ return r.json(); })
@@ -3319,6 +3382,15 @@ function _dedupReconcileCopies(){
 }
 /* 단일 비행: 동시 호출(저장 직후 + 기기 포커스 등)이 겹쳐 flushQueue가 이중 전송되는 것 방지 */
 var _pullInflight = null;
+/* v637: 잠시 뒤 배경 동기화 한 번(여러 번 불러도 마지막 것 하나만) */
+var _pullSoonT = null;
+function pullDataSoon(ms){
+  clearTimeout(_pullSoonT);
+  _pullSoonT = setTimeout(function(){
+    var s = state.settings || {};
+    if (s.url && s.token && navigator.onLine) pullData().catch(function(){});
+  }, ms || 4000);
+}
 function pullData(opts){
   if (_pullInflight) return _pullInflight;
   _pullInflight = _pullData(opts).then(function(r){ _pullInflight = null; return r; },
@@ -3426,7 +3498,7 @@ function focusSync(){
   if (!_dataLoaded) return;   /* v576: 캐시 로드 전 포커스 동기화는 빈 상태로 전체 조회하거나 옛 data·새 syncAt 을 짝지었다 */
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine || document.hidden) return;
-  if (Date.now() - _lastFocusSync < 8000) return;   /* 과도한 호출 억제 */
+  if (Date.now() - _lastFocusSync < 30000) return;   /* 과도한 호출 억제(v637: 8초 → 30초 — 창을 오갈 때마다 시트 전체 읽기가 돌았다) */
   _lastFocusSync = Date.now();
   try { bmFlush(); STUDY._memoP = null; } catch (e){}   /* 다른 기기·성경앱의 노트 변경을 따라잡는다 */
   pullData().then(function(){
@@ -3610,6 +3682,7 @@ function flushQueue(){
         toast('대기 중이던 저장은 이미 시트에 반영돼 있어 건너뛰었습니다.');
         return;
       }
+      delete send._cas;   /* v637: 대기열 항목은 cas 를 쓰지 않는다(자체 확인 qGuardBody_) */
       return apiPost(send).then(function(id){
         /* 위치(shift) 대신 처리한 항목 자체를 제거 — 전송 중 submit이 새 항목을 push해도 잘못 제거되지 않음 */
         var i = state.queue.indexOf(item);
@@ -3654,11 +3727,18 @@ function _isTransientNetErr(e){
    구분해 후처리(예: dirty 해제)할 수 있도록 하는 선택적 콜백. 반환값(id) 계약은 유지. */
 function submit(body, okMsg, onResult, opts){
   opts = opts || {};
-  showWaitOverlay('시트에 저장하고 있어요', '저장하고 최신 상태로 맞추는 중입니다.');
+  if (!opts.quiet) showWaitOverlay('시트에 저장하고 있어요', '저장하고 최신 상태로 맞추는 중입니다.');   /* v637 quiet: 화면을 가리지 않는다(저장하는 동안 계속 쓰기) */
+  var _conf = null;   /* v637: 서버 충돌 확인(cas)이 돌려준 시트 최신 행 — 아래 catch 바깥에서 처리한다(그 안의 오류가 대기열로 새지 않게) */
   function ok(v){ if (onResult) { try { onResult(v); } catch(_){} } }
   return apiPost(body).then(function(id){
+    /* v637 서버 충돌 확인(cas): 그사이 다른 기기 저장이 있어 서버가 쓰지 않았다 → 호출부가 고르게 한다(검토본/덮어쓰기/취소) */
+    if (id && typeof id === 'object' && id.conflict) { _conf = id.row || {}; return undefined; }
+    var cas = null;   /* v637: cas 저장 성공 응답 { ID, 수정일(서버 시각) } */
+    if (id && typeof id === 'object' && id.ID && !id.ids) { cas = id; id = String(id.ID); }
     toast(okMsg + (id ? ' (' + (id.ids ? id.ids.length + '건' : id.count || id) + ')' : ''));
     ok(true);
+    /* 기준 시점을 기기 시계가 아니라 서버 수정일로 — 다음 저장의 충돌 확인이 정확해진다 */
+    if (cas && cas['수정일'] && String(state.editing || '') === String(cas.ID)) state._bufMod = String(cas['수정일']);
     if (opts.fastLocal) {
       /* 빠른 저장: 방금 저장한 레코드를 로컬에 즉시 upsert하고, 재동기화는 오버레이를 잡지 않는
          백그라운드로 돌린다(작성 중 cmd+s 체감 지연 최소화). 다른 기기 변경은 배경 pull이 따라잡는다. */
@@ -3669,7 +3749,7 @@ function submit(body, okMsg, onResult, opts){
              잃지 않는다. 이 필드들이 빠지면 저장 직후 시트 에코(델타)와 내용이 어긋나 '다른 기기 변경'으로 오탐된다(검토본 난립 원인). */
           var _prev = (state.data[body.sheet] || []).filter(function(r){ return String(r['ID']) === String(rec['ID']); })[0];
           var _merged = Object.assign({}, _prev || {}, rec);
-          _merged['수정일'] = nowLocalStr_();   /* 기준본 수정일을 지금으로 — 내 저장 에코가 '더 최신'으로 보이지 않게 */
+          _merged['수정일'] = (cas && cas['수정일']) || nowLocalStr_();   /* 기준본 수정일을 지금으로 — 내 저장 에코가 '더 최신'으로 보이지 않게(v637: 서버가 알려 주면 그 값) */
           /* 설교 저장이면 로컬 본문 = 방금 시트에 쓴 본문 그 자체 → 신선도 스탬프를 찍어
              같은 기기에서 곧바로 열 때 불필요한 본문 재요청이 없게 한다. */
           if (body.sheet === 'sermons' && rec['원고텍스트'] != null) { _merged._txt = true; _merged._txtAt = _merged['수정일']; }
@@ -3677,7 +3757,7 @@ function submit(body, okMsg, onResult, opts){
           normalizeSermonStatuses(false); renderSyncState(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
         }
       } catch (_) {}
-      pullData().catch(function(){});   /* 배경 동기화(오버레이·프라미스 비차단) */
+      pullDataSoon(4000);   /* 배경 동기화(오버레이·프라미스 비차단). v637: 바로 하지 않고 4초 뒤로 — 저장 직후 누른 동작이 먼저 가게 */
       return id;
     }
     /* 저장 직후 동기화는 조용한 코어(pullData)만 — sync()의 별도 오버레이·토스트 중첩 방지.
@@ -3685,6 +3765,7 @@ function submit(body, okMsg, onResult, opts){
     return pullData().catch(function(){}).then(function(){ return id; });
   }).catch(function(e){
     if (_isTransientNetErr(e)) {
+      delete body._cas;   /* v637: 대기열은 cas 대신 전송 때의 자체 확인(qGuardBody_)을 쓴다 — 서버가 '충돌'로 돌려준 응답을 성공으로 오인하지 않게 */
       qStampBase_(body);   /* v585: 이 저장이 어느 시점 행을 기반으로 했는지 — 전송 때 덮어쓰기 판정용 */
       state.queue.push(body); save(LS.queue, state.queue); renderStats();
       toast('오프라인/통신 오류 — 대기열에 저장했습니다. 다음 동기화 때 전송됩니다.');
@@ -3713,7 +3794,14 @@ function submit(body, okMsg, onResult, opts){
       toast('저장 실패(서버 응답): ' + e.message);
       ok(false);  /* 시트에도 대기열에도 없음 → 미저장 상태 유지 */
     }
-  }).then(function(r){ hideWaitOverlay(); return r; });
+  }).then(function(r){
+    if (!opts.quiet) hideWaitOverlay();
+    if (_conf) {
+      if (opts.onConflict) return opts.onConflict(_conf);
+      toast('다른 기기에서 먼저 저장해 이번 저장은 시트에 쓰지 않았습니다.'); ok(false); return undefined;
+    }
+    return r;
+  });
 }
 /* AI 직결 생성물 저장 전용: 일시 통신 오류면 대기열에 durable 보관(수 분 걸린 유료 생성물 유실 방지).
    성공/보관 모두 정상 진행, 영구 오류만 throw(호출부의 실패 처리로). */
@@ -3791,10 +3879,28 @@ function showLoad(msg){
 function hideLoad(){ clearTimeout(_loadT); var ov = document.getElementById('loadOv'); if (ov) ov.style.display = 'none'; }
 function markCardLoading(el){ if (!el || !el.classList) return function(){}; el.classList.add('cardLoading'); return function(){ el.classList.remove('cardLoading'); }; }
 /* 카드 클릭 → 시트 로드 → 콜백. 누름 카드 표시 + 전체 오버레이를 일관되게 처리 */
-function loadSermonThen(id, el, msg, done){
+function loadSermonThen(id, el, msg, done, opts){
   /* 첫 시트 로딩 중에는 설교 불러오기(수정·이어쓰기·미리보기·내보내기) 잠금 — 미완성 데이터로 덮어쓰기 방지 */
   if (bootGuardBlocked('시트를 불러오는 중입니다 — 설교 불러오기는 로딩이 끝나면 이용할 수 있어요.')) return Promise.resolve();
   var unmark = markCardLoading(el);
+  /* ── v637 빠른 열기(작성창으로 여는 경로만: 수정·이어쓰기) ──
+     예전엔 열 때마다 동기화를 끝까지 기다린 뒤에야 본문을 확인했다(받아 둔 원고가 최신이어도). 이제 받아 둔 원고가 최신으로 보이면
+     바로 열고, 시트 확인은 뒤에서 한다(sermonVerify). 그새 다른 기기가 더 새로 저장했으면 — 아직 손대지 않은 작성창은
+     reconcileCleanDraftWithSheet 가 새 원고로 바꾸고(토스트), 고치기 시작했으면 mergeDelta 의 충돌 표시 → 저장 때 검토본/덮어쓰기.
+     미리보기·내보내기·다른 기기 내용 불러오기는 최신본이 꼭 필요해 예전 경로(먼저 동기화) 그대로다. */
+  if (opts && opts.fast) {
+    var online0 = !!(state.settings && state.settings.url && state.settings.token && navigator.onLine);
+    var s0 = findSermon(id);
+    if (s0 && (String(s0['원고텍스트'] || '').trim() || s0._txt) && !_txtStale(s0)) {
+      try { done(s0); } finally { unmark(); }
+      if (online0) sermonVerifySoon(id);
+      return Promise.resolve();
+    }
+    showLoad(msg || '설교를 불러오는 중…');
+    return ensureText(id)
+      .then(function(s){ try { done(s); } finally { unmark(); hideLoad(); } if (online0 && !srvCap('open')) pullData().catch(function(){}); })
+      .catch(function(){ unmark(); hideLoad(); toast('불러오기에 실패했습니다. 다시 시도해 주세요.'); });
+  }
   showLoad(msg || '설교를 불러오는 중…');
   /* ── 기기 전환 동기화(문제: 아이패드 작성 → 맥 이어쓰기 → 아이패드에서 구버전 캐시가 보임) ──
      설교를 열기 전에 시트 최신 상태를 먼저 받아 로컬 캐시의 '수정일'을 갱신한다. 그래야 이어지는
@@ -3821,20 +3927,61 @@ function _txtStale(s){
     return !at || at < m;                 /* 스탬프 없음(옛 캐시) 또는 시트 저장 시점보다 과거 → 낡음 */
   } catch(e){ return false; }
 }
+/* v637 open 응답(행 + 본문, 또는 바뀐 게 없으면 _same)을 로컬에 반영 — 델타와 같은 길(mergeDelta)로 넣어
+   편집 보호·보류·충돌 표시가 그대로 걸린다. 본문이 온 경우엔 그 행의 수정일이 곧 본문 시점(_txtAt)이다. */
+function openMerge_(d){
+  if (!d || !d.ID) return null;
+  var r = Object.assign({}, d), same = !!r._same;
+  delete r._same;
+  if (!same && r['원고텍스트'] != null) { r._txt = true; r._txtAt = String(r['수정일'] || '') || nowLocalStr_(); }
+  mergeDelta({ sermons: [r], deletes: [] });
+  var cur = findSermon(String(r.ID));
+  if (!same && cur && String(_editingGuardId() || '') !== String(r.ID)) {
+    /* 델타 병합은 '빈 본문 = 목록이라 생략된 것'으로 보고 로컬 본문을 살린다 — open 은 진짜 값이므로 그대로 쓴다 */
+    cur['원고텍스트'] = r['원고텍스트']; if (r['카드원고'] != null) cur['카드원고'] = r['카드원고'];
+    cur._txt = true; cur._txtAt = r._txtAt;
+  }
+  saveData();
+  return cur;
+}
+/* 열어 둔 설교가 시트 최신인지 뒤에서 확인(빠른 열기 뒤). 새 Code.gs 면 open 한 번, 아니면 예전처럼 동기화 —
+   어느 쪽이든 끝에 reconcileCleanDraftWithSheet 가 깨끗한 작성창을 새 원고로 바꾼다. */
+function sermonVerify(id){
+  if (!srvCap('open')) return pullData().catch(function(){});
+  var s = findSermon(id); if (!s) return Promise.resolve();
+  return api({ action: 'open', id: id, have: String(s._txtAt || '') }).then(function(d){
+    if (!d || !d.ID) return;   /* 행이 없다(다른 기기에서 삭제?) — 다음 동기화의 삭제 처리에 맡긴다 */
+    openMerge_(d);
+    try { reconcileCleanDraftWithSheet(); } catch (e) {}
+  }).catch(function(){});
+}
+function sermonVerifySoon(id){ setTimeout(function(){ if (String(state.editing || '') === String(id)) sermonVerify(id); }, 50); }
 function ensureText(id){
   var s = findSermon(id);
   if (!s) return Promise.resolve(null);
   var _has = String(s['원고텍스트'] || '').trim() || s._txt;   /* 이미 있거나 1회 시도함 */
   var _stale = _txtStale(s);
   if (_has && !_stale) return Promise.resolve(s);              /* 신선한 캐시 → 즉시 사용(재요청 없음) */
+  if (srvCap('open')) {   /* v637: 행 + 본문을 한 번에 — 받은 행의 수정일이 곧 본문 시점이라 정확하다 */
+    return api({ action: 'open', id: id }).then(function(d){
+      if (!d || !d.ID) { var c0 = findSermon(id) || s; c0._txt = true; return c0; }   /* 시트에 없다 — 예전 text 응답({})과 같게 */
+      return openMerge_(d) || findSermon(id) || s;
+    }).catch(function(){
+      if (!srvCap('open')) return ensureText(id);   /* 서버가 open 을 모른다(옛 Code.gs) — 예전 text 요청으로 다시 */
+      if (_stale && _has) { try { toast('통신 오류 — 마지막으로 받아둔 원고를 표시합니다. 다른 기기의 최신 수정이 반영되지 않았을 수 있습니다.'); } catch(e){} }
+      return findSermon(id) || s;
+    });
+  }
+  var mod0 = String(s['수정일'] || '');   /* v637: 요청 시점의 수정일 — 받는 사이 동기화가 행을 더 새로 바꾸면 다음에 다시 받는다 */
   return api({ action: 'text', id: id }).then(function(d){
+    s = findSermon(id) || s;   /* v637: 받는 사이 동기화가 행 객체를 바꿨을 수 있다(읽기가 나란히 가므로) — 지금 행에 쓴다 */
     if (d && d['원고텍스트'] != null) s['원고텍스트'] = d['원고텍스트'];
     if (d && d['요약본'] && !String(s['요약본'] || '').trim()) s['요약본'] = d['요약본'];
     if (d && d['실제요약본'] && !String(s['실제요약본'] || '').trim()) s['실제요약본'] = d['실제요약본'];
     if (d && d['전사문'] != null && String(d['전사문']).trim()) s['전사문'] = d['전사문'];
     if (d && d['카드원고'] != null) s['카드원고'] = d['카드원고'];   /* v635 카드원고 문서(별도 칸) */
     else if (d && d['원고텍스트'] != null) state._noCardCol = true;   /* 시트에 「카드원고」 칸이 아직 없다(Code.gs 미반영) */
-    s._txt = true; s._txtAt = String(s['수정일'] || '') || nowLocalStr_(); saveData(); return s;
+    s._txt = true; s._txtAt = mod0 || String(s['수정일'] || '') || nowLocalStr_(); saveData(); return s;
   }).catch(function(){
     /* 통신 실패 → 캐시 본문 유지. 단, 낡은 캐시임을 알면서 갱신에 실패한 경우엔 알려준다. */
     if (_stale && _has) { try { toast('통신 오류 — 마지막으로 받아둔 원고를 표시합니다. 다른 기기의 최신 수정이 반영되지 않았을 수 있습니다.'); } catch(e){} }
@@ -4800,7 +4947,7 @@ function illUsePush(key, val){
 function illUsePull(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
-  return api({ action: 'prefs' }).then(function(prefs){
+  return prefsGet().then(function(prefs){
     var srv = prefs && prefs.illUse;
     if (!srv || typeof srv !== 'object') return;
     var local = illUseStore(), merged = {};
@@ -5002,7 +5149,7 @@ function illRatePush(key, val){
 function illRatePull(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
-  return api({ action: 'prefs' }).then(function(prefs){
+  return prefsGet().then(function(prefs){
     var srv = prefs && prefs.illRate;
     if (!srv || typeof srv !== 'object') return;
     var local = illRateStore();
@@ -5059,7 +5206,7 @@ function illNoteSet(key, val){
 function illNotePull(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
-  return api({ action: 'prefs' }).then(function(prefs){
+  return prefsGet().then(function(prefs){
     var srv = prefs && prefs.illRateNote;
     if (!srv || typeof srv !== 'object') return;
     var local = illNoteStore();
@@ -5093,7 +5240,7 @@ function illInsightSet(key, val){
 function illInsightPull(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
-  return api({ action: 'prefs' }).then(function(prefs){
+  return prefsGet().then(function(prefs){
     var srv = prefs && prefs.illInsight;
     if (!srv || typeof srv !== 'object') return;
     var local = illInsightStore();
@@ -5147,7 +5294,7 @@ function illAnchorDel(key, ref){
 function illAnchorPull(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
-  return api({ action: 'prefs' }).then(function(prefs){
+  return prefsGet().then(function(prefs){
     var srv = prefs && prefs.illAnchor;
     if (!srv || typeof srv !== 'object') return;
     var local = illAnchorStore();
@@ -5267,7 +5414,7 @@ function illTopicDel(key, topic){
 function illTopicPull(){
   var s = state.settings || {};
   if (!s.url || !s.token || !navigator.onLine) return Promise.resolve();
-  return api({ action: 'prefs' }).then(function(prefs){
+  return prefsGet().then(function(prefs){
     var srv = prefs && prefs.illTopic;
     if (!srv || typeof srv !== 'object') return;
     var local = illTopicStore();
@@ -12788,7 +12935,7 @@ function editSermonFill(id, noNav){
   if (!noNav) showPage('compose');   /* noNav=true면 현재 보고 있는 화면을 바꾸지 않음(자동 최신본 반영용) */
 }
 /* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
-window.editSermon = function(id){ if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 불러올까요?')) return; if (heldApply(true)) saveData(); /* v577: 보류분을 본문 받기 전에 반영해야 새 행 기준으로 본문을 다시 받는다 */ loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }); };
+window.editSermon = function(id){ if (!confirmDiscardCompose('작성 중인 내용이 저장되지 않았습니다. 버리고 이 설교를 불러올까요?')) return; if (heldApply(true)) saveData(); /* v577: 보류분을 본문 받기 전에 반영해야 새 행 기준으로 본문을 다시 받는다 */ loadSermonThen(id, null, '설교를 불러오는 중…', function(){ editSermonFill(id); }, { fast: true }); };
 /* 충돌(문제 4) 시: 다른 기기에서 저장된 최신본을 불러온다(현재 작성분은 버림).
    목록 응답엔 원고텍스트가 없으므로 loadSermonThen으로 전문까지 받아 채운다. */
 window.loadRemoteConflict = function(){
@@ -12897,7 +13044,7 @@ window.resumeSermon = function(id, el){
     state.editing = id; state.versionOf = null;  /* 새버전이 아니라 직접 수정으로 */
     updateComposeBadge(); refreshReqBtns();
     toast('이어쓰기 모드 — 저장하면 ' + id + ' 행이 업데이트됩니다.');
-  });
+  }, { fast: true });   /* v637 빠른 열기 */
 };
 /* 진행중 설교 목록 — 분류(드롭다운) + 검색어. 검색어가 없어도 분류 기준으로 항상 목록 표시 */
 function cwRender(){
@@ -12956,6 +13103,19 @@ function saveComposeDraft(){
     if (!composeHasAnyContent()) { idbSet('composeDraft', null).catch(function(){}); return; }
     idbSet('composeDraft', composeDraftSnapshot()).catch(function(){});
     pushComposeDraftRemoteSoon();   /* 시트에도 경량 백업 — 다른 기기 이어쓰기용 */
+    sheetWarm();
+  } catch (e) {}
+}
+/* v637 서버 깨워 두기 — 원고를 쓰는 동안 시트 요청이 4분 넘게 없었으면 가벼운 ping 하나를 보내, 오래 쉰 Apps Script 가
+   [저장]을 누른 순간 처음 깨어나느라 늦어지는 일을 줄인다(읽기 줄이라 다른 동작을 막지 않는다). 효과는 측정으로 확인할 것. */
+var _warmBusy = false;
+function sheetWarm(){
+  try {
+    var s = state.settings || {};
+    if (!s.url || !s.token || !navigator.onLine || !_dataLoaded || _warmBusy || _pullInflight) return;
+    if (Date.now() - _lastSheetAt < 240000) return;
+    _warmBusy = true;
+    api({ action: 'ping' }).catch(function(){}).then(function(){ _warmBusy = false; });
   } catch (e) {}
 }
 var saveComposeDraftSoon = debounce(saveComposeDraft, 700);
@@ -13206,23 +13366,38 @@ async function _doSaveComposeInner(){
         !await uiConfirm('원본과 날짜·제목·본문이 같아 클로드 요청 산출물의 파일명이 원본 파일과 겹칩니다(덮어씀).\n날짜나 제목을 바꾸면 새 파일로 만들어집니다. 그대로 저장할까요?')) return false;
   }
   var origId = state.editing;
+  try { pushComposeDraftRemoteSoon.cancel(); } catch (eC) {}   /* v637: 대기 중이던 초안 백업 전송은 취소 — 이 저장이 그 내용을 담는다(저장 앞에 쓰기 하나가 끼지 않게) */
   var _un = _lockSaveBtns();   /* 느린 저장 중 더블클릭으로 신규 설교가 중복 생성되는 것 방지 */
   function release(r){ _un(); return r; }
   function fail(e){ _un(); throw e; }
+  /* v637 서버 충돌 확인(cas) — 새 Code.gs 이고 이 작성창이 기반한 시트 시점(기준)을 알 때만.
+     서버가 쓰는 순간 잠금 안에서 비교하므로 저장 직전 전체 동기화가 필요 없고, 확인과 쓰기 사이 틈도 없다. */
+  var casBase = origId ? String(state._draftBaseMod || state._bufMod || '') : '';
+  var casOn = !!(origId && casBase && srvCap('cas'));
+  /* v637 「저장하는 동안 계속 쓰기」(설정, 기본 끔) — 서버 충돌 확인이 있는 기존 설교 저장만. 화면을 가리지 않고 뒤에서 보낸다.
+     그동안 다른 설교로 넘어갈 수 있으므로(미저장 확인을 거쳐) 저장이 끝났을 때 작성창이 바뀌었으면 그 작성창은 건드리지 않는다(c0). */
+  var quiet = !!(casOn && !_cut && saveQuietOn());
+  var c0 = state.compose;
+  /* 동시 편집 충돌 확인창(예전 그대로) — 'copy' 검토본 / 'overwrite' 덮어쓰기 / 'cancel' 편집 계속 */
+  async function pickConflict(rc){
+    var pick = await uiConfirm('⚠ 이 설교는 다른 기기에서도 수정되었습니다' + (rc && rc['수정일'] ? ' (' + rc['수정일'] + ')' : '') +
+      '.\n\n[확인] = 내 작업을 “검토본”으로 따로 저장\n  → 다른 기기 내용도, 내 작업도 모두 보존(원본당 검토본 1개로 합쳐짐 — 나중에 비교해서 정리)\n\n[취소] = 다른 방법 선택');
+    if (pick) return 'copy';
+    var ow = await uiConfirm('그러면 내 작업으로 “원본을 덮어쓸까요”?\n\n[확인] = 덮어쓰기 (다른 기기의 변경 내용은 사라집니다)\n[취소] = 저장하지 않고 편집 계속 (상단 “다른 기기 내용 불러오기”로 비교 가능)');
+    return ow ? 'overwrite' : 'cancel';
+  }
 
   /* 실제 저장(충돌 해결 포함) — 저장 직전 동기화로 최신 충돌 상태를 반영한 뒤 호출된다. */
   async function finishSave(){
     /* ── 동시 편집 충돌(무손실 해결) ──
        내가 편집하는 동안 다른 기기가 같은 설교를 바꿨으면, 덮어쓰기/포기의 이지선다(둘 다 손해)가 아니라
        기본을 "검토본으로 따로 저장(둘 다 보존)"으로 둔다. 검토본은 원본당 1개로 재사용되어 사본이 난립하지 않는다. */
+    var noCas = false;
     if (origId && state.remoteConflict) {
-      var rc = state.remoteConflict;
-      var pick = await uiConfirm('⚠ 이 설교는 다른 기기에서도 수정되었습니다' + (rc['수정일'] ? ' (' + rc['수정일'] + ')' : '') +
-        '.\n\n[확인] = 내 작업을 “검토본”으로 따로 저장\n  → 다른 기기 내용도, 내 작업도 모두 보존(원본당 검토본 1개로 합쳐짐 — 나중에 비교해서 정리)\n\n[취소] = 다른 방법 선택');
-      if (pick) return saveReconcileCopy(data, origId, { sig: _sig0, cut: _cut, hcap: _hcap });
-      var ow = await uiConfirm('그러면 내 작업으로 “원본을 덮어쓸까요”?\n\n[확인] = 덮어쓰기 (다른 기기의 변경 내용은 사라집니다)\n[취소] = 저장하지 않고 편집 계속 (상단 “다른 기기 내용 불러오기”로 비교 가능)');
-      if (!ow) return Promise.resolve(false);
-      /* ow=true → 아래에서 그대로 update(덮어쓰기) 진행 */
+      var how0 = await pickConflict(state.remoteConflict);
+      if (how0 === 'copy') return saveReconcileCopy(data, origId, { sig: _sig0, cut: _cut, hcap: _hcap });
+      if (how0 === 'cancel') return Promise.resolve(false);
+      noCas = true;   /* 덮어쓰기로 정했다 — 서버 확인 없이 그대로 쓴다 */
     }
     /* 검토본 링크('충돌원본')는 작성폼에 없는 서버 보존 필드 → update 시 기존 로컬 행 값을 유지(링크 소실 방지). */
     var _exist = origId ? (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(origId); })[0] : null;
@@ -13231,9 +13406,67 @@ async function _doSaveComposeInner(){
     var body = origId ? { action: 'update', sheet: 'sermons', data: Object.assign({}, data, { ID: origId }, _keep) }
                       : { action: 'add', sheet: 'sermons', data: data };
     if (!origId) { stampLocalId_(body); state.pendingAddLid = body.data['로컬ID']; }   /* 이 작성 세션의 add 멱등키 기억 */
+    if (casOn && !noCas) { body._cas = 1; body._base = casBase; }
+    var msg = origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료');
     /* 저장한 내용의 서명(수집 직후 스냅샷 _sig0) — durable 보관된 경우에만 '깨끗함'으로 표시(진짜 실패 시 dirty 유지).
        잘라서 저장했으면(_cut) 뒷부분이 초안에만 있으므로 미저장·초안을 그대로 둔다. */
-    return submit(body, origId ? '수정 저장 완료' : (state.versionOf ? '새 설교로 등록 완료 (원본 유지)' : '시트 저장 완료'), function(okv){ if (okv) { _hOk = true; if (!_cut) { state.savedSig = _sig0; clearComposeDraft(true); state._bufMod = nowLocalStr_(); } state.remoteConflict = null; } updateComposeBadge(); }, { fastLocal: true }).then(function(id){
+    function onRes(okv){
+      if (state.compose !== c0) { if (okv) _hOk = true; return; }   /* v637: 저장하는 사이 다른 설교로 넘어갔다 — 지금 작성창은 건드리지 않는다 */
+      if (okv) {
+        _hOk = true;
+        if (!_cut) {
+          state.savedSig = _sig0;
+          /* v637: 저장하는 사이 더 쓴 글이 있으면 이 기기 초안은 지우지 않는다(그 글은 아직 저장 전) */
+          if (composeSig() === _sig0) clearComposeDraft(true); else { state._draftBaseMod = null; state._draftAt = 0; }
+          state._bufMod = nowLocalStr_();
+        }
+        state.remoteConflict = null;
+      }
+      updateComposeBadge();
+    }
+    var _viaConflict = false, _echoRetry = false;
+    /* v637: 서버가 「그사이 다른 저장이 있다」며 쓰지 않았을 때 */
+    /* v637: 보낸 내용을 「검토본」으로 조용히 남긴다(확인창 없이, 지금 작성창은 건드리지 않고). 원본당 검토본 1개(RECON 멱등키). */
+    function detachedCopy(){
+      var d2 = Object.assign({}, body.data); delete d2.ID; delete d2['로컬ID'];
+      d2['충돌원본'] = String(origId);
+      if (!/검토본/.test(String(d2['제목'] || ''))) d2['제목'] = (d2['제목'] || '(제목 없음)') + ' (검토본)';
+      d2['로컬ID'] = stableLid_(['RECON', String(origId)]);
+      return apiPostOrQueue({ action: 'add', sheet: 'sermons', data: d2 }).then(function(nid){
+        toast('저장한 내용이 다른 기기 저장과 겹쳐, 원본은 그대로 두고 「검토본」으로 남겼습니다 — 검색에서 비교해 주세요.');
+        pullDataSoon(1500); return nid;
+      }, function(e){ toast('다른 기기 저장과 겹쳤는데 검토본 저장도 실패했습니다(' + (e && e.message || e) + ') — 작성창의 글은 그대로 있으니 다시 [저장]해 주세요.'); return null; });
+    }
+    function onConflict(row){
+      _viaConflict = true;
+      var loc = findSermon(origId);
+      /* 자기 저장 에코 — 기준 시점만 어긋났고(기기 시계·대기열 저장 등) 시트 행이 이 기기가 마지막으로 저장한 내용 그대로면 충돌이 아니다.
+         그 행 시점을 새 기준으로 한 번만 다시 보낸다. */
+      if (!_echoRetry && loc && _rowContentSig(row) === _rowContentSig(loc) &&
+          rtNorm(String(row['원고텍스트'] || '')) === rtNorm(String(loc['원고텍스트'] || ''))) {
+        _echoRetry = true; _viaConflict = false;
+        body._base = String(row['수정일'] || '');
+        return submit(body, msg, onRes, { fastLocal: true, onConflict: onConflict, quiet: quiet });
+      }
+      /* 이미 다른 설교로 넘어갔거나(계속 쓰기 중 이동) 「계속 쓰기」 중이면 확인창을 띄우지 않는다 — 확인창이 떠 있는 사이
+         작성창이 바뀌면 [검토본/덮어쓰기]가 엉뚱한 작성창에 걸리기 때문. 보낸 내용은 검토본으로 남기고, 같은 작성창이면 충돌 표시만 한다
+         (다시 [저장]하면 그때 확인창에서 고른다). */
+      if (state.compose !== c0 || quiet) {
+        if (state.compose === c0) { state.remoteConflict = row; try { updateComposeBadge(); } catch (e) {} }
+        return detachedCopy();
+      }
+      state.remoteConflict = row; try { updateComposeBadge(); } catch (e) {}
+      return pickConflict(row).then(function(how){
+        if (state.compose !== c0) return how === 'cancel' ? false : detachedCopy();   /* 확인창이 떠 있는 사이 작성창이 바뀌었다 */
+        if (how === 'copy') return saveReconcileCopy(data, origId, { sig: _sig0, cut: _cut, hcap: _hcap });
+        if (how === 'cancel') return false;
+        delete body._cas; delete body._base; _viaConflict = false;   /* 덮어쓰기 */
+        return submit(body, msg, onRes, { fastLocal: true });
+      });
+    }
+    return submit(body, msg, onRes, { fastLocal: true, onConflict: onConflict, quiet: quiet }).then(function(id){
+      if (_viaConflict) return id;   /* 검토본으로 저장했거나 취소 — 그쪽에서 마무리했다 */
+      if (state.compose !== c0) { if (_hOk) histAfterSave(_hcap, String(origId || ''), false); return id; }   /* v637: 다른 설교로 넘어갔다 — 예화 사용 기록(지금 작성창 기준)은 건너뛴다 */
       /* 신규 add거나, 삭제→재등록으로 새 ID가 돌아온 경우 그 ID로 전환(이후 [저장]은 새 행을 갱신) */
       if (id && typeof id === 'string' && (!origId || id !== origId)) {
         state.editing = id;
@@ -13248,9 +13481,16 @@ async function _doSaveComposeInner(){
   }
 
   /* 기존 설교 수정이면 저장 직전에 다른 기기 변경을 한 번 확인(편집 중이라 pullData는 내 행을 덮지 않고
-     remoteConflict만 세팅). 편집 도중 앱 전환이 없어 동기화가 안 일어난 경우의 '조용한 덮어쓰기'를 막는다. */
-  var pre = (origId && state.settings.url && state.settings.token && navigator.onLine)
-    ? pullData().catch(function(){}) : Promise.resolve();
+     remoteConflict만 세팅). 편집 도중 앱 전환이 없어 동기화가 안 일어난 경우의 '조용한 덮어쓰기'를 막는다.
+     v637: 서버 충돌 확인(cas)을 쓰면 이 동기화가 필요 없다 — 대기열에 남은 저장만 먼저 보내 순서를 지킨다. */
+  var online = !!(state.settings.url && state.settings.token && navigator.onLine);
+  var pre;
+  if (casOn) pre = (online && state.queue.length) ? flushQueue().catch(function(){}) : Promise.resolve();
+  /* ⚠ v637: 이미 돌고 있는 동기화(열 때의 뒤 확인·창 전환 동기화)에 올라타지 않는다 — 그 요청은 [저장]을 누르기 전에 시트를 읽어
+     그사이 다른 기기 저장을 못 본다(올라타면 확인 없이 덮어씀). 끝나기를 기다렸다가 새로 한 번 더 받는다. */
+  else pre = (origId && online)
+    ? (_pullInflight || Promise.resolve()).then(function(){ return pullData(); }, function(){ return pullData(); }).catch(function(){})
+    : Promise.resolve();
   return pre.then(finishSave).then(release, fail);
 }
 /* 내 작업을 '검토본'으로 저장 — 원본은 그대로 두고 둘 다 보존. 같은 원본의 검토본이 이미 있으면
@@ -13482,10 +13722,26 @@ async function histRestore(i){
 })();
 /* 저장 버튼(저장/새 설교로 저장) 일괄 잠금·해제 — 진행 중 중복 클릭 차단 */
 function _lockSaveBtns(){
-  var a = $('#c_save'), b = $('#c_saveAs');
+  var a = $('#c_save'), b = $('#c_saveAs'), f = $('#fmSaveBtn');
   if (a) a.disabled = true; if (b) b.disabled = true;
-  return function(){ if (a) a.disabled = false; if (b) b.disabled = false; };
+  /* v637: 누르는 즉시 「저장 중」 표시 — 예전엔 저장 전 동기화 동안 버튼만 꺼지고 아무 표시가 없어 멈춘 듯 보였다.
+     라벨(innerHTML)은 건드리지 않고 클래스로만 그린다(저장 중 refreshSaveButtons 가 라벨을 다시 써도 안전). */
+  [a, f].forEach(function(el){ if (el) el.classList.add('saving'); });
+  return function(){ if (a) a.disabled = false; if (b) b.disabled = false; [a, f].forEach(function(el){ if (el) el.classList.remove('saving'); }); };
 }
+/* v637 「저장하는 동안 계속 쓰기」 — 이 기기 설정(기본 끔) */
+function saveQuietOn(){ try { return localStorage.getItem('tsa.saveQuiet') === '1'; } catch (e) { return false; } }
+(function(){
+  var box = document.getElementById('saveQuietChips'); if (!box) return;
+  function paint(){ var on = saveQuietOn(); Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(c){ c.classList.toggle('on', c.dataset.savequiet === (on ? '1' : '0')); }); }
+  paint();
+  box.addEventListener('click', function(e){
+    var c = e.target.closest('.chip'); if (!c) return;
+    try { if (c.dataset.savequiet === '1') localStorage.setItem('tsa.saveQuiet', '1'); else localStorage.removeItem('tsa.saveQuiet'); } catch (e2) {}
+    paint();
+    if (c.dataset.savequiet === '1' && !srvCap('cas')) toast('새 Code.gs(서버 충돌 확인)가 배포되면 동작합니다 — 그 전에는 예전처럼 기다립니다.');
+  });
+})();
 $('#c_save').addEventListener('click', function(){ doSaveCompose(); });
 /* 다른 이름으로 저장(Save As) — 편집 중이든 아니든 항상 새 행으로 등록(원본 보존).
    저장 후에는 새로 만든 사본을 편집하는 상태로 전환(이후 [저장]은 사본을 갱신). */
@@ -15343,7 +15599,7 @@ function bmIdMapPush(sid, nid){
 function bmIdMapPull(){
   var st = state.settings || {};
   if (!st.url || !st.token || !navigator.onLine) return Promise.resolve();
-  return api({ action: 'prefs' }).then(function(prefs){
+  return prefsGet().then(function(prefs){
     var srv = prefs && prefs.bmSermon;
     if (!srv || typeof srv !== 'object') return;
     var local = bmIdMap(), merged = Object.assign({}, local, srv);
@@ -29688,7 +29944,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v636';
+var APP_VER = 'v637';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
