@@ -539,6 +539,12 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .stDrag::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:34px;border-radius:2px;background:var(--card)}
 .stDrag:hover,.stDrag.on{opacity:1;background:var(--accent)}
 .studyBody.noSide .stDrag{display:none}
+.aiProv{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin:-2px 0 12px;padding:7px 10px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--card2);font-size:var(--fs-xs);color:var(--dim)}
+.aiProvApp{font-weight:700;border-radius:var(--r-pill);padding:1px 9px;color:var(--on-accent);background:var(--accent)}
+.aiProvApp.bible{background:var(--accent2);color:var(--on-gold)}
+.aiProvGap{flex:1 1 auto}
+.aiProvNote,.aiProvShare{border:1px solid var(--line);border-radius:var(--r-pill);padding:1px 8px}
+.aiProvNote.on,.aiProvShare.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
 .stSaved{margin:-2px 0 10px;padding:6px 9px;border-left:3px solid var(--accent);background:var(--card2);border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--dim)}
 .stTabs{display:flex;gap:4px;padding:10px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .stTabs::-webkit-scrollbar{display:none}
@@ -7370,6 +7376,49 @@ var P_STUDYSYN = [
 'WBC가 있으면 양식구조배경은 장르·구조·역사적 정황의 근거로, 해설은 신학적 의미·설교다리의 근거로 쓴다(학자 이름은 입력에 있는 것만, 다른 주석과 다르면 해석이견에 드러낸다).',
 '한국어로, 통찰이 번뜩이되 간결하게. 설교 대지를 대신 쓰지 말고 "연구 재료"를 정리하는 데 집중한다.'].join('\n') + MISUSE_RULE;
 function studyRangeKey(){ var R = STUDY.range; return R ? (R.idx + ':' + R.r.c1 + ':' + R.r.v1 + '-' + R.r.c2 + ':' + R.r.v2) : ''; }
+/* v648: AI 정리 키 — 성경앱 주석 창 「AI 정리」(성경앱 SHELL v515)와 같은 키로 한 기록을 함께 쓴다.
+   기록 = 시트 연구노트 'ai:'+키 = { j: 정리, deep: {스트롱: 깊이 파기}, _t, by: '설교앱'|'성경앱', model }.
+   장 전체(1절~그 장 마지막 절)는 끝 절을 999 로 맞춘다 — 「요 3」·「요 3:1-36」·성경앱에서 고른 3:1~3:36 이 같은 기록.
+   alt = 예전 키(장 전체를 마지막 절 숫자로 적은 것) — 옮겨 오기용. 구조 분석(SVZ)·연구노트(SN)는 studyRangeKey 그대로. */
+function aiRangeParts(idx, r, alt){
+  var c1 = r.c1, v1 = r.v1 || 1, c2 = r.c2 || c1, v2 = r.v2 || v1;
+  var vc = verseCounts()[idx], last = vc ? vc[c2 - 1] : 0;
+  var whole = v1 === 1 && !!(r.wholeChapter || v2 >= 999 || (last && v2 >= last));
+  if (alt){ if (!whole || !last) return null; v2 = last; } else if (whole) v2 = 999;
+  return { c1: c1, v1: v1, c2: c2, v2: v2 };
+}
+function aiRangeKeyOf(idx, r, alt){ var p = aiRangeParts(idx, r, alt); return p ? idx + ':' + p.c1 + ':' + p.v1 + '-' + p.c2 + ':' + p.v2 : ''; }
+/* 성경앱 노트 id — 성경앱과 같은 규칙(study-<usfm><장2><절2>-<장2><절2>, 장 전체는 끝 절 999) */
+function studyNoteIdOf(idx, r, alt){ var p = aiRangeParts(idx, r, alt); return p ? 'study-' + (BM_USFM[idx] || 'unk') + bmPad2(p.c1) + bmPad2(p.v1) + '-' + bmPad2(p.c2) + bmPad2(p.v2) : ''; }
+function studyAiKey(){ var R = STUDY.range; return R ? aiRangeKeyOf(R.idx, R.r) : ''; }
+function saiMigrate(){
+  var R = STUDY.range; if (!R) return;
+  var k = aiRangeKeyOf(R.idx, R.r), a = aiRangeKeyOf(R.idx, R.r, true);
+  if (k && a && a !== k && !SAI[k] && SAI[a]){ SAI[k] = SAI[a]; save(SAI_LS, SAI); }
+}
+/* 출처 띠 — 어느 앱에서 언제 정리했는지 · 성경앱 노트 · 두 앱 공유. 성경앱 주석 창의 띠(.aip)와 같은 모양·같은 문구 */
+function aiProvTime(t){ if (!t) return ''; var d = new Date(t), p = function(n){ return ('0' + n).slice(-2); }; return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+function aiProvHtml(rec){
+  rec = rec || {};
+  var bible = rec.by === '성경앱', s = state.settings || {}, shared = !!(s.url && s.token);
+  var mn = rec.model ? (typeof aiModelName === 'function' ? aiModelName(rec.model) : rec.model) : '';
+  return '<div class="aiProv"><span class="aiProvApp ' + (bible ? 'bible' : 'sermon') + '">' + (bible ? '성경앱' : '설교앱') + '에서 정리</span>'
+    + (rec._t ? '<span>' + esc(aiProvTime(rec._t)) + '</span>' : '') + (mn ? '<span>' + esc(mn) + '</span>' : '')
+    + '<span class="aiProvGap"></span>'
+    + (tsaMemoCfg() ? '<span class="aiProvNote" id="aiProvNote">노트 확인 중…</span>' : '')
+    + '<span class="aiProvShare' + (shared ? ' on' : '') + '" title="' + (shared ? '시트에 저장돼 성경앱 주석 창 「AI 정리」에서도 같은 정리가 열립니다' : '시트 설정이 없어 이 기기에만 있습니다') + '">' + (shared ? '두 앱 공유' : '이 기기만') + '</span></div>';
+}
+/* 성경앱에 이 범위 노트가 있는지 — 띠의 「노트 ✓」와 [성경앱 노트 갱신] 라벨 */
+function aiProvNoteFill(){
+  var R = STUDY.range; if (!R || !tsaMemoCfg()) return;
+  var ids = [studyNoteIdOf(R.idx, R.r), studyNoteIdOf(R.idx, R.r, true)].filter(Boolean), k0 = studyAiKey();
+  tsaMemoLoad().then(function(all){
+    if (studyAiKey() !== k0) return;
+    var has = (all || []).some(function(x){ return ids.indexOf(String(x.id)) >= 0; });
+    var el = $('#aiProvNote'); if (el){ el.textContent = has ? '노트 ✓' : '노트 없음'; el.classList.toggle('on', has); }
+    var lb = document.querySelector('#stPane .stPipeBible .lb'); if (lb) lb.textContent = has ? '성경앱 노트 갱신' : '성경앱 노트로';
+  }).catch(function(){ var el = $('#aiProvNote'); if (el) el.textContent = '노트 확인 못 함'; });
+}
 function studyGatherContext(){
   var R = STUDY.range, r = R.r, book = STUDY.nkrv.books[R.idx];
   var verses = [], wmap = {};
@@ -7551,7 +7600,7 @@ function saiStamp(key){
 }
 function studyAiSet(key, j){
   if (!key || !j) return;
-  SAI[key] = { j: j, _t: Date.now() };
+  SAI[key] = { j: j, _t: Date.now(), by: '설교앱', model: (typeof aiModelFor === 'function' ? aiModelFor('main') : '') };
   _pruneKeep(SAI, 40); save(SAI_LS, SAI);
   /* 저장 검증 — localStorage 용량 초과로 조용히 실패했으면 보관 수를 줄여 다시 시도 */
   try {
@@ -7567,7 +7616,8 @@ function studyAiSet(key, j){
 }
 /* 본문연구를 열 때: 다른 기기에서 만든 AI 정리가 있으면 받아와 반영 */
 async function saiProbe(){
-  var key = studyRangeKey(); if (!key) return;
+  var key = studyAiKey(); if (!key) return;
+  saiMigrate();
   if (SAI[key]){ STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = SAI[key].j; if (STUDY.tab === 'ai') studyRenderPane(); studyDeepBackfill(key, SAI[key].j); }
   /* 로컬에 없고 시트가 설정돼 있으면, 저장본을 확인하는 동안 "생성" 버튼 대신 안내를 보여 준다
      (확인 전에 눌러 불필요하게 재생성되는 것을 막는다) */
@@ -7575,8 +7625,15 @@ async function saiProbe(){
   var probing = !(SAI[key] && SAI[key].j) && !!(_s && _s.url && _s.token);
   if (probing){ STUDY._aiProbing = key; if (STUDY.tab === 'ai') studyRenderPane(); }
   var rec = await studyNotePull('ai:', key, SAI, SAI_LS);
+  if (!rec && STUDY.range){   /* v648: 시트에 예전 키(장 전체를 마지막 절 숫자로)로만 있으면 새 키로 옮긴다 */
+    var _alt = aiRangeKeyOf(STUDY.range.idx, STUDY.range.r, true);
+    if (_alt && _alt !== key){
+      var _old = await studyNotePull('ai:', _alt, SAI, SAI_LS);
+      if (_old && _old.j){ if (!SAI[key]){ SAI[key] = _old; save(SAI_LS, SAI); } studyNotePush('ai:', key, SAI[key]); rec = SAI[key]; }
+    }
+  }
   if (STUDY._aiProbing === key) STUDY._aiProbing = null;
-  if (rec && rec.j && studyRangeKey() === key){
+  if (rec && rec.j && studyAiKey() === key){
     STUDY.ai = STUDY.ai || {}; STUDY.ai[key] = rec.j;
     /* 다른 기기에서 만든 정리가 창을 연 직후 도착한 경우 — 사용자가 아직 탭을 만지지 않았으면 바로 보여 준다 */
     if (!STUDY._userTab && STUDY.tab === 'orig') studySetTab('ai');
@@ -7590,7 +7647,7 @@ async function saiProbe(){
 async function studyAiSynth(){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 AI 정리를 쓸 수 있습니다.'); return; }
   var R = STUDY.range; if (!R) return;
-  var key = studyRangeKey();
+  var key = studyAiKey();
   try {
     await studyLoad();
     var net = await studyLoadNet(R.idx).catch(function(){ return null; });
@@ -7621,7 +7678,7 @@ async function studyAiSynth(){
     studyBibleAutoUpdate(R, _j);     /* 성경앱에 이미 보낸 노트면 새 정리로 덮어쓴다(v642) — 기다리지 않는다 */
     if (STUDY.tab === 'ai') studyRenderPane();
     await studyDeepAll(key, _j);     /* 핵심 원어 심층연구까지 이어서 일괄 생성·저장 */
-    if (STUDY.tab === 'ai' && studyRangeKey() === key) studyRenderPane();
+    if (STUDY.tab === 'ai' && studyAiKey() === key) studyRenderPane();
   } catch (e){ toast('본문연구 정리 실패: ' + e.message); }
 }
 /* "장:절" 또는 "책 장:절"에서 c*1000+v 정수 추출(첫 매치) */
@@ -7683,7 +7740,7 @@ function renderStudyAi(j){
         + '<div class="swd"><b>' + esc(w.단어 || '') + '</b> — ' + esc(w.뜻 || '') + '</div>'
         + (w.왜 ? '<div class="stWhy">' + esc(w.왜) + '</div>' : '')
         + (w.스트롱 ? (function(){
-            var _c = String(w.스트롱), _dj = studyDeepGet(studyRangeKey(), _c);   /* 저장된 심층연구가 있으면 펼친 채로 */
+            var _c = String(w.스트롱), _dj = studyDeepGet(studyAiKey(), _c);   /* 저장된 심층연구가 있으면 펼친 채로 */
             return '<button class="btn sub mini swDeepBtn" type="button" data-deep="' + esc(_c) + '" data-deepw="' + esc(w.단어 || '') + '"' + (_dj ? ' data-again="1"' : '') + '>'
               + (_dj ? '\u21bb 이 단어 다시 파기' : '\ud83d\udd0e 이 단어 깊이 파기') + '</button>'
               + '<div class="swDeepBox" id="swdeep-' + esc(_c) + '"' + (_dj ? ' data-open="1"' : ' style="display:none"') + '>' + (_dj ? renderWordStudy(_dj) : '') + '</div>';
@@ -7747,13 +7804,13 @@ async function studyWordStudyGen(code, word){
     본문: String($('#studyTitle').textContent || '').replace(/ — .*$/, ''),
     본문절: ctx.절, 원문발췌: orig, 용례: uses
   };
-  var out = await callClaude(P_WORDSTUDY, JSON.stringify(input), 4000, aiTick('원어 심층 연구'));
+  var out = await callClaude(P_WORDSTUDY, JSON.stringify(input), 16000, aiTick('원어 심층 연구'));
   return aiJson(out);
 }
 /* 버튼 클릭 경로 — 저장본이 있으면 즉시 표시(재생성 안 함), force면 새로 생성해 덮어쓴다. */
 async function studyWordStudy(code, word, force){
   var box = $('#swdeep-' + code); if (!box) return;
-  var key = studyRangeKey();
+  var key = studyAiKey();
   if (!force){
     var cached = WSTUDY[code] || studyDeepGet(key, code);
     if (cached){
@@ -7798,7 +7855,7 @@ async function studyDeepBackfill(key, j){
       if (old && old.j){ studyDeepSet(key, c, old.j); changed = true; }
     } catch (e){}
   }
-  if (changed && STUDY.tab === 'ai' && studyRangeKey() === key) studyRenderPane();
+  if (changed && STUDY.tab === 'ai' && studyAiKey() === key) studyRenderPane();
 }
 /* AI 정리 생성 직후 — 핵심 원어 전부의 심층연구를 이어서 한 번에 만든다. */
 async function studyDeepAll(key, j){
@@ -7812,7 +7869,7 @@ async function studyDeepAll(key, j){
       toast('원어 심층 연구 생성 중… (' + (i + 1) + '/' + todo.length + ') ' + (todo[i].단어 || code));
       var dj = await studyWordStudyGen(code, todo[i].단어 || '');
       if (dj){ WSTUDY[code] = dj; studyDeepSet(key, code, dj); }
-      if (STUDY.tab === 'ai' && studyRangeKey() === key) studyRenderPane();
+      if (STUDY.tab === 'ai' && studyAiKey() === key) studyRenderPane();
     } catch (e){ /* 한 단어 실패는 건너뛰고 계속 — 정리 본체는 이미 저장됨 */ }
   }
 }
@@ -7933,7 +7990,7 @@ function studyResearchText(j, title){
   return L.join('\n');
 }
 function studyCopyNote(){
-  var j = studyAiGet(studyRangeKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  var j = studyAiGet(studyAiKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
   var txt = studyResearchText(j, String($('#studyTitle').textContent || '').replace(/ — .*$/, ''));
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast('연구노트를 복사했습니다 — 원고·옵시디언에 붙여넣으세요.'); }).catch(function(){ toast('복사에 실패했습니다.'); });
   else toast('이 브라우저는 클립보드 복사를 지원하지 않습니다.');
@@ -7953,14 +8010,15 @@ function studyBibleSend(R, j, onlyIfSent){
             endChap: r.c2 || r.c1, endVerse: (r.wholeChapter ? 999 : (r.v2 || r.v1 || 1)) };
   var refShort = bmRefShort(c);
   var txt = studyBibleNoteText(j);   /* 성경앱 노트 표기법으로 구조화(소제목·항목·굵게) */
-  var id = 'study-' + (BM_USFM[R.idx] || 'unk') + bmPad2(c.startChap) + bmPad2(c.startVerse)
-         + '-' + bmPad2(c.endChap) + bmPad2(c.endVerse);
+  /* v648: 성경앱과 같은 id 규칙(장 전체 = 끝 절 999). 예전 규칙으로 만든 노트가 있으면 그 id 를 그대로 쓴다 */
+  var ids = [studyNoteIdOf(R.idx, r), studyNoteIdOf(R.idx, r, true)].filter(Boolean), id = ids[0];
   var themes = (j.신학주제 && j.신학주제.length) ? j.신학주제.slice(0, 5) : [];
   /* v565: 프라미스를 돌려준다 — 예전엔 버리고 끝나서 버튼이 완료를 기다릴 수 없었다(무반응처럼 보인 원인).
      ⏳ 느린 이유: 기존 노트의 createdAt 을 보존하려고 성경앱 메모 전체를 먼저 받아 온 뒤(tsaMemoLoad)
      upsert 한다 — Apps Script 왕복 2번. */
   return tsaMemoLoad().catch(function(){ return null; }).then(function(all){
-    var prev = (all || []).filter(function(x){ return String(x.id) === id; })[0];
+    var prev = (all || []).filter(function(x){ return ids.indexOf(String(x.id)) >= 0; })[0];
+    if (prev) id = String(prev.id);
     if (onlyIfSent && !all) return { unknown: true, refShort: refShort };
     if (onlyIfSent && !prev) return { skipped: true, refShort: refShort };
     return bmUpsert({
@@ -7974,11 +8032,11 @@ function studyBibleSend(R, j, onlyIfSent){
   });
 }
 function studyToBible(){
-  var j = studyAiGet(studyRangeKey());
+  var j = studyAiGet(studyAiKey());
   if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
   if (!tsaMemoCfg()){ toast('설정에 성경앱 설교메모 URL·키를 먼저 입력해 주세요.'); return; }
   var R = STUDY.range; if (!R || !R.r){ toast('본문 범위를 알 수 없습니다.'); return; }
-  return studyBibleSend(R, j, false).then(function(res){ toast('성경앱 [노트]로 보냈습니다 — ' + res.refShort); })
+  return studyBibleSend(R, j, false).then(function(res){ toast('성경앱 [노트]로 보냈습니다 — ' + res.refShort); STUDY._memoP = null; aiProvNoteFill(); })
     .catch(function(e){ toast('성경앱 전송 실패(대기열에 보관): ' + (e && e.message || e)); });
 }
 /* 「다시 정리」 뒤: 성경앱에 이미 보낸 노트면 새 정리로 덮어쓴다(v642, 2026-10-13 목사님 요청).
@@ -7992,7 +8050,7 @@ function studyBibleAutoUpdate(R, j){
   }).catch(function(e){ toast('성경앱 노트 자동 갱신 실패(대기열에 보관): ' + (e && e.message || e)); });
 }
 function studyToCompose(){
-  var j = studyAiGet(studyRangeKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
+  var j = studyAiGet(studyAiKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
   try {
     if (!state.compose) state.compose = newCompose();
     if (!state.compose.points) state.compose.points = [];
@@ -8216,7 +8274,8 @@ function openStudy(ref){
   STUDY._userTab = false; STUDY._userStruct = false;
   SVZ_AI_SHOW = '';       /* 새 구간 — AI 분석은 감춘 채(내 구조부터) 시작 */
   STUDY.structOn = !!(SVZ[_k0] && (SVZ[_k0].ai || SVZ[_k0].user));
-  studySetTab((SAI[_k0] && SAI[_k0].j) ? 'ai' : 'orig');
+  saiMigrate(); var _ka = studyAiKey();
+  studySetTab((SAI[_ka] && SAI[_ka].j) ? 'ai' : 'orig');
   studyRenderText();
   var _bd0 = document.querySelector('.studyBody');
   studySetSide(!!(_bd0 && _bd0.classList.contains('noSide')));   /* 좌우 넓이 비율 복원 + 접힘 상태 반영 */
@@ -8493,15 +8552,15 @@ function studyRenderPane(){
     return;
   }
   if (STUDY.tab === 'ai'){
-    var j = studyAiGet(studyRangeKey());
-    var _sst = saiStamp(studyRangeKey());
-    if (j){ pane.innerHTML = (_sst ? '<div class="stSaved">\ud83d\udcbe 저장본 \u00b7 ' + esc(_sst) + ' 생성 \u2014 다시 열 때 그대로 표시됩니다</div>' : '') + renderStudyAi(j) + '<div class="stPipe"><button class="btn mini stPipeCompose" type="button"><svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg> 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> 성경앱 노트로</button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; studyPrefetchMemos(); return; }
-    if (STUDY._aiProbing === studyRangeKey()){   /* 저장본 확인 중 — 생성 버튼 대신 안내 */
+    var j = studyAiGet(studyAiKey());
+    if (j){ pane.innerHTML = aiProvHtml(SAI[studyAiKey()]) + renderStudyAi(j) + '<div class="stPipe"><button class="btn mini stPipeCompose" type="button"><svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 새 대지로 보내기</button><button class="btn sub mini stPipeCopy" type="button"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg> 연구노트 복사</button><button class="btn sub mini stPipeBible" type="button"><svg class=ico aria-hidden=true><use href=#i-book></use></svg> <span class="lb">성경앱 노트로</span></button><button class="btn sub mini" id="stAiGen" type="button">↻ 다시 정리</button></div>'; studyPrefetchMemos(); aiProvNoteFill(); return; }
+    if (STUDY._aiProbing === studyAiKey()){   /* 저장본 확인 중 — 생성 버튼 대신 안내 */
       pane.innerHTML = '<div class="cnt">\ud83d\udcbe 저장된 본문연구 정리를 불러오는 중\u2026</div>';
       return;
     }
     pane.innerHTML = '<div class="cnt" style="margin-bottom:10px">원어·NET 번역노트·호크마 주석을 근거로 Opus가 <b>깊이 팔 핵심 원어·1차 독자 정황·책 전체에서의 구조적 의미·앞뒤 내용과의 관계·본문 구조·클라이맥스 절</b>을 정리합니다. (설정에 API 키 또는 브라우저 에이전트 모드 필요)</div>'
-      + '<button class="btn" id="stAiGen" type="button">본문연구 정리 생성</button>';
+      + '<button class="btn" id="stAiGen" type="button">본문연구 정리 생성</button>'
+      + '<div class="cnt" style="margin-top:10px">성경앱 주석 창 「AI 정리」에서 같은 범위를 이미 정리했다면 시트에서 받아 여기 그대로 보입니다(두 앱이 한 기록을 함께 씁니다).</div>';
     return;
   }
   if (STUDY.lastCodes) studyWordDetailInto(pane, STUDY.lastCodes);
@@ -16559,7 +16618,8 @@ function devoStudyMount(refStr){
   STUDY._userTab = false; STUDY._userStruct = false;
   SVZ_AI_SHOW = '';       /* 새 구간 — AI 분석은 감춘 채(내 구조부터) 시작 */
   STUDY.structOn = !!(SVZ[k] && (SVZ[k].ai || SVZ[k].user));   /* 저장된 구조가 있으면 표시는 켠 채로 */
-  studySetTab((SAI[k] && SAI[k].j) ? 'ai' : 'orig');           /* 숨은 자료 패널도 이 본문 기준으로 맞춰 둔다 */
+  saiMigrate(); var _ka2 = studyAiKey();
+  studySetTab((SAI[_ka2] && SAI[_ka2].j) ? 'ai' : 'orig');     /* 숨은 자료 패널도 이 본문 기준으로 맞춰 둔다 */
   studyRenderText();
   snProbe();                        /* 저장된 연구노트가 있으면 자동으로 노트 모드 */
   svzProbe();
@@ -30636,7 +30696,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v647';
+var APP_VER = 'v648';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
