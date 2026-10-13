@@ -158,6 +158,19 @@ WBC 성경주석(솔로몬 한글판) 스캔 PDF 58권(38,974쪽)을 맥 Vision 
 - 스트림의 `message_delta.stop_reason` 을 읽어 **답 글자가 없으면 오류로 던진다**(max_tokens / refusal / 그 밖) → `send()` 의 catch 가 빨간 안내 + 사용자 턴 롤백 + 입력 복구. 빈 답을 대화에 넣지 말 것.
 - ⚠ 같은 위험: `callClaude` 로 4000 이하를 주는 생성 기능들(원어 심층 연구·구조 분석·예화 추천·카드뉴스·예화 강화·이달의 말씀 등, `main` = Opus 5.5 high). 아직 손대지 않았다.
 - v643 이전에 저장된 대화 기록에는 빈 assistant 턴이 남아 있을 수 있다 — 그 대화를 기록에서 열어 이어 쓰지 말고 새 대화로.
+- → v645 에서 `callChat` 은 아래 대화 엔진(`agStream`/`agRespond`)으로 바뀌었다. 빈 답 가드는 `agRespond` 끝에 그대로 있다.
+
+## 설교 대화 = 매끄러운 대화 + 앱 에이전트 — v645 (2026-10-13 목사님 요청)
+목사님 요청: 「클로드 앱 같은 대화 경험」 + 「Aside 처럼 자연어로 앱 기능을 조작(예: 설교 이미지 #N 을 프롬프트를 바꿔 다시 만들고 결과함 zip 안의 그 그림 교체)」. 채팅 모듈(마지막 `<script>` 의 IIFE) 안 `/* ===== 대화 엔진 · 에이전트 (v645) ===== */`.
+- **매끄러운 대화**: Opus 5.5 는 늘 먼저 생각하는데 예전엔 생각을 받지 않아(기본 「생략」) 커서만 깜빡이다 글이 쏟아졌고, 글자 조각마다 답 전체를 다시 그렸다. 지금은 `thinking:{type:'adaptive', display:'summarized'}`(`agThinking` — 모델 세대별) → 생각 요약 상자(`.agThink`, 끝나면 「생각함 · N초」로 접힘) · 글은 rAF 로 조금씩 풀어 그림(`agSeg`/`agFrame`, 밀리면 빨라짐) · 보내기 단추 = 답하는 동안 **[멈춤]**(`agStop`) · 마지막 답 아래 **[다시 생성] [질문 고치기]** · 「현재 화면 참고」 내용이 직전 질문 때와 같으면 다시 싣지 않음(`AG.lastCtx`, 「…— 직전 질문 때와 같음」 표지 — `stripCtx`·`extractCtx` 정규식과 맞물림).
+- **에이전트**(설정에 Claude API 키가 있을 때 = `agOn()`): 도구 반복 `agRespond`(최대 `AG_MAX_STEPS`=24번). 도구 `AG_TOOLS` — `screen_read` · `compose_edit`(작성창 바로 반영 + [되돌리기], 시트 저장 안 함 — 에이전트 모드에서는 `EDIT_PROTO` 코드블록 대신 이것) · `image_cuts`/`image_view`/`image_generate`/`image_apply`/`image_undo` · `app_code_search`/`app_code_read`(앱 소스 index.html 을 받아 줄 단위로) · `app_js_run`(페이지 안 async 함수 본문 실행 — **코드를 보여 주고 [실행] 승인**, 「이 대화에서는 묻지 않기」 = `AG.trustJs`, 새 대화·기록 열기 때 초기화). 지침은 `AG_SYS`(sysFor 끝) — 도구를 고치면 함께 고칠 것. 도구 정의 순서를 자주 바꾸지 말 것(프롬프트 캐시).
+  → ★ 한 차례 안의 도구 왕복은 **받은 블록을 그대로**(생각 블록·서명 포함, `agClean`) 덧붙이기만 한다 — 중간을 고치면 400. 끝난 차례는 `convo` 에 **글 + 「— 실행: …」 한 줄**(`V.log`)만 남긴다 → 다음 질문에는 생각 블록을 다시 보내지 않는다.
+  → 도구 입력은 `eager_input_streaming` 이라 서버가 검사하지 않는다: 엄격 `JSON.parse` 실패 = `{"INVALID_JSON": 원문}` 오류 결과, `agInvalid` 가 필수 항목·형식 검사. `stop_reason` refusal / 도구 입력 중 max_tokens 면 도구를 돌리지 않는다.
+  → 도구 결과는 `agRedact` 로 비밀값(설정·localStorage 의 key/token 류 값, sk-ant-·AIza 모양)을 가려서 보낸다. 승인한 코드 자체가 하는 일은 막지 못한다 — 그래서 실행 전 승인이 기본.
+  → 키 없이 브라우저 에이전트 모드(Aside 구독)만 있으면 예전처럼 브리지로 한 번에 받는다(도구 없음, `chatViaBridge`, `EDIT_PROTO` 카드). **키가 있으면 Aside 안에서도 설교 대화는 키로 직접**(설정의 에이전트 모드 설명문도 고침) — 다른 AI 기능은 그대로 브리지.
+- **설교 이미지 재생성·zip 교체**: 대상 = 지금 설교 작성 화면에 열린 설교(`collectCompose` + `state.editing`). 결과함 권한이 없으면 확인 카드의 [폴더 권한 허용](클릭 안에서 `xPerm` — 사용자 동작 필요). `image_generate` = 컷을 복사해 en·ko·style(본문 컷은 ref·verse)만 바꾼 후보 1~4장을 **병렬로**, 결과에 작은 JPEG 를 붙여 모델이 직접 보고, 화면에는 썸네일 + [이걸로 교체](= 「후보 7-2로 교체해 줘」 전송). 후보(`AG.cands`)는 메모리에만 — 새로 고치면 사라진다. `image_apply` = 낱장 재생성과 **같은 함수** `imgComposeMade`(규격별 합성) → `imgZipPutMade`(zip 안 그 번호만 교체, 없으면 `imgSaveMadeLoose` 낱장) — 뒤에 딸린 「본문」 컷도 새 그림에서 다시 파생. 교체 전 판(zip 안 파일들 + 컷 프롬프트)은 IndexedDB `agImgUndo:<ID 또는 날짜+제목>:<n>` → [되돌리기]/`image_undo`. 컷 사이드카는 그 후보 내용으로 저장하되 `origSig` 는 처음 값 유지(`agWriteSidecar`), `userEdited:true`. 이미 만든 전환 표시 PDF·HWPX 에는 다시 만들어야 새 그림이 들어간다(결과 문구에 안내).
+  → `imgRegenOne`(낱장 재생성 창)도 이 세 함수로 바꿨다 — **한쪽만 고치지 말 것.**
+- 시험(시험 사본 + 콘솔에서 `fetch` 를 가짜 SSE 로·`genSermonImage` 를 가짜 그림으로 덮어쓰고, `xHandle` = OPFS 폴더로 가짜 결과함): 생각 요약 흐름·접힘 · 요청 본문(thinking summarized·effort high·tools 10개 eager) · 화면 읽기 → 코드 찾기 → 승인 후 실행 → 답(서명 그대로 되돌려 보냄 확인) · 건너뛰기 · 묻지 않기 · 비밀값 가림 · 깨진 JSON·없는 도구 오류 결과 · 컷 읽기 → 후보 2장(그림 첨부) → [이걸로 교체] → zip 의 02·03(초광각 4160×1620 jpg + 사이드 1920×1080 png)만 바뀜·사이드카 갱신(origSig 유지) → [되돌리기] 로 크기까지 원래대로 · 작성창 반영·되돌리기 · 멈춤(받은 데까지 남김) · 다시 생성 · 질문 고치기 · 기록에서 다시 열기 · 브리지 경로(원고수정 카드) · 키 없음 안내 · 휴대폰 폭 가로 넘침 없음. ⚠ 실제 Claude API·이미지 프록시·Dropbox 결과함으로는 아직 돌려 보지 않았다.
 
 ## 새벽설교 제목 옆 찬송 — v607
 
