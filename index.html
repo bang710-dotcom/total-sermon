@@ -383,12 +383,9 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .edFreeWrap{display:flex;gap:8px;align-items:stretch}
 .edFreeWrap .edFree{flex:1;min-width:0}
 .edFreeWrap > .edHl{flex:1 1 auto;min-width:0}
-.structKit{flex:0 0 104px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--card2);padding:8px 7px;align-self:flex-start;position:sticky;top:8px}
-.structKit .skH{font-size:var(--fs-xs);font-weight:700;color:var(--accent);text-align:center;margin-bottom:2px;letter-spacing:-.2px}
 .skChip{display:block;text-align:center;font-size:var(--fs-sm);font-weight:700;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:7px 4px;cursor:grab;user-select:none;transition:border-color .12s,background .12s}
 .skChip:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .skChip:active{cursor:grabbing}
-.structKit .skTip{font-size:var(--fs-xs);line-height:1.35;color:var(--dim);text-align:center;margin-top:2px}
 .edFree.skDragOver{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 25%,transparent)}
 .kv{font-size:var(--fs-md);margin:7px 0;display:flex;gap:8px}
 .kv .k{color:var(--dim);flex:0 0 70px}
@@ -1812,6 +1809,16 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
 #edStyleBar .edRef{margin-top:0;white-space:nowrap}
 #edStyleBar .esbStyle{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:10px}
 #editorPane .edHeader:empty{display:none}
+/* v647: 자유원고 구조화 도구 + 집중 모드 = 고정 줄의 셋째 줄(종이 밖 — 원고 폭·스크롤과 무관) */
+#edStyleBar .esbKit{flex:1 1 100%;min-width:0;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+#edStyleBar .esbKit[hidden]{display:none}
+#edStyleBar .esbKit .skLab{font-size:var(--fs-xs);font-weight:700;color:var(--accent);white-space:nowrap;margin-right:3px;cursor:help}
+#edStyleBar .esbKit .skChip{display:inline-block;padding:3px 9px;font-size:var(--fs-xs);font-weight:600;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5}
+#edStyleBar .esbKit .edFocusBtn{margin-left:auto;padding:3px 10px;font-size:var(--fs-xs)}
+@media (max-width:699px){
+  #edStyleBar .esbKit{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #edStyleBar .esbKit::-webkit-scrollbar{display:none}
+}
 #edStyleBar .esbLab{font-size:var(--fs-sm);color:var(--dim);font-weight:600}
 #edStyleBar #c_style{display:inline-flex;gap:2px;flex-wrap:nowrap;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:3px}
 #edStyleBar #c_style .chip{border:none;background:none;border-radius:7px;padding:6px 14px;font-size:var(--fs-md);font-weight:600;color:var(--dim)}
@@ -2376,6 +2383,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
           <span class="chip on" data-v="기본원고">기본원고</span>
           <span class="chip" data-v="자유원고">자유원고</span>
           </div></div>
+          <div class="esbKit" id="edKitBar" hidden></div>
         </div>
         <div id="editorPane"></div>
       </div>
@@ -12557,21 +12565,28 @@ var STRUCT_CHIPS = [
   { label: '대지정리', code: '(정리) ' },
   { label: '결론', code: '(결론) ' }
 ];
+/* v647: 예전엔 작성 종이 안 오른쪽 세로 칸(.structKit, 104px)이라 화면이 좁으면 원고 폭을 크게 줄였다.
+   지금은 작성창 위 고정 줄(#edStyleBar) 안의 한 줄(#edKitBar) — 종이 밖이라 원고 폭·스크롤과 무관하다.
+   renderEditor 가 자유원고일 때만 채우고 나머지는 비워 숨긴다(빠른 실행의 '.edFocusBtn' 도 자유원고일 때만 찾힌다). */
 var STRUCT_KIT_HTML =
-  '<div class="structKit">' +
-  '<div class="skH">구조화 도구</div>' +
+  '<span class="skLab" title="클릭 = 커서가 있는 줄 맨 앞에 넣기 · 끌기 = 원하는 줄에 놓기">구조화 도구</span>' +
   STRUCT_CHIPS.map(function(ch){
-    return '<div class="skChip" draggable="true" data-code="' + esc(ch.code) + '">' + esc(ch.label) + '</div>';
+    return '<span class="skChip" draggable="true" data-code="' + esc(ch.code) + '" title="' + esc(ch.code.trim()) + ' — 클릭=커서 줄 맨 앞 · 끌기=원하는 줄">' + esc(ch.label) + '</span>';
   }).join('') +
-  '<div class="skTip">클릭=커서 줄에 삽입<br>드래그=원하는 줄에</div>' +
-  '</div>';
+  '<button class="edFocusBtn" type="button" title="집중 모드 — 다른 화면을 숨기고 글쓰기에만 집중 (자유원고 전용)">' +
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>집중 모드</button>';
+function edKitBarSync(free){
+  var kb = document.getElementById('edKitBar'); if (!kb) return;
+  if (free){ if (!kb.firstChild) kb.innerHTML = STRUCT_KIT_HTML; kb.hidden = false; }
+  else { kb.hidden = true; if (kb.firstChild) kb.innerHTML = ''; }
+}
 
 /* 자유원고 → 기본원고 파싱 표기 범례 (parseFreeToStructure 규칙과 1:1 대응) */
 var FREE_PARSE_LEGEND =
   '<details class="sumbox" style="margin-top:10px">' +
   '<summary>구조화 코드 범례 — 기본원고로 깔끔히 나누려면</summary>' +
   '<div style="margin-top:8px;font-size:var(--fs-sm);line-height:1.6">' +
-  '<div style="color:var(--dim);margin-bottom:8px">오른쪽 [구조화 도구] 칩을 끌어오거나 클릭해 <b>줄 맨 앞</b>에 코드를 넣으면, [기본원고]로 전환할 때 서론·대지·주해근거·대지적용·예화·대지강화·대지실천·대지정리·결론으로 정확히 나뉩니다. 이 코드는 <b>내보내기 원고에는 보이지 않고</b> 앱에서만 읽힙니다.</div>' +
+  '<div style="color:var(--dim);margin-bottom:8px">작성창 위 [구조화 도구] 칩을 끌어오거나 클릭해 <b>줄 맨 앞</b>에 코드를 넣으면, [기본원고]로 전환할 때 서론·대지·주해근거·대지적용·예화·대지강화·대지실천·대지정리·결론으로 정확히 나뉩니다. 이 코드는 <b>내보내기 원고에는 보이지 않고</b> 앱에서만 읽힙니다.</div>' +
   '<table class="plegend">' +
   '<tr><th>구분</th><th>코드</th><th>설명</th></tr>' +
   '<tr><td>서론</td><td><code>(서론)</code></td><td>서론 문단 앞에. (코드 없이 첫 대지 앞의 내용도 서론으로 인식)</td></tr>' +
@@ -12591,15 +12606,12 @@ var FREE_PARSE_LEGEND =
 function renderEditor(){
   var c = composeNormCard(state.compose);
   /* v626: 제목·본문(#edTitle·#edRef)은 작성창 위 고정 줄(#edStyleBar)로 옮겼다 — 스크롤해도 보이게. 여기엔 집중 모드 단추만 */
-  var html = '<div class="edHeader">' +
-    (c.style === '자유원고'
-      ? '<button class="edFocusBtn" type="button" title="집중 모드 — 다른 화면을 숨기고 글쓰기에만 집중 (자유원고 전용)">' +
-        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>집중 모드</button>'
-      : '') + '</div>';
+  /* v647: 집중 모드 단추·구조화 도구는 종이 밖 고정 줄(#edKitBar)로 — .edHeader 는 비어서 숨는다 */
+  edKitBarSync(c.style === '자유원고');
+  var html = '<div class="edHeader"></div>';
   if (c.style === '자유원고') {
     html += '<div class="edFreeWrap">' +
       ta('free', 0, '', 4, '여기에 자유롭게 원고를 작성하세요. 워드로 내보낼 때는 기본원고 서식이 적용됩니다.', c.free, 'edFree') +
-      STRUCT_KIT_HTML +
       '</div>';
     html += FREE_PARSE_LEGEND;
   } else if (c.style === '카드원고') {
@@ -12810,18 +12822,18 @@ function insertStructCode(code, off){
   ta.dispatchEvent(new Event('input', { bubbles: true }));
 }
 var _skDragCode = null;
-$('#editorPane').addEventListener('click', function(e){
+$('#edCol').addEventListener('click', function(e){
   var chip = e.target.closest('.skChip');
   if (!chip) return;
   insertStructCode(chip.dataset.code || '');
 });
-$('#editorPane').addEventListener('dragstart', function(e){
+$('#edCol').addEventListener('dragstart', function(e){
   var chip = e.target.closest('.skChip');
   if (!chip) return;
   _skDragCode = chip.dataset.code || '';
   try { e.dataTransfer.setData('text/plain', _skDragCode); e.dataTransfer.effectAllowed = 'copy'; } catch (x) {}
 });
-$('#editorPane').addEventListener('dragend', function(){ _skDragCode = null; });
+$('#edCol').addEventListener('dragend', function(){ _skDragCode = null; });
 $('#editorPane').addEventListener('dragover', function(e){
   if (!_skDragCode) return;
   var ta = e.target.closest('.edFree'); if (!ta) return;
@@ -13115,8 +13127,8 @@ function exitFocusMode(){
   else doReverse();
 }
 window.enterFocusMode = enterFocusMode; window.exitFocusMode = exitFocusMode;
-/* 에디터 헤더 [집중 모드] 진입 버튼 */
-$('#editorPane').addEventListener('click', function(e){
+/* [집중 모드] 진입 버튼 — v647 부터 작성창 위 고정 줄(#edKitBar) */
+$('#edCol').addEventListener('click', function(e){
   if (e.target.closest && e.target.closest('.edFocusBtn')) { e.preventDefault(); enterFocusMode(); }
 });
 /* 구조화 칩 주입 — #focusBar는 이 스크립트 블록보다 뒤에서 파싱되므로,
@@ -30624,7 +30636,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v646';
+var APP_VER = 'v647';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
