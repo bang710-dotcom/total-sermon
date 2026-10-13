@@ -148,6 +148,7 @@ WBC 성경주석(솔로몬 한글판) 스캔 PDF 58권(38,974쪽)을 맥 Vision 
 - 시험(시험 사본 + 가짜 워커): 목차만 받기 → 책 열 때 한 번 받기 · 키 틀리면 403 안내 · 없는 책 안내 · 칩·고정 줄 · 요 1:19-28(단원 서론 칩) · 잠 3장 · 시 23편 · 롬 8장 · 계 21장 · AI 입력. ⚠ 실제 워커 배포 전에는 [받기]가 실패한다(목사님이 `worker/deploy.sh` 실행).
 
 ## AI 정리 → 성경앱 노트 자동 갱신 — v642 (2026-10-13 목사님 요청)
+⚠ **2026-10-14: 성경앱 주석 창에도 같은 「AI 정리」가 생겼다**(성경앱 SHELL v514, `Dropbox/bible/CLAUDE.md`). `P_STUDYSYN`·`MISUSE_RULE`·`aiJson`·`renderStudyAi`·`studyBibleNoteText` 를 고치면 성경앱 `AISYN` 모듈도 함께 고칠 것 — 노트 id(`study-<usfm><범위>`)를 같게 써서 두 앱이 같은 노트를 고친다.
 [↻ 다시 정리]가 끝나면(`studyAiSynth` → `studyAiSet` 직후) `studyBibleAutoUpdate(R, j)` 가 성경앱 메모 목록을 새로 받아(`STUDY._memoP=null`) **같은 노트(id `study-<usfm><범위>`, 예 `study-mrk1101-1111`)가 이미 있을 때만** 새 정리로 덮어쓴다(createdAt 보존, 기다리지 않음, 토스트). 한 번도 안 보낸 본문·성경앱에서 지운 노트(목록에서 빠짐)는 건드리지 않는다. 목록을 못 받으면 건너뛰고 안내. 보내기 본체는 `studyBibleSend(R, j, onlyIfSent)` 로 뺐고 [📖 성경앱 노트로](`studyToBible`)도 이것을 쓴다. 실패는 `bmUpsert` 대기열로 재전송. ⚠ 범위가 바뀌면 id 가 달라 다른 노트다.
 
 ## 본문연구 오른쪽 창 글자 크기 — v641 (2026-10-13 목사님 요청)
