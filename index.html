@@ -7224,6 +7224,18 @@ var METAPHOR_AXIS_RULE = '\n★은유 축 다양화(공통·필수): 개념을 �
 /* 대지 형태 규칙(v581) — 앱이 만드는 모든 설교의 대지는 본문 요약이 아니라 청중이 붙들 변화의 지침으로.
    대지를 새로 세우거나 고쳐 쓰는 프롬프트 끝에 + POINT_CHANGE_RULE 로 붙인다(P_SERMON·P_OCC·P_DAWN·P_TOPIC·P_ZONE·P_MS·P_REFRAME·설교 대화). */
 var POINT_CHANGE_RULE = '\n★대지 = 청중이 붙들 변화의 지침(공통·최우선): 대지 명제는 본문 내용을 정리·요약하는 문장이 아니라, 말씀을 들은 청중이 구체적으로 붙들고 돌아갈 변화의 지침이다. 먼저 본문이 실제로 말하는 메시지를 붙들고, 그 메시지를 청중에게 적용할 때 청중이 붙들 변화로 대지를 쓴다. 그 변화는 대개 ①사고·관점의 전환(무엇을 다르게 보게 되는가) ②행동의 변화(무엇을 다르게 하게 되는가) ③새로운 이해(하나님·나·이웃에 대해 새로 깨달아 삶의 방향이 바뀌는 것)의 형태로 드러난다. 청중에게 직접 말 걸거나 청중(우리)이 주어가 되게 쓰고, 한 번 들으면 기억해 한 주 동안 붙들 수 있게 짧고 구체적으로 쓴다(예: 「실패를 끝이 아니라 부르심의 자리로 다시 보십시오」, 「원망이 올라올 때 먼저 감사의 이유를 소리 내어 세어 봅시다」, 「내가 붙든 줄 알았던 믿음은 사실 나를 붙드신 은혜입니다」). ★금지: 본문의 사건·인물·교리를 서술하거나 정리하는 요약형 대지(「예수님이 십자가에서 버림받으셨다」, 「하나님은 신실하시다」, 「광야의 이스라엘」, 「~의 의미」, 「~한 ~의 모습」). 본문 내용은 대지의 근거(주해)에서 다루고, 대지 명제는 그 근거가 오늘 청중에게 요구하는 변화로 쓴다. ★이 세 가지는 대지를 쓰는 방식이지 채워야 할 칸이 아니다 — 대지마다 유형을 하나씩 배정하거나 세 유형을 고르게 나누지 않는다. 본문의 흐름이 요구하면 세 대지가 모두 같은 유형이어도 되고, 한 유형이 빠져도 된다. 유형을 맞추려고 본문이 말하지 않는 메시지를 만들어 내면 안 된다. 대지 셋은 본문의 흐름을 따라 한 방향(핵심메시지)으로 모인다. 출력 전에 대지를 다시 읽고, 청중이 「그래서 나는 무엇을 다르게 보고·하고·알게 되는가」에 답하지 못하는 대지는 고쳐 쓴다. 이 원칙은 다른 대지 원리(뼈만 남은 명제·함축적·상징적 표현 등)보다 우선한다 — 함축적인 표현을 쓰더라도 변화의 방향이 분명히 읽혀야 한다.';
+/* v650 — 개요의 핵심메시지·대지는 「본문이 말하는 바에서만」(2026-10-14 목사님 지시: 잘못된 해석·억지 메시지가 나온다).
+   개요를 만드는 프롬프트(P_SERMON·P_OCC·P_DAWN·P_TOPIC — P_ZONE·P_LBT 는 P_OCC 줄을 물려받는다) 맨 끝에 붙인다.
+   본문이 정해진 생성기는 그 범위의 개역개정 전문(「본문전문」)을 함께 넘기고, AI 가 본문을 고르는 생성기(상황·주제별·Why에서 Way로)는
+   만든 뒤 outlineGround(P_GROUND)로 고른 본문의 개역개정과 대조해 고친다. 배경 지식은 막지 않는다 — 메시지의 근거만 본문으로 묶는다. */
+var TEXT_FIDELITY_RULE = '\n★★본문이 말하는 바에서만(최우선·필수): 핵심메시지·주제근거·대지(문·근거·적용)는 반드시 그 선택지 본문이 실제로 말하는 내용에서만 끌어낸다. 입력에 개역개정 "본문전문"이 있으면 그 글이 기준이다. ①근거에 짚는 절은 그 본문 안의 절이고, 그 절이 실제로 하는 말과 맞아야 한다(본문에 없는 말을 그 절이 한 것처럼 쓰지 않는다). ②본문에 없는 인물의 속마음·동기·대사, 숫자·사물·색에 붙인 상징(풍유), 원어 어원 풀이로 메시지를 세우지 않는다. ③본문의 주된 흐름이 아니라 지엽적인 표현 하나에 기대어 메시지를 세우지 않는다. ④다른 성경 구절의 내용을 이 본문의 메시지로 바꿔치지 않는다(곁가지로 잇는 것은 되지만 메시지의 근거는 이 본문이다). ⑤역사·문화·원어 배경 지식은 본문이 말하는 바를 밝히는 데에만 쓰고, 본문이 말하지 않는 결론을 끌어내는 데 쓰지 않는다. ⑥설교 상황·주제·질문에 맞추려고 본문을 비틀지 않는다 — 맞는 본문이 아니면 다른 본문을 고르고, 본문이 정해져 있으면 그 본문이 실제로 말하는 메시지로 상황에 답한다. 이 원칙은 다른 모든 원칙(대지=변화 지침·선택지 다양성·은유 축·상황 맞춤)보다 우선한다 — 본문이 지지하지 않는 결·은유·메시지를 만들려고 해석을 지어내지 말고, 선택지의 결이 겹치더라도 본문에 충실한 쪽을 택한다. 적용과 변화 지침도 본문이 실제로 말하는 메시지에서 나와야 한다. 출력하기 전에 대지마다 "이 절이 정말 이렇게 말하는가"를 본문과 대조해 확인하고, 아니면 고쳐 쓴다.';
+var P_GROUND = [
+'당신은 영락교회 대학부 설교 개요의 「본문 대조」 검수자다. 입력 "선택지" 배열의 각 선택지에는 그 선택지가 고른 본문의 개역개정 전문("본문전문", 장:절 본문)이 붙어 있다.',
+'할 일: 각 선택지의 핵심메시지·주제근거·대지(문·근거·적용)가 그 본문이 실제로 말하는 바에서 나왔는지 본문전문과 한 줄씩 대조하고, 본문이 지지하지 않는 부분만 고친다.',
+'고칠 것: ①근거가 짚은 절이 본문전문에 없거나 그 절의 실제 내용과 다르다 ②본문에 없는 인물의 속마음·동기·대사, 숫자·사물에 붙인 상징(풍유), 원어 어원 풀이로 세운 메시지 ③본문의 주된 흐름이 아닌 지엽적 표현 하나에 기댄 메시지 ④상황·주제·질문에 맞추려고 본문이 말하지 않는 결론을 끌어낸 것 ⑤다른 성경 구절의 내용을 이 본문의 메시지처럼 쓴 것.',
+'고치는 방법: 그 선택지의 방향과 제목을 되도록 살리되, 메시지와 대지를 본문이 실제로 말하는 내용으로 다시 세운다. 근거는 본문전문의 절 번호와 실제 내용으로 고쳐 쓴다. 새로 쓰는 대지도 입력 대지와 같은 꼴(청중이 붙들 변화의 지침인 짧은 명제)로 쓴다. 그 본문 범위 안에서 도저히 그 메시지를 세울 수 없으면 그 범위가 실제로 말하는 다른 핵심 메시지로 바꾼다(본문 범위 자체는 바꾸지 않는다).',
+'문제가 없는 선택지와 문장은 글자 그대로 둔다. 입력에 있는 키는 모두 그대로 유지하고(대지의 반론·논증·예시·변화, 선택지의 찬송·질문응답·나눔·변증방법 등 다른 키 포함) "본문전문" 키만 빼고 돌려준다. 키를 새로 만들지 않는다.',
+'출력은 입력 "선택지"와 같은 길이·같은 순서의 JSON 배열만(설명·코드펜스 금지).'].join('\n');
 /* ── 본문연구 AI 정리 (원어·NET·호크마를 근거로 Opus 요약) ── */
 /* ═══════════════ 검증 게이트 (v548) ═══════════════════════════════════════════════
    외부 설교 스킬 검토(2026-09-02)에서 가져온 발상 — AI가 쓴 답을 다시 AI에게 검사시키지 않고,
@@ -17460,6 +17472,7 @@ async function fillMissingDevoQ(rows){
 
 var P_SERMON = [
 '당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON) "주일" 배열의 각 항목마다, 그 항목의 "주간범위"(그 주일 직전 월~토에 묵상한 본문 — "묵상" 목록) 안에서 다룰 설교 주제 선택지 3~4개를 만든다.',
+'입력의 각 "묵상" 항목에는 그 날 본문의 개역개정 전문("본문전문", 장:절 본문)이 붙어 있다 — 선택지의 본문은 이 글에서 고르고, 메시지·근거는 이 글이 실제로 말하는 바에서 끌어낸다.',
 '출력은 반드시 JSON 배열만(입력 "주일"과 같은 길이·같은 순서): [{"주일":"YYYY-MM-DD","주간범위":"입력 값 그대로","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}],"비고":""}]',
 '★본문 범위(필수): 선택지의 "본문"은 반드시 그 주일 항목의 "주간범위" 안에서만 고른다. 다른 주일의 범위, 앞 주·뒤 주의 묵상 본문, 주간범위 밖으로 걸치는 본문은 쓰지 않는다. 설교하지 않는(제외) 주일이 있어도 그 주의 묵상 범위를 다음 주일로 넘기거나 합치지 않는다 — 각 주일은 자기 주간범위만 쓴다.',
 '선택지 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다. "묵상"이 비어 있는 주일(시리즈 첫 주일 등)은 "성경범위"를 소개하는 시리즈 소개 설교로.',
@@ -17470,7 +17483,7 @@ var P_SERMON = [
 '대지마다: 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나에게 동일하게 말 걸어 마음의 변화와 삶의 방향을 결단하게 하는 설교적 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '★ 적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·행사·캠페인·실천과제 목록이 아니다. 청중의 삶의 자리를 찌르고 "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 설교적 메시지여야 한다. 외적 과제 나열 금지 — 메시지의 자기화와 결단에 초점을 둔다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
-'요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유(주간범위는 입력 값 그대로).'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE;
+'요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유(주간범위는 입력 값 그대로).'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE + TEXT_FIDELITY_RULE;
 
 /* 이달의 말씀 — 대학부(주일) 시리즈용: 달마다 그 달 본문 범위에서 선포·신앙고백형 1~2절 선정 */
 var P_MONTHWORD = [
@@ -17489,7 +17502,7 @@ var P_OCC = [
 '★강해(Exposition)→보편 메시지(필수): 강해는 주해로 밝혀진 "본문 자체의 맥락에서 드러난 저자의 의도"를, 그 본문을 넘어 모든 시대·모든 사람에게 동일하게 적용되는 하나의 보편적 메시지(Universal Message)로 길어 올리는 작업이다. 절차: ①주해로 저자가 1차 독자에게 의도한 본래 의미를 확정한다 → ②그 의미에서 시대·문화에 매인 외피를 벗기고 그 아래 흐르는 변하지 않는 신학적 진리(하나님의 성품·구원 경륜·언약·복음)를 분별한다 → ③그 진리를 오늘 청중("나")의 실존에 동일하게 말 거는 한 문장으로 재진술한다. ★경계: 보편 메시지는 본문이 명시적으로 지지하는 범위 안에서만 길어 올린다 — 본문에 없는 교훈을 알레고리·도덕화로 지어내지 않고, 1차 독자만의 특수 정황과 모든 시대의 보편 진리를 혼동하지 않는다.',
 '대지마다: 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나에게 동일하게 말 걸어 마음의 변화와 삶의 방향을 결단하게 하는 설교적 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '★ 적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·행사·캠페인·실천과제 목록이 아니다. 청중의 삶의 자리를 찌르고 "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 설교적 메시지여야 한다. 외적 과제 나열 금지 — 메시지의 자기화와 결단에 초점을 둔다.',
-'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE;
+'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE + TEXT_FIDELITY_RULE;
 
 /* 생성된 주제어(키워드)를 작성 화면 입력칸 #c_kw 에도 반영한다 (v541).
    ★ 왜 필요한가: aiSummarize 는 시트와 메모리(findSermon)에만 키워드를 썼고 입력칸은 건드리지
@@ -18757,6 +18770,49 @@ var P_CARDDECK = [
    개역개정(nkrv) 본문에서 그 절(또는 연속 범위) "전문"을 가져와 통째로 교체한다.
    LLM이 앞뒤를 자르는 truncation을 코드에서 원천 차단 — 설교 때 절 전체를 읽으므로. */
 function _stripStrong(s){ return String(s == null ? '' : s).replace(/\[[GHgh]\d+\]/g, '').replace(/\s+/g, ' ').trim(); }
+/* v650 — 개요 생성에 함께 넘기는 개역개정 본문: 범위 표기 → "장:절 본문" 줄(최대 cap 절). 못 찾으면 '' */
+async function bibleLines(refStr, cap){
+  try {
+    var range = parseRange(String(refStr || '').trim()); if (!range) return [];
+    var idx = await bibleIndex();
+    var bk = idx.filter(function(b){ return b.ko === range.book || b.abbr === range.book; })[0]; if (!bk) return [];
+    var book = await loadBook(bk.n), out = [];
+    for (var c = range.c1; c <= range.c2; c++){
+      var vs = book.chapters[c - 1] || [], from = c === range.c1 ? range.v1 : 1;
+      var to = c === range.c2 ? (range.wholeChapter ? vs.length : Math.min(range.v2, vs.length)) : vs.length;
+      for (var v = from; v <= to; v++){
+        var t = _stripStrong(vs[v - 1] || '').replace(/\s+/g, ' ').trim();
+        if (t) out.push(c + ':' + v + ' ' + t);
+        if (cap && out.length >= cap) return out;
+      }
+    }
+    return out;
+  } catch (e){ return []; }
+}
+async function biblePassage(refStr, cap){ var L = await bibleLines(refStr, cap); return L.join('\n'); }
+/* AI 가 본문을 고르는 개요(상황·주제별·Why에서 Way로) — 만든 뒤 고른 본문의 개역개정 전문과 대조해 본문이 지지하지 않는 메시지·대지·근거만 고친다(P_GROUND).
+   본문 범위·다른 키는 그대로. 실패하면 원래 선택지를 그대로 쓴다(생성 자체는 막지 않는다). */
+async function outlineGround(opts, label){
+  if (!Array.isArray(opts) || !opts.length) return opts;
+  try {
+    var items = [], found = 0;
+    for (var i = 0; i < opts.length; i++){
+      var x = JSON.parse(JSON.stringify(opts[i] || {})), txt = await biblePassage(x['본문'], 80);
+      if (txt) found++;
+      x['본문전문'] = txt || '(이 본문 표기로 개역개정을 찾지 못했다 — 본문 표기를 확인할 수 없으니 근거의 절 내용은 일반적인 표현으로 낮춘다)';
+      items.push(x);
+    }
+    if (!found) return opts;
+    toast((label || '개요') + ' — 고른 본문(개역개정)과 대조해 다듬는 중…');
+    var arr = aiJson(await callClaude(P_GROUND, JSON.stringify({ '선택지': items }), 32000, aiTick('본문 대조')));
+    if (!Array.isArray(arr) || arr.length !== opts.length) return opts;
+    return arr.map(function(x, k){
+      if (!x || typeof x !== 'object' || !Array.isArray(x['대지']) || !x['대지'].length) return opts[k];
+      delete x['본문전문'];
+      return Object.assign({}, opts[k], x, { '본문': opts[k]['본문'] });   /* 본문 범위는 그대로 */
+    });
+  } catch (e){ toast('본문 대조를 건너뜁니다(생성은 정상): ' + ((e && e.message) || e)); return opts; }
+}
 async function fullVerseText(refStr){
   var sa = await scriptureArr(refStr);   /* parseRange 실패 시 throw → 호출부에서 catch */
   if (!sa || !sa.arr || !sa.arr.length) return null;
@@ -20311,6 +20367,21 @@ async function genMonthlyVerses(S){
    그 주일들만 한 번 다시 만들게 한 뒤, 그래도 밖인 선택지는 뺀다.
    예전엔 묵상 일정 전체를 넘기고 주간범위를 모델이 정했는데, 설교하지 않는(제외) 주일 앞 주를 묵상이 없는 주로 보고
    범위를 한 주씩 밀어 적어 다음 주일 선택지에 앞 주 본문이 나왔다(2026 여호수아: 10/18 수 10:9-15, 11/15 수 17:14-18). */
+/* v650: 각 묵상 항목에 그 날 본문의 개역개정 전문 */
+async function spSermonInputText(S, suns){
+  var arr = spSermonInput(S, suns);
+  for (var i = 0; i < arr.length; i++){
+    var rows = arr[i]['묵상'] || [];
+    for (var j = 0; j < rows.length; j++) rows[j]['본문전문'] = await biblePassage(rows[j]['본문범위'], 60);
+  }
+  return arr;
+}
+/* v650: 새벽 — 각 날 통독범위의 개역개정 전문 */
+async function dawnSchedText(list){
+  var out = [];
+  for (var i = 0; i < (list || []).length; i++){ var d = Object.assign({}, list[i]); d['본문전문'] = await biblePassage(d['통독범위'], 150); out.push(d); }
+  return out;
+}
 function spSermonInput(S, suns){
   return suns.map(function(sun){
     return { '주일': sun, '주간범위': sunDevoRange(S, sun),
@@ -20339,7 +20410,7 @@ async function spSermonCall(S, suns, note, maxTok){
   async function ask(list, extra){
     var arr = aiJson(await callClaude(P_SERMON, JSON.stringify({
       '시리즈명': m['시리즈명'], '성경범위': m['성경범위'] || '',
-      '요청사항': String(note || '') + (extra || ''), '주일': spSermonInput(S, list)
+      '요청사항': String(note || '') + (extra || ''), '주일': await spSermonInputText(S, list)
     }), maxTok, aiTick('설교 선택지')));
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
     return arr;
@@ -20663,6 +20734,7 @@ async function aiOccGen(){
     var out = await callClaude(P_OCC, JSON.stringify({ '설교일': O.date, '설교상황': O.sit }), 32000, aiTick('상황 설교 개요'));
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+    arr = await outlineGround(arr.slice(0, 3), '상황 설교 개요');   /* v650 본문 대조 */
     O.opts = arr.slice(0, 3).map(optEdit);
     O.at = nowLocalStr_();
     occSaveSoon(); renderOccPane(); renderSyncState();
@@ -21020,6 +21092,7 @@ async function zoneRead(){
    공통 원리(주제근거·대지 원리·1차 독자·강해·적용 주의·제목)는 P_OCC 의 줄을 그대로 끌어다 쓴다(상황 설교 전용 줄만 뺀다). */
 var P_ZONE = [
 '당신은 영락교회 교구 목회자의 설교 기획 비서다. 이 목회자는 매주 금요일 구역장·권찰(구역 소그룹 리더) 모임의 예배에서, 지난 주일 담임목사님의 설교를 기초로 다시 설교한다. 예배 뒤 구역장들은 그 주일 설교로 만든 소그룹 교재로 모임을 하고, 이어서 각 구역 소그룹을 인도한다.',
+'입력 "본문전문"은 주일 설교 본문의 개역개정 전문이다 — 대지·근거는 이 본문이 실제로 말하는 바에서만 끌어낸다(주일 설교와 교재는 이 본문을 어떻게 풀었는지 참고하는 자료다).',
 '입력(JSON): 설교일, 주일설교(제목·본문·전문 — 전사문 또는 원고), 소그룹교재(전문 — 없을 수 있음).',
 '할 일: 이 금요 설교의 개요 선택지 3세트를 만든다. 완성 원고는 쓰지 않는다.',
 '"변화"는 대지를 다 세운 뒤 그 대지가 결과적으로 어떤 변화인지 붙이는 이름표일 뿐이다. 유형을 먼저 정해 놓고 대지를 끼워 맞추지 않는다. 같은 유형이 두세 번 나와도 되고 세 유형을 다 쓰지 않아도 된다.',
@@ -21052,6 +21125,7 @@ async function aiZoneGen(){
   var out = await callClaude(P_ZONE, JSON.stringify({
     '설교일': Z.date,
     '주일설교': { '제목': Z.srcTitle || '', '본문': Z.srcRef || '', '전문': Z.sermon.slice(0, 40000) },
+    '본문전문': await biblePassage(Z.srcRef || '', 150),
     '소그룹교재': Z.guide.slice(0, 20000)
   }), 32000, aiTick('구역권찰 설교 개요'));
   var arr = aiJson(out);
@@ -21509,6 +21583,7 @@ async function lbtCallOpts(a){
   }), 48000, aiTick(a.label || 'Why에서 Way로 설교 개요'));
   var arr = aiJson(out);
   if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+  arr = await outlineGround(arr, a.label || 'Why에서 Way로 설교 개요');   /* v650 본문 대조 */
   return lbtOptsFrom(arr);
 }
 async function aiLbtGen(){
@@ -25800,6 +25875,7 @@ function dwPreview(){
 /* ── 새벽 설교 선택지 프롬프트 ── */
 var P_DAWN = [
 '당신은 영락교회 새벽기도회 설교 기획 비서다. 입력(JSON)의 "일정"(주일~금요일 6일, 각 날의 오이코스 통독범위 포함)에 대해, 각 날마다 그 날 통독범위 "안에서" 새벽설교 본문을 정하고 설교 주제 선택지 3개를 만든다.',
+'입력의 각 "일정" 항목에는 그 날 통독범위의 개역개정 전문("본문전문", 장:절 본문)이 붙어 있다 — 본문은 이 글에서 고르고, 메시지·근거는 이 글이 실제로 말하는 바에서 끌어낸다.',
 '출력은 반드시 JSON 배열만(일정과 같은 길이·같은 순서): [{"날짜":"YYYY-MM-DD","요일":"월","통독범위":"책 1-3","선택지":[{"제목":"...","본문":"책 1:6-7","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}],"찬송":"357장 주 믿는 형제들"}]}]',
 '★본문(필수): 각 선택지의 "본문"은 그 날 통독범위 안의 1~2절(설교 한 편의 중심 구절). 통독범위를 절대 벗어나지 않는다. 같은 날 선택지 3개는 본문(절)도 서로 다르게.',
 '선택지 3개는 접근 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다.',
@@ -25811,7 +25887,7 @@ var P_DAWN = [
 '★찬송(필수): 각 선택지에 "새벽기도회를 시작할 때 함께 부르는" 찬송 딱 한 곡만 고른다. 한국교회 새찬송가(21세기 찬송가)에서 그 날 주제에 어울리고 새벽에 부르기 적합한 잔잔하고 헌신적인 곡을 우선한다. 값은 반드시 한글 "장번호 + 곡명" 형식 한 줄로만 적는다(예: "470장 내 평생 살아온 길"). 번호가 불확실하면 곡명만 정확히 적는다. ★금지: 곡을 여러 개 적거나(시작·기도전·마칠 때 등 구분 금지) 영어 단어·로마자·상태표기(running/started/realtime 등)·따옴표·괄호 라벨을 곡명 앞뒤에 붙이지 말 것 — 오직 한글 장번호와 곡명만.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
 '★주일(요일이 "일") 처리(필수): 주일 날의 각 선택지에는 "묵상요약" 필드를 반드시 채워 넣는다(비우지 말 것) — 묵상집에 실을 설교 요약본이다. 분량은 한글 공백 포함 320~330자. 구성: 도입(본문이 말 거는 정황 한 문장) → 본문의 핵심 메시지 → 오늘 나의 삶으로의 적용, 따뜻한 높임말 산문(불릿·번호 금지). ★마지막 문장(필수): 이 주일에 같은 본문·메시지로 가정에서 가정예배를 드리거나 개인 묵상을 하는 성도들에게 권면하는 형태로 마무리한다. 주일 외의 날 선택지에는 "묵상요약"을 넣지 않는다.',
-'요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE;
+'요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE + TEXT_FIDELITY_RULE;
 
 /* 찬송 값 정규화: 모델이 곡명 앞에 영문 토큰(running/started/realtime 등)이나 라벨을 붙여
    반환하는 경우가 있어, 실제 찬송이 시작되는 지점('NNN장 …' 또는 한글 곡명)부터만 남긴다.
@@ -25942,7 +26018,7 @@ async function aiSeriesDawn(noteOverride){
       toast('새벽 설교 선택지 생성 중 — ' + (Math.floor(bi / DB) + 1) + '/' + nb + ' 묶음 (' + part.length + '일)');
       var out = await callClaude(P_DAWN, JSON.stringify({
         '시리즈명': m['시리즈명'], '찬송판본': m['찬송판본'],
-        '요청사항': (noteOverride != null ? noteOverride : m['요청사항']), '일정': part
+        '요청사항': (noteOverride != null ? noteOverride : m['요청사항']), '일정': await dawnSchedText(part)
       }), 14000, aiTick('새벽 설교 선택지'));
       var pd = aiJson(out);
       if (!Array.isArray(pd) || !pd.length) throw new Error('응답 형식 오류(' + (Math.floor(bi / DB) + 1) + '번째 묶음)');
@@ -26052,7 +26128,7 @@ var P_TOPIC = [
 '대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 3개, 같은 방향으로 성큼성큼. 대지마다 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나의 실존에 동일하게 말 걸어 마음의 변화와 결단을 끌어내는 설교적 한 문장. 외적 과제·행사 나열 금지.',
 '★적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·캠페인·실천과제 목록이 아니다. 본문이 1차 독자에게 일으킨 내면의 전환이 오늘 나에게 동일하게 일어나도록 부르는 한 문장이어야 한다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
-'예배구분(대학부·수련회·선교 등)과 배경설명의 청중·정황을 반드시 반영한다. 요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE;
+'예배구분(대학부·수련회·선교 등)과 배경설명의 청중·정황을 반드시 반영한다. 요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE + TEXT_FIDELITY_RULE;
 
 /* ── 직결 생성 ── */
 async function aiSeriesTopic(noteOverride){
@@ -26073,6 +26149,7 @@ async function aiSeriesTopic(noteOverride){
       }), 20000, aiTick('주제별 설교 선택지'));
       var pt = aiJson(out);
       if (!Array.isArray(pt) || !pt.length) throw new Error('응답 형식 오류(' + (Math.floor(bi / TB) + 1) + '번째 묶음)');
+      for (var gi = 0; gi < pt.length; gi++){ if (pt[gi] && Array.isArray(pt[gi]['선택지'])) pt[gi]['선택지'] = await outlineGround(pt[gi]['선택지'], '주제별 설교 ' + (pt[gi]['명칭'] || '')); }   /* v650 본문 대조 */
       arr = arr.concat(pt);
     }
     if (!arr.length) throw new Error('응답 형식 오류');
@@ -26119,13 +26196,13 @@ async function aiRegenWeek(wi, btn){
       }), 16000, aiTick('주제별 설교 선택지'));
       var arrT = aiJson(outT);
       if (!Array.isArray(arrT) || !arrT.length) throw new Error('응답 형식 오류');
-      opts = arrT[0]['선택지'] || [];
+      opts = await outlineGround(arrT[0]['선택지'] || [], '주제별 설교');   /* v650 본문 대조 */
     } else if (dawn) {
       var sched = [{ '날짜': w['주일'] || '', '요일': w['요일'] || '', '통독범위': w['통독범위'] || w['주간범위'] || '' }];
       var out = await callClaude(P_DAWN, JSON.stringify({
         '시리즈명': m['시리즈명'], '찬송판본': m['찬송판본'],
         '요청사항': String(m['요청사항'] || '') + '\n(이 날 하루치 선택지 3개만 새로 만든다. 기존 선택지와 다른 새로운 갈래·본문으로.)',
-        '일정': sched
+        '일정': await dawnSchedText(sched)
       }), 16000, aiTick('새벽 설교 선택지'));
       var days = aiJson(out);
       if (!Array.isArray(days) || !days.length) throw new Error('응답 형식 오류');
@@ -30784,7 +30861,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v649';
+var APP_VER = 'v650';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
