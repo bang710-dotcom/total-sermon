@@ -15405,21 +15405,42 @@ function combineRefs(refs){
   var end = (lBook && lBook !== fBook) ? (lBook + ' ' + b.c2 + endVerse) : (b.c2 + endVerse);
   return start + ' ~ ' + end;
 }
-/* 한 주일의 '전주간 묵상 본문' — 주차에 값이 있으면 그대로, 없으면 확정 묵상일정(S.devo)의
-   직전 월~토 본문에서 자동 산출 (전주간 묵상본문이 비어 나오던 문제 보강) */
-function weekDevoRange(S, w){
-  var given = String((w && w['주간범위']) || '').trim();
-  if (given) return given;
-  if (!(S && S.devo && S.devo.rows && S.devo.rows.length)) return '';
-  var sun = w && w['주일']; if (!sun) return '';
+/* 한 주일 직전 월~토의 확정 묵상 행(S.devo, 날짜순) */
+function sunDevoRows(S, sun){
+  if (!(S && S.devo && S.devo.rows && S.devo.rows.length) || !sun) return [];
   var sd = new Date(sun + 'T12:00:00');
   var loD = new Date(sd); loD.setDate(sd.getDate() - 6);
   var hiD = new Date(sd); hiD.setDate(sd.getDate() - 1);
   var lo = loD.toISOString().slice(0, 10), hi = hiD.toISOString().slice(0, 10);
-  var refs = S.devo.rows.filter(function(r){
+  return S.devo.rows.filter(function(r){
     var d = r['날짜']; return d && d >= lo && d <= hi && String(r['본문범위'] || '').trim();
-  }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; }).map(function(r){ return String(r['본문범위']).trim(); });
-  return combineRefs(refs);
+  }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
+}
+function sunDevoRange(S, sun){
+  return combineRefs(sunDevoRows(S, sun).map(function(r){ return String(r['본문범위']).trim(); }));
+}
+/* 한 주일의 '전주간 묵상 본문'.
+   v649: 주일 시리즈는 확정 묵상일정(S.devo)의 직전 월~토 본문이 정본 — 예전엔 AI 가 적은 주간범위를 먼저 썼는데,
+   설교하지 않는(제외) 주일 앞 주의 묵상을 다음 주일 범위에 합치거나 한 주씩 밀려 적어 설교계획 표가 묵상집과 달랐다.
+   묵상일정이 없으면(새벽·주제별·시트에 묵상 없음) 주차에 적힌 값. */
+function weekDevoRange(S, w){
+  var calc = (w && !isDawn(S) && !isTopic(S)) ? sunDevoRange(S, w['주일']) : '';
+  return calc || String((w && w['주간범위']) || '').trim();
+}
+/* 본문 ref 가 그 주 묵상 행(rows) 범위 안인가 — true / false / null(표기를 못 읽거나 묵상 없음 = 판정 안 함) */
+function refInDevoRows(ref, rows){
+  var iv = refToInterval(ref); if (!iv || !rows || !rows.length) return null;
+  var lo = null, hi = null, read = 0;
+  rows.forEach(function(r){
+    var x = refToInterval(r['본문범위']); if (!x) return;
+    read++; if (x.idx !== iv.idx) return;
+    if (lo == null || x.lo < lo) lo = x.lo;
+    if (hi == null || x.hi > hi) hi = x.hi;
+  });
+  if (!read) return null;
+  if (lo == null) return false;
+  var end = iv.hi % 1000 === 999 ? Math.floor(iv.hi / 1000) <= Math.floor(hi / 1000) : iv.hi <= hi;   /* 「수 3」 처럼 장 단위면 장까지만 */
+  return iv.lo >= lo && end;
 }
 /* 설교계획 표 '주제 / 예배 후 행사' 셀 내용 (DOCX·미리보기 공용) */
 function planThemeLines(w){
@@ -17438,9 +17459,10 @@ async function fillMissingDevoQ(rows){
 }
 
 var P_SERMON = [
-'당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON)의 각 주일마다, 직전 월~토 묵상확정 범위에서 다룰 설교 주제 선택지 3~4개를 만든다.',
-'출력은 반드시 JSON 배열만: [{"주일":"YYYY-MM-DD","주간범위":"책 1:1-3:17","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}],"비고":""}]',
-'선택지 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다. 직전 묵상일이 없는 첫 주일은 시리즈 소개 설교로.',
+'당신은 영락교회 대학부 설교 기획 비서다. 입력(JSON) "주일" 배열의 각 항목마다, 그 항목의 "주간범위"(그 주일 직전 월~토에 묵상한 본문 — "묵상" 목록) 안에서 다룰 설교 주제 선택지 3~4개를 만든다.',
+'출력은 반드시 JSON 배열만(입력 "주일"과 같은 길이·같은 순서): [{"주일":"YYYY-MM-DD","주간범위":"입력 값 그대로","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}],"비고":""}]',
+'★본문 범위(필수): 선택지의 "본문"은 반드시 그 주일 항목의 "주간범위" 안에서만 고른다. 다른 주일의 범위, 앞 주·뒤 주의 묵상 본문, 주간범위 밖으로 걸치는 본문은 쓰지 않는다. 설교하지 않는(제외) 주일이 있어도 그 주의 묵상 범위를 다음 주일로 넘기거나 합치지 않는다 — 각 주일은 자기 주간범위만 쓴다.',
+'선택지 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다. "묵상"이 비어 있는 주일(시리즈 첫 주일 등)은 "성경범위"를 소개하는 시리즈 소개 설교로.',
 '핵심메시지=설교 주제 한 문장(명제). ★주제근거(필수·절대 비우지 말 것)=이 본문에서 이 주제를 끌어낸 이유 2~3문장. 저자의 기록 의도와 1차 독자의 상황·정서를 짚어, 설교 작성으로 넘어가면 그대로 "서론"의 바탕이 되도록 쓴다. 모든 선택지마다 반드시 채운다.',
 '대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 — 장황한 설명형 금지, 청중이 붙들 변화의 방향이 분명하게. 본문 표현을 넘는 현대적·비약적 표현 가능하나 메시지는 본문이 명시적으로 지지하는 범위 안에서만. 대지 셋은 같은 방향으로 성큼성큼, 청중의 삶으로 뚫고 들어오는 흐름. 대지는 3개.',
 '★1차 독자 관점(필수): 대지·적용이 선언적 교리 진술에 머물면 청중에게 닿지 않는다. 저자가 이 본문을 기록한 의도와 1차 독자가 처한 상황·정서(이 말씀이 그들에게 어떤 위로·도전·소망이었는지)를 먼저 포착하고, 그 1차 독자가 경험한 메시지의 무게를 오늘의 청중("나")의 자리로 가져온다.',
@@ -17448,7 +17470,7 @@ var P_SERMON = [
 '대지마다: 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나에게 동일하게 말 걸어 마음의 변화와 삶의 방향을 결단하게 하는 설교적 한 문장. 모두 짧은 문장으로 통찰이 번뜩이게.',
 '★ 적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·행사·캠페인·실천과제 목록이 아니다. 청중의 삶의 자리를 찌르고 "나도 이렇게 살겠다"는 결단·회개·방향 전환을 끌어내는 설교적 메시지여야 한다. 외적 과제 나열 금지 — 메시지의 자기화와 결단에 초점을 둔다.',
 '제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
-'요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE;
+'요청사항에 제외할 주가 있으면 그 주는 "선택지":[] 와 "비고"에 사유(주간범위는 입력 값 그대로).'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE;
 
 /* 이달의 말씀 — 대학부(주일) 시리즈용: 달마다 그 달 본문 범위에서 선포·신앙고백형 1~2절 선정 */
 var P_MONTHWORD = [
@@ -20284,23 +20306,81 @@ async function genMonthlyVerses(S){
     return { '월': String(r['월'] || ''), '구절': String(r['구절'] || ''), '말씀': String(r['말씀'] || ''), '이유': String(r['이유'] || '') };
   });
 }
+/* ── 주일 설교 선택지 호출 (v649) ──
+   주일마다 그 주(직전 월~토) 묵상 행과 앱이 계산한 주간범위만 넘기고, 받은 선택지 본문이 그 범위 밖이면
+   그 주일들만 한 번 다시 만들게 한 뒤, 그래도 밖인 선택지는 뺀다.
+   예전엔 묵상 일정 전체를 넘기고 주간범위를 모델이 정했는데, 설교하지 않는(제외) 주일 앞 주를 묵상이 없는 주로 보고
+   범위를 한 주씩 밀어 적어 다음 주일 선택지에 앞 주 본문이 나왔다(2026 여호수아: 10/18 수 10:9-15, 11/15 수 17:14-18). */
+function spSermonInput(S, suns){
+  return suns.map(function(sun){
+    return { '주일': sun, '주간범위': sunDevoRange(S, sun),
+      '묵상': sunDevoRows(S, sun).map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; }) };
+  });
+}
+function spOutOfWeek(S, w){   /* 모델이 낸 한 주의 선택지 중 그 주 묵상 범위 밖인 것 */
+  var rows = sunDevoRows(S, w['주일']);
+  return (w['선택지'] || []).filter(function(o){ return refInDevoRows(o && o['본문'], rows) === false; });
+}
+/* 주간범위를 앱 계산값으로 바꾸고, 범위 밖 선택지는 뺀다(모두 밖이면 남기고 비고에 경고) → 뺀 개수 */
+function spSermonFinish(S, weeks){
+  var cut = 0;
+  (weeks || []).forEach(function(w){
+    var rng = sunDevoRange(S, w['주일']);
+    if (rng) w['주간범위'] = rng;
+    var opts = w['선택지'] || [], bad = spOutOfWeek(S, w);
+    if (!bad.length) return;
+    if (bad.length < opts.length) { w['선택지'] = opts.filter(function(o){ return bad.indexOf(o) < 0; }); cut += bad.length; }
+    else w['비고'] = '⚠ 선택지 본문이 모두 이 주 묵상 범위(' + rng + ') 밖입니다 — [↻ 이 회차 재생성]으로 다시 만들어 주세요.';
+  });
+  return cut;
+}
+async function spSermonCall(S, suns, note, maxTok){
+  var m = S.meta || {};
+  async function ask(list, extra){
+    var arr = aiJson(await callClaude(P_SERMON, JSON.stringify({
+      '시리즈명': m['시리즈명'], '성경범위': m['성경범위'] || '',
+      '요청사항': String(note || '') + (extra || ''), '주일': spSermonInput(S, list)
+    }), maxTok, aiTick('설교 선택지')));
+    if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+    return arr;
+  }
+  var weeks = await ask(suns);
+  var redo = weeks.filter(function(w){ return spOutOfWeek(S, w).length; });
+  if (redo.length) {
+    var fix = '\n\n[교정 지시] 직전 결과에서 다음 선택지의 본문이 그 주일의 주간범위 밖이었습니다 — ' +
+      redo.map(function(w){
+        return w['주일'] + '(주간범위 ' + sunDevoRange(S, w['주일']) + ') 범위 밖: ' + spOutOfWeek(S, w).map(function(o){ return o['본문']; }).join(', ');
+      }).join(' / ') + '. 아래 주일들의 선택지를 모두 각자의 주간범위 안에서 다시 만드세요.';
+    try {
+      toast('묵상 범위 밖 선택지가 있어 ' + redo.length + '주를 다시 만듭니다');
+      var again = await ask(redo.map(function(w){ return w['주일']; }), fix);
+      again.forEach(function(a){
+        var na = (a['선택지'] || []).length; if (!na) return;
+        for (var i = 0; i < weeks.length; i++) {
+          var w = weeks[i]; if (w['주일'] !== a['주일']) continue;
+          if (na - spOutOfWeek(S, a).length >= (w['선택지'] || []).length - spOutOfWeek(S, w).length) w['선택지'] = a['선택지'];
+          break;
+        }
+      });
+    } catch (re) { /* 다시 만들기 실패 — 아래에서 범위 밖 선택지만 뺀다 */ }
+  }
+  return { weeks: weeks, cut: spSermonFinish(S, weeks) };
+}
 async function aiSeriesSermon(noteOverride){
   var S = state.series;
   try {
     (state.seriesReqs = state.seriesReqs || {})['시리즈설교'] = '진행중'; spStatus();
-    var rows = ((S.devo && S.devo.rows) || []).map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
+    var note = (noteOverride != null ? noteOverride : S.meta['요청사항']);
     /* 분할 생성: 주일을 4주씩 끊어 여러 번 호출(긴 단일 출력에서 후반 선택지 품질이 떨어지는 것을 방지) */
     var suns = S.meta['주일'] || [];
-    var SB = 4, nb = Math.ceil(suns.length / SB), weeks = [];
+    var SB = 4, nb = Math.ceil(suns.length / SB), weeks = [], cut = 0;
     for (var bi = 0; bi < suns.length; bi += SB){
       var partSuns = suns.slice(bi, bi + SB);
       toast('주일 설교 선택지 생성 중 — ' + (Math.floor(bi / SB) + 1) + '/' + nb + ' 묶음 (' + partSuns.length + '주)');
-      var out = await callClaude(P_SERMON, JSON.stringify({
-        '시리즈명': S.meta['시리즈명'], '요청사항': (noteOverride != null ? noteOverride : S.meta['요청사항']), '주일': partSuns, '묵상확정': rows
-      }), 20000, aiTick('설교 선택지'));
-      var part = aiJson(out);
-      if (!Array.isArray(part) || !part.length) throw new Error('응답 형식 오류(' + (Math.floor(bi / SB) + 1) + '번째 묶음)');
-      weeks = weeks.concat(part);
+      var part;
+      try { part = await spSermonCall(S, partSuns, note, 20000); }
+      catch (pe) { throw new Error(pe.message + '(' + (Math.floor(bi / SB) + 1) + '번째 묶음)'); }
+      weeks = weeks.concat(part.weeks); cut += part.cut;
     }
     if (!weeks.length) throw new Error('응답 형식 오류');
     S.sermon = { m: Date.now(), weeks: weeks.map(function(w, wi){
@@ -20321,7 +20401,7 @@ async function aiSeriesSermon(noteOverride){
     S.sermonDone = false; S.view = 'sermon';
     state.seriesReqs['시리즈설교'] = '';
     saveSeries(); spStatus(); renderSeriesPane(); renderSyncState();
-    toast('주일 설교 선택지 ' + weeks.length + '주 생성 완료 — 선택·수정 후, 보관할 선택지마다 [미래설교로 저장]을 누르세요.');
+    toast('주일 설교 선택지 ' + weeks.length + '주 생성 완료' + (cut ? '(묵상 범위 밖 선택지 ' + cut + '개 뺌)' : '') + ' — 선택·수정 후, 보관할 선택지마다 [미래설교로 저장]을 누르세요.');
     try { await archiveSeriesOptions(S, '초안'); } catch (ae) { /* 임시(초안) 동기화 실패는 조용히 — 로컬엔 남아있고 [미래설교로 저장] 시 다시 시도됨 */ }
   } catch (e) {
     state.seriesReqs['시리즈설교'] = ''; spStatus(); renderSyncState();
@@ -24964,6 +25044,7 @@ async function spCheck(quiet){
     }
     if (bestS && (bestS.j['설교선택지'] || []).length) {
       if (!S.sermon || bestS.m > S.sermon.m) {
+        spSermonFinish(S, bestS.j['설교선택지']);   /* v649: 주간범위 = 묵상일정 기준, 범위 밖 선택지 빼기 */
         S.sermon = { m: bestS.m, weeks: (bestS.j['설교선택지'] || []).map(function(w){
           var opts = w['선택지'] || [];
           return { '주일': w['주일'], '주간범위': w['주간범위'] || '', '비고': w['비고'] || '',
@@ -25164,6 +25245,16 @@ function spSermonHtml(){
     if (_needSave) saveSeries();
   }
   var _tp = isTopic(S);
+  /* v649: 주간범위를 확정 묵상일정 기준으로 바로잡는다 — v648 이전 AI 가 제외 주일 앞 주를 빼고 범위를 밀어 적은 값이
+     머리 표시·보관 비고(주간묵상:)·이달의 말씀에 그대로 쓰이지 않게 */
+  if (!_tp && !isDawn(S)) {
+    var _rngFix = false;
+    S.sermon.weeks.forEach(function(w){
+      var r = sunDevoRange(S, w['주일']);
+      if (r && r !== w['주간범위']) { w['주간범위'] = r; _rngFix = true; }
+    });
+    if (_rngFix) saveSeries();
+  }
   var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> — ' + (_tp ? '주제별 설교 계획' + (m['주제'] ? ' <span style="color:var(--dim);font-weight:400;font-size:var(--fs-md)">「' + esc(m['주제']) + '」</span>' : '') : '주일 설교 계획') +
     '<div class="cnt" style="margin-top:4px">' + (_tp ? '회차' : '주일') + '마다 선택지 하나를 고르고 아래 칸에서 다듬은 뒤 확정하세요. 제외할 ' + (_tp ? '회차' : '주일') + '은 "등록" 체크를 해제합니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
   /* 이달의 말씀 — 주일(대학부) 시리즈: 달별 선포·신앙고백 구절(예배 마무리 화면용) */
@@ -26018,7 +26109,7 @@ async function aiRegenWeek(wi, btn){
   if (btn) { if (btn.dataset.busy) return; btn.dataset.busy = '1'; ob = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
   try {
     toast('Opus가 이 ' + (dawn ? '날' : topic ? '회차' : '주') + '의 설교 선택지를 다시 만듭니다 — 30초~1분');
-    var opts;
+    var opts, newNote = null;
     if (topic) {
       var sess1 = [{ '순번': w['시리즈순번'] || (wi + 1), '명칭': w['회차명'] || ((wi + 1) + '회') }];
       var outT = await callClaude(P_TOPIC, JSON.stringify({
@@ -26041,17 +26132,13 @@ async function aiRegenWeek(wi, btn){
       try { await studyLoadHymns(); } catch (he) {}    /* 찬송 번호·제목 대조용 목록 확보(v548) */
       opts = sanitizeHymns(days[0]['선택지'] || []);
     } else {
-      /* 묵상 없는 일반 시리즈(시트 복원 시 S.devo=null)에서도 재생성이 동작하게 — null 접근 가드 */
-      var rows = ((S.devo && S.devo.rows) || []).map(function(r){ return { '날짜': r['날짜'], '본문범위': r['본문범위'], '제목': r['제목'] }; });
-      var out2 = await callClaude(P_SERMON, JSON.stringify({
-        '시리즈명': m['시리즈명'],
-        '요청사항': String(m['요청사항'] || '') + '\n(아래 "주일" 한 주치 선택지만 새로 만든다. 기존 선택지와 다른 새로운 갈래로.)',
-        '주일': [w['주일']], '묵상확정': rows
-      }), 16000, aiTick('설교 선택지'));
-      var weeks = aiJson(out2);
-      if (!Array.isArray(weeks) || !weeks.length) throw new Error('응답 형식 오류');
-      if (weeks[0]['주간범위'] && !w['주간범위']) w['주간범위'] = weeks[0]['주간범위'];
-      opts = weeks[0]['선택지'] || [];
+      /* v649: 이 주일 직전 월~토 묵상만 넘기고 범위 밖 선택지는 걸러 낸다(spSermonCall).
+         묵상 없는 일반 시리즈(시트 복원 시 S.devo=null)면 주간범위가 비어 예전처럼 모델에 맡긴다. */
+      var rw = await spSermonCall(S, [w['주일']], String(m['요청사항'] || '') + '\n(아래 "주일" 한 주치 선택지만 새로 만든다. 기존 선택지와 다른 새로운 갈래로.)', 16000);
+      var w0 = rw.weeks[0] || {};
+      if (sunDevoRange(S, w['주일']) || !w['주간범위']) w['주간범위'] = w0['주간범위'] || w['주간범위'] || '';
+      newNote = w0['비고'] || '';
+      opts = w0['선택지'] || [];
     }
     if (!Array.isArray(opts) || !opts.length) throw new Error('선택지를 받지 못했습니다');
     /* 이 회차의 옛 보관(시트) 선택지 ID — 새 선택지로 교체하므로 시트에서도 지운다.
@@ -26059,6 +26146,7 @@ async function aiRegenWeek(wi, btn){
        (w.opts에는 시트에서 복원된 경우 기존 보관 행의 _id가 모두 들어 있어, 이미 중복된 상태도 함께 정리된다) */
     var oldIds = (w.opts || []).map(function(o){ return o && o._id; }).filter(Boolean);
     w.opts = opts; w.sel = 0; w.edit = optEdit(opts[0]);
+    if (newNote != null) w['비고'] = newNote;
     w.skip = false; w.done = false; w.sig = '';
     saveSeries(); renderSeriesPane();
     toast('이 ' + (dawn ? '날' : topic ? '회차' : '주') + '의 선택지 ' + opts.length + '개를 새로 만들었습니다 — 보관할 선택지는 [미래설교로 저장]을 누르세요.');
@@ -30696,7 +30784,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v648';
+var APP_VER = 'v649';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
