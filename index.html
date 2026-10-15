@@ -17173,12 +17173,13 @@ function bridgeChip(){
     c.addEventListener('click', async function(){
       var v = null; try { v = localStorage.getItem('tsa.bridge'); } catch (e) {}
       var auto = (v !== '1' && v !== '0');
-      var ok = await uiConfirm('브라우저 에이전트 생성 모드가 켜져 있습니다' + (auto ? ' (자동 인식: ' + (agentBrowserHint() || '에이전트') + ')' : '') + '.\nAI 버튼을 누르면 요청 패널이 열리고, 브라우저 AI(클로드 구독)가 결과를 채웁니다.\n\n이 모드를 끌까요?');
-      if (ok){ bridgeSet(false); toast('브라우저 에이전트 모드 꺼짐 — API 키/요청함 방식으로 동작'); }
+      var ok = await uiConfirm('브라우저 에이전트 생성 모드가 켜져 있습니다' + (auto ? ' (자동 인식: ' + (agentBrowserHint() || '에이전트') + ')' : '') + '.\nAI 버튼을 누르면 요청 패널이 열리고, 브라우저 AI(클로드 구독)가 결과를 채웁니다.'
+        + (asideRelayActive() && asideRelayStateText() ? '\n\n' + asideRelayStateText() : '') + '\n\n이 모드를 끌까요?');
+      if (ok){ bridgeSet(false); asideRelayPoll(); toast('브라우저 에이전트 모드 꺼짐 — API 키/요청함 방식으로 동작'); }
     });
     document.body.appendChild(c);
   }
-  c.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 에이전트 생성';
+  bridgeChipPaint(c);   /* v656: Aside 자동 처리가 켜져 있으면 준비 신호(준비 중/준비됨/처리 중/연결 끊김/중계기 없음) */
   c.style.display = '';
 }
 var _bridgePend = null;   /* 대기 중 요청 하나: { resolve, reject, payload } */
@@ -17282,9 +17283,6 @@ function bridgeCall(system, user, onTick){
     '전달: 이 페이지의 결과칸(#tsaBridgeRes)에 결과를 입력하고 [결과 적용](#tsaBridgeApply)을 클릭하거나, 자바스크립트로 window.TSA_BRIDGE.deliver(결과문자열)를 호출하세요.'
   ];
   if (imgs.length) head.splice(2, 0, '이미지: 이 요청에는 이미지 ' + imgs.length + '장이 포함되어 있고 이 패널 상단에 표시되어 있습니다. 이미지를 직접 보고 지침대로 처리하세요.');
-  /* v655: Aside 자동 처리 대화 등록 안내 — 오래된 대화는 스킬 0.55(대화 ID 등록)를 모르고 있을 수 있어,
-     에이전트가 매번 읽는 요청 머리말에 싣는다. 다른 대화로 옮기면 그 대화가 다시 등록된다. */
-  if (asideRelayOn()) head.push('자동 처리 등록(Aside): 처리하면서 TSA_BRIDGE.asideSession() 이 이 대화의 ID 와 다르면 TSA_BRIDGE.setAsideSession((await aside.sessions.current()).id) 를 한 번 호출하세요 — 그다음부터 앱 버튼이 이 대화에 「요청처리」를 자동으로 보냅니다.');
   var payload = head.concat(['', '[SYSTEM]', system, '', '[USER]', texts.join('\n')]).join('\n');
   var box = $('#tsaBridgeImgs');
   if (box){
@@ -17340,17 +17338,21 @@ window.TSA_BRIDGE = {
   asideRelay: function(){ return { on: asideRelayOn(), active: asideRelayActive(), session: asideSessionId() }; }
 };
 
-/* ===================== Aside 자동 처리 (v654) =====================
-   맥 중계기(Dropbox/total-sermon/tools/aside_relay.py, 127.0.0.1:21480, LaunchAgent)가 미리 붙어 있는
-   Aside 「요청 처리」 대화에 고정 문구 「요청처리」를 넣어, 버튼만 누르면 Aside 가 바로 처리를 시작한다.
-   켜지는 조건(셋 다): 브라우저 에이전트 모드(bridgeOn) + 설정 「Aside 자동 처리」(tsa.asideRelay, 이 브라우저만)
-     + Aside 에이전트가 이 탭에 남긴 대화 ID(tsa.asideSession — TSA_BRIDGE.setAsideSession).
-   → 키로 직결하는 다른 브라우저·아이패드에서는 아무것도 하지 않는다. 중계기에는 대화 ID·라벨만 보내고 요청 내용은 보내지 않는다. */
+/* ===================== Aside 자동 처리 (v654 → v656 가벼운 처리 모드) =====================
+   맥 중계기(Dropbox/total-sermon/tools/aside_relay.py v2, 127.0.0.1:21480, LaunchAgent)가 **새 임시 Aside 대화**
+   (Aside CLI 임시 세션 — 사이드패널에 안 보임, 기록이 늘 비어 있어 가볍다)를 미리 만들어 두었다가,
+   요청이 등록되면 고정 문구로 처리를 맡긴다. 처리가 끝난 임시 대화는 중계기가 닫는다.
+   켜지는 조건: 브라우저 에이전트 모드(bridgeOn) + 설정 「Aside 자동 처리」(tsa.asideRelay, 이 브라우저만).
+   → 키로 직결하는 다른 브라우저·아이패드에서는 아무것도 하지 않는다. 중계기에는 라벨만 보내고 요청 내용은 보내지 않는다.
+   준비 신호(v656): /health 를 주기적으로 물어 우하단 칩(#tsaBridgeChip)에 「Aside 준비 중 / 준비됨 / 처리 중 /
+   처리 지연 / 연결 끊김 / 중계기 없음」을 표시하고, 처음 「준비됨」이 되면 토스트로 알린다.
+   (v654·v655 의 대화 ID 등록 방식은 쓰지 않는다 — setAsideSession·asideSessionId 는 호환용으로만 남김) */
 var ASIDE_RELAY_URL = 'http://127.0.0.1:21480';
-var _arWatch = null;
+var _arWatch = null, _arPollT = null;
+var _arState = { s: 'off', h: null, toasted: false };
 function asideRelayOn(){ try { return localStorage.getItem('tsa.asideRelay') === '1'; } catch (e) { return false; } }
 function asideSessionId(){ try { return localStorage.getItem('tsa.asideSession') || ''; } catch (e) { return ''; } }
-function asideRelayActive(){ return bridgeOn() && asideRelayOn() && !!asideSessionId(); }
+function asideRelayActive(){ return bridgeOn() && asideRelayOn(); }
 function asideRelayReq(path, body, ms){
   var ctl = new AbortController();
   var tm = setTimeout(function(){ ctl.abort(); }, ms || 5000);
@@ -17360,26 +17362,91 @@ function asideRelayReq(path, body, ms){
     return r.json().then(function(j){ if (!r.ok && j && !j.error) j.error = 'HTTP ' + r.status; return j; });
   }).finally(function(){ clearTimeout(tm); });
 }
-/* 미리 붙기 — 앱이 열릴 때·대화 ID 를 받았을 때·설정을 켤 때. 조용히(실패해도 알림 없음). */
-function asideRelayAttach(){
-  if (!asideRelayActive()) return Promise.resolve(null);
-  return asideRelayReq('/attach', { session: asideSessionId() }, 4000).catch(function(){ return null; });
+/* 칩 표시: [글, 색, 도는 표시 여부] */
+var AR_LABEL = {
+  warming: ['Aside 준비 중…', '#a5731f', 1],
+  ready:   ['Aside 준비됨', '#2f7d4f', 0],
+  busy:    ['Aside 처리 중…', '#2b6cb0', 1],
+  stale:   ['Aside 처리 지연', '#c05621', 0],
+  link:    ['Aside 연결 끊김', '#c05621', 0],
+  down:    ['중계기 없음 — 직접 입력', '#6b7280', 0]
+};
+var AR_HINT = {
+  warming: '임시 대화를 준비하고 있습니다. 「준비됨」이 되면 AI 버튼이 바로 처리됩니다(지금 눌러도 1~2초 늦게 시작할 뿐 동작합니다).',
+  ready:   'AI 버튼을 누르면 Aside 가 바로 처리합니다.',
+  busy:    'Aside 가 요청을 처리하고 있습니다.',
+  stale:   '처리가 10분 넘게 끝나지 않았습니다 — Aside 에서 승인을 기다리는 일이 있는지 확인하세요.',
+  link:    'Aside 브라우저 연결이 끊겨 있습니다 — Aside 에서 이 탭을 새로고침(⌘R)하면 다시 연결됩니다.',
+  down:    '맥 중계기가 응답하지 않습니다 — AI 버튼을 누른 뒤 Aside 대화창에 「요청처리」를 직접 입력하세요.'
+};
+function asideRelayStateText(){ var s = _arState.s; return AR_LABEL[s] ? AR_LABEL[s][0] + ' — ' + AR_HINT[s] : ''; }
+function asideRelayCss(){
+  if ($('#arCss')) return;
+  var st = document.createElement('style'); st.id = 'arCss';
+  st.textContent = '@keyframes arspin{to{transform:rotate(360deg)}}'
+    + '.arDot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;vertical-align:middle}'
+    + '.arSp{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:arspin .8s linear infinite;vertical-align:middle}';
+  document.head.appendChild(st);
 }
-/* 요청 등록 직후(bridgeCall) — 중계기에 「요청처리」를 부탁한다. 실패하면 직접 입력 안내로 돌아간다. */
+function bridgeChipPaint(c){
+  c = c || $('#tsaBridgeChip'); if (!c) return;
+  var L = asideRelayActive() ? AR_LABEL[_arState.s] : null;
+  if (!L) {
+    c.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 에이전트 생성';
+    c.style.background = '#a5731f';
+    c.title = '브라우저 에이전트 생성 모드 작동 중 — 누르면 상태 확인/끄기';
+    return;
+  }
+  asideRelayCss();
+  c.innerHTML = (L[2] ? '<span class="arSp"></span>' : '<span class="arDot"></span>') + ' ' + esc(L[0]);
+  c.style.background = L[1];
+  c.title = AR_HINT[_arState.s] || '';
+}
+function _arSet(s, h){
+  var prev = _arState.s;
+  _arState.s = s; _arState.h = h;
+  bridgeChipPaint(); asideRelayPaint();
+  if (s === 'ready' && !_arState.toasted) { _arState.toasted = true; toast('Aside 준비됨 — 이제 AI 버튼을 누르면 바로 처리됩니다'); }
+  else if (prev !== s && (prev === 'ready' || prev === 'busy') && (s === 'link' || s === 'down')) toast(asideRelayStateText());
+}
+/* 상태 묻기 — 준비 전·처리 중엔 2.5초, 준비되면 20초, 중계기가 없으면 15초마다. 화면이 가려져 있으면 쉰다. */
+function asideRelayPoll(){
+  clearTimeout(_arPollT); _arPollT = null;
+  if (!asideRelayActive()) { if (_arState.s !== 'off') _arSet('off', null); return; }
+  if (document.hidden) { _arPollT = setTimeout(asideRelayPoll, 5000); return; }
+  asideRelayReq('/health', null, 3000).then(function(h){
+    var s = h.busy ? (h.stale ? 'stale' : 'busy') : (h.browser === false ? 'link' : (h.ready ? 'ready' : 'warming'));
+    _arSet(s, h);
+  }, function(){ _arSet('down', null); }).then(function(){
+    if (_arPollT || !asideRelayActive()) return;
+    var s = _arState.s;
+    _arPollT = setTimeout(asideRelayPoll, s === 'ready' ? 20000 : (s === 'down' ? 15000 : 2500));
+  });
+}
+/* 시작·켜기: 중계기에 다음 임시 대화를 미리 만들어 두라고 하고 상태 묻기를 시작한다(조건이 안 맞으면 칩만 정리). */
+function asideRelayStart(){
+  if (!asideRelayActive()) { asideRelayPoll(); return Promise.resolve(null); }
+  if (_arState.s === 'off') _arSet('warming', null);
+  return asideRelayReq('/warm', { mode: 'light' }, 4000).catch(function(){ return null; }).then(function(r){ asideRelayPoll(); return r; });
+}
+function asideRelayAttach(){ return asideRelayStart(); }   /* 호환(v654 이름) */
+/* 요청 등록 직후(bridgeCall) — 중계기에 처리를 맡긴다. 안 되면 직접 입력 안내로 돌아간다. */
 function asideRelayKick(label){
   if (!asideRelayActive()) return;
   var name = esc(label || '요청');
   var setLbl = function(t){ var l = $('#tsaBridgeMiniLbl'); if (l) l.innerHTML = '<b>' + name + '</b> — ' + t; };
-  asideRelayReq('/trigger', { session: asideSessionId(), reason: String(label || '').slice(0, 40) }, 25000).then(function(j){
-    if (j && j.ok && (j.sent || j.dry)) setLbl('Aside 자동 처리 요청됨');
+  var fallback = function(why){
+    setLbl('Aside 대화창에 「요청처리」를 입력하세요');
+    toast('Aside 자동 처리 안 됨(' + why + ') — Aside 대화창에 「요청처리」라고 입력해 주세요');
+  };
+  if (_arState.s === 'link') { fallback('Aside 브라우저 연결 끊김 — Aside 에서 이 탭을 새로고침하면 다시 됩니다'); return; }
+  asideRelayReq('/trigger', { mode: 'light', reason: String(label || '').slice(0, 40) }, 25000).then(function(j){
+    if (j && j.ok && (j.sent || j.dry)) { setLbl('Aside 자동 처리 시작'); _arSet('busy', _arState.h); setTimeout(asideRelayPoll, 1500); }
     else if (j && j.ok && j.busy) { setLbl('Aside 가 앞 요청을 처리 중 — 끝나면 이어서'); asideRelayWatch(); }
     else if (!(j && j.ok && j.dup)) throw new Error((j && j.error) || '응답 없음');
-  }).catch(function(e){
-    setLbl('Aside 대화창에 「요청처리」를 입력하세요');
-    toast('Aside 자동 처리 실패(' + ((e && e.message) || e) + ') — Aside 대화창에 「요청처리」라고 입력해 주세요');
-  });
+  }).catch(function(e){ fallback((e && e.message) || e); asideRelayPoll(); });
 }
-/* Aside 가 앞 차례를 처리하는 동안 등록된 요청: 그 차례가 끝났는데도 요청이 남아 있으면 한 번 더 부탁한다.
+/* Aside 가 앞 차례를 처리하는 동안 등록된 요청: 그 차례가 끝났는데도 요청이 남아 있으면 한 번 더 맡긴다.
    (그 차례 안에서 연쇄 요청까지 처리했으면 남은 요청이 없으니 아무것도 안 한다 — 빈 차례 낭비 방지) */
 function asideRelayWatch(){
   if (_arWatch) return;
@@ -17397,25 +17464,18 @@ function asideRelayPaint(){
   var cb = $('#setAsideRelay'), st = $('#asideRelayStat');
   if (cb) cb.checked = asideRelayOn();
   if (!st) return;
-  var sid = asideSessionId(), out = [];
-  if (!bridgeOn()) out.push('브라우저 에이전트 모드가 꺼져 있어 작동하지 않습니다(이 브라우저는 API 키로 직접 생성).');
-  out.push(sid ? 'Aside 대화: ' + esc(sid) : 'Aside 대화 ID 없음 — Aside 대화창에서 한 번 「요청처리」를 하면 자동으로 등록됩니다.');
-  st.innerHTML = out.join('<br>');
+  if (!asideRelayOn()) { st.textContent = ''; return; }
+  if (!bridgeOn()) { st.textContent = '브라우저 에이전트 모드가 꺼져 있어 작동하지 않습니다(이 브라우저는 API 키로 직접 생성).'; return; }
+  st.textContent = '지금 상태: ' + (asideRelayStateText() || '확인 중…');
 }
 async function asideRelayCheck(){
-  var st = $('#asideRelayStat'), sid = asideSessionId();
   try {
     var h = await asideRelayReq('/health', null, 3000);
-    var msg = '중계기 응답 ✓ (v' + esc(h.version) + ')'
-      + (h.attached ? (h.session === sid ? ' · 이 대화에 대기 중' + (h.busy ? '(처리 중)' : '') : ' · 다른 대화에 붙어 있음') : ' · 아직 붙지 않음')
-      + (h.dryRun ? ' · 시험 모드(보내지 않음)' : '');
-    toast(msg);
-    if (st) st.innerHTML = msg + '<br>' + (sid ? 'Aside 대화: ' + esc(sid) : 'Aside 대화 ID 없음 — Aside 대화창에서 한 번 「요청처리」를 하면 등록됩니다.');
-    if (asideRelayActive() && !(h.attached && h.session === sid)) asideRelayAttach();
+    toast('중계기 응답 ✓ (v' + h.version + ')' + (h.busy ? ' · 처리 중' : (h.browser === false ? ' · Aside 브라우저 연결 끊김' : (h.ready ? ' · 준비됨' : ' · 준비 중'))) + (h.dryRun ? ' · 시험 모드' : ''));
+    asideRelayStart();
   } catch (e) {
-    var m = '중계기 응답 없음 — 맥에 중계기가 설치·실행 중인지, 「로컬 네트워크 접근」을 허용했는지 확인하세요';
-    toast(m);
-    if (st) st.textContent = m;
+    _arSet('down', null);
+    toast('중계기 응답 없음 — 맥에 중계기가 설치·실행 중인지, 「로컬 네트워크 접근」을 허용했는지 확인하세요');
   }
 }
 /* 설정 토글 배선 + 주소 파라미터 + 상태 칩 초기화 */
@@ -30997,7 +31057,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v655';
+var APP_VER = 'v656';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
