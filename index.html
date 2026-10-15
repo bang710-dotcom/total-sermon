@@ -14835,6 +14835,13 @@ async function hwpxBuild(content){
     b.img.bin = 'image' + (bins.length + 1);
     bins.push({ id: b.img.bin, ext: ext, b64: mm[2] });
   });
+  /* v652: head 그림(표지)은 제목 문단의 제목 글자 바로 앞(첫 <hp:t>)에 띄운다 — 오른쪽 끝·문단 위쪽 맞춤 */
+  var hp = (content.blocks || []).filter(function(b){ return b && b.role === 'pic' && b.head && b.img && b.img.bin; })[0];
+  var hAt = hp ? sec.indexOf('<hp:t>', sec.indexOf('</hp:secPr>')) : -1;
+  if (hAt > 0){
+    var hW = (spec.bar && spec.bar.width) || 55532, hCw = hW * (hp.ratio || 0.24);
+    sec = sec.slice(0, hAt) + hwpxPicXml({ bin: hp.img.bin, pw: hp.img.pw, ph: hp.img.ph, cw: hCw, ch: hCw * hp.img.ph / hp.img.pw, head: true, hOff: hW - Math.round(hCw), note: hp.img.note }) + sec.slice(hAt);
+  }
   sec = sec.replace('</hs:sec>', hwpxBlocks(spec, content.blocks) + '</hs:sec>');
   /* v636: content.charHeights = {charPr id: HWPUNIT 높이} — 서식 파일은 그대로 두고 이 문서의 글자 크기만 바꾼다(카드원고 문서 22pt) */
   var hdrName = 'Contents/header.xml', hdr = null;
@@ -14965,10 +14972,10 @@ async function transHwpxBlob(meta, body){
     var im = m && imgMap[+m[1]];
     if (im) { b.img = { u: im.u, pw: im.w, ph: im.h, note: (/본문/.test(b.text) ? '본문 이미지 #' : '이미지 #') + m[1] }; used++; }
   });
-  if (imgMap[1]){   /* 표지(#1)는 전환 바가 없다 — PDF 처럼 제목부 아래 첫 빈 줄 자리에 */
+  if (imgMap[1]){   /* 표지(#1)는 전환 바가 없다 — v652: 제목 오른쪽 위에 띄우고(head), 예전 그림 줄은 빈 줄로 남긴다 */
     var at = 0;
     for (var i = 0; i < content.blocks.length; i++) if (content.blocks[i].role === 'blank') { at = i; break; }
-    content.blocks.splice(at, 0, { role: 'pic', img: { u: imgMap[1].u, pw: imgMap[1].w, ph: imgMap[1].h, note: '표지 이미지 #1' } });
+    content.blocks.splice(at, 0, { role: 'pic', head: true, img: { u: imgMap[1].u, pw: imgMap[1].w, ph: imgMap[1].h, note: '표지 이미지 #1' } });
     used++;
   }
   var blob = await hwpxBuild(content);
@@ -30866,7 +30873,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v651';
+var APP_VER = 'v652';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
