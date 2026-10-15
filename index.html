@@ -13605,7 +13605,7 @@ function editSermonFill(id, noNav){
      원본을 보존하고 사본을 만들려면 작성화면의 [새 설교로 저장]을 쓴다. */
   state.editing = id;
   state.versionOf = null;
-  Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = s[k] || ''; });
+  Object.keys(C_META).forEach(function(k){ $('#' + C_META[k]).value = (k === '시리즈' ? seriesShown(s[k]) : s[k]) || ''; });   /* v653: 「상황설교」 표지는 칸에 넣지 않는다 */
   var c = newCompose();
   c.free = stripTrailMsg(s['원고텍스트'] || '', s['핵심메시지']);   /* v613: 옛 자동 핵심메시지 끝 줄은 열 때 뗀다 — 다음 저장 때 데이터에서도 빠진다 */
   c.sum = s['요약본'] || '';
@@ -13693,7 +13693,7 @@ function composeSameAsRow(row){
     if (!row) return false;
     if (rtNorm(stripTrailMsg(row['원고텍스트'] || '', row['핵심메시지'])) !== rtNorm(assembleText())) return false;   /* v613: 열 때 뗀 옛 자동 핵심메시지 줄은 차이로 보지 않는다 */
     if (row['카드원고'] !== undefined && cardsJoin(cardsSplit(row['카드원고'] || '')) !== cardsJoin(state.compose.cards || [])) return false;   /* v635 */
-    return Object.keys(C_META).every(function(k){ var el = $('#' + C_META[k]); return String(row[k] == null ? '' : row[k]).trim() === String(el ? el.value : '').trim(); });
+    return Object.keys(C_META).every(function(k){ var el = $('#' + C_META[k]), rv = k === '시리즈' ? seriesShown(row[k]) : row[k]; return String(rv == null ? '' : rv).trim() === String(el ? el.value : '').trim(); });   /* v653: 열 때 비운 「상황설교」는 차이로 보지 않는다 */
   } catch (e) { return false; }
 }
 function reconcileCleanDraftWithSheet(){
@@ -15215,8 +15215,11 @@ function stripTrailMsg(text, msg){
   return L.join('\n');
 }
 /* 원고 제목줄(내보내기·미리보기·카드원고 첫 장 공용) */
+/* v653: 시리즈 칸의 「상황설교」는 시리즈가 아니라 상황 설교 구상에서 온 개요 표지(미래설교 보관함 표시용)다.
+   작성 칸·원고 제목·파일 이름에는 쓰지 않는다(2026-10-15 목사님 요청 — 「상황설교 - 제목」이 원고에 찍혔다). */
+function seriesShown(v){ v = String(v == null ? '' : v); return v.trim() === '상황설교' ? '' : v; }
 function msTitleLine(meta, style){
-  var series = (meta['시리즈'] || '') + (meta['시리즈순번'] ? ' ' + meta['시리즈순번'] : '');
+  var series = seriesShown(meta['시리즈']) + (meta['시리즈순번'] ? ' ' + meta['시리즈순번'] : '');
   var titleLine = style === '카드원고'
     ? (series ? series + ' - ' : '') + '「' + (meta['제목'] || '') + '」' + (meta['본문'] ? ' ' + meta['본문'] : '')
     : (series ? series + ' - ' : '') + (meta['제목'] || '');
@@ -19161,6 +19164,7 @@ function seriesTag(meta, legacy){
     var s0 = findSermon(meta['ID']);
     if (s0) { if (!ser) ser = String(s0['시리즈'] || '').trim(); if (!no) no = String(s0['시리즈순번'] || '').trim(); }
   }
+  ser = seriesShown(ser);   /* v653 */
   if (!ser) return '';
   var mm = ser.match(/^(.*?)\s*\(?\s*(\d+)\s*회?\)?\s*$/);
   if (mm) return mm[1].replace(/\s+/g, '') + mm[2];      /* 시리즈명에 번호가 함께 적힌 경우 */
@@ -19668,6 +19672,7 @@ function tpdfCss(cw, ch){
     /* 그림은 자리를 따로 차지하지 않고 바 오른쪽 끝에 겹쳐 올린다(음수 여백으로 바 위로 되돌림) */
     + '.tp-cut .tp-fig{flex:0 0 21%;width:21%;position:relative;z-index:2;margin:0 0 0 -21%}'
     + '.tp-fig{width:24%;margin:0 0 9px auto}'
+    + '.tp-head{position:relative}.tp-head .tp-cover{position:absolute;top:0;right:0;margin:0;z-index:2}'   /* v653 표지 = 제목 오른쪽 위 */
     + '.tp-fig img{display:block;width:100%;height:auto;border:1px solid #d0d0d0}'
     + '.tp-cap{font-size:10.5px;line-height:1.5;color:#777;text-align:right}'
     + '.tp-miss{border:1px dashed #c0c0c0;background:#fff;color:#999;font-size:10px;line-height:1.3;text-align:center;padding:10px 2px}';
@@ -19880,11 +19885,13 @@ async function buildTransPdfBlob(meta, body, imgMap){
   try { await document.fonts.load("16px 'Gowun Batang'"); await document.fonts.ready; } catch (e) {}
   var style = msStyleOf(meta);
   var blocks = tpdfBlocks(parasFromText(meta, body, style).paras, imgMap);
-  /* 표지(#1)는 전환 바가 없다 — 제목부 바로 아래에 참고로 붙인다 */
+  /* 표지(#1)는 전환 바가 없다 — v653: 전환표시본 HWPX(v652)처럼 제목 오른쪽 위에 겹쳐 올리고(본문 폭 24%, 오른쪽 끝·제목 위쪽 맞춤),
+     예전 그림 자리는 HWPX 의 빈 줄(1560/2400 줄)만큼 비운다 */
   if (imgMap[1]){
     var at = 0;
     for (var i = 0; i < blocks.length; i++) if (blocks[i].indexOf('tp-blank') > 0) { at = i; break; }
-    blocks.splice(at, 0, '<div class="tp-fig">' + tpdfImgTag(imgMap[1]) + '<div class="tp-cap">표지 이미지 #1</div></div>');
+    blocks.splice(at, 0, '<div class="tp-blank" style="height:1.235em"></div>');
+    blocks[0] = '<div class="tp-head"><div class="tp-fig tp-cover">' + tpdfImgTag(imgMap[1]) + '</div>' + blocks[0] + '</div>';
   }
   /* 그림을 미리 다 읽어 둔다 — 조판(넘침 판정)·html2canvas 양쪽에서 빈 그림이 되지 않게 */
   try { await Promise.all(Object.keys(imgMap).map(function(n){ return loadImgEl(imgMap[n].u).catch(function(){ return null; }); })); } catch (e) {}
@@ -20831,10 +20838,10 @@ window.occPick = function(i){
   if (o._id) {
     state.editing = o._id; state.versionOf = null;
     o._status = '구상/연구';   /* 더 이상 초안 아님 — 카드 버튼·재생성 정리에서 제외 */
-    $('#c_series').value = '상황설교';
+    $('#c_series').value = '';   /* v653: 시리즈 칸은 비운다 — 「상황설교」가 원고 제목·파일 이름에 붙지 않게 */
     $('#c_state').value = '구상/연구';
-    var sLoc = findSermon(o._id); if (sLoc) sLoc['상태'] = '구상/연구';
-    apiPost({ action: 'update', sheet: 'sermons', data: { ID: o._id, '상태': '구상/연구', '시리즈': '상황설교' } })
+    var sLoc = findSermon(o._id); if (sLoc) { sLoc['상태'] = '구상/연구'; sLoc['시리즈'] = ''; }
+    apiPost({ action: 'update', sheet: 'sermons', data: { ID: o._id, '상태': '구상/연구', '시리즈': '' } })
       .then(function(){ renderSyncState(); }).catch(function(){});
   }
   updateComposeBadge(); refreshReqBtns();
@@ -30873,7 +30880,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v652';
+var APP_VER = 'v653';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
