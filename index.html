@@ -17282,6 +17282,9 @@ function bridgeCall(system, user, onTick){
     '전달: 이 페이지의 결과칸(#tsaBridgeRes)에 결과를 입력하고 [결과 적용](#tsaBridgeApply)을 클릭하거나, 자바스크립트로 window.TSA_BRIDGE.deliver(결과문자열)를 호출하세요.'
   ];
   if (imgs.length) head.splice(2, 0, '이미지: 이 요청에는 이미지 ' + imgs.length + '장이 포함되어 있고 이 패널 상단에 표시되어 있습니다. 이미지를 직접 보고 지침대로 처리하세요.');
+  /* v655: Aside 자동 처리 대화 등록 안내 — 오래된 대화는 스킬 0.55(대화 ID 등록)를 모르고 있을 수 있어,
+     에이전트가 매번 읽는 요청 머리말에 싣는다. 다른 대화로 옮기면 그 대화가 다시 등록된다. */
+  if (asideRelayOn()) head.push('자동 처리 등록(Aside): 처리하면서 TSA_BRIDGE.asideSession() 이 이 대화의 ID 와 다르면 TSA_BRIDGE.setAsideSession((await aside.sessions.current()).id) 를 한 번 호출하세요 — 그다음부터 앱 버튼이 이 대화에 「요청처리」를 자동으로 보냅니다.');
   var payload = head.concat(['', '[SYSTEM]', system, '', '[USER]', texts.join('\n')]).join('\n');
   var box = $('#tsaBridgeImgs');
   if (box){
@@ -30994,7 +30997,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v654';
+var APP_VER = 'v655';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
