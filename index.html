@@ -2751,7 +2751,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
           <input type="checkbox" id="setAsideRelay" style="width:auto;margin:0">
           <span class="cnt" style="margin:0">AI 버튼을 누르면 Aside 대화창에 「요청처리」가 자동으로 들어갑니다</span>
         </div>
-        <div class="cnt" style="margin-top:6px">Aside 에서 <b>브라우저 에이전트 모드</b>와 함께 켭니다. 맥에 중계기(<b>tools/install_asiderelay_agent.sh</b>)가 설치돼 있어야 하고, 처음 한 번 브라우저가 「로컬 네트워크 접근」을 물으면 허용합니다. 이 설정은 이 브라우저에만 저장되며, 다른 브라우저·아이패드는 지금처럼 API 키로 동작합니다. 중계기가 응답하지 않으면 예전처럼 「요청처리」를 직접 입력하라는 안내가 뜹니다.</div>
+        <div class="cnt" style="margin-top:6px">Aside 에서 <b>브라우저 에이전트 모드</b>와 함께 켭니다. 맥에 중계기(<b>tools/install_asiderelay_agent.sh</b>)가 설치돼 있어야 하고, 처음 한 번 브라우저가 「로컬 네트워크 접근」을 물으면 허용합니다. <b>가벼운 처리 모드</b>: 요청마다 새 임시 Aside 대화에서 처리하므로(사이드패널에는 보이지 않음) 늘 가볍고, 결과와 진행은 앱에 표시됩니다. 오른쪽 아래 칩이 <b>「Aside 준비됨」</b>(초록)이 되면 AI 버튼을 쓰시면 됩니다. 이 설정은 이 브라우저에만 저장되며, 다른 브라우저·아이패드는 지금처럼 API 키로 동작합니다. 중계기가 응답하지 않으면 예전처럼 「요청처리」를 직접 입력하라는 안내가 뜹니다.</div>
         <div class="cnt" id="asideRelayStat" style="margin-top:6px"></div>
         <button class="btn sub" id="asideRelayCheck" type="button" style="width:auto;margin-top:6px">중계기 연결 확인</button>
         </details>
@@ -17492,23 +17492,25 @@ async function asideRelayCheck(){
       bridgeSet(el.checked);
       toast(el.checked ? '브라우저 에이전트 모드 켜짐 — AI 버튼이 요청 패널을 엽니다' : '브라우저 에이전트 모드 꺼짐');
       asideRelayPaint();
+      asideRelayStart();
     });
   }
   bridgeChip();
-  /* v654 Aside 자동 처리 — 설정 토글(이 브라우저만) · 연결 확인 · 앱이 열리면 미리 붙기 */
+  /* v654·v656 Aside 자동 처리 — 설정 토글(이 브라우저만) · 연결 확인 · 앱이 열리면 임시 대화 준비 + 준비 신호 */
   var ar = document.getElementById('setAsideRelay');
   if (ar){
     ar.addEventListener('change', function(){
       try { localStorage.setItem('tsa.asideRelay', ar.checked ? '1' : '0'); } catch (e) {}
       asideRelayPaint();
-      if (ar.checked) asideRelayCheck();   /* 켜는 순간 연결 확인(첫 회 「로컬 네트워크 접근」 질문도 이때) + 미리 붙기 */
-      else toast('Aside 자동 처리 꺼짐 — Aside 대화창에 「요청처리」를 직접 입력합니다');
+      if (ar.checked) asideRelayCheck();   /* 켜는 순간 연결 확인(첫 회 「로컬 네트워크 접근」 질문도 이때) + 임시 대화 준비 */
+      else { asideRelayPoll(); toast('Aside 자동 처리 꺼짐 — Aside 대화창에 「요청처리」를 직접 입력합니다'); }
     });
   }
   var arc = document.getElementById('asideRelayCheck');
   if (arc) arc.addEventListener('click', asideRelayCheck);
   asideRelayPaint();
-  setTimeout(asideRelayAttach, 3000);      /* 조건(에이전트 모드+설정+대화 ID)이 안 맞으면 아무것도 안 함 */
+  setTimeout(asideRelayStart, 1500);       /* 조건(에이전트 모드+설정)이 안 맞으면 아무것도 안 함 */
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden && asideRelayActive()) asideRelayPoll(); });
 })();
 
 /* ── 결과물 생성 중 전체화면 오버레이 제어 ── */
