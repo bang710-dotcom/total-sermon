@@ -14705,15 +14705,18 @@ function hwpxP(pid, inner){
 function hwpxTblId(){ return 1000000000 + Math.floor(Math.random() * 1000000000); }
 /* ── 그림(hp:pic) — 한글이 직접 저장한 문서의 구조를 그대로 따른다(v588) ──
    크기 단위는 HWPUNIT(1/7200인치). 원본 크기(orgSz)는 픽셀×75(=96dpi), 표시 크기(curSz·sz)는 cw×ch.
-   inline=true → 글자처럼 취급(문단 안 한 줄), false → 떠 있는 개체(글 앞으로·오른쪽 정렬). */
+   inline=true → 글자처럼 취급(문단 안 한 줄), false → 떠 있는 개체(글 앞으로·오른쪽 정렬).
+   head=true → 제목 문단 오른쪽 위에 떠 있는 표지(v652 — 목사님이 한글에서 옮겨 놓은 첨부본 값 그대로: 문단 기준·왼쪽에서 hOff). */
 function hwpxPicXml(o){
   var ow = Math.max(1, Math.round(o.pw * 75)), oh = Math.max(1, Math.round(o.ph * 75));
   var cw = Math.round(o.cw), ch = Math.round(o.ch);
   var sx = (cw / ow).toFixed(6), sy = (ch / oh).toFixed(6);
   var pos = o.inline
     ? '<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+    : o.head
+    ? '<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="' + Math.round(o.hOff || 0) + '"/>'
     : '<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="RIGHT" vertOffset="' + Math.round(o.vOff || 0) + '" horzOffset="0"/>';
-  return '<hp:pic id="' + hwpxTblId() + '" zOrder="' + (o.inline ? 0 : 1) + '" numberingType="PICTURE" textWrap="' + (o.inline ? 'TOP_AND_BOTTOM' : 'IN_FRONT_OF_TEXT') + '" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="' + hwpxTblId() + '" reverse="0">'
+  return '<hp:pic id="' + hwpxTblId() + '" zOrder="' + (o.inline || o.head ? 0 : 1) + '" numberingType="PICTURE" textWrap="' + (o.inline ? 'TOP_AND_BOTTOM' : 'IN_FRONT_OF_TEXT') + '" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="' + hwpxTblId() + '" reverse="0">'
     + '<hp:offset x="0" y="0"/><hp:orgSz width="' + ow + '" height="' + oh + '"/><hp:curSz width="' + cw + '" height="' + ch + '"/>'
     + '<hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="' + Math.round(cw / 2) + '" centerY="' + Math.round(ch / 2) + '" rotateimage="1"/>'
     + '<hp:renderingInfo><hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:scaMatrix e1="' + sx + '" e2="0" e3="0" e4="0" e5="' + sy + '" e6="0"/><hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/></hp:renderingInfo>'
@@ -14785,8 +14788,9 @@ function hwpxBlocks(spec, blocks){
     if (role === 'bar' && spec.bar) return hwpxBar(spec, b.text || '', b.img);
     if (role === 'pic' && b.img && b.img.bin){   /* 가운데 정렬 한 줄 그림(표지) — v588 */
       var pw0 = (spec.bar && spec.bar.width) || 55532, cw0 = pw0 * (b.ratio || 0.24);
+      /* v652: head = 그림은 hwpxBuild 가 제목 문단에 띄우고, 이 줄은 첨부본처럼 빈 줄로 남긴다(제목부와 첫 바 사이 간격 유지) */
       return hwpxP((spec.bar && spec.bar.para) || (roles.line || roles.normal).para,
-        '<hp:run charPrIDRef="' + st.normal + '">' + hwpxPicXml({ bin: b.img.bin, pw: b.img.pw, ph: b.img.ph, cw: cw0, ch: cw0 * b.img.ph / b.img.pw, inline: true, note: b.img.note }) + '</hp:run>');
+        '<hp:run charPrIDRef="' + st.normal + '"' + (b.head ? '/>' : '>' + hwpxPicXml({ bin: b.img.bin, pw: b.img.pw, ph: b.img.ph, cw: cw0, ch: cw0 * b.img.ph / b.img.pw, inline: true, note: b.img.note }) + '</hp:run>'));
     }
     if (role === 'table' && spec.table) return hwpxTable(spec, b.rows || []);
     var r = roles[role] || roles.body || roles.normal || roles.line;
