@@ -366,6 +366,30 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .statusPill.wait{background:color-mix(in srgb,var(--req) 15%,transparent);border:1px solid color-mix(in srgb,var(--req) 55%,transparent);color:var(--req);animation:pillBlink 2s ease-in-out infinite}
 .statusPill .spin{margin-right:0;flex:0 0 auto}
 .statusPill .pin{flex:0 0 auto;font-size:var(--fs-body)}
+/* v657 Aside 진행·준비 표시 하나 — 사이드바(#arInd) · 모바일 헤더(#arIndM) · 집중 모드 구석(#arIndF), 내용은 arRender 가 같게 그린다 */
+.arInd{display:flex;flex-direction:column;gap:6px;margin:6px 8px 2px;padding:8px 11px;border-radius:var(--r-md);border:1px solid var(--line);font-size:var(--fs-sm);font-weight:700;line-height:1.35;word-break:keep-all;cursor:pointer}
+.arInd .arRow{display:flex;align-items:center;gap:7px;min-width:0}
+.arInd .arTx{min-width:0}
+.arInd .arBtns{display:flex;gap:6px}
+.arInd .arBtns button{flex:1;padding:4px 6px;border-radius:var(--r-sm);border:1px solid currentColor;background:none;color:inherit;font:inherit;font-size:var(--fs-xs);cursor:pointer}
+.arIndM{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:none;font:inherit;font-size:var(--fs-xs);font-weight:700;cursor:pointer;white-space:nowrap}
+.arIndF{display:none;position:fixed;top:10px;left:12px;z-index:700;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);font:inherit;font-size:var(--fs-xs);font-weight:700;cursor:pointer;opacity:.92;white-space:nowrap}
+body.focusMode .arIndF{display:inline-flex}
+.arInd[hidden],.arIndM[hidden],.arIndF[hidden]{display:none!important}
+.arDot{width:9px;height:9px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.arSp{width:11px;height:11px;border-radius:50%;border:2px solid color-mix(in srgb,currentColor 30%,transparent);border-top-color:currentColor;animation:arspin .8s linear infinite;flex:0 0 auto}
+.arChk{flex:0 0 auto}
+@keyframes arspin{to{transform:rotate(360deg)}}
+.k-good{color:var(--good);background:color-mix(in srgb,var(--good) 13%,var(--bg));border-color:color-mix(in srgb,var(--good) 45%,transparent)}
+.k-info{color:var(--info);background:color-mix(in srgb,var(--info) 13%,var(--bg));border-color:color-mix(in srgb,var(--info) 45%,transparent)}
+.k-req{color:var(--req);background:color-mix(in srgb,var(--req) 13%,var(--bg));border-color:color-mix(in srgb,var(--req) 45%,transparent)}
+.k-bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--bg));border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.k-dim{color:var(--dim);background:var(--bg);border-color:var(--line)}
+@media (min-width: 900px) and (hover: hover){
+  body.navRail .arInd{align-items:center;padding:8px 0;margin:6px 4px}
+  body.navRail .arInd .arTx,body.navRail .arInd .arBtns{display:none}
+}
+#tsaMonBadge{display:none!important}   /* Aside 가 화면 위쪽에 띄우던 진행 배지 — 앱의 표시 하나로 대신한다(v657) */
 @keyframes pillGlow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--info) 50%,transparent)}70%{box-shadow:0 0 0 7px color-mix(in srgb,var(--info) 0%,transparent)}100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--info) 0%,transparent)}}
 @keyframes pillBlink{0%,100%{opacity:1}50%{opacity:.6}}
 .busy{opacity:.65;pointer-events:none}
@@ -2142,6 +2166,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><span class="navLbl">인박스</span></button>
     <button class="nav" data-page="settings" title="설정">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="navLbl">설정</span></button>
+    <div class="arInd" id="arInd" hidden role="status" aria-live="polite"></div>
     <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none"><svg class=ico data-c=r aria-hidden=true><use href=#i-hourglass></use></svg></span><span id="statusPillTxt"></span></div>
     <div class="foot">
       <button class="queueBadge" id="queueBadgeD" type="button" aria-label="전송 대기 항목 — 설정에서 동기화"></button>
@@ -2152,6 +2177,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
 
   <header class="mobile">
     <h1>Total <span>Sermons</span></h1>
+    <button class="arIndM" id="arIndM" type="button" hidden></button>
     <button class="mCmdBtn" id="cmdOpenBtnM" type="button" aria-label="빠른 실행"><svg class=ico aria-hidden=true><use href=#i-search></use></svg></button>
     <button class="queueBadge" id="queueBadge" type="button" aria-label="전송 대기 항목 — 설정에서 동기화"></button>
     <div class="syncState" id="syncState">—</div>
@@ -17157,25 +17183,8 @@ function bridgeNotifyPerm(){
   } catch (e) {}
 }
 /* 모든 화면 공통 상태 칩 — 에이전트 생성 모드가 켜져 있음을 항상 표시(우하단). 눌러서 끌 수 있다. */
-function bridgeChip(){
-  var c = $('#tsaBridgeChip');
-  if (!bridgeOn()){ if (c) c.style.display = 'none'; return; }
-  if (!c){
-    c = document.createElement('button');
-    c.id = 'tsaBridgeChip'; c.type = 'button'; c.title = '브라우저 에이전트 생성 모드 작동 중 — 누르면 상태 확인/끄기';
-    c.style.cssText = 'position:fixed;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 72px);z-index:390;padding:6px 11px;border-radius:999px;border:1px solid rgba(0,0,0,.2);background:#a5731f;color:#fff;font-size:var(--fs-sm);font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;opacity:.92';
-    c.addEventListener('click', async function(){
-      var v = null; try { v = localStorage.getItem('tsa.bridge'); } catch (e) {}
-      var auto = (v !== '1' && v !== '0');
-      var ok = await uiConfirm('브라우저 에이전트 생성 모드가 켜져 있습니다' + (auto ? ' (자동 인식: ' + (agentBrowserHint() || '에이전트') + ')' : '') + '.\nAI 버튼을 누르면 요청 패널이 열리고, 브라우저 AI(클로드 구독)가 결과를 채웁니다.'
-        + (asideRelayActive() && asideRelayStateText() ? '\n\n' + asideRelayStateText() : '') + '\n\n이 모드를 끌까요?');
-      if (ok){ bridgeSet(false); asideRelayPoll(); toast('브라우저 에이전트 모드 꺼짐 — API 키/요청함 방식으로 동작'); }
-    });
-    document.body.appendChild(c);
-  }
-  bridgeChipPaint(c);   /* v656: Aside 자동 처리가 켜져 있으면 준비 신호(준비 중/준비됨/처리 중/연결 끊김/중계기 없음) */
-  c.style.display = '';
-}
+/* v657: 떠 있던 우하단 칩·미니 대기 카드를 없애고, 준비·진행 표시는 하나(arRender — 사이드바 / 모바일 헤더 / 집중 모드 구석)로 */
+function bridgeChip(){ var c = $('#tsaBridgeChip'); if (c) c.remove(); arRender(); }
 var _bridgePend = null;   /* 대기 중 요청 하나: { resolve, reject, payload } */
 function bridgeEnsureUi(){
   if ($('#tsaBridge')) return;
@@ -17233,10 +17242,10 @@ function bridgeClose(){
 function bridgeMiniPref(on){ try { localStorage.setItem('tsa.bridgeMini', on ? '1' : '0'); } catch (e) {} }
 function bridgeMiniOn(){ try { return localStorage.getItem('tsa.bridgeMini') !== '0'; } catch (e) { return true; } }
 function bridgeShow(full){
-  var ov = $('#tsaBridge'), m = $('#tsaBridgeMini');
+  var ov = $('#tsaBridge');
   if (!_bridgePend){ bridgeClose(); return; }
-  if (ov) ov.style.display = full ? 'flex' : 'none';
-  if (m) m.style.display = full ? 'none' : 'flex';
+  if (ov) ov.style.display = full ? 'flex' : 'none';   /* v657: 접힌 상태 = 떠 있는 카드 없음(사이드바 표시 하나) */
+  arRender();
 }
 function bridgeDeliver(text){
   var t = String(text == null ? '' : text).trim();
@@ -17244,7 +17253,7 @@ function bridgeDeliver(text){
   if (!t){ toast('결과가 비어 있습니다 — 생성 결과를 먼저 넣어 주세요'); return false; }
   var p = _bridgePend; _bridgePend = null;
   bridgeClose();
-  setSyncState('에이전트 결과 적용 중…', true);
+  _arDone = { label: p.label || '결과물', t: Date.now() }; _arPhase = ''; arRender();
   p.resolve(t);
   return true;
 }
@@ -17252,6 +17261,7 @@ function bridgeCancel(msg){
   if (!_bridgePend){ bridgeClose(); return; }
   var p = _bridgePend; _bridgePend = null;
   bridgeClose();
+  _arPhase = ''; arRender();
   p.reject(new Error(msg || '에이전트 요청이 취소되었습니다'));
 }
 function bridgeCall(system, user, onTick){
@@ -17292,18 +17302,18 @@ function bridgeCall(system, user, onTick){
   $('#tsaBridgeTitle').textContent = '브라우저 에이전트 요청 — ' + label;
   $('#tsaBridgeReq').value = payload;
   $('#tsaBridgeRes').value = '';
-  var lbl = $('#tsaBridgeMiniLbl');
-  if (lbl) lbl.innerHTML = '<b>' + esc(label) + '</b> — 에이전트 응답 대기';
-  setSyncState(label + ' — 에이전트 응답 대기 중', true);
   return new Promise(function(resolve, reject){
-    _bridgePend = { resolve: resolve, reject: reject, payload: payload, label: label };
+    _bridgePend = { resolve: resolve, reject: reject, payload: payload, label: label, t0: Date.now() };
+    _arPhase = asideRelayActive() && _arState.s !== 'down' && _arState.s !== 'link' ? 'wait' : 'manual';
+    _arDone = null;
     bridgeShow(!bridgeMiniOn());   /* 기본=미니 카드(앱 화면 유지), 수동 사용자는 펼친 상태 기억 */
     asideRelayKick(label);         /* v654: Aside 자동 처리(맥 중계기) — 조건이 안 맞으면 아무것도 안 함 */
     /* ★ 브라우저 알림 발사 — 에이전트 브라우저(Aside)의 "알림 도착 시 자동 처리 루틴"을 깨운다.
        tag 고정('tsa-bridge')이라 연쇄 요청 때 알림이 쌓이지 않고 갱신된다. 권한 없으면 조용히 통과. */
+    /* v657: 자동 처리가 되는 동안에는 알림을 띄우지 않는다(표시 하나로 충분) — 직접 「요청처리」를 입력해야 할 때만 */
     try {
-      if (window.Notification && Notification.permission === 'granted') {
-        new Notification('Total Sermons — 에이전트 요청', { body: label + ' 생성 요청이 대기 중입니다', tag: 'tsa-bridge' });
+      if (_arPhase === 'manual' && window.Notification && Notification.permission === 'granted') {
+        new Notification('Total Sermons — 에이전트 요청', { body: label + ' — Aside 대화창에 「요청처리」를 입력하세요', tag: 'tsa-bridge' });
       }
     } catch (e) {}
   });
@@ -17329,7 +17339,8 @@ window.TSA_BRIDGE = {
     return true;
   },
   asideSession: function(){ return asideSessionId(); },
-  asideRelay: function(){ return { on: asideRelayOn(), active: asideRelayActive(), session: asideSessionId() }; }
+  asideRelay: function(){ return { on: asideRelayOn(), active: asideRelayActive(), session: asideSessionId() }; },
+  statusUi: true   /* v657: 앱이 진행 표시를 직접 그린다 — 에이전트는 진행 배지(progress-watcher)를 주입하지 않아도 된다 */
 };
 
 /* ===================== Aside 자동 처리 (v654 → v656 가벼운 처리 모드) =====================
@@ -17344,9 +17355,10 @@ window.TSA_BRIDGE = {
 var ASIDE_RELAY_URL = 'http://127.0.0.1:21480';
 var _arWatch = null, _arPollT = null;
 var _arState = { s: 'off', h: null, toasted: false };
-function asideRelayOn(){ try { return localStorage.getItem('tsa.asideRelay') === '1'; } catch (e) { return false; } }
+var _arPhase = '', _arDone = null, _arTickT = null;   /* v657 표시 하나: 진행 단계 · 방금 끝난 요청 · 경과 시간 시계 */
+function asideRelayOn(){ return true; }   /* v657: 설정 「Aside 자동 처리」를 「브라우저 에이전트 모드」에 합쳤다(호환용) */
 function asideSessionId(){ try { return localStorage.getItem('tsa.asideSession') || ''; } catch (e) { return ''; } }
-function asideRelayActive(){ return bridgeOn() && asideRelayOn(); }
+function asideRelayActive(){ return bridgeOn(); }
 function asideRelayReq(path, body, ms){
   var ctl = new AbortController();
   var tm = setTimeout(function(){ ctl.abort(); }, ms || 5000);
@@ -17382,24 +17394,61 @@ function asideRelayCss(){
     + '.arSp{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:arspin .8s linear infinite;vertical-align:middle}';
   document.head.appendChild(st);
 }
-function bridgeChipPaint(c){
-  c = c || $('#tsaBridgeChip'); if (!c) return;
-  var L = asideRelayActive() ? AR_LABEL[_arState.s] : null;
-  if (!L) {
-    c.innerHTML = '<svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 에이전트 생성';
-    c.style.background = '#a5731f';
-    c.title = '브라우저 에이전트 생성 모드 작동 중 — 누르면 상태 확인/끄기';
-    return;
+function bridgeChipPaint(){ arRender(); }   /* 호환(v656 이름) */
+function _arFmt(ms){ var t = Math.max(0, Math.floor(ms / 1000)); return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2); }
+/* 지금 보여 줄 것 하나: 처리 중인 요청 > 방금 받은 결과(5초) > 준비 상태 */
+function arView(){
+  if (!bridgeOn()) return null;
+  if (_bridgePend){
+    var lab = _bridgePend.label || '요청', el = _arFmt(Date.now() - (_bridgePend.t0 || Date.now()));
+    var P = { wait: ['info', 1, '접수됨'], sent: ['info', 1, 'Aside 처리 중'], queued: ['req', 1, '앞 요청 처리 뒤 이어서'], manual: ['req', 0, 'Aside 대화창에 「요청처리」 입력'] };
+    var m = P[_arPhase] || P.wait;
+    return { kind: m[0], spin: m[1], text: lab + ' — ' + m[2] + ' · ' + el, short: (_arPhase === 'manual' ? '「요청처리」 입력' : lab + ' ' + el), btns: true, title: lab + ' — ' + m[2] + ' (누르면 요청 패널을 펼칩니다)' };
   }
-  asideRelayCss();
-  c.innerHTML = (L[2] ? '<span class="arSp"></span>' : '<span class="arDot"></span>') + ' ' + esc(L[0]);
-  c.style.background = L[1];
-  c.title = AR_HINT[_arState.s] || '';
+  if (_arDone && Date.now() - _arDone.t < 5000) return { kind: 'good', check: 1, text: _arDone.label + ' — 결과 받음', short: '결과 받음', title: '' };
+  var s = _arState.s, L = AR_LABEL[s];
+  var K = { warming: ['req', 1], ready: ['good', 0], busy: ['info', 1], stale: ['req', 0], link: ['bad', 0], down: ['dim', 0] };
+  var k = K[s] || ['req', 1];
+  var txt = L ? L[0] : 'Aside 확인 중…';
+  return { kind: k[0], spin: k[1], text: txt, short: txt.replace(/^Aside /, 'Aside '), title: AR_HINT[s] || '' };
+}
+function arRender(){
+  var v = arView();
+  var f = $('#arIndF');
+  if (!f && v){ f = document.createElement('button'); f.type = 'button'; f.id = 'arIndF'; f.className = 'arIndF'; document.body.appendChild(f); }
+  var icon = v ? (v.check ? '<span class="arChk">✓</span>' : (v.spin ? '<span class="arSp"></span>' : '<span class="arDot"></span>')) : '';
+  var side = $('#arInd');
+  if (side){
+    side.hidden = !v;
+    if (v){
+      side.className = 'arInd k-' + v.kind; side.title = v.title || '';
+      side.innerHTML = '<div class="arRow">' + icon + '<span class="arTx">' + esc(v.text) + '</span></div>'
+        + (v.btns ? '<div class="arBtns"><button type="button" data-ar="open">펼치기</button><button type="button" data-ar="cancel">취소</button></div>' : '');
+    }
+  }
+  ['#arIndM', '#arIndF'].forEach(function(sel){
+    var e = $(sel); if (!e) return;
+    e.hidden = !v;
+    if (v){ e.className = (sel === '#arIndM' ? 'arIndM' : 'arIndF') + ' k-' + v.kind; e.title = v.text + (v.title ? ' — ' + v.title : ''); e.innerHTML = icon + '<span>' + esc(v.short) + '</span>'; }
+  });
+  /* 경과 시간·「결과 받음」을 위해 그동안만 1초마다 다시 그린다 */
+  var need = !!_bridgePend || !!(_arDone && Date.now() - _arDone.t < 5000);
+  if (need && !_arTickT) _arTickT = setInterval(arRender, 1000);
+  else if (!need && _arTickT) { clearInterval(_arTickT); _arTickT = null; }
+}
+/* 표시를 누르면: 처리 중이면 요청 패널 펼치기, 아니면 상태 확인 + 모드 끄기 */
+async function arIndClick(ev){
+  var b = ev && ev.target && ev.target.closest ? ev.target.closest('[data-ar]') : null;
+  if (b && b.getAttribute('data-ar') === 'cancel'){ bridgeCancel('에이전트 요청을 취소했습니다'); return; }
+  if (_bridgePend){ bridgeMiniPref(false); bridgeShow(true); return; }
+  if (!bridgeOn()) return;
+  var ok = await uiConfirm((asideRelayStateText() || '브라우저 에이전트 모드가 켜져 있습니다.') + '\n\n브라우저 에이전트 모드를 끌까요? (끄면 API 키로 직접 생성)');
+  if (ok){ bridgeSet(false); asideRelayPoll(); toast('브라우저 에이전트 모드 꺼짐 — API 키/요청함 방식으로 동작'); }
 }
 function _arSet(s, h){
   var prev = _arState.s;
   _arState.s = s; _arState.h = h;
-  bridgeChipPaint(); asideRelayPaint();
+  arRender(); asideRelayPaint();
   if (s === 'ready' && !_arState.toasted) { _arState.toasted = true; toast('Aside 준비됨 — 이제 AI 버튼을 누르면 바로 처리됩니다'); }
   else if (prev !== s && (prev === 'ready' || prev === 'busy') && (s === 'link' || s === 'down')) toast(asideRelayStateText());
 }
@@ -17427,16 +17476,15 @@ function asideRelayAttach(){ return asideRelayStart(); }   /* 호환(v654 이름
 /* 요청 등록 직후(bridgeCall) — 중계기에 처리를 맡긴다. 안 되면 직접 입력 안내로 돌아간다. */
 function asideRelayKick(label){
   if (!asideRelayActive()) return;
-  var name = esc(label || '요청');
-  var setLbl = function(t){ var l = $('#tsaBridgeMiniLbl'); if (l) l.innerHTML = '<b>' + name + '</b> — ' + t; };
+  var setPh = function(ph){ if (_bridgePend) { _arPhase = ph; arRender(); } };
   var fallback = function(why){
-    setLbl('Aside 대화창에 「요청처리」를 입력하세요');
+    setPh('manual');
     toast('Aside 자동 처리 안 됨(' + why + ') — Aside 대화창에 「요청처리」라고 입력해 주세요');
   };
   if (_arState.s === 'link') { fallback('Aside 브라우저 연결 끊김 — Aside 에서 이 탭을 새로고침하면 다시 됩니다'); return; }
   asideRelayReq('/trigger', { mode: 'light', reason: String(label || '').slice(0, 40) }, 25000).then(function(j){
-    if (j && j.ok && (j.sent || j.dry)) { setLbl('Aside 자동 처리 시작'); _arSet('busy', _arState.h); setTimeout(asideRelayPoll, 1500); }
-    else if (j && j.ok && j.busy) { setLbl('Aside 가 앞 요청을 처리 중 — 끝나면 이어서'); asideRelayWatch(); }
+    if (j && j.ok && (j.sent || j.dry)) { setPh('sent'); _arSet('busy', _arState.h); setTimeout(asideRelayPoll, 1500); }
+    else if (j && j.ok && j.busy) { setPh('queued'); asideRelayWatch(); }
     else if (!(j && j.ok && j.dup)) throw new Error((j && j.error) || '응답 없음');
   }).catch(function(e){ fallback((e && e.message) || e); asideRelayPoll(); });
 }
@@ -17455,12 +17503,8 @@ function asideRelayWatch(){
   }, 2000);
 }
 function asideRelayPaint(){
-  var cb = $('#setAsideRelay'), st = $('#asideRelayStat');
-  if (cb) cb.checked = asideRelayOn();
-  if (!st) return;
-  if (!asideRelayOn()) { st.textContent = ''; return; }
-  if (!bridgeOn()) { st.textContent = '브라우저 에이전트 모드가 꺼져 있어 작동하지 않습니다(이 브라우저는 API 키로 직접 생성).'; return; }
-  st.textContent = '지금 상태: ' + (asideRelayStateText() || '확인 중…');
+  var st = $('#asideRelayStat'); if (!st) return;
+  st.textContent = bridgeOn() ? '지금 상태: ' + (asideRelayStateText() || '확인 중…') : '';
 }
 async function asideRelayCheck(){
   try {
@@ -17486,20 +17530,13 @@ async function asideRelayCheck(){
       bridgeSet(el.checked);
       toast(el.checked ? '브라우저 에이전트 모드 켜짐 — AI 버튼이 요청 패널을 엽니다' : '브라우저 에이전트 모드 꺼짐');
       asideRelayPaint();
-      asideRelayStart();
+      if (el.checked) asideRelayCheck(); else asideRelayStart();   /* 켜는 순간 중계기 확인(첫 회 「로컬 네트워크 접근」 질문) + 임시 대화 준비 */
     });
   }
   bridgeChip();
-  /* v654·v656 Aside 자동 처리 — 설정 토글(이 브라우저만) · 연결 확인 · 앱이 열리면 임시 대화 준비 + 준비 신호 */
-  var ar = document.getElementById('setAsideRelay');
-  if (ar){
-    ar.addEventListener('change', function(){
-      try { localStorage.setItem('tsa.asideRelay', ar.checked ? '1' : '0'); } catch (e) {}
-      asideRelayPaint();
-      if (ar.checked) asideRelayCheck();   /* 켜는 순간 연결 확인(첫 회 「로컬 네트워크 접근」 질문도 이때) + 임시 대화 준비 */
-      else { asideRelayPoll(); toast('Aside 자동 처리 꺼짐 — Aside 대화창에 「요청처리」를 직접 입력합니다'); }
-    });
-  }
+  try { localStorage.removeItem('tsa.asideRelay'); } catch (e) {}   /* v657: 설정을 합쳐 더 쓰지 않는 키 */
+  ['arInd', 'arIndM'].forEach(function(id){ var e = document.getElementById(id); if (e) e.addEventListener('click', arIndClick); });
+  document.addEventListener('click', function(ev){ var f = ev.target && ev.target.closest ? ev.target.closest('#arIndF') : null; if (f) arIndClick(ev); });
   var arc = document.getElementById('asideRelayCheck');
   if (arc) arc.addEventListener('click', asideRelayCheck);
   asideRelayPaint();
@@ -31053,7 +31090,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v656';
+var APP_VER = 'v657';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
