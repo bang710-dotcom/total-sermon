@@ -118,6 +118,12 @@
   → 카드 디자인 PDF·PPTX(`P_CARDDECK`): 초고의 전환 줄은 글로 옮기지 말고 그 자리 bg 전환으로만 쓰라는 줄을 더했다.
 - 시험(로컬 시험 사본 + 가짜 Claude 응답): 작성창 아이콘 위치·두 자리 번호 여백 안 · 줄 넣기/고치기/빈 줄 지우기 → 표시가 줄을 따라감 · ↑↓(카드 넘기 포함)·지우기 · 나누기(줄 맨 앞/가운데)·합치기 커서 · 넘친 줄 넘기기 · 「대지 2」 판정(전환 줄이 첫 줄) · 미리보기 3쪽 · HWPX(한글 화면)·DOCX(XML) · 카드원고로 처음 전환 → 초안(Opus) + 자리 찾기(Sonnet 5.5·medium) · 버튼 「모두 다시/빠진 번호만」. ⚠ 실제 Claude 로 자리 찾기 품질은 아직, 아이패드 터치로 아이콘 누르기도 아직.
 
+## 카드원고 HWPX 쪽 넘침 = 워드 호환 문서 — v666 (2026-10-16 목사님 제보)
+내보낸 카드원고 HWPX 가 한글에서 미리보기와 달리 쪽마다 넘쳤다(카드 23장 → 45쪽, 1쪽에 10줄). 원인 = **card.hwpx 서식 파일이 「MS 워드 호환 문서」**(`header.xml` 의 `<hh:compatibleDocument targetProgram="MS_WORD">` + `adjustLineheightToFont` 등). 이 모드에서 한글은 줄간격 130% 를 워드처럼 **글꼴의 원래 줄 높이(함초롬바탕 약 1.65em)에 다시 곱해** 한 줄이 약 16.7mm 가 됐다(앱 계산 = 22pt×130% = 10.1mm, 한 장 18줄). v636 의 22pt 확대 때 한글에서 직접 열어 보지 못해 놓쳤다.
+- `hwpxCardDoc` 이 `compat: 'HWP201X'` 를 넘기고 `hwpxBuild` 가 **이 문서의 header.xml 만** `<hh:compatibleDocument targetProgram="HWP201X"><hh:layoutCompatibility/></hh:compatibleDocument>`(manuscript·dawn·plan 서식과 같은 한글 기본 배치)로 바꾼다 — charHeights 와 같은 방식. 서식 파일 자체·옛 AI 카드 경로(13pt)·Cowork 스킬은 그대로.
+- 한글(맥)에서 확인: 같은 카드원고가 45쪽 → **23쪽 = 카드 23장**, 줄 간격 약 10.1mm(한 쪽 18줄), 굵게·빨강 인용·파랑 예화·왼쪽 여백 전환 아이콘 위치 정상. 수정 전후 section0.xml 은 무작위 id 외에 같다(바뀐 것은 호환 설정 한 줄).
+- ⚠ `ltc.hwpx` 도 MS_WORD 호환이다(LTC 교재는 제보 없음 — 손대지 않음). 다른 산출물이 한글에서 미리보기보다 성기게 나오면 먼저 이 설정을 볼 것.
+
 ## 저장·불러오기 속도 — v637 (2026-10-12)
 
 검토 문서 `Dropbox/total-sermon/docs/속도개선_검토_20261012.html`. 서버 교체 없이 앱 + Code.gs 만 손봤다. ⚠ **Code.gs 반영 필요**(붙여넣기 → 배포 관리 「새 버전」, 새 칸 없음 → `setup` 불필요). 반영 전에는 앱이 예전 방식으로 돈다(아래 caps).
