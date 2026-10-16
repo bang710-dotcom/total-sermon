@@ -17402,7 +17402,7 @@ var AR_HINT = {
   ready:   'AI 버튼을 누르면 Aside 가 바로 처리합니다.',
   busy:    'Aside 가 요청을 처리하고 있습니다.',
   stale:   '처리가 10분 넘게 끝나지 않았습니다 — Aside 에서 승인을 기다리는 일이 있는지 확인하세요.',
-  link:    'Aside 브라우저 연결이 끊겨 있습니다 — Aside 를 완전히 종료(⌘Q)했다가 다시 실행하면 연결됩니다(탭 새로고침·사이드패널로는 풀리지 않음).',
+  link:    'Aside 브라우저 연결이 끊겨 있습니다 — [Aside 다시 시작]을 누르거나 Aside 를 종료(⌘Q)했다가 다시 실행하세요(탭 새로고침·사이드패널로는 풀리지 않음).',
   down:    '맥 중계기가 응답하지 않습니다 — AI 버튼을 누른 뒤 Aside 대화창에 「요청처리」를 직접 입력하세요.'
 };
 function asideRelayStateText(){ var s = _arState.s; return AR_LABEL[s] ? AR_LABEL[s][0] + ' — ' + AR_HINT[s] : ''; }
@@ -17423,14 +17423,14 @@ function arView(){
     var lab = _bridgePend.label || '요청', el = _arFmt(Date.now() - (_bridgePend.t0 || Date.now()));
     var P = { wait: ['info', 1, '접수됨'], sent: ['info', 1, 'Aside 처리 중'], queued: ['req', 1, '앞 요청 처리 뒤 이어서'], manual: ['req', 0, 'Aside 대화창에 「요청처리」 입력'] };
     var m = P[_arPhase] || P.wait;
-    return { kind: m[0], spin: m[1], text: lab + ' — ' + m[2] + ' · ' + el, short: (_arPhase === 'manual' ? '「요청처리」 입력' : lab + ' ' + el), btns: true, title: lab + ' — ' + m[2] + ' (누르면 요청 패널을 펼칩니다)' };
+    return { kind: m[0], spin: m[1], text: lab + ' — ' + m[2] + ' · ' + el, short: (_arPhase === 'manual' ? '「요청처리」 입력' : lab + ' ' + el), btns: true, restart: _arState.s === 'link', title: lab + ' — ' + m[2] + ' (누르면 요청 패널을 펼칩니다)' };
   }
   if (_arDone && Date.now() - _arDone.t < 5000) return { kind: 'good', check: 1, text: _arDone.label + ' — 결과 받음', short: '결과 받음', title: '' };
   var s = _arState.s, L = AR_LABEL[s];
   var K = { warming: ['req', 1], ready: ['good', 0], busy: ['info', 1], stale: ['req', 0], link: ['bad', 0], down: ['dim', 0] };
   var k = K[s] || ['req', 1];
   var txt = L ? L[0] : 'Aside 확인 중…';
-  return { kind: k[0], spin: k[1], text: txt, short: txt.replace(/^Aside /, 'Aside '), title: AR_HINT[s] || '' };
+  return { kind: k[0], spin: k[1], text: txt, short: txt.replace(/^Aside /, 'Aside '), title: AR_HINT[s] || '', restart: s === 'link' };
 }
 function arRender(){
   var v = arView();
@@ -17443,7 +17443,8 @@ function arRender(){
     if (v){
       side.className = 'arInd k-' + v.kind; side.title = v.title || '';
       side.innerHTML = '<div class="arRow">' + icon + '<span class="arTx">' + esc(v.text) + '</span></div>'
-        + (v.btns ? '<div class="arBtns"><button type="button" data-ar="open">펼치기</button><button type="button" data-ar="cancel">취소</button></div>' : '');
+        + (v.btns ? '<div class="arBtns"><button type="button" data-ar="open">펼치기</button><button type="button" data-ar="cancel">취소</button></div>' : '')
+        + (v.restart ? '<div class="arBtns"><button type="button" data-ar="restart">Aside 다시 시작</button></div>' : '');
     }
   }
   ['#arIndM', '#arIndF'].forEach(function(sel){
@@ -17456,10 +17457,24 @@ function arRender(){
   if (need && !_arTickT) _arTickT = setInterval(arRender, 1000);
   else if (!need && _arTickT) { clearInterval(_arTickT); _arTickT = null; }
 }
-/* 표시를 누르면: 처리 중이면 요청 패널 펼치기, 아니면 상태 확인 + 모드 끄기 */
+/* v661 [Aside 다시 시작] — 「연결 끊김」은 탭 새로고침으로 안 풀리고 Aside 종료·재실행으로만 풀린다(2026-10-16 실측).
+   맥 중계기(v2.1 /restart-aside)가 응답을 먼저 준 뒤 Aside 본체를 정상 종료(SIGTERM)하고 다시 실행한다. 이 탭도 함께 닫힌다. */
+async function arRestartAside(){
+  var ok = await uiConfirm('Aside 를 다시 시작할까요?\n\n· Aside 가 곧 종료됐다가 다시 켜집니다. 열린 탭은 Aside 의 「시작할 때」 설정에 따라 다시 열립니다.\n· 진행 중이던 Aside 작업과 대기 중인 AI 요청은 끊깁니다 — 다시 「Aside 준비됨」이 되면 버튼을 다시 눌러 주세요.\n· 작성 중인 원고 초안은 먼저 이 기기에 저장합니다.');
+  if (!ok) return;
+  try { if (typeof saveComposeDraft === 'function') saveComposeDraft(); } catch (e) {}
+  try {
+    var j = await asideRelayReq('/restart-aside', { mode: 'light' }, 5000);
+    if (j && j.ok) toast('Aside 를 다시 시작합니다 — 곧 꺼졌다가 다시 켜집니다');
+    else if (j && j.error === 'not found') toast('이 맥의 중계기가 옛 버전입니다 — tools/install_asiderelay_agent.sh 를 다시 실행해 주세요. 지금은 Aside 를 ⌘Q 로 종료했다가 다시 실행하세요');
+    else toast('Aside 다시 시작 실패(' + ((j && j.error) || '응답 없음') + ') — Aside 를 ⌘Q 로 종료했다가 다시 실행하세요');
+  } catch (e) { toast('중계기 응답 없음 — Aside 를 ⌘Q 로 종료했다가 다시 실행하세요'); }
+}
+/* 표시를 누르면: 처리 중이면 요청 패널 펼치기, 연결 끊김이면 다시 시작, 아니면 상태 확인 + 모드 끄기 */
 async function arIndClick(ev){
   var b = ev && ev.target && ev.target.closest ? ev.target.closest('[data-ar]') : null;
   if (b && b.getAttribute('data-ar') === 'cancel'){ bridgeCancel('에이전트 요청을 취소했습니다'); return; }
+  if ((b && b.getAttribute('data-ar') === 'restart') || (!_bridgePend && _arState.s === 'link')){ arRestartAside(); return; }
   if (_bridgePend){ bridgeMiniPref(false); bridgeShow(true); return; }
   if (!bridgeOn()) return;
   var ok = await uiConfirm((asideRelayStateText() || '브라우저 에이전트 모드가 켜져 있습니다.') + '\n\n브라우저 에이전트 모드를 끌까요? (끄면 API 키로 직접 생성)');
@@ -17501,7 +17516,7 @@ function asideRelayKick(label){
     setPh('manual');
     toast('Aside 자동 처리 안 됨(' + why + ') — Aside 대화창에 「요청처리」라고 입력해 주세요');
   };
-  if (_arState.s === 'link') { fallback('Aside 브라우저 연결 끊김 — Aside 를 종료(⌘Q)했다가 다시 실행하면 됩니다'); return; }
+  if (_arState.s === 'link') { fallback('Aside 브라우저 연결 끊김 — 사이드바의 [Aside 다시 시작]을 누르세요'); return; }
   asideRelayReq('/trigger', { mode: 'light', reason: String(label || '').slice(0, 40) }, 25000).then(function(j){
     if (j && j.ok && (j.sent || j.dry)) { setPh('sent'); _arSet('busy', _arState.h); setTimeout(asideRelayPoll, 1500); }
     else if (j && j.ok && j.busy) { setPh('queued'); asideRelayWatch(); }
@@ -31110,7 +31125,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v660';
+var APP_VER = 'v661';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
