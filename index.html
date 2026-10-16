@@ -17862,7 +17862,7 @@ function arStage(p){
     if (lo != null && lo > AR_STALL) return { kind: 'req', spin: 0, st: '멈춘 것 같음', sub: Math.floor(lo / 60000) + '분째 Aside 움직임 없음 — Aside 에서 승인을 기다리는지 확인하세요' };
     return { kind: 'info', spin: 1, st: 'Aside 처리 중', sub: '요청을 읽고 처리하는 중' + (lo != null ? ' · 마지막 움직임 ' + arAgo(lo) : (_arPhase === 'manual' ? ' (직접 입력)' : '')) };
   }
-  if (_arPhase === 'manual') return { kind: 'req', spin: 0, st: '직접 입력 필요', sub: (p.why ? p.why.replace(/^자동 처리 안 됨 — /, '').replace(/ → .*$/, '') + ' — ' : '') + 'Aside 대화창에 「요청처리」를 입력하세요' };
+  if (_arPhase === 'manual') return { kind: 'req', spin: 0, st: '직접 입력 필요', sub: (p.why ? p.why.replace(/^자동 처리 안 됨 — /, '').replace(/ → .*$| — 자동으로 맡길 수 없음$/, '') + ' — ' : '') + 'Aside 대화창에 「요청처리」를 입력하세요' };
   if (_arPhase === 'queued') return { kind: 'info', spin: 1, st: '대기', sub: '앞 요청을 Aside 가 처리하는 중 — 끝나면 이어서 맡깁니다' };
   if (_arPhase === 'wait') return { kind: 'info', spin: 1, st: '맡기는 중', sub: (p.kicks ? '다시 맡기는 중' : '중계기에 맡기는 중') + (_arState.s === 'warming' ? ' · Aside 대화 준비 중' : '') };
   var since = now - (p.sentAt || p.t0);
@@ -18055,8 +18055,10 @@ function asideRelayKick(label){
   var p0 = _bridgePend;
   var setPh = function(ph){ if (_bridgePend && _bridgePend === p0) { _arPhase = ph; arRender(); } };
   var fallback = function(why){
+    why = String(why || '');
+    if (/failed to fetch|load failed|networkerror|abort/i.test(why)) why = '중계기 응답 없음';   /* 브라우저 오류 문구 대신 */
     setPh('manual');
-    arEv('bad', '자동 처리 안 됨 — ' + why);
+    if (!(p0 && p0.why && p0.why.indexOf(why) >= 0)) arEv('bad', '자동 처리 안 됨 — ' + why);
     toast('Aside 자동 처리 안 됨(' + why + ') — Aside 대화창에 「요청처리」라고 입력해 주세요');
   };
   if (_arState.s === 'link') { fallback('Aside 브라우저 연결 끊김 — 사이드바의 [Aside 다시 시작]을 누르세요'); return; }
