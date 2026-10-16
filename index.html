@@ -17934,7 +17934,7 @@ function arPanelPaint(){
       + (H.length ? '<div class="arHist">' + H.map(function(r){
           var R = AR_RES[r.r] || [r.r, 'k-dim'], oth = new Date(r.t0).toDateString() !== today;
           var note = [arDur((r.t1 || r.t0) - r.t0)].concat(r.k > 1 ? ['재전달 ' + (r.k - 1) + '회'] : []).join(' · ');
-          return '<details><summary><span class="tm">' + arTm(r.t0, oth) + (oth ? '' : '').replace(/:\d\d$/, '') + '</span><span>' + esc(r.l) + ' <span class="arNone">· ' + esc(note) + '</span>'
+          return '<details><summary><span class="tm">' + (oth ? arTm(r.t0, true) : arTm(r.t0).slice(0, 5)) + '</span><span>' + esc(r.l) + ' <span class="arNone">· ' + esc(note) + '</span>'
             + (r.why && r.r !== 'done' ? '<span class="why">' + esc(r.why) + '</span>' : '') + '</span><span class="arPill ' + R[1] + '">' + esc(R[0]) + '</span></summary>' + arTlHtml(r.ev) + '</details>';
         }).join('') + '</div>' : '<div class="arNone">아직 기록된 요청이 없습니다.</div>')
       + '<div class="arActs"><button class="linkbtn" type="button" data-arp="off">브라우저 에이전트 모드 끄기</button></div>';
@@ -31687,7 +31687,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v663';
+var APP_VER = 'v664';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
