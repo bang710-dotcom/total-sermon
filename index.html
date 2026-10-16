@@ -11474,6 +11474,32 @@ function cardMarksShift(marks, oldText, newText){
     m.line = Math.min(m.line, Math.max(p, bEnd - 1));
   });
 }
+/* 미리보기 종이의 아이콘(문단 왼쪽 여백, topMm = 문단 위에서 아이콘 위까지) — 종이 색이라 인라인 색 */
+function cardMarkBadgeHtml(m, topMm){
+  return '<span style="position:absolute;right:100%;margin-right:1mm;top:' + topMm.toFixed(2) + 'mm;height:5.2mm;display:inline-flex;align-items:center;gap:.4mm;padding:0 .75mm;' +
+    'border-radius:99px;background:#' + REF_RED + ';color:#fff;font:700 2.9mm/1 -apple-system,system-ui,sans-serif;text-indent:0;white-space:nowrap">' + uiIco(m.scr ? 'book' : 'image') + m.n + '</span>';
+}
+/* 내보낸 문서(HWPX·DOCX)에 넣는 아이콘 그림 — 높이 5.2mm(1mm = 20px), 작성창 아이콘과 같은 모양 */
+var _cdMkPng = {};
+function cardMarkPng(n, scr){
+  var key = (scr ? 's' : 'i') + n; if (_cdMkPng[key]) return _cdMkPng[key];
+  var k = 20, H = Math.round(5.2 * k), ic = 2.7 * k, pad = 0.75 * k, gap = 0.4 * k;
+  var font = '700 ' + (2.9 * k) + 'px -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif';
+  var cv = document.createElement('canvas'), g = cv.getContext('2d');
+  g.font = font;
+  var W = Math.ceil(pad * 2 + ic + gap + g.measureText(String(n)).width);
+  cv.width = W; cv.height = H; g = cv.getContext('2d');
+  g.fillStyle = '#' + REF_RED; g.beginPath();
+  g.arc(H / 2, H / 2, H / 2, Math.PI / 2, Math.PI * 1.5); g.arc(W - H / 2, H / 2, H / 2, -Math.PI / 2, Math.PI / 2); g.closePath(); g.fill();
+  g.save(); g.translate(pad, (H - ic) / 2); g.scale(ic / 24, ic / 24);
+  g.strokeStyle = '#fff'; g.lineWidth = 2.2; g.lineCap = 'round'; g.lineJoin = 'round';
+  (scr ? ['M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z', 'M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z']                 /* i-book */
+       : ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M10 8.5a1.5 1.5 0 1 1-3 0a1.5 1.5 0 1 1 3 0', 'M21 15l-5-5L5 21'])   /* i-image */
+    .forEach(function(d){ g.stroke(new Path2D(d)); });
+  g.restore();
+  g.fillStyle = '#fff'; g.font = font; g.textBaseline = 'middle'; g.fillText(String(n), pad + ic + gap, H / 2 + 2);
+  return (_cdMkPng[key] = { u: cv.toDataURL('image/png'), pw: W, ph: H });
+}
 function cardFirstLine(t){ return cardTrim(t).split('\n').filter(function(l){ return l.trim() && !cardIsBar(l); })[0] || ''; }
 function cardLineCounts(lines){   /* 문단(줄)마다 차지하는 줄 수 — 전환 줄은 여백 아이콘이라 0 */
   var px = 4, d = cardMeasurer(px), lh = CARD_GEO.line * px;
@@ -14965,7 +14991,8 @@ function hwpxTblId(){ return 1000000000 + Math.floor(Math.random() * 1000000000)
 /* ── 그림(hp:pic) — 한글이 직접 저장한 문서의 구조를 그대로 따른다(v588) ──
    크기 단위는 HWPUNIT(1/7200인치). 원본 크기(orgSz)는 픽셀×75(=96dpi), 표시 크기(curSz·sz)는 cw×ch.
    inline=true → 글자처럼 취급(문단 안 한 줄), false → 떠 있는 개체(글 앞으로·오른쪽 정렬).
-   head=true → 제목 문단 오른쪽 위에 떠 있는 표지(v652 — 목사님이 한글에서 옮겨 놓은 첨부본 값 그대로: 문단 기준·왼쪽에서 hOff). */
+   head=true → 제목 문단 오른쪽 위에 떠 있는 표지(v652 — 목사님이 한글에서 옮겨 놓은 첨부본 값 그대로: 문단 기준·왼쪽에서 hOff).
+   margin=true → 카드원고 전환 아이콘(v663): 종이 왼쪽 끝에서 hOff, 문단 위에서 vOff — 왼쪽 여백에 글 앞으로 떠 있어 줄을 차지하지 않는다. */
 function hwpxPicXml(o){
   var ow = Math.max(1, Math.round(o.pw * 75)), oh = Math.max(1, Math.round(o.ph * 75));
   var cw = Math.round(o.cw), ch = Math.round(o.ch);
@@ -14974,6 +15001,8 @@ function hwpxPicXml(o){
     ? '<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
     : o.head
     ? '<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="' + Math.round(o.hOff || 0) + '"/>'
+    : o.margin
+    ? '<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="0" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PAPER" vertAlign="TOP" horzAlign="LEFT" vertOffset="' + Math.round(o.vOff || 0) + '" horzOffset="' + Math.round(o.hOff || 0) + '"/>'
     : '<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="1" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="RIGHT" vertOffset="' + Math.round(o.vOff || 0) + '" horzOffset="0"/>';
   return '<hp:pic id="' + hwpxTblId() + '" zOrder="' + (o.inline || o.head ? 0 : 1) + '" numberingType="PICTURE" textWrap="' + (o.inline ? 'TOP_AND_BOTTOM' : 'IN_FRONT_OF_TEXT') + '" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="' + hwpxTblId() + '" reverse="0">'
     + '<hp:offset x="0" y="0"/><hp:orgSz width="' + ow + '" height="' + oh + '"/><hp:curSz width="' + cw + '" height="' + ch + '"/>'
@@ -14986,6 +15015,8 @@ function hwpxPicXml(o){
     + '<hp:sz width="' + cw + '" widthRelTo="ABSOLUTE" height="' + ch + '" heightRelTo="ABSOLUTE" protect="0"/>' + pos
     + '<hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>' + hwpxEsc(o.note || '그림') + '</hp:shapeComment></hp:pic>';
 }
+/* 카드원고 전환 아이콘(HWPUNIT) — card.hwpx 왼쪽 여백 2835(10mm) 안: 높이 5.2mm, 오른쪽 끝 = 글에서 1mm, 위 = 22pt 글자 높이 가운데 */
+var HWPX_MK = { h: 1474, right: 2835 - 283, top: Math.round((CARD_PT * 100 - 1474) / 2) };
 /* 전환 바 오른쪽 끝에 얹는 썸네일 폭 — 전환 표시 PDF 와 같은 본문 폭 21% */
 var HWPX_BAR_IMG_RATIO = 0.21;
 function hwpxBar(spec, text, img){
@@ -15053,7 +15084,11 @@ function hwpxBlocks(spec, blocks){
     }
     if (role === 'table' && spec.table) return hwpxTable(spec, b.rows || []);
     var r = roles[role] || roles.body || roles.normal || roles.line;
-    var inner;
+    var inner, pre = (b.mk || []).filter(function(m){ return m.bin; }).map(function(m, k){   /* v663 카드원고 전환 아이콘 */
+      var ch = HWPX_MK.h, cw = Math.round(ch * m.pw / m.ph);
+      return '<hp:run charPrIDRef="' + st[r.style] + '">' + hwpxPicXml({ bin: m.bin, pw: m.pw, ph: m.ph, cw: cw, ch: ch, margin: true,
+        hOff: HWPX_MK.right - cw, vOff: HWPX_MK.top + k * (ch + 230), note: (m.scr ? '본문 이미지 #' : '이미지 #') + m.n + ' 전환' }) + '</hp:run>';
+    }).join('');
     if (b.runs && b.runs.length){
       var tabR = hwpxWantsTab(r, b, b.runs.map(function(x){ return x[1]; }).join(''));
       inner = b.runs.map(function(x, i){ return hwpxRun(st[x[0]] != null ? st[x[0]] : st[r.style], x[1], tabR && i === 0); }).join('');
@@ -15062,7 +15097,7 @@ function hwpxBlocks(spec, blocks){
     } else {
       inner = '<hp:run charPrIDRef="' + st[r.style] + '"/>';   /* 빈 줄 — 들여쓰기 없음 */
     }
-    return hwpxP(r.para, inner);
+    return hwpxP(r.para, pre + inner);
   }
 }
 /* 첫 문단(제목줄·머리띠)의 빈 <hp:t></hp:t> 자리를 순서대로 채운다. null = 건너뜀(쪽번호 꼬리말 등) */
@@ -15093,6 +15128,18 @@ async function hwpxBuild(content){
     var ext = /png/i.test(mm[1]) ? 'png' : 'jpg';
     b.img.bin = 'image' + (bins.length + 1);
     bins.push({ id: b.img.bin, ext: ext, b64: mm[2] });
+  });
+  var mkBin = {};   /* v663 카드원고 전환 아이콘 */
+  (content.blocks || []).forEach(function(b){
+    (b && b.mk || []).forEach(function(m){
+      var key = (m.scr ? 's' : 'i') + m.n;
+      if (!mkBin[key]) {
+        var im = cardMarkPng(m.n, m.scr), mm = String(im.u).match(/^data:image\/png;base64,(.+)$/); if (!mm) return;
+        mkBin[key] = { bin: 'image' + (bins.length + 1), pw: im.pw, ph: im.ph };
+        bins.push({ id: mkBin[key].bin, ext: 'png', b64: mm[1] });
+      }
+      m.bin = mkBin[key].bin; m.pw = mkBin[key].pw; m.ph = mkBin[key].ph;
+    });
   });
   /* v652: head 그림(표지)은 제목 문단의 제목 글자 바로 앞(첫 <hp:t>)에 띄운다 — 오른쪽 끝·문단 위쪽 맞춤 */
   var hp = (content.blocks || []).filter(function(b){ return b && b.role === 'pic' && b.head && b.img && b.img.bin; })[0];
@@ -15146,7 +15193,11 @@ function isDocOut(name){ return /\.(docx|hwpx)$/i.test(String(name || '')); }
 
 /* ── DOCX 문단 모델({text,bold,color,size,bar}) → hwpx 블록 ── */
 function hwpxParasToBlocks(paras){
-  return (paras || []).map(function(p){ var b = hwpxParaBlock(p); if (p && p.brk) b.brk = true; return b; });   /* v635 쪽 나눔 */
+  return (paras || []).map(function(p){
+    var b = hwpxParaBlock(p); if (p && p.brk) b.brk = true;   /* v635 쪽 나눔 */
+    if (p && p.mk) b.mk = p.mk.map(function(m){ return { n: m.n, scr: m.scr }; });   /* v663 카드원고 전환 아이콘 */
+    return b;
+  });
 }
 function hwpxParaBlock(p){
   {
@@ -15450,6 +15501,17 @@ function buildDocxParas(D, paras, st){
         : [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
     };
     if (p.brk) opts.pageBreakBefore = true;   /* v635 카드원고: 카드 한 장 = 한 쪽 */
+    if (p.mk && p.mk.length && st.page) {   /* v663 카드원고 전환 아이콘 — 종이 왼쪽 여백에 글 앞으로 띄운 작은 그림(줄을 차지하지 않는다) */
+      var mmE = 36000, hMm = 5.2, topMm = ((p.size || st.size || 26) / 2 * 25.4 / 72 - hMm) / 2;
+      opts.children = p.mk.map(function(m, k){
+        var im = cardMarkPng(m.n, m.scr), wMm = hMm * im.pw / im.ph, bin = atob(String(im.u).split(',')[1] || ''), u8 = new Uint8Array(bin.length);
+        for (var q = 0; q < bin.length; q++) u8[q] = bin.charCodeAt(q);
+        return new D.ImageRun({ data: u8, transformation: { width: wMm * 96 / 25.4, height: hMm * 96 / 25.4 },
+          floating: { horizontalPosition: { relative: D.HorizontalPositionRelativeFrom.PAGE, offset: Math.round((st.page.l - 1 - wMm) * mmE) },
+                      verticalPosition: { relative: D.VerticalPositionRelativeFrom.PARAGRAPH, offset: Math.round((topMm + k * 5.8) * mmE) },
+                      allowOverlap: true, behindDocument: false, wrap: { type: D.TextWrappingType.NONE } } });
+      }).concat(opts.children);
+    }
     if (st.cards) opts.alignment = p.center ? D.AlignmentType.CENTER : D.AlignmentType.LEFT;
     if (p.just) { /* 완성 원고 본문: 양쪽 정렬 + 첫 줄 들여쓰기 2자 */
       opts.alignment = D.AlignmentType.JUSTIFIED;
@@ -19291,6 +19353,7 @@ var P_CARDDECK = [
   'blocks=호흡 단락: 서로 밀접한 1~3문장을 한 block에 모으고, 생각이 바뀌면 새 block으로 나눈다(block 사이에 빈 줄 간격이 생긴다). 긴 설명형 한 문장으로 합치지 말고 짧은 단문의 리듬을 유지한다 — 그게 강단에서 눈에 더 잘 들어온다.',
   '★분할(가장 중요): 표지=1장. 일반 이미지 전환마다 새 카드(첫 카드 bg=전환#N, 이어지는 카드 bg=계속). 성경 인용은 항상 단독 scripture 카드(bg=본문). 대지 선언은 단독 point 카드. body 카드는 한 의미 단위(호흡)를 담되, ★줄 수가 아래 "넘침 금지" 한도를 넘으면 "계속" 카드로 나눈다 — 호흡 중간이라도 나눠서 절대 카드 밖으로 넘치지 않게 한다(다만 1~2줄짜리 빈 카드는 만들지 마라). 전체 22~40장.',
   '입력에 "기존전환표"(배열 [{n,t,a}])가 있으면 그 번호·종류·순서를 그대로 따른다.',
+  '초고 안의 「▶ 이미지 #N 전환 ◀」·「▶ 본문 이미지 #N 전환 ◀」 줄은 그 자리에서 이미지 #N 으로 바뀐다는 표시다 — 그 줄 자체는 카드 글로 옮기지 말고, 바로 다음 글이 들어가는 카드의 bg(전환 #N / 본문)로만 쓴다.',
   '강조 매핑: 본문 핵심 어구·대지 리드=strong(남색). 핵심 결론/제목 키워드=green. 성경 장절 인라인 언급=strong.',
   '★ 글랜스 강조: 각 블록(단락)의 핵심 결론·함축 명제(펀치라인) 한 줄은 green(또는 strong)으로 굵게 처리해, 슬쩍 봐도 그 줄이 먼저 눈에 들어오게 한다. 설명 문장은 평범하게 두고 펀치라인만 강조한다(한 카드에 강조가 과하지 않게).',
   '★ 넘침 절대 금지(가장 중요): 글자가 카드 밖으로 잘리면 실패다. body 카드 본문은 약 8~9줄(블록 사이 빈 줄 포함) 이내. scripture 카드는 인용 박스(최대 4줄)+짧은 설명이 한 화면에 들어갈 때만 같이 두고, 넘치면 설명을 다음 "계속" 카드로 내린다. 한도를 넘으면 반드시 "계속" 카드로 나눈다.',
@@ -31086,6 +31149,11 @@ function paraPreviewHtml(meta, built){
     var inner = p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) */
       ? p.spans.map(function(x){ return x[1] ? '<b style="color:#' + REF_RED + '">' + esc(x[0]) + '</b>' : esc(x[0]); }).join('')
       : esc(t);
+    if (p.mk && p.mk.length) {   /* v663 카드원고 전환 아이콘 — 문단 첫 줄 왼쪽 여백(흐름 밖이라 줄바꿈·쪽수 그대로) */
+      var lhMm = (p.size ? p.size / 2 : baseSz) * lh * 25.4 / 72;
+      s += 'position:relative;';
+      inner = p.mk.map(function(m, k){ return cardMarkBadgeHtml(m, lhMm / 2 - 2.6 + k * 5.8); }).join('') + inner;
+    }
     h += '<div style="' + s + '">' + inner + '</div>';
   });
   return h + '</div>';
@@ -31141,12 +31209,13 @@ function openPreview(contentHtml, exportFn, pageMm){
   var pagesHtml = '';
   /* 쪽번호는 본문 흐름 밖(아래 여백 한가운데)에 절대배치 — 줄바꿈·페이지 수에 영향을 주지 않는다 */
   var noFs = 11, noBottom = Math.max(4, Math.round(g.pb / 2 - noFs / 2));
+  var mkE = Math.max(0, Math.min(g.pl, PV_COLGAP - 2));   /* v663 카드원고 전환 아이콘(왼쪽 여백)이 잘리지 않게 */
   for (var i = 0; i < n; i++) {
     pagesHtml += '<div class="pv-slide" style="position:relative"><div class="pv-pgwrap" style="position:absolute;left:0;top:0">' +
       '<div class="pv-page" style="width:' + g.W + 'px;height:' + g.H + 'px;' +
       'padding:' + g.pt + 'px ' + g.pr + 'px ' + g.pb + 'px ' + g.pl + 'px;transform-origin:0 0">' +
-      '<div style="width:' + g.CW + 'px;height:' + g.CH + 'px;overflow:hidden">' +
-      '<div style="' + flowCss + (i ? 'margin-left:-' + (i * (g.CW + PV_COLGAP)) + 'px' : '') + '">' + contentHtml + '</div>' +
+      '<div style="width:' + (g.CW + mkE) + 'px;height:' + g.CH + 'px;overflow:hidden;margin-left:-' + mkE + 'px">' +
+      '<div style="' + flowCss + 'margin-left:' + (mkE - i * (g.CW + PV_COLGAP)) + 'px">' + contentHtml + '</div>' +
       '</div>' +
       '<div class="pv-pgno" style="bottom:' + noBottom + 'px;font-size:' + noFs + 'px">' + (i + 1) + ' / ' + n + '</div>' +
       '</div></div></div>';
@@ -31395,7 +31464,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v662';
+var APP_VER = 'v663';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
