@@ -366,7 +366,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:var(--fs-body);padd
 .statusPill.wait{background:color-mix(in srgb,var(--req) 15%,transparent);border:1px solid color-mix(in srgb,var(--req) 55%,transparent);color:var(--req);animation:pillBlink 2s ease-in-out infinite}
 .statusPill .spin{margin-right:0;flex:0 0 auto}
 .statusPill .pin{flex:0 0 auto;font-size:var(--fs-body)}
-/* v657 Aside 진행·준비 표시 하나 — 사이드바(#arInd) · 모바일 헤더(#arIndM) · 집중 모드 구석(#arIndF), 내용은 arRender 가 같게 그린다 */
+/* v657 Aside 진행·준비 표시 하나 — 사이드바 맨 위·빠른 실행 아래(#arInd, 메뉴가 길어도 늘 보이게) · 모바일 헤더(#arIndM) · 집중 모드 구석(#arIndF), 내용은 arRender 가 같게 그린다 */
 .arInd{display:flex;flex-direction:column;gap:6px;margin:6px 8px 2px;padding:8px 11px;border-radius:var(--r-md);border:1px solid var(--line);font-size:var(--fs-sm);font-weight:700;line-height:1.35;word-break:keep-all;cursor:pointer}
 .arInd .arRow{display:flex;align-items:center;gap:7px;min-width:0}
 .arInd .arTx{min-width:0}
@@ -2129,6 +2129,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
   <aside class="sidebar">
     <div class="logo"><span class="logoTx">Total <span style="color:var(--accent2)">Sermons</span></span><button class="navRailBtn" id="navRailBtn" type="button" title="메뉴 접기·펴기" aria-label="메뉴 접기"><svg class=ico aria-hidden=true><use href=#i-sidebar></use></svg></button></div>
     <button class="navCmd" id="cmdOpenBtn" type="button" title="빠른 실행 — 화면·기능 이름으로 찾기 (⌘K)"><svg class=ico aria-hidden=true><use href=#i-search></use></svg><span class="navLbl">빠른 실행</span><kbd>⌘K</kbd></button>
+    <div class="arInd" id="arInd" hidden role="status" aria-live="polite"></div>
     <div class="navGrp">작성 · 구상</div>
     <button class="nav" data-page="compose" title="설교 작성">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span class="navLbl">설교 작성</span></button>
@@ -2166,7 +2167,6 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><span class="navLbl">인박스</span></button>
     <button class="nav" data-page="settings" title="설정">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="navLbl">설정</span></button>
-    <div class="arInd" id="arInd" hidden role="status" aria-live="polite"></div>
     <div class="statusPill" id="statusPill"><span class="spin" id="statusSpin"></span><span class="pin" id="statusPin" style="display:none"><svg class=ico data-c=r aria-hidden=true><use href=#i-hourglass></use></svg></span><span id="statusPillTxt"></span></div>
     <div class="foot">
       <button class="queueBadge" id="queueBadgeD" type="button" aria-label="전송 대기 항목 — 설정에서 동기화"></button>
@@ -31090,7 +31090,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v657';
+var APP_VER = 'v658';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
