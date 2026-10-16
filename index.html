@@ -11617,7 +11617,7 @@ var P_CARDDRAFT = [
 '★ 카드 = 가로 화면 한 장(내보내면 한 쪽, 큰 글씨). 한 카드는 12~16줄(빈 줄 포함)로 화면을 넉넉히 채우고 16줄을 넘기지 않는다. 한 줄은 30자 안팎(최대 34자, 띄어쓰기 포함). 한 줄 = 한 생각 — 글자 수가 아니라 의미가 끊기는 자리·강조·호흡에서 줄을 나눈다. 생각 덩어리 사이엔 빈 줄 하나.',
 '★ 카드 나누기: 흐름이 바뀌는 곳(새 예화·새 국면·인용 뒤 해석 전환)에서 새 카드를 시작한다. 한 카드에 한 흐름. 대지마다 새 카드에서 시작한다.',
 '★ 대지 명제·결론 머리("말씀을 정리합니다")는 앱이 각 범위 첫 카드 맨 위에 넣는다 — lines 에 쓰지 말 것.',
-'대지 구성: ① 선언 1~2줄(이 대지가 말하려는 바) ② 근거 — 핵심 본문 인용 한 줄(「약어 장:절, "절 전문"」, 개역개정) 또는 원고의 핵심 논지 2~4줄 ③ 예화가 있으면 「ex) 예화 제목」 한 줄 + 핵심 장면 2~4줄 ④ 적용 — "그래서 우리는 ~합시다" 식 1~2줄.',
+'대지 구성: ① 선언 1~2줄(이 대지가 말하려는 바) ② 근거 — 핵심 본문 인용(「약어 장:절, "절 전문"」, 개역개정 — 절을 줄이지 말고 전문 그대로. 길면 의미 단위로 행갈이해도 되고, 첫 줄은 「약어 장:절, "」로 시작·마지막 줄은 닫는 따옴표. 같은 절을 다시 풀어 쓰지 말 것) 또는 원고의 핵심 논지 2~4줄 ③ 예화가 있으면 「ex) 예화 제목」 한 줄 + 핵심 장면 2~4줄 ④ 적용 — "그래서 우리는 ~합시다" 식 1~2줄.',
 '서론: 도입 장면·문제 제기·본문 소개를 핵심만. 결론: 대지를 한 줄씩 되짚고 결단·권면으로 맺는다.',
 '정직: 원고에 없는 사실·인용·예화·숫자를 지어내지 않는다. 성경 인용은 원고에 나온 것 중 핵심만, 장:절은 원고 그대로. 호칭은 "여러분"만.',
 '강조할 한 문장은 줄 전체를 **…** 로 감싼다(굵게) — 카드마다 많아야 1~2줄.',
@@ -11657,18 +11657,78 @@ function cardCleanLine(l){
   if (/^\s*\(예화\)\s*/.test(l)) l = 'ex) ' + l.replace(/^\s*\(예화\)\s*/, '');
   return l;
 }
-async function cardExpandQuotes(cards){   /* 성경 인용 줄은 개역개정 절 전문으로 (카드원고 집필과 같은 규칙) */
+/* v665: 성경 인용이 여러 줄이면(강단용 행갈이 — 「수 10:6, "기브온 사람들이 … / … / 하매"」) 닫는 따옴표 줄까지 한 인용으로 본다.
+   예전엔 첫 줄만 전문으로 바꿔 나머지 줄이 그 아래 남았다 = 본문이 두 번 들어갔다(2026-10-16 제보). */
+function cardQuoteNorm(s){ return String(s || '').replace(/[\s"“”'‘’「」『』.,;:!?·…~\-–—()（）]/g, ''); }
+function cardQuoteInner(s){
+  s = String(s || ''); var a = s.search(/["“”]/); if (a < 0) return '';
+  var b = Math.max(s.lastIndexOf('"'), s.lastIndexOf('”'), s.lastIndexOf('“'));
+  return b > a ? s.slice(a + 1, b) : s.slice(a + 1);
+}
+function cardQuoteClosed(s){ s = String(s || ''); var a = s.search(/["“”]/); return a >= 0 && /["“”]/.test(s.slice(a + 1)); }
+/* 줄 k 에서 열린 인용이 끝나는 줄 — 닫는 따옴표가 있는 줄(빈 줄·머리 줄·전환 줄·다른 인용 전, 30줄 안). 못 찾으면 k */
+function cardQuoteEnd(L, k){
+  if (cardQuoteClosed(L[k])) return k;
+  for (var j = k + 1; j < L.length && j <= k + QUOTE_SPAN_MAX; j++){
+    var y = String(L[j] || '').trim();
+    if (quoteStopLine(y) || refQuoteRe().test(y)) return k;
+    if (/["”]/.test(y)) return j;
+  }
+  return k;
+}
+async function cardExpandQuotes(cards){   /* 성경 인용은 개역개정 절 전문으로 (카드원고 집필과 같은 규칙) */
   for (var i = 0; i < cards.length; i++){
-    var L = cards[i].split('\n'), ch = false;
+    var L = cards[i].split('\n'), out = [], ch = false;
     for (var k = 0; k < L.length; k++){
-      var x = L[k].trim(); if (!x || !refQuoteRe().test(x)) continue;
-      var it = [{ t: 'quote', x: toLeadRefQuote(x, true) }];
-      try { await expandCardQuotes(it); } catch (e) {}
-      if (it[0].x && it[0].x !== L[k]) { L[k] = it[0].x; ch = true; }
+      var x = L[k].trim();
+      if (!x || !refQuoteRe().test(x)) { out.push(L[k]); continue; }
+      var e = cardQuoteEnd(L, k), blk = L.slice(k, e + 1), conv = toLeadRefQuote(x, true), it = [{ t: 'quote', x: conv }];
+      try { await expandCardQuotes(it); } catch (er) {}
+      var full = it[0].x;
+      if (!full || full === conv) { out.push(conv); out.push.apply(out, blk.slice(1)); if (conv !== L[k]) ch = true; }   /* 전문을 못 찾음 — 그대로 */
+      else if (e > k && cardQuoteNorm(cardQuoteInner(blk.join(' '))) === cardQuoteNorm(cardQuoteInner(full))) out.push.apply(out, blk);   /* 이미 전문(행갈이만) — AI 줄나눔 유지 */
+      else { out.push(full); ch = true; }   /* 일부만 옮겨 적음 — 묶음 전체를 전문 한 줄로 */
+      k = e;
     }
-    if (ch) cards[i] = L.join('\n');
+    if (ch) cards[i] = out.join('\n');
   }
   return cards;
+}
+/* v665: 이미 생긴 중복(v664 이전 초안) — 전문 인용 줄 바로 아래에 같은 본문의 뒷부분이 행갈이로 한 번 더 있다 → 그 아래 줄들을 뺀다.
+   닫는 따옴표로 끝나는 줄까지의 글이 위 인용의 끝부분과 글자 그대로(띄어쓰기·문장부호 무시) 같을 때만. */
+function cardDupQuoteFix(t){
+  var L = String(t == null ? '' : t).split('\n'), out = [], n = 0;
+  for (var k = 0; k < L.length; k++){
+    out.push(L[k]);
+    var x = L[k].trim();
+    if (!x || !refQuoteRe().test(x) || !cardQuoteClosed(x)) continue;
+    var inner = cardQuoteNorm(cardQuoteInner(x)), tail = '';
+    if (inner.length < 8) continue;
+    for (var j = k + 1; j < L.length && j <= k + QUOTE_SPAN_MAX; j++){
+      var y = L[j].trim();
+      if (quoteStopLine(y) || refQuoteRe().test(y) || cardIsBar(y)) break;
+      tail += cardQuoteNorm(y);
+      if (!tail || inner.indexOf(tail) < 0) break;
+      if (/["”]\s*$/.test(y) && tail.length >= 8 && inner.slice(-tail.length) === tail) { n++; k = j; break; }
+    }
+  }
+  return { text: out.join('\n'), n: n };
+}
+var _cdDupSeen = typeof WeakSet === 'function' ? new WeakSet() : null;
+function cardDupOffer(){
+  var c = state.compose;
+  if (!c || c.style !== '카드원고' || !Array.isArray(c.cards) || !_cdDupSeen || _cdDupSeen.has(c)) return;
+  _cdDupSeen.add(c);
+  var R = c.cards.map(cardDupQuoteFix), n = R.reduce(function(a, r){ return a + r.n; }, 0);
+  if (!n) return;
+  uiConfirm('카드원고에 성경 본문이 두 번 들어간 곳이 ' + n + '곳 있습니다\n(성경 인용 줄 아래에 같은 본문이 행갈이로 한 번 더 — 예전 AI 초안의 오류).\n\n아래쪽 겹친 줄을 지울까요? 지우기 전 카드원고는 [이전 버전]에 남습니다.', { okText: '겹친 줄 지우기' }).then(function(ok){
+    if (!ok || state.compose !== c) return;
+    try { histSnap('카드원고 성경 본문 중복 정리 전'); } catch (e) {}
+    c.cards = R.map(function(r){ return r.text; });
+    if (c.style === '카드원고') cardRerender(-1);
+    try { saveComposeDraftSoon(); } catch (e) {}
+    toast('성경 본문 중복 ' + n + '곳을 정리했습니다 — [저장]하면 시트에도 반영됩니다.');
+  });
 }
 async function cardDraftAI(meta, S, text, scope, firstIsDocStart){
   var out = await callClaude(P_CARDDRAFT, JSON.stringify(cardDraftInput(meta, S, text, scope)), scope === 'all' ? 32000 : 16000, aiTick('카드원고'));
@@ -13063,7 +13123,7 @@ function renderEditor(){
   }
   $('#editorPane').innerHTML = html;
   updateAutoBits();
-  if (c.style === '카드원고') { _cdFill = []; cardEdLayout(); requestAnimationFrame(cardEdLayout); }
+  if (c.style === '카드원고') { _cdFill = []; cardEdLayout(); requestAnimationFrame(cardEdLayout); setTimeout(cardDupOffer, 500); }   /* v665 옛 초안의 인용 중복 */
 }
 /* 자동 반영부만 갱신 (작성 중 포커스 유지) */
 function updateAutoBits(){
@@ -31689,7 +31749,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v664';
+var APP_VER = 'v665';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
