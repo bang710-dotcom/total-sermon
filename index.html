@@ -11636,6 +11636,67 @@ async function cardDraftAI(meta, S, text, scope, firstIsDocStart){
   await cardExpandQuotes(cards);
   return cardFit(cards, !!firstIsDocStart, cardTitleNow(meta));
 }
+/* ── 이미지 전환 자리 찾기 (v663) — 전환표의 원고 문장 ↔ 카드원고 줄. 글은 그대로 두고 「▶ 이미지 #N 전환 ◀」 줄만 끼운다 ── */
+var P_CARDMARKS = [
+'당신은 설교 카드원고 편집 비서다. 설교 원고에는 배경 이미지가 바뀌는 자리(전환 #번호)가 정해져 있고, 카드원고는 그 원고를 추려 쓴 강단용 글이다.',
+'입력: 「전환」 = [{n, 종류, 원고 문장}] — 원고에서 그 이미지로 바뀌는 문장. 「카드원고」 = 카드마다 「줄번호| 글」 목록. 「(이미 있음 #N)」 줄은 이미 놓인 전환 표시다(순서 참고만).',
+'할 일: 전환마다, 카드원고에서 그 원고 문장의 내용이 시작되는 줄을 찾는다. 그 줄 앞에서 이미지가 바뀐다.',
+'규칙: ① 원고 순서를 지킨다 — 번호가 큰 전환이 작은 전환보다 앞 줄에 오지 않는다(같은 줄은 된다). ② 종류가 「본문」이면 그 성경 인용 줄. ③ 원고 문장이 예화를 시작하면 「ex) …」 줄, 대지 머리면 「N. …」 줄. ④ 그 내용이 카드원고에서 빠졌으면 바로 뒤 내용이 시작되는 줄. ⑤ 입력의 전환마다 정확히 한 번.',
+'출력은 JSON 만: {"marks":[{"n":2,"card":1,"line":3}, …]} — card·line 은 입력의 번호 그대로.'
+].join('\n');
+/* 이 설교의 전환표 → [{n, scr, text: 지금 원고에서 그 전환이 걸린 문장}] (전환표가 없으면 null) */
+function cardTransRows(meta, id){
+  var table = id ? sermonTrans(id) : null;
+  if (!table || !table.length) return null;
+  table = normalizeTransTable(table);
+  var txt = String((meta && meta['원고텍스트']) || ''), m = txt.trim() ? retransMatch(table, txt) : null;
+  return table.map(function(r, k){
+    var row = m && m.rows[k], at = row && row.i >= 0 ? String(m.lines[row.i] || '').trim() : '';
+    return { n: r.n, scr: r.t === '본문', text: (at || String(r.a || '')).slice(0, 200) };
+  });
+}
+/* all = 있던 표시를 지우고 모두 다시, 아니면 카드원고에 없는 번호만. 돌려주는 값 { cards, placed, guessed } */
+async function cardMarksPlace(cards, rows, all){
+  var A = (cards || []).map(cardMarksSplit), pos = {};
+  if (all) A.forEach(function(x){ x.marks = []; });
+  A.forEach(function(x, ci){ x.marks.forEach(function(m){ pos[cardMarkInfo(m.raw).n] = { ci: ci, line: m.line }; }); });
+  var need = rows.filter(function(r){ return !pos[r.n]; });
+  if (!need.length) return { cards: cards, placed: 0, guessed: 0 };
+  var inpCards = A.map(function(x, ci){
+    var out = [], no = 0; x.map = {};
+    x.text.split('\n').forEach(function(l, li){
+      x.marks.forEach(function(m){ if (m.line === li) out.push('(이미 있음 #' + cardMarkInfo(m.raw).n + ')'); });
+      if (!l.trim()) return;
+      no++; x.map[no] = li; out.push(no + '| ' + l);
+    });
+    return { '카드': ci + 1, '줄': out };
+  });
+  var inp = { '전환': need.map(function(r){ return { n: r.n, '종류': r.scr ? '본문(성경 인용)' : '일반', '원고 문장': r.text }; }), '카드원고': inpCards };
+  var out = await callClaude(P_CARDMARKS, JSON.stringify(inp), 8000, aiTick('카드원고 전환 시점'), 'cardtrans');
+  var j = aiJson(out), arr = j && (Array.isArray(j) ? j : j.marks);
+  if (!Array.isArray(arr)) throw new Error('AI 응답 형식 오류');
+  var want = {}; need.forEach(function(r){ want[r.n] = 1; });
+  arr.forEach(function(x){
+    var n = +(x && x.n), ci = +(x && x.card) - 1, li = A[ci] && A[ci].map[+(x && x.line)];
+    if (want[n] && !pos[n] && li != null) pos[n] = { ci: ci, line: li };
+  });
+  var placed = 0, guessed = 0, prev = { ci: 0, line: 0 };
+  rows.forEach(function(r){   /* 자리를 못 받은 번호는 앞 전환과 같은 자리에 둔다(아이콘을 눌러 옮길 수 있게) */
+    if (pos[r.n]) { prev = pos[r.n]; if (want[r.n]) { placed++; A[prev.ci].marks.push({ line: prev.line, raw: cardMarkLine(r.n, r.scr) }); } return; }
+    guessed++; pos[r.n] = prev; A[prev.ci] && A[prev.ci].marks.push({ line: prev.line, raw: cardMarkLine(r.n, r.scr) });
+  });
+  return { cards: A.map(function(x){ x.marks.sort(function(a, b){ return a.line - b.line; }); return cardMarksJoin(x.text, x.marks); }), placed: placed, guessed: guessed };
+}
+/* AI 초안 직후 — 전환표가 있으면 표시를 함께 넣는다. 실패해도 초안은 그대로 쓴다 */
+async function cardMarksAuto(cards, meta, id, all){
+  var rows = cardTransRows(meta, id);
+  if (!rows || !Array.isArray(cards) || !cards.length) return cards;
+  try {
+    var r = await cardMarksPlace(cards, rows, all);
+    if (r.placed + r.guessed) toast('이미지 전환 ' + (r.placed + r.guessed) + '곳을 카드원고 왼쪽 여백에 표시했습니다' + (r.guessed ? ' (자리를 못 찾은 ' + r.guessed + '곳은 앞 전환 옆에 — 아이콘을 눌러 옮기세요)' : '') + '.');
+    return r.cards;
+  } catch (e) { toast('이미지 전환 표시를 넣지 못했습니다: ' + (e.message || e) + ' — 카드원고의 [전환 시점 넣기]로 다시 시도하세요.'); return cards; }
+}
 function cardMetaNow(){ var m = {}; try { Object.keys(C_META).forEach(function(k){ var el = $('#' + C_META[k]); m[k] = el ? String(el.value || '').trim() : ''; }); } catch (e) {} return m; }
 function cardTitleNow(meta){ return msTitleLine(meta || cardMetaNow(), '카드원고'); }
 
@@ -11880,6 +11941,7 @@ async function cardEnter(){
         var meta = collectCompose();
         c.cards = await cardDraftAI(meta, cardStructOf(c, meta['원고텍스트']), meta['원고텍스트'], 'all', true);
         toast('원고를 추려 카드원고 초안을 만들었습니다 — ' + c.cards.length + '장. 다듬은 뒤 [저장]하세요(원고와 따로 저장됩니다).');
+        c.cards = await cardMarksAuto(c.cards, meta, state.editing || '', true);
       } catch (e) { toast('카드원고 초안을 만들지 못했습니다: ' + (e.message || e) + ' — 빈 카드에서 시작하거나 [AI 초안 다시 만들기]를 누르세요.'); }
     } else if (base.trim()) toast('Claude API 키가 없어 빈 카드원고로 시작합니다 — 설정에 키를 넣으면 [AI 초안 다시 만들기]를 쓸 수 있습니다.');
   }
@@ -11902,6 +11964,8 @@ async function cardRedraft(){
   catch (e) { toast('카드원고 초안 실패: ' + (e.message || e)); return; }
   cardRerender(0, 0);
   toast('카드원고 초안을 만들었습니다 — ' + c.cards.length + '장. 다듬은 뒤 [저장]하세요.');
+  c.cards = await cardMarksAuto(c.cards, meta, state.editing || '', true);
+  cardRerender(-1);
   try { saveComposeDraftSoon(); } catch (e) {}
 }
 /* 기본원고의 서론·대지·결론 머리 옆 버튼 — 카드원고의 그 범위만 새로 만들거나 다시 만든다 */
@@ -11918,13 +11982,87 @@ async function cardDraftSection(sec, btn){
     if (had) { try { await histSnap('카드원고 ' + cardSecName(sec) + ' 다시 만들기 전'); } catch (e) {} }
     var fresh = await cardDraftAI(meta, cardStructOf(c, meta['원고텍스트']), meta['원고텍스트'], sec, at0 === 0);
     var r = cardReplaceSec(Array.isArray(c.cards) ? c.cards : [], sec, fresh);
-    c.cards = r.cards;
+    c.cards = await cardMarksAuto(r.cards, meta, state.editing || '', false);   /* 바뀐 범위의 전환(카드원고에 없어진 번호)만 다시 찾는다 */
     if (c.style === '카드원고') cardRerender(r.at, 0); else cardNavRender();
     toast('카드원고 「' + cardSecName(sec) + '」 ' + (had ? '카드를 다시 만들었습니다' : '카드를 추가했습니다') + ' — ' + fresh.length + '장 (전체 ' + c.cards.length + '장). 위 [카드원고]에서 확인하세요.');
     try { saveComposeDraftSoon(); } catch (e) {}
   }
   try { if (btn) await withBusy(btn, ' 만드는 중…', run)(); else await run(); }
   catch (e) { toast('카드원고 만들기 실패: ' + (e.message || e)); }
+}
+/* ── 전환 아이콘 다루기 (v663) — 누르면 [↑ ↓ 지우기] 작은 창 ── */
+function cardMkPopClose(){
+  var p = document.querySelector('#cdWrap .cdMkPop'); if (p) p.remove();
+  Array.prototype.forEach.call(document.querySelectorAll('#cdWrap .cdMk.on'), function(b){ b.classList.remove('on'); });
+}
+function cardMkPopOpen(ci, mi){
+  cardMkPopClose();
+  var el = document.querySelector('#cdWrap .cdCard[data-ci="' + ci + '"]'), ta = el && el.querySelector('.cdTa'), pg = el && el.querySelector('.cdPage');
+  var b = el && el.querySelector('.cdMk[data-mi="' + mi + '"]'), m = ta && cardTaMarks(ta).marks[mi];
+  if (!b || !pg || !m) return;
+  var x = cardMarkInfo(m.raw), pop = document.createElement('div');
+  function bt(op, label, tip){ return '<button type="button" class="cdTb" data-cdmk="' + op + '" data-ci="' + ci + '" data-mi="' + mi + '" title="' + tip + '">' + label + '</button>'; }
+  b.classList.add('on');
+  pop.className = 'cdMkPop'; pop.style.top = b.style.top;
+  pop.innerHTML = '<b>' + (x.scr ? '본문 이미지 #' : '이미지 #') + x.n + ' 전환</b>' + bt('up', '↑', '한 줄 위로') + bt('down', '↓', '한 줄 아래로') + bt('del', uiIco('trash'), '이 전환 표시 지우기');
+  pg.appendChild(pop);
+}
+/* ↑·↓ = 빈 줄을 건너 한 줄씩(카드 처음·끝을 넘으면 앞·뒤 카드로), del = 지우기 */
+function cardMarkAct(ci, mi, op){
+  var c = state.compose, A = c.cards; if (!Array.isArray(A) || A[ci] == null) return;
+  var sp = cardMarksSplit(A[ci]), m = sp.marks.splice(mi, 1)[0]; if (!m) return;
+  var tj = ci;
+  if (op === 'up' || op === 'down') {
+    var d = op === 'up' ? -1 : 1, L = sp.text.split('\n'), k = m.line + d;
+    while (k >= 0 && k < L.length && !L[k].trim()) k += d;
+    if (k >= 0 && k < L.length) { m.line = k; sp.marks.push(m); }
+    else {
+      tj = ci + d;
+      if (tj < 0 || tj >= A.length) { toast(d < 0 ? '첫 카드의 첫 줄입니다.' : '마지막 카드의 끝 줄입니다.'); return; }
+      var sq = cardMarksSplit(A[tj]), Lq = sq.text.split('\n'), q = d < 0 ? Lq.length - 1 : 0;
+      while (q >= 0 && q < Lq.length && !Lq[q].trim()) q -= d;
+      m.line = Math.max(0, Math.min(q, Lq.length - 1)); sq.marks.push(m);
+      sq.marks.sort(function(a, b){ return a.line - b.line; });
+      A[tj] = cardMarksJoin(sq.text, sq.marks);
+    }
+  } else if (op !== 'del') return;
+  sp.marks.sort(function(a, b){ return a.line - b.line; });
+  A[ci] = cardMarksJoin(sp.text, sp.marks);
+  cardRerender(-1);
+  try { saveComposeDraftSoon(); } catch (e) {}
+  if (op === 'del') return;
+  var nm = cardMarksSplit(A[tj]).marks, ni = -1;
+  nm.forEach(function(x, k){ if (ni < 0 && x.raw === m.raw && x.line === m.line) ni = k; });
+  if (ni < 0) return;
+  cardMkPopOpen(tj, ni);
+  var card = document.querySelector('#cdWrap .cdCard[data-ci="' + tj + '"]');
+  if (tj !== ci && card) { try { card.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+}
+/* 카드원고 도구줄 [전환 시점 넣기] */
+async function cardMarksBtn(btn){
+  var c = state.compose, id = state.editing || '';
+  if (!aiKey()) { toast('설정에 Claude API 키를 넣어 주세요.'); return; }
+  var meta = collectCompose(), rows = cardTransRows(meta, id);
+  if (!rows) { toast('이 설교에는 아직 이미지 전환표가 없습니다 — [산출물] 탭의 [이미지 전환표 생성/수정]에서 먼저 만들어 주세요.'); return; }
+  var cards = Array.isArray(c.cards) ? c.cards : [];
+  if (!cards.some(function(t){ return cardMarksSplit(t).text.trim(); })) { toast('카드원고가 비어 있습니다.'); return; }
+  var has = cards.reduce(function(n, t){ return n + cardMarksSplit(t).marks.length; }, 0), all = true;
+  if (has) {
+    var k = await uiChoose('카드원고에 이미 전환 표시가 ' + has + '개 있습니다(전환표 ' + rows.length + '개).',
+      { okText: '모두 다시 찾기', extraText: '빠진 번호만 넣기', cancelText: '취소' });
+    if (k === 'extra') all = false; else if (k !== 'ok') return;
+  }
+  try {
+    await withBusy(btn, ' 찾는 중…', async function(){
+      var r = await cardMarksPlace(cards, rows, all);
+      if (!(r.placed + r.guessed)) { toast('빠진 전환 번호가 없습니다.'); return; }
+      try { await histSnap('카드원고 전환 시점 넣기 전'); } catch (e) {}
+      c.cards = r.cards;
+      cardRerender(-1);
+      try { saveComposeDraftSoon(); } catch (e) {}
+      toast('이미지 전환 ' + (r.placed + r.guessed) + '곳을 왼쪽 여백에 표시했습니다' + (r.guessed ? ' — 자리를 못 찾은 ' + r.guessed + '곳은 앞 전환 옆에 두었습니다(아이콘을 눌러 옮기세요)' : '') + '. [저장]하면 카드원고와 함께 저장됩니다.');
+    })();
+  } catch (e) { toast('전환 시점 넣기 실패: ' + (e.message || e)); }
 }
 /* 왼쪽 [구조] 탭 — 카드원고를 보는 동안은 카드 목록 */
 function cardNavRender(){
@@ -11966,11 +12104,21 @@ var cardNavSoon = debounce(cardNavRender, 250);
     if (e.key === 'Backspace' && i > 0 && ta.selectionStart === 0 && ta.selectionEnd === 0 && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); cardOp('merge', i); }
   });
   pane.addEventListener('click', function(e){
+    var mkb = e.target.closest && e.target.closest('.cdMk, [data-cdmk]');   /* v663 전환 아이콘 · 옮기기/지우기 */
+    if (mkb && pane.contains(mkb)) {
+      e.preventDefault();
+      if (mkb.dataset.cdmk) cardMarkAct(+mkb.dataset.ci, +mkb.dataset.mi, mkb.dataset.cdmk);
+      else if (mkb.classList.contains('on')) cardMkPopClose();
+      else cardMkPopOpen(+mkb.dataset.ci, +mkb.dataset.mi);
+      return;
+    }
+    if (!(e.target.closest && e.target.closest('.cdMkPop'))) cardMkPopClose();
     var b = e.target.closest && e.target.closest('[data-cd]');
     if (b && pane.contains(b)) {
       e.preventDefault();
       var op = b.dataset.cd, i = +b.dataset.ci;
       if (op === 'redraft') { cardRedraft(); return; }
+      if (op === 'marks') { cardMarksBtn(b); return; }
       if (op === 'split') {
         var ta = pane.querySelector('.cdTa[data-ci="' + i + '"]');
         if (!ta || _cdLastCi !== i) { toast('나눌 위치에 커서를 둔 뒤 누르세요 (⌘↩ 로도 나눕니다).'); return; }
@@ -15371,8 +15519,13 @@ function parasFromText(meta, bodyText, style, opts){
   function trailBlanks(){ var n = 0; for (var i = paras.length - 1; i >= 0 && String(paras[i].text || '').trim() === ''; i--) n++; return n; }
   function ensureBlanks(n){ while (trailBlanks() < n) paras.push({ text: '' }); }
   var inConc = false, headNo = 0, refTrk = refQuoteTracker();
-  function put(p){ if (brkNext) { p.brk = true; brkNext = false; } paras.push(p); }
-  (cards ? String(bodyText == null ? '' : bodyText) : stripTrailMsg(bodyText, meta && meta['핵심메시지'])).split('\n').forEach(function(line, li, LL){   /* v613: 옛 자동 핵심메시지 끝 줄 제외(원고만) */
+  var src = (cards ? String(bodyText == null ? '' : bodyText) : stripTrailMsg(bodyText, meta && meta['핵심메시지'])).split('\n');   /* v613: 옛 자동 핵심메시지 끝 줄 제외(원고만) */
+  /* v663: 카드원고 문서의 전환 줄(▶ … ◀)은 띠가 아니라 다음 문단 왼쪽 여백의 작은 아이콘(p.mk) — 줄을 차지하지 않고, 여러 줄 인용 판별에도 끼지 않게 미리 뺀다 */
+  var mkAt = {}, pendMk = [];
+  if (cards) { var keep = []; src.forEach(function(l){ if (cardIsBar(l)) (mkAt[keep.length] = mkAt[keep.length] || []).push(cardMarkInfo(l)); else keep.push(l); }); src = keep; }
+  function put(p){ if (brkNext) { p.brk = true; brkNext = false; } if (pendMk.length) { p.mk = pendMk; pendMk = []; } paras.push(p); }
+  src.forEach(function(line, li, LL){
+    if (mkAt[li]) pendMk = pendMk.concat(mkAt[li]);
     var l = line.trim();
     if (CARD_MARK_RE.test(l)) {   /* (카드) 나눔 줄 — 찍지 않는다. 카드원고 문서에서는 다음 문단이 새 쪽에서 시작 */
       refTrk('');
@@ -16947,6 +17100,7 @@ var AI_FEATURES = [
   { k: 'transdoc', label: '전환표시본',       def: 'auto:sonnet',      effort: 'high', desc: '원고에 이미지 전환 바 끼워 넣기(원고 전문을 그대로 옮겨 씀)' },
   { k: 'devoplan', label: '묵상 본문 배분',   def: 'auto:sonnet',      effort: 'high', desc: '시리즈 묵상집의 날짜별 본문 나누기' },
   { k: 'ocr',      label: '원고·교재 읽기',   def: 'auto:sonnet',      effort: 'high', desc: '구역권찰 — 설교·교재 이미지와 스캔 PDF 옮겨 적기' },
+  { k: 'cardtrans', label: '카드원고 전환 시점', def: 'auto:sonnet', effort: 'medium', desc: '카드원고에 이미지 전환 아이콘 자리 찾기(전환표의 원고 문장 ↔ 카드원고 줄, 글은 바꾸지 않음)' },
   { k: 'imgprompt', label: '이미지 프롬프트 다시 쓰기', def: 'auto:sonnet', effort: '', desc: '이미지 낱장 재생성 창 — 한국어 설명을 반영해 영문 장면 프롬프트를 다시 쓰기' },
   { k: 'illocr',   label: '예화 이미지 인식', def: 'auto:haiku',       effort: '',     desc: '예화 사진·캡처 글 옮겨 적기(인식 뒤 다듬기는 「기본 생성」 모델)' }
 ];
@@ -19097,6 +19251,7 @@ async function aiCardScript(id, meta){
       toast('카드원고가 아직 없어 원고를 추린 초안을 만듭니다 — 1~3분 걸릴 수 있습니다');
       var mine = id ? String(state.editing || '') === String(id) : !state.editing;
       var cards = await cardDraftAI(meta, cardStructOf(mine ? state.compose : null, meta['원고텍스트']), meta['원고텍스트'], 'all', true);
+      cards = await cardMarksAuto(cards, meta, id, true);
       doc = cardsJoin(cards);
       cardDocPersist(id, doc);
     }
