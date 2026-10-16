@@ -11828,7 +11828,9 @@ function hwpxCardDoc(paras){
   var title = ps.length ? String(ps.shift().text || '') : '';
   var h = Math.round(CARD_PT * 100), ch = {};
   [0, 10, 11, 12, 16].forEach(function(id){ ch[id] = h; });   /* 본문·굵게·제목·빨강·파랑 (card.hwpx 의 charPr — 원래 13pt·제목 18pt) */
-  return { type: 'card', slots: [null, title], blocks: hwpxParasToBlocks(ps), charHeights: ch };
+  /* v666: card.hwpx 는 「MS 워드 호환 문서」라 한글이 줄간격 130% 를 글꼴 높이(함초롬바탕 약 1.65배)에 다시 곱해
+     한 쪽에 10줄만 들어갔다(작성창·미리보기 18줄 → 45쪽). 이 문서만 한글 기본 배치로 바꾼다 = 줄 높이 22pt×130% */
+  return { type: 'card', slots: [null, title], blocks: hwpxParasToBlocks(ps), charHeights: ch, compat: 'HWP201X' };
 }
 async function cardDocBlob(meta, text){
   var built = parasFromText(meta, text, '카드원고', { cards: true });
@@ -15248,11 +15250,14 @@ async function hwpxBuild(content){
   sec = sec.replace('</hs:sec>', hwpxBlocks(spec, content.blocks) + '</hs:sec>');
   /* v636: content.charHeights = {charPr id: HWPUNIT 높이} — 서식 파일은 그대로 두고 이 문서의 글자 크기만 바꾼다(카드원고 문서 22pt) */
   var hdrName = 'Contents/header.xml', hdr = null;
-  if (content.charHeights && zip.file(hdrName)){
+  if ((content.charHeights || content.compat) && zip.file(hdrName)){
     hdr = await zip.file(hdrName).async('string');
-    Object.keys(content.charHeights).forEach(function(id){
+    Object.keys(content.charHeights || {}).forEach(function(id){
       hdr = hdr.replace(new RegExp('(<hh:charPr id="' + id + '" height=")\\d+"'), '$1' + content.charHeights[id] + '"');
     });
+    /* v666: content.compat = 'HWP201X' — 서식 파일의 호환 문서 설정(MS_WORD 등)을 한글 기본 배치로(카드원고 문서) */
+    if (content.compat) hdr = hdr.replace(/<hh:compatibleDocument\b[^>]*?(?:\/>|>[\s\S]*?<\/hh:compatibleDocument>)/,
+      '<hh:compatibleDocument targetProgram="' + content.compat + '"><hh:layoutCompatibility/></hh:compatibleDocument>');
   }
   var hpfName = 'Contents/content.hpf', hpf = null;
   if (bins.length && zip.file(hpfName)){
