@@ -17495,11 +17495,40 @@ function asideRelayPoll(){
   asideRelayReq('/health', null, 3000).then(function(h){
     var s = h.busy ? (h.stale ? 'stale' : 'busy') : (h.browser === false ? 'link' : (h.ready ? 'ready' : 'warming'));
     _arSet(s, h);
-  }, function(){ _arSet('down', null); }).then(function(){
+    arSentCheck(h);
+  }, function(){ _arSet('down', null); arSentCheck(null); }).then(function(){
     if (_arPollT || !asideRelayActive()) return;
-    var s = _arState.s;
-    _arPollT = setTimeout(asideRelayPoll, s === 'ready' ? 20000 : (s === 'down' ? 15000 : 2500));
+    var s = _arState.s, sent = !!_bridgePend && _arPhase === 'sent';   /* 맡긴 요청이 있으면 「준비됨」이어도 자주 묻는다(arSentCheck) */
+    _arPollT = setTimeout(asideRelayPoll, s === 'ready' && !sent ? 20000 : (s === 'down' ? 15000 : 2500));
   });
+}
+/* v662: 「Aside 처리 중」인데 중계기가 그 요청을 처리하고 있지 않다 — Aside 재시작으로 미리 만든 임시 대화가 사라졌거나
+   (「Session not found」 — 2026-10-16 사고: 아무것도 처리되지 않은 채 표시만 9분 넘게 「처리 중」) Aside 가 요청을 끝내지 못한 채 차례를 마쳤다.
+   중계기 v2.2 의 trig(마지막 요청 결과)가 failed 면 바로, 그 밖에는 중계기가 8초 넘게 쉬고 있으면(옛 중계기·응답 없음 포함)
+   한 번 다시 맡기고, 그래도 안 되면 직접 입력 안내로 바꾼다. 결과가 이미 왔으면(_bridgePend 없음) 아무것도 안 한다. */
+var AR_IDLE_GRACE = 8000;
+function arSentCheck(h){
+  var p = _bridgePend;
+  if (!p || _arPhase !== 'sent') return;
+  var tr = h && h.trig && p.trig != null && h.trig.n === p.trig ? h.trig : null;
+  var failed = !!(tr && tr.state === 'failed');
+  if (!failed){
+    if (tr ? tr.state === 'running' : (h && h.busy)) { p.idleAt = 0; return; }
+    if (!p.idleAt) { p.idleAt = Date.now(); return; }
+    if (Date.now() - p.idleAt < AR_IDLE_GRACE) return;
+  }
+  p.idleAt = 0;
+  var why = failed ? 'Aside 대화 오류' + (tr.error ? ': ' + String(tr.error).replace(/^[•\s]+/, '').slice(0, 60) : '')
+    : (h ? 'Aside 가 요청을 끝내지 못함' : '중계기 응답 없음');
+  console.warn('[Aside 자동 처리] 맡긴 요청이 처리되지 않음 —', why);
+  if ((p.kicks || 0) < 2){
+    toast('Aside 가 요청을 처리하지 못해(' + why + ') 다시 맡깁니다');
+    _arPhase = 'wait'; arRender();
+    asideRelayKick(p.label);
+  } else {
+    _arPhase = 'manual'; arRender();
+    toast('Aside 자동 처리가 되지 않습니다(' + why + ') — Aside 대화창에 「요청처리」라고 입력해 주세요');
+  }
 }
 /* 시작·켜기: 중계기에 다음 임시 대화를 미리 만들어 두라고 하고 상태 묻기를 시작한다(조건이 안 맞으면 칩만 정리). */
 function asideRelayStart(){
@@ -17518,7 +17547,10 @@ function asideRelayKick(label){
   };
   if (_arState.s === 'link') { fallback('Aside 브라우저 연결 끊김 — 사이드바의 [Aside 다시 시작]을 누르세요'); return; }
   asideRelayReq('/trigger', { mode: 'light', reason: String(label || '').slice(0, 40) }, 25000).then(function(j){
-    if (j && j.ok && (j.sent || j.dry)) { setPh('sent'); _arSet('busy', _arState.h); setTimeout(asideRelayPoll, 1500); }
+    if (j && j.ok && (j.sent || j.dry)) {
+      if (_bridgePend) { _bridgePend.kicks = (_bridgePend.kicks || 0) + 1; _bridgePend.trig = j.n != null ? j.n : null; _bridgePend.idleAt = 0; }   /* v662 arSentCheck */
+      setPh('sent'); _arSet('busy', _arState.h); setTimeout(asideRelayPoll, 1500);
+    }
     else if (j && j.ok && j.busy) { setPh('queued'); asideRelayWatch(); }
     else if (!(j && j.ok && j.dup)) throw new Error((j && j.error) || '응답 없음');
   }).catch(function(e){ fallback((e && e.message) || e); asideRelayPoll(); });
@@ -31125,7 +31157,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v661';
+var APP_VER = 'v662';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
