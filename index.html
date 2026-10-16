@@ -2042,9 +2042,9 @@ body #editorPane .cdPage .edHl:focus-within > .edHlBk{background:transparent!imp
 .cdCard.over .cdCut{display:block}
 /* v663 이미지 전환 = 왼쪽 여백의 작은 아이콘(줄을 차지하지 않는다). 글 안에는 「▶ 이미지 #N 전환 ◀」 줄로 저장된다 */
 .cdMarks{position:absolute;left:0;top:0;width:calc(10 * var(--cdS,3px));height:0;z-index:2}
-.cdMk{position:absolute;right:calc(1 * var(--cdS,3px));height:calc(5.2 * var(--cdS,3px));transform:translateY(-50%);display:inline-flex;align-items:center;gap:calc(.4 * var(--cdS,3px));
-  padding:0 calc(.75 * var(--cdS,3px));border:0;border-radius:var(--r-pill);background:var(--q-red);color:var(--bg);font:700 calc(2.9 * var(--cdS,3px))/1 -apple-system,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
-.cdMk .ico{width:calc(2.7 * var(--cdS,3px));height:calc(2.7 * var(--cdS,3px))}
+.cdMk{position:absolute;right:calc(.5 * var(--cdS,3px));height:calc(6.2 * var(--cdS,3px));transform:translateY(-50%);display:inline-flex;align-items:center;gap:calc(.25 * var(--cdS,3px));
+  padding:0 calc(.55 * var(--cdS,3px));border:0;border-radius:var(--r-pill);background:var(--q-red);color:var(--bg);font:700 calc(3.8 * var(--cdS,3px))/1 -apple-system,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.cdMk .ico{width:calc(3.3 * var(--cdS,3px));height:calc(3.3 * var(--cdS,3px))}   /* 크기(mm)는 CARD_MK 와 같게 */
 .cdMk.on{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--q-red)}
 .cdMkPop{position:absolute;left:calc(10 * var(--cdS,3px));z-index:5;transform:translateY(-50%);display:flex;align-items:center;gap:2px;padding:3px 4px 3px 10px;border:1px solid var(--line2);
   border-radius:var(--r-md);background:var(--card);box-shadow:0 4px 14px color-mix(in srgb,var(--text) 18%,transparent);font-size:var(--fs-xs);color:var(--text);white-space:nowrap}
@@ -11474,17 +11474,21 @@ function cardMarksShift(marks, oldText, newText){
     m.line = Math.min(m.line, Math.max(p, bEnd - 1));
   });
 }
+/* 아이콘 크기(mm) — 카드 왼쪽 여백 10mm 안에 두 자리 번호까지 들어간다. 작성창 CSS(.cdMk)·미리보기·HWPX·DOCX 가 같은 값 */
+var CARD_MK = { h: 6.2, fs: 3.8, ic: 3.3, pad: .55, gap: .25, right: .5, stack: 6.8 };
 /* 미리보기 종이의 아이콘(문단 왼쪽 여백, topMm = 문단 위에서 아이콘 위까지) — 종이 색이라 인라인 색 */
 function cardMarkBadgeHtml(m, topMm){
-  return '<span style="position:absolute;right:100%;margin-right:1mm;top:' + topMm.toFixed(2) + 'mm;height:5.2mm;display:inline-flex;align-items:center;gap:.4mm;padding:0 .75mm;' +
-    'border-radius:99px;background:#' + REF_RED + ';color:#fff;font:700 2.9mm/1 -apple-system,system-ui,sans-serif;text-indent:0;white-space:nowrap">' + uiIco(m.scr ? 'book' : 'image') + m.n + '</span>';
+  var K = CARD_MK;
+  return '<span style="position:absolute;right:100%;margin-right:' + K.right + 'mm;top:' + topMm.toFixed(2) + 'mm;height:' + K.h + 'mm;display:inline-flex;align-items:center;gap:' + K.gap + 'mm;padding:0 ' + K.pad + 'mm;' +
+    'border-radius:99px;background:#' + REF_RED + ';color:#fff;font:700 ' + K.fs + 'mm/1 -apple-system,system-ui,sans-serif;text-indent:0;white-space:nowrap">' +
+    uiIco(m.scr ? 'book' : 'image').replace('<svg class=ico', '<svg class=ico style="width:' + K.ic + 'mm;height:' + K.ic + 'mm"') + m.n + '</span>';
 }
-/* 내보낸 문서(HWPX·DOCX)에 넣는 아이콘 그림 — 높이 5.2mm(1mm = 20px), 작성창 아이콘과 같은 모양 */
+/* 내보낸 문서(HWPX·DOCX)에 넣는 아이콘 그림 — CARD_MK 크기(1mm = 20px), 작성창 아이콘과 같은 모양 */
 var _cdMkPng = {};
 function cardMarkPng(n, scr){
   var key = (scr ? 's' : 'i') + n; if (_cdMkPng[key]) return _cdMkPng[key];
-  var k = 20, H = Math.round(5.2 * k), ic = 2.7 * k, pad = 0.75 * k, gap = 0.4 * k;
-  var font = '700 ' + (2.9 * k) + 'px -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif';
+  var K = CARD_MK, k = 20, H = Math.round(K.h * k), ic = K.ic * k, pad = K.pad * k, gap = K.gap * k;
+  var font = '700 ' + (K.fs * k) + 'px -apple-system, system-ui, "Helvetica Neue", Arial, sans-serif';
   var cv = document.createElement('canvas'), g = cv.getContext('2d');
   g.font = font;
   var W = Math.ceil(pad * 2 + ic + gap + g.measureText(String(n)).width);
@@ -11870,7 +11874,7 @@ function cardMarksPaint(el, ta, top){
   Array.prototype.forEach.call(box.children, function(b, k){
     var m = M[k]; if (!m) return;
     var li = Math.max(0, Math.min(m.line, L.length - 1)), row = d.children[li];
-    b.style.top = (top + (row ? row.offsetTop : 0) + lh / 2 + (seen[li] || 0) * 5.8 * s) + 'px';
+    b.style.top = (top + (row ? row.offsetTop : 0) + lh / 2 + (seen[li] || 0) * CARD_MK.stack * s) + 'px';
     seen[li] = (seen[li] || 0) + 1;
   });
 }
@@ -15015,8 +15019,9 @@ function hwpxPicXml(o){
     + '<hp:sz width="' + cw + '" widthRelTo="ABSOLUTE" height="' + ch + '" heightRelTo="ABSOLUTE" protect="0"/>' + pos
     + '<hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>' + hwpxEsc(o.note || '그림') + '</hp:shapeComment></hp:pic>';
 }
-/* 카드원고 전환 아이콘(HWPUNIT) — card.hwpx 왼쪽 여백 2835(10mm) 안: 높이 5.2mm, 오른쪽 끝 = 글에서 1mm, 위 = 22pt 글자 높이 가운데 */
-var HWPX_MK = { h: 1474, right: 2835 - 283, top: Math.round((CARD_PT * 100 - 1474) / 2) };
+/* 카드원고 전환 아이콘(HWPUNIT, 1mm ≈ 283.46) — card.hwpx 왼쪽 여백 2835(10mm) 안: 크기 = CARD_MK, 위 = 22pt 글자 높이 가운데 */
+var HWPX_MK = { h: Math.round(CARD_MK.h * 7200 / 25.4), right: 2835 - Math.round(CARD_MK.right * 7200 / 25.4), gap: Math.round((CARD_MK.stack - CARD_MK.h) * 7200 / 25.4) };
+HWPX_MK.top = Math.round((CARD_PT * 100 - HWPX_MK.h) / 2);
 /* 전환 바 오른쪽 끝에 얹는 썸네일 폭 — 전환 표시 PDF 와 같은 본문 폭 21% */
 var HWPX_BAR_IMG_RATIO = 0.21;
 function hwpxBar(spec, text, img){
@@ -15087,7 +15092,7 @@ function hwpxBlocks(spec, blocks){
     var inner, pre = (b.mk || []).filter(function(m){ return m.bin; }).map(function(m, k){   /* v663 카드원고 전환 아이콘 */
       var ch = HWPX_MK.h, cw = Math.round(ch * m.pw / m.ph);
       return '<hp:run charPrIDRef="' + st[r.style] + '">' + hwpxPicXml({ bin: m.bin, pw: m.pw, ph: m.ph, cw: cw, ch: ch, margin: true,
-        hOff: HWPX_MK.right - cw, vOff: HWPX_MK.top + k * (ch + 230), note: (m.scr ? '본문 이미지 #' : '이미지 #') + m.n + ' 전환' }) + '</hp:run>';
+        hOff: HWPX_MK.right - cw, vOff: HWPX_MK.top + k * (ch + HWPX_MK.gap), note: (m.scr ? '본문 이미지 #' : '이미지 #') + m.n + ' 전환' }) + '</hp:run>';
     }).join('');
     if (b.runs && b.runs.length){
       var tabR = hwpxWantsTab(r, b, b.runs.map(function(x){ return x[1]; }).join(''));
@@ -15502,13 +15507,13 @@ function buildDocxParas(D, paras, st){
     };
     if (p.brk) opts.pageBreakBefore = true;   /* v635 카드원고: 카드 한 장 = 한 쪽 */
     if (p.mk && p.mk.length && st.page) {   /* v663 카드원고 전환 아이콘 — 종이 왼쪽 여백에 글 앞으로 띄운 작은 그림(줄을 차지하지 않는다) */
-      var mmE = 36000, hMm = 5.2, topMm = ((p.size || st.size || 26) / 2 * 25.4 / 72 - hMm) / 2;
+      var mmE = 36000, hMm = CARD_MK.h, topMm = ((p.size || st.size || 26) / 2 * 25.4 / 72 - hMm) / 2;
       opts.children = p.mk.map(function(m, k){
         var im = cardMarkPng(m.n, m.scr), wMm = hMm * im.pw / im.ph, bin = atob(String(im.u).split(',')[1] || ''), u8 = new Uint8Array(bin.length);
         for (var q = 0; q < bin.length; q++) u8[q] = bin.charCodeAt(q);
         return new D.ImageRun({ data: u8, transformation: { width: wMm * 96 / 25.4, height: hMm * 96 / 25.4 },
-          floating: { horizontalPosition: { relative: D.HorizontalPositionRelativeFrom.PAGE, offset: Math.round((st.page.l - 1 - wMm) * mmE) },
-                      verticalPosition: { relative: D.VerticalPositionRelativeFrom.PARAGRAPH, offset: Math.round((topMm + k * 5.8) * mmE) },
+          floating: { horizontalPosition: { relative: D.HorizontalPositionRelativeFrom.PAGE, offset: Math.round((st.page.l - CARD_MK.right - wMm) * mmE) },
+                      verticalPosition: { relative: D.VerticalPositionRelativeFrom.PARAGRAPH, offset: Math.round((topMm + k * CARD_MK.stack) * mmE) },
                       allowOverlap: true, behindDocument: false, wrap: { type: D.TextWrappingType.NONE } } });
       }).concat(opts.children);
     }
@@ -31152,7 +31157,7 @@ function paraPreviewHtml(meta, built){
     if (p.mk && p.mk.length) {   /* v663 카드원고 전환 아이콘 — 문단 첫 줄 왼쪽 여백(흐름 밖이라 줄바꿈·쪽수 그대로) */
       var lhMm = (p.size ? p.size / 2 : baseSz) * lh * 25.4 / 72;
       s += 'position:relative;';
-      inner = p.mk.map(function(m, k){ return cardMarkBadgeHtml(m, lhMm / 2 - 2.6 + k * 5.8); }).join('') + inner;
+      inner = p.mk.map(function(m, k){ return cardMarkBadgeHtml(m, (lhMm - CARD_MK.h) / 2 + k * CARD_MK.stack); }).join('') + inner;
     }
     h += '<div style="' + s + '">' + inner + '</div>';
   });
