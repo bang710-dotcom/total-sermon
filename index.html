@@ -2040,6 +2040,15 @@ body #editorPane .cdPage .edHl:focus-within > .edHlBk{background:transparent!imp
   background:repeating-linear-gradient(-45deg,rgba(212,0,0,.07) 0 7px,transparent 7px 14px);pointer-events:none}
 .cdCut::before{content:'여기부터 다음 쪽으로 넘칩니다';position:absolute;right:6px;top:3px;font:600 11px/1.5 -apple-system,system-ui,sans-serif;color:#c00;background:rgba(255,255,255,.88);padding:0 6px;border-radius:4px}
 .cdCard.over .cdCut{display:block}
+/* v663 이미지 전환 = 왼쪽 여백의 작은 아이콘(줄을 차지하지 않는다). 글 안에는 「▶ 이미지 #N 전환 ◀」 줄로 저장된다 */
+.cdMarks{position:absolute;left:0;top:0;width:calc(10 * var(--cdS,3px));height:0;z-index:2}
+.cdMk{position:absolute;right:calc(1 * var(--cdS,3px));height:calc(5.2 * var(--cdS,3px));transform:translateY(-50%);display:inline-flex;align-items:center;gap:calc(.4 * var(--cdS,3px));
+  padding:0 calc(.75 * var(--cdS,3px));border:0;border-radius:var(--r-pill);background:var(--q-red);color:var(--bg);font:700 calc(2.9 * var(--cdS,3px))/1 -apple-system,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.cdMk .ico{width:calc(2.7 * var(--cdS,3px));height:calc(2.7 * var(--cdS,3px))}
+.cdMk.on{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--q-red)}
+.cdMkPop{position:absolute;left:calc(10 * var(--cdS,3px));z-index:5;transform:translateY(-50%);display:flex;align-items:center;gap:2px;padding:3px 4px 3px 10px;border:1px solid var(--line2);
+  border-radius:var(--r-md);background:var(--card);box-shadow:0 4px 14px color-mix(in srgb,var(--text) 18%,transparent);font-size:var(--fs-xs);color:var(--text);white-space:nowrap}
+.cdMkPop b{margin-right:6px}
 .cdAddEnd{display:block;width:calc(310 * var(--cdS,3px));max-width:100%;margin:16px 0 0;padding:12px;border:1.5px dashed var(--line2);border-radius:var(--r-md);background:none;color:var(--dim);font-size:var(--fs-md);cursor:pointer}
 .cdAddEnd:hover{color:var(--text);border-color:var(--dim)}
 .cdHelp{margin-top:14px;max-width:calc(310 * var(--cdS,3px))}
@@ -11394,7 +11403,6 @@ var CARD_GEO = { w: 310, h: 210, l: 10, r: 10, t: 12.49, b: 12.49, fs: CARD_PT *
 CARD_GEO.cw = CARD_GEO.w - CARD_GEO.l - CARD_GEO.r;     /* 본문 폭 290mm */
 CARD_GEO.ch = CARD_GEO.h - CARD_GEO.t - CARD_GEO.b;     /* 본문 높이 185mm */
 CARD_GEO.line = CARD_GEO.fs * CARD_GEO.lh;              /* 한 줄 5.96mm → 한 장 31줄 */
-var CARD_BAR_LINES = 2;   /* ▶ 전환 바(표 높이 4610 HWPUNIT ≈ 16mm)는 줄 셈에서 2줄로 친다(22pt 한 줄 ≈ 10mm) */
 function cardTrim(t){ return String(t == null ? '' : t).replace(/\r/g, '').replace(/^(?:[ \t]*\n)+/, '').replace(/\s+$/, ''); }
 function cardHasMarks(t){ return /(^|\n)[ \t]*\(카드\)[ \t]*(?=\n|$)/.test(String(t || '')); }
 function cardsSplit(t){
@@ -11437,11 +11445,41 @@ function cardMeasurer(px){
   return d;
 }
 function cardIsBar(l){ return /^\s*▶.*◀\s*$/.test(String(l || '')); }
-function cardLineCounts(lines){   /* 문단(줄)마다 차지하는 줄 수 */
+/* ── 이미지 전환 표시 (v663, 목사님 요청 2026-10-16) ──
+   카드원고에서는 전환을 빨간 띠로 넣지 않는다(한 줄 넘게 차지한다). 글에는 전환표시본과 같은 「▶ 이미지 #N 전환 ◀」 한 줄로 저장하되,
+   작성창·미리보기·내보낸 문서에서는 그 줄이 자리를 차지하지 않고 바로 다음 줄 왼쪽 여백에 작은 아이콘으로 붙는다. */
+function cardMarkInfo(l){ var m = String(l || '').match(/#\s*(\d+)/); return { n: m ? +m[1] : 0, scr: /본문/.test(String(l || '')) }; }
+function cardMarkLine(n, scr){ return '▶ ' + (scr ? '본문 이미지 #' : '이미지 #') + n + ' 전환 ◀'; }
+/* 카드 글 → 작성창에 보일 글(전환 줄 뺌) + 표시 목록 [{line: 붙는 줄 번호, raw: 전환 줄}] */
+function cardMarksSplit(t){
+  var text = [], marks = [];
+  String(t == null ? '' : t).split('\n').forEach(function(l){ if (cardIsBar(l)) marks.push({ line: text.length, raw: l.trim() }); else text.push(l); });
+  return { text: text.join('\n'), marks: marks };
+}
+function cardMarksJoin(text, marks){
+  var L = String(text == null ? '' : text).split('\n'), at = {}, out = [];
+  (marks || []).forEach(function(m){ var k = Math.max(0, Math.min(m.line, L.length - 1)); (at[k] = at[k] || []).push(m.raw); });
+  L.forEach(function(l, i){ if (at[i]) out.push.apply(out, at[i]); out.push(l); });
+  return out.join('\n');
+}
+/* 작성창에서 글을 고친 만큼 표시를 옮긴다 — 바뀐 줄 앞은 그대로, 뒤는 늘고 준 줄 수만큼, 바뀐 줄 안의 것은 그 범위 안에 */
+function cardMarksShift(marks, oldText, newText){
+  var A = String(oldText).split('\n'), B = String(newText).split('\n'), p = 0, s = 0;
+  while (p < A.length && p < B.length && A[p] === B[p]) p++;
+  while (s < A.length - p && s < B.length - p && A[A.length - 1 - s] === B[B.length - 1 - s]) s++;
+  var aEnd = A.length - s, bEnd = B.length - s, d = B.length - A.length;
+  marks.forEach(function(m){
+    if (m.line < p) return;
+    if (m.line >= aEnd) { m.line += d; return; }
+    m.line = Math.min(m.line, Math.max(p, bEnd - 1));
+  });
+}
+function cardFirstLine(t){ return cardTrim(t).split('\n').filter(function(l){ return l.trim() && !cardIsBar(l); })[0] || ''; }
+function cardLineCounts(lines){   /* 문단(줄)마다 차지하는 줄 수 — 전환 줄은 여백 아이콘이라 0 */
   var px = 4, d = cardMeasurer(px), lh = CARD_GEO.line * px;
   d.innerHTML = lines.map(function(l){ return '<div>' + (String(l).trim() ? esc(l) : '&nbsp;') + '</div>'; }).join('');
   return Array.prototype.map.call(d.children, function(el, i){
-    return cardIsBar(lines[i]) ? CARD_BAR_LINES : Math.max(1, Math.round(el.getBoundingClientRect().height / lh));
+    return cardIsBar(lines[i]) ? 0 : Math.max(1, Math.round(el.getBoundingClientRect().height / lh));
   });
 }
 function cardTitleLines(title){
@@ -11464,7 +11502,7 @@ function cardHeadOf(l){
   if (/^\(결론\)/.test(l) || /^말씀을\s*정리/.test(l)) return 'C';
   return null;
 }
-function cardKeepNext(l){ l = String(l || '').trim(); return /^ex\)/i.test(l) || /^\(예화\)/.test(l) || cardHeadOf(l) != null || bareRefRe().test(l); }
+function cardKeepNext(l){ l = String(l || '').trim(); return cardIsBar(l) || /^ex\)/i.test(l) || /^\(예화\)/.test(l) || cardHeadOf(l) != null || bareRefRe().test(l); }
 /* 넘치는 카드를 문단 경계에서 나눈다(문단 하나가 한 장보다 길면 그 문단만 한 장). 머리·예화 제목으로 끝나는 쪽은 그 줄을 다음 장으로 */
 function cardFit(cards, firstIsDocStart, title){
   var out = [];
@@ -11493,7 +11531,7 @@ function cardSecNorm(v){ var x = String(v == null ? '' : v).trim(); if (/서론/
 function cardSecKeys(cards){
   var cur = 'I';
   return (cards || []).map(function(t){
-    var first = (cardTrim(t).split('\n')[0] || ''), h = cardHeadOf(first);
+    var first = cardFirstLine(t), h = cardHeadOf(first);
     if (h != null && cardSecOrd(h) > cardSecOrd(cur)) cur = h;
     return cur;
   });
@@ -11673,7 +11711,8 @@ function cardHtml(t, i){
     '<div class="cdPage">' +
       (i === 0 ? '<div class="cdTitle"></div><div class="cdTitleGap"></div>' : '') +
       '<div class="edHl"><div class="edHlBk" aria-hidden="true"></div><textarea class="edTa cdTa" data-ci="' + i + '" rows="1" spellcheck="false"' +
-        (i === 0 ? ' placeholder="카드원고를 쓰세요 — 카드 한 장이 내보낸 문서의 한 쪽입니다. ⌘↩(Ctrl+Enter)로 카드를 나눕니다."' : '') + '>' + esc(t) + '</textarea></div>' +
+        (i === 0 ? ' placeholder="카드원고를 쓰세요 — 카드 한 장이 내보낸 문서의 한 쪽입니다. ⌘↩(Ctrl+Enter)로 카드를 나눕니다."' : '') + '>' + esc(cardMarksSplit(t).text) + '</textarea></div>' +
+      '<div class="cdMarks" data-ci="' + i + '"></div>' +
       '<div class="cdCut" aria-hidden="true"></div>' +
     '</div></section>';
 }
@@ -11682,6 +11721,7 @@ function cardEditorHtml(c){
   return '<div class="cdBar"><span class="cdSum" id="cdSum"></span><span class="cdBarActs">' +
       '<button class="btn sub mini" type="button" data-cd="redraft">' + uiIco('spark') + ' AI 초안 다시 만들기</button>' +
       '<button class="btn sub mini" type="button" data-cd="fitall" title="넘치는 카드를 모두 문단 경계에서 나눕니다">' + uiIco('scissors') + ' 넘친 카드 정리</button>' +
+      '<button class="btn sub mini" type="button" data-cd="marks" title="이미지 전환표의 전환 자리를 카드원고에서 찾아 왼쪽 여백에 아이콘으로 표시합니다 — AI, 글은 바꾸지 않습니다">' + uiIco('image') + ' 전환 시점 넣기</button>' +
     '</span></div>' +
     '<div class="cdWrap" id="cdWrap">' + cards.map(function(t, i){ return cardHtml(t, i); }).join('') + '</div>' +
     '<button class="cdAddEnd" type="button" data-cd="addEnd">＋ 카드 추가</button>' +
@@ -11690,6 +11730,7 @@ function cardEditorHtml(c){
       '· 빨간 빗금이 생기면 그 아래는 다음 쪽으로 넘칩니다 — [넘친 줄 다음 장으로] 또는 카드를 나누세요.<br>' +
       '· <b>⌘↩</b>(Ctrl+Enter) = 커서에서 카드 나누기 · 카드 맨 앞에서 <b>⌫</b> = 앞 카드와 합치기.<br>' +
       '· 「1. 명제」 줄은 대지 머리(굵게), 「ex) 제목」은 예화 제목(파랑), 「약어 장:절, "…"」은 성경 인용(빨강), 줄 전체를 **…**로 감싸면 굵게.<br>' +
+      '· 왼쪽 여백의 빨간 아이콘 = 그 줄에서 배경 이미지가 바뀌는 자리(이미지 전환표 번호). 줄을 차지하지 않고, 내보낸 문서에도 같은 자리에 작게 찍힙니다. 아이콘을 누르면 한 줄씩 옮기거나 지울 수 있고, [전환 시점 넣기]로 다시 찾습니다.<br>' +
       '· 카드원고는 원고와 <b>따로</b> 저장됩니다(시트 「카드원고」 칸). 원고가 바뀌면 기본원고 대지 제목 옆 [이 대지를 카드원고로 내보내기]로 그 대지 카드만 다시 만들 수 있습니다.' +
     '</div></details>';
 }
@@ -11707,16 +11748,44 @@ function cardEdMeasure(el){
   var d = cardMeasurer(s); d.style.width = ta.clientWidth + 'px';
   d.textContent = v + (!v || /\n$/.test(v) ? ' ' : '');
   var h = d.getBoundingClientRect().height;
-  var bars = v.split('\n').filter(cardIsBar).length, extra = bars * (CARD_BAR_LINES - 1);
-  var used = v.trim() ? Math.max(1, Math.round(h / lh)) + extra : 0;
+  var used = v.trim() ? Math.max(1, Math.round(h / lh)) : 0;
   var top = ta.getBoundingClientRect().top - pg.getBoundingClientRect().top;
   var cutY = (CARD_GEO.t + CARD_GEO.ch) * s, cap = Math.max(1, Math.floor((cutY - top) / lh + 0.001));
-  ta.style.height = Math.ceil(Math.max(h, (cap - extra) * lh)) + 'px';
+  ta.style.height = Math.ceil(Math.max(h, cap * lh)) + 'px';
   var over = used > cap;
   el.classList.toggle('over', over);
-  pg.style.setProperty('--cdCut', (top + Math.max(1, cap - extra) * lh) + 'px');
+  pg.style.setProperty('--cdCut', (top + cap * lh) + 'px');
   var f = el.querySelector('.cdFill'); if (f) f.textContent = over ? '넘침 ' + (used - cap) + '줄' : used + ' / ' + cap + '줄';
+  cardMarksPaint(el, ta, top);
   return { used: used, cap: cap, over: over };
+}
+/* 작성창 칸의 전환 표시(작성창 글 기준 줄 번호) — 처음 쓸 때 카드 글에서 읽는다 */
+function cardTaMarks(ta){
+  if (!ta._cdMk) { var sp = cardMarksSplit(((state.compose && state.compose.cards) || [])[+ta.dataset.ci] || ''); ta._cdMk = { prev: sp.text, marks: sp.marks }; }
+  return ta._cdMk;
+}
+/* 아이콘을 그 줄 첫 줄 높이 가운데에(같은 줄에 둘이면 아래로 쌓는다) */
+function cardMarksPaint(el, ta, top){
+  var box = el.querySelector('.cdMarks'); if (!box) return;
+  var M = cardTaMarks(ta).marks, sig = M.map(function(m){ return m.raw; }).join('|');
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig;
+    box.innerHTML = M.map(function(m, k){
+      var x = cardMarkInfo(m.raw);
+      return '<button type="button" class="cdMk" data-ci="' + ta.dataset.ci + '" data-mi="' + k + '" title="' + esc(m.raw.replace(/[▶◀]/g, '').trim()) + ' — 누르면 옮기거나 지웁니다">' +
+        uiIco(x.scr ? 'book' : 'image') + x.n + '</button>';
+    }).join('');
+  }
+  if (!M.length) return;
+  var s = _cdS, lh = CARD_GEO.line * s, d = cardMeasurer(s), L = ta.value.split('\n'), seen = {};
+  d.style.width = ta.clientWidth + 'px';
+  d.innerHTML = L.map(function(l){ return '<div>' + (l.trim() ? esc(l) : '&nbsp;') + '</div>'; }).join('');
+  Array.prototype.forEach.call(box.children, function(b, k){
+    var m = M[k]; if (!m) return;
+    var li = Math.max(0, Math.min(m.line, L.length - 1)), row = d.children[li];
+    b.style.top = (top + (row ? row.offsetTop : 0) + lh / 2 + (seen[li] || 0) * 5.8 * s) + 'px';
+    seen[li] = (seen[li] || 0) + 1;
+  });
 }
 function cardTitleSync(){
   var tt = $('#cdWrap .cdTitle'); if (!tt) return false;
@@ -11757,17 +11826,28 @@ function cardRerender(fi, caret){
   try { ta.focus({ preventScroll: true }); var p = caret < 0 ? ta.value.length : Math.min(caret || 0, ta.value.length); ta.setSelectionRange(p, p); } catch (e) {}
   var card = ta.closest('.cdCard'); if (card) { try { card.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
 }
+/* 커서(작성창 글 기준 위치)에서 카드를 둘로 — 전환 표시는 붙은 줄을 따라간다(줄 맨 앞에서 나누면 뒤 카드로) */
+function cardSplitAt(v, pos){
+  var sp = cardMarksSplit(v), t = sp.text;
+  pos = Math.max(0, Math.min(pos == null ? t.length : pos, t.length));
+  var ta = t.slice(0, pos), tb = t.slice(pos), la = ta.split('\n').length - 1, atStart = !ta.length || ta.charAt(ta.length - 1) === '\n';
+  var ma = [], mb = [];
+  sp.marks.forEach(function(m){
+    if (m.line < la || (m.line === la && !atStart)) ma.push(m);
+    else mb.push({ line: m.line - la, raw: m.raw });
+  });
+  return [cardTrim(cardMarksJoin(ta, ma)), cardTrim(cardMarksJoin(tb, mb))];
+}
 async function cardOp(op, i, pos){
   var c = state.compose;
   if (!Array.isArray(c.cards) || !c.cards.length) c.cards = [''];
   var A = c.cards, n = A.length, fi = i, caret = 0, title = cardTitleNow();
   if (op === 'split') {
-    var v = A[i] || ''; pos = Math.max(0, Math.min(pos == null ? v.length : pos, v.length));
-    A.splice(i, 1, cardTrim(v.slice(0, pos)), cardTrim(v.slice(pos))); fi = i + 1;
+    A.splice.apply(A, [i, 1].concat(cardSplitAt(A[i] || '', pos))); fi = i + 1;
   } else if (op === 'merge') {
     if (i < 1) return;
-    var a = cardTrim(A[i - 1]), b = cardTrim(A[i]);
-    caret = a.length + (a && b ? 1 : 0); A.splice(i - 1, 2, a && b ? a + '\n' + b : a + b); fi = i - 1;
+    var a = cardTrim(A[i - 1]), b = cardTrim(A[i]), aTx = cardMarksSplit(a).text;
+    caret = aTx.length + (aTx && b ? 1 : 0); A.splice(i - 1, 2, a && b ? a + '\n' + b : a + b); fi = i - 1;
   } else if (op === 'up') { if (i < 1) return; var t1 = A[i]; A[i] = A[i - 1]; A[i - 1] = t1; fi = i - 1; caret = -1; }
   else if (op === 'down') { if (i >= n - 1) return; var t2 = A[i]; A[i] = A[i + 1]; A[i + 1] = t2; fi = i + 1; caret = -1; }
   else if (op === 'add') { A.splice(i + 1, 0, ''); fi = i + 1; }
@@ -11855,7 +11935,7 @@ function cardNavRender(){
   var h = '<div class="cmSec"><span>카드원고 · ' + cards.length + '장</span></div><div class="cdNav">';
   cards.forEach(function(t, i){
     if (keys[i] !== prev) { h += '<div class="cdNavSec">' + esc(cardSecName(keys[i])) + '</div>'; prev = keys[i]; }
-    var first = (cardTrim(t).split('\n').filter(function(l){ return l.trim(); })[0] || '(빈 카드)').replace(/\*\*/g, '');
+    var first = (cardFirstLine(t) || '(빈 카드)').replace(/\*\*/g, '');
     var f = _cdFill[i];
     h += '<button type="button" class="cdNavIt' + (f && f.over ? ' over' : '') + '" data-ci="' + i + '"><span class="n">' + (i + 1) + '</span>' +
       '<span class="t">' + esc(first.slice(0, 48)) + '</span><span class="f">' + (f ? (f.over ? '넘침' : f.used + '/' + f.cap) : '') + '</span></button>';
@@ -11870,7 +11950,10 @@ var cardNavSoon = debounce(cardNavRender, 250);
     var ta = e.target; if (!ta.classList || !ta.classList.contains('cdTa')) return;
     var c = state.compose, i = +ta.dataset.ci;
     if (!Array.isArray(c.cards) || !c.cards.length) c.cards = [''];
-    c.cards[i] = ta.value;
+    var mk = cardTaMarks(ta);   /* v663 전환 표시는 작성창 글 밖에 있다 — 고친 만큼 옮겨 카드 글에 다시 끼운다 */
+    if (mk.marks.length) { cardMarksShift(mk.marks, mk.prev, ta.value); cardMkPopClose(); }
+    mk.prev = ta.value;
+    c.cards[i] = mk.marks.length ? cardMarksJoin(ta.value, mk.marks) : ta.value;
     var el = ta.closest('.cdCard'), r = el ? cardEdMeasure(el) : null; if (r) _cdFill[i] = r;
     cardEdSecsSoon(); cardNavSoon();
   });
