@@ -282,6 +282,12 @@ WBC 성경주석(솔로몬 한글판) 스캔 PDF 58권(38,974쪽)을 맥 Vision 
 - **`window.tsbFlush()`**(lbtSaveNow 바로 아래): 화면이 가려질 때 하던 저장(작성초안 IndexedDB + 시트 백업 `pushComposeDraftRemote` + occ/zone/lbt)을 한 번에 하고 끝나면 완료되는 Promise. 브라우저가 창 내리기·숨기기·닫기·⌘Q 때 부르고 최대 3초 기다린다 — Electron 에서는 창 닫기·종료 때 visibilitychange·pagehide 가 오지 않는다(시험). 그래서 `saveComposeDraft`·`pushComposeDraftRemote`·`occSaveNow`·`zoneSaveNow`·`_lbtPersist`/`lbtSaveNow` 가 이제 Promise 를 돌려준다(예전 호출은 반환값을 안 쓰므로 그대로). `pushComposeDraftRemote` 는 같은 내용을 보내는 중이면 그 요청을 돌려주고 다시 보내지 않는다(`_cdraftInflight`). ⚠ 새로 「가려질 때 저장」을 더하면 tsbFlush 에도 넣을 것.
 - **`pageGuide(pg, ag)`**: `sysFor` 의 화면별 문장을 떼어 냄(sysFor 결과는 그대로). `TSA_AGENT.system({neutral:true})` = 화면 무관 지침, `TSA_AGENT.context().hint` = 지금 화면 안내 — 브라우저 Ask 패널은 화면이 바뀐 메시지 앞에 `[화면 안내]`로 붙인다(한 대화 프로세스를 화면을 옮겨 가며 계속 쓰므로).
 
+### v674 — HWPX Finder 미리보기 (2026-10-18 목사님 제보 「앱이 만든 HWPX 는 맥에서 아이콘 미리보기가 안 된다」)
+Finder 의 hwpx 아이콘 = 파일 안 `Preview/PrvImage.png`(한글이 저장하면 첫 쪽 그림 762×1024). 앱 파일에는 서식 파일의 빈 흰 종이(210×297, v546)·빈 `PrvText.txt` 가 그대로 들어가 흰 종이로만 보였다(한글로 다시 저장한 파일만 내용이 보임).
+- **`hwpxPrvMake(secHead, hdr, spec, content)`**(hwpxBuild 바로 위): 첫 쪽을 캔버스에 그려 PrvImage(긴 변 `HWPX_PRV_MAX` 1024px)·PrvText(앞 1,000자, CRLF)를 만든다. 쪽 크기·여백 = section0 `hp:pagePr`, 글자 크기·색·굵기·글꼴 = header `charPr`(charHeights 적용된 header), 줄 간격·정렬·문단 여백·배경 = `paraPr`(배경색 = borderFill — LTC 머리띠), 칠 = `borderFill`. 머리 문단(서식의 첫 문단 — 제목·꼬리표 칸, ctrl 제외) + content.blocks(글·전환 바(그림 포함)·표지 그림(v652 제목 오른쪽 위)·가운데 그림·계획표 표), 쪽번호(pageNum BOTTOM_CENTER — 원고·새벽). 글자 단위 줄바꿈(한글 기본)·양쪽 정렬. 첫 쪽 나눔(brk)에서 멈춤(카드원고 = 첫 카드).
+- `hwpxBuild` 가 쓰는 모든 산출물(원고·카드원고·전환표시본·이미지자료·LTC·계획표·Why에서 Way로)에 들어간다. 실패하면 서식 파일 그림 그대로(내보내기는 막지 않음). 비용: 20~40ms(그림 있는 전환표시본 첫 회 약 0.5초).
+- 시험(브라우저 시험 사본 + 로컬 v674): 한글이 저장한 같은 원고(여호수아6)의 한글 미리보기와 비교 — 크기 762×1024·여백·12pt 200%·들여쓰기·굵은 제목·「- 1 -」 같음(줄바꿈 위치만 한두 글자 차이) · 카드원고 1024×694 첫 카드 22pt · 전환표시본 표지·빨간 바·바 그림 · 계획표 표 · LTC 남색 머리띠·상자 배경 → **Finder 아이콘 보기에서 5종 모두 내용이 보임**(예전 앱 파일은 흰 종이 그대로). ⚠ 이미 만든 파일은 그대로다(다시 내보내거나 한글로 다시 저장). Cowork 스킬 hwpx-sermon-docs(build_hwpx.py)도 아직 빈 미리보기.
+
 ### v673 — 전용 브라우저에서 「Claude 준비됨」 숨김 (2026-10-17 목사님 요청)
 `hostArView` 가 준비됨·확인 중이면 null → 사이드바 `#arInd`·모바일 `#arIndM`·집중 모드 `#arIndF` 가 숨는다(상단 막대 [Ask Claude] 의 점이 같은 것을 알려 준다). **작업 중**(라벨·쓰는 중 N자·경과 + [취소])·**결과 받음**(5초)·**쓸 수 없음**(「로그인이 필요합니다」 + [Claude 로그인])일 때만 보인다. Aside 경로(`arView` 의 나머지)는 그대로. 시험(브라우저 시험 사본 + 로컬 v673 + 가짜 claude): 준비됨 숨김 → 생성 중 보임(진행·취소) → 결과 받음 5초 → 숨김 · 로그아웃 보임(로그인 단추) → 다시 로그인 숨김.
 
