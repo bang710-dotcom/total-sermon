@@ -18224,9 +18224,10 @@ function hostArView(){
       short: r.label + ' ' + el, hcancel: true, title: r.label + ' — Claude Code 로 처리 중' };
   }
   if (_arDone && Date.now() - _arDone.t < 5000) return { kind: 'good', check: 1, text: _arDone.label + ' — 결과 받음', short: '결과 받음', title: '' };
+  /* v673: 준비됨·확인 중에는 표시를 숨긴다 — 상단 막대 [Ask Claude] 의 점이 같은 것을 알려 준다(2026-10-17 목사님 요청).
+     작업 중·결과 받음·쓸 수 없음(로그인 필요)일 때만 보인다 */
   var st = _hostSt;
-  if (!st) return { kind: 'req', spin: 1, text: 'Claude 확인 중…', short: 'Claude 확인 중', title: '' };
-  if (st.ok) return { kind: 'good', spin: 0, text: 'Claude 준비됨', short: 'Claude 준비됨', title: hostStatusText() };
+  if (!st || st.ok) return null;
   return { kind: 'bad', spin: 0, text: st.reason || 'Claude 를 쓸 수 없음', short: 'Claude 로그인 필요', title: hostStatusText(), hlogin: true };
 }
 function hostOverlayPhase(phase){
@@ -31924,7 +31925,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v672';
+var APP_VER = 'v673';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
