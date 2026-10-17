@@ -2889,7 +2889,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
         <div class="desktop-only">
           <label>폴더 연결 (Chrome · Total Sermons 맥 앱)</label>
           <div class="cnt" id="dirState2"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:8px">
             <button class="btn sub" id="pickDir2">설교 기본원고 저장 폴더</button>
             <button class="btn sub" id="pickX2">클로드 연동 폴더</button>
             <button class="btn sub" id="pickLtc2">LTC 저장 폴더</button>
@@ -29511,6 +29511,7 @@ function cfgGo(id){
     _vaultQuiet = true; _vaultGot = [];
     var ok = await xferApply(code, '붙여넣은 설정 코드');
     if (!ok){ _vaultQuiet = false; return; }
+    Object.keys(code).forEach(function(k){ if (vaultField(k) && _vaultGot.indexOf(k) < 0) _vaultGot.push(k); });   /* 코드로 받은 것도 센다 */
     if (!(state.settings && state.settings.url && state.settings.token)){ _vaultQuiet = false; close(); return; }
     await afterConnect();
   }
