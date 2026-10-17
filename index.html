@@ -80,6 +80,7 @@ h1 span{color:var(--accent2)}
 .cfgRow .cfgVal.ok{color:var(--good)}
 .cfgRow .cfgVal.warn{color:var(--warn)}
 .cfgRow > .ico{color:var(--dim);flex:0 0 auto;transform:rotate(-90deg)}
+@media (min-width:700px){#setStatus{display:grid;grid-template-columns:1fr 1fr;column-gap:24px}#setStatus .cfgRow:nth-child(2){border-top:none}}
 .setHl{display:flex;align-items:center;gap:4px;margin:12px 0 5px}
 .setHl > label{margin:0}
 .setSec{font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;color:var(--dim);margin:18px 0 4px;padding-top:12px;border-top:1px solid var(--line)}
@@ -16708,6 +16709,7 @@ function gateDeleteOne(g){
 }
 function gateAfterChange(){
   renderGateBox();
+  try { cfgStatusRender(); } catch (eCs){}   /* v676 연결 상태의 「저작권 자료 n/5」 */
   try { if (STUDY.range) studyRenderText(); } catch (e){}
   try { if (STUDY.tab === 'esvsb' || STUDY.tab === 'muk' || STUDY.tab === 'wbc') studyRenderPane(); } catch (e){}
 }
