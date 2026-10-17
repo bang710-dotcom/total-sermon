@@ -2805,9 +2805,9 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
         <label style="margin-top:14px">브라우저 에이전트 모드 (선택 — Aside·클로드 구독으로 생성)</label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <input type="checkbox" id="setBridge" style="width:auto;margin:0">
-          <span class="cnt" style="margin:0">Aside·Total Sermon Browser 에서 API 키 없이 사용 — AI 버튼을 누르면 바로 처리</span>
+          <span class="cnt" style="margin:0">Aside·Total Sermons 맥 앱에서 API 키 없이 사용 — AI 버튼을 누르면 바로 처리</span>
         </div>
-        <div class="cnt" style="margin-top:6px"><b>Total Sermon Browser</b>(맥 전용 앱 — Dropbox/total-sermon/browser)에서는 이 모드가 저절로 켜지고, 중계기·「요청처리」 없이 <b>이 맥의 Claude Code(구독)</b>가 바로 처리합니다(진행은 생성 화면과 사이드바 「Claude 준비됨/처리 중」 표시). 아래 Aside 설명은 Aside 에서 쓸 때의 이야기입니다.</div>
+        <div class="cnt" style="margin-top:6px"><b>Total Sermons 맥 앱</b>(전용 브라우저 — Dropbox/total-sermon/browser)에서는 이 모드가 저절로 켜지고, 중계기·「요청처리」 없이 <b>이 맥의 Claude Code(구독)</b>가 바로 처리합니다(진행은 생성 화면과 사이드바 「Claude 준비됨/처리 중」 표시). 아래 Aside 설명은 Aside 에서 쓸 때의 이야기입니다.</div>
         <div class="cnt" style="margin-top:6px">켜면<b>예화 이미지 인식(비전)을 포함한 모든 AI 기능</b>이 클로드 구독(Aside)으로 처리됩니다 — API 키가 있어도 과금되지 않으며, 키는 모드가 꺼져 있을 때만 쓰입니다. 단 <b>설교 대화</b>는 API 키가 있으면 키로 직접 대화합니다. <b>자동 처리</b>: 맥에 중계기(<b>tools/install_asiderelay_agent.sh</b>)가 설치돼 있으면 AI 버튼을 누르는 즉시 Aside 가 <b>새 임시 대화</b>(사이드패널에는 안 보임)에서 처리합니다 — 처음 한 번 브라우저가 「로컬 네트워크 접근」을 물으면 허용하세요. 중계기가 없으면 Aside 대화창에 「요청처리」를 직접 입력합니다. <b>진행 표시</b>는 왼쪽 사이드바 하나에 모아 보여 줍니다(「Aside 준비됨」이면 버튼을 쓰시면 됨, 처리 중엔 경과 시간·[펼치기]·[취소]). 주소 뒤에 <b>?agent=1</b>을 붙여 열거나 에이전트가 <b>window.TSA_BRIDGE.enable()</b>을 호출해도 켜집니다. 이 설정은 브라우저마다 따로 저장되며, 다른 브라우저·아이패드는 지금처럼 API 키로 동작합니다.</div>
         <div class="cnt" id="asideRelayStat" style="margin-top:6px"></div>
         <button class="btn sub" id="asideRelayCheck" type="button" style="width:auto;margin-top:6px">중계기 연결 확인</button>
@@ -17784,7 +17784,7 @@ function aiTick(label){
 function hostAgentOn(){ try { return !!(window.TSA_HOST && window.TSA_HOST.agent && typeof window.TSA_HOST.agent.generate === 'function'); } catch (e) { return false; } }
 function agentBrowserHint(){
   try {
-    if (hostAgentOn()) return 'Total Sermon Browser';
+    if (hostAgentOn()) return 'Total Sermons 맥 앱';
     if (/aside/i.test(navigator.userAgent || '')) return 'Aside';
     var bs = navigator.userAgentData && navigator.userAgentData.brands;
     if (bs && bs.some(function(x){ return /aside/i.test(String(x.brand || '')); })) return 'Aside';
@@ -32127,7 +32127,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v674';
+var APP_VER = 'v675';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
