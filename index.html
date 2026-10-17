@@ -71,7 +71,33 @@ h1 span{color:var(--accent2)}
 .setGrp>summary>.sgSub{font-weight:400;font-size:var(--fs-sm);color:var(--dim)}
 .setBadge{font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-pill);border:1px solid var(--line);color:var(--dim);white-space:nowrap}
 .setBadge.on{color:var(--accent2,var(--accent));border-color:var(--accent2,var(--accent))}
-input[type=text],input[type=date],input[type=url],input[type=number],textarea,select{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);color:var(--text);padding:11px 12px;font-size:var(--fs-body);font-family:inherit;outline:none}
+/* v676 설정 화면 — 연결 상태 줄 · 도움말 줄 · 고급 소제목 · 새 기기 첫 연결 창 */
+.cfgRow{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:9px 2px;color:var(--text);font-family:inherit;font-size:var(--fs-md);text-align:left;cursor:pointer}
+.cfgRow:first-child{border-top:none}
+.cfgRow:hover .cfgName{color:var(--accent)}
+.cfgRow .cfgName{flex:1 1 auto;min-width:0}
+.cfgRow .cfgVal{flex:0 1 auto;font-size:var(--fs-sm);color:var(--dim);text-align:right;word-break:keep-all}
+.cfgRow .cfgVal.ok{color:var(--good)}
+.cfgRow .cfgVal.warn{color:var(--warn)}
+.cfgRow > .ico{color:var(--dim);flex:0 0 auto}
+.setHl{display:flex;align-items:center;gap:4px;margin:12px 0 5px}
+.setHl > label{margin:0}
+.setSec{font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;color:var(--dim);margin:18px 0 4px;padding-top:12px;border-top:1px solid var(--line)}
+.setSec:first-of-type{border-top:none;padding-top:0;margin-top:8px}
+.setTools{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:6px}
+#frOv{position:fixed;inset:0;z-index:9980;display:flex;align-items:center;justify-content:center;background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+#frOv[hidden]{display:none}
+#frOv .frBox{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);width:420px;max-width:100%;padding:20px 20px 16px;box-shadow:0 18px 50px rgba(0,0,0,.45);max-height:calc(100vh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+#frOv .frTitle{font-size:var(--fs-xl);font-weight:700;color:var(--text)}
+#frOv .frSub{font-size:var(--fs-md);line-height:1.55;color:var(--dim);margin:6px 0 4px}
+#frOv .frErr{font-size:var(--fs-sm);color:var(--warn);margin:8px 2px 0;line-height:1.5}
+#frOv .btn{margin-top:14px}
+#frOv .frAlt{display:flex;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap}
+#frOv .frBtns{display:grid;gap:8px;margin-top:14px}
+#frOv .frBtns .btn{margin-top:0}
+#frOv #frRows{margin-top:8px;border:1px solid var(--line);border-radius:var(--r-md);padding:2px 10px}
+#frOv .frBusy{font-size:var(--fs-md);color:var(--dim);margin-top:12px;display:flex;align-items:center;gap:8px}
+input[type=text],input[type=date],input[type=url],input[type=number],input[type=password],textarea,select{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);color:var(--text);padding:11px 12px;font-size:var(--fs-body);font-family:inherit;outline:none}
 input:focus,textarea:focus{border-color:var(--accent)}
 textarea{resize:vertical;min-height:84px}
 label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 5px}
@@ -1194,7 +1220,7 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   .btn.sub{font-size:var(--fs-body)}
   .chip{padding:9px 15px;font-size:var(--fs-body)}
   /* iOS 입력 자동 줌 방지(16px 이상) + 넉넉한 높이 */
-  input[type=text],input[type=date],input[type=url],input[type=number],textarea,select{font-size:var(--fs-lg);padding:13px 13px}
+  input[type=text],input[type=date],input[type=url],input[type=number],input[type=password],textarea,select{font-size:var(--fs-lg);padding:13px 13px}
   label{font-size:var(--fs-md)}
   .item{padding:15px 15px}
   .item .title{font-size:var(--fs-lg)}
@@ -1996,7 +2022,7 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
 :is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub.fin,
 :is(html[data-theme="light"],html[data-theme="sepia"]) .btn.sub.req{box-shadow:var(--raise)}
 /* 입력칸 = 흰 판(내려간 바탕과 구분). 작성창(.edTa)은 자기 규칙을 따른다 */
-:is(html[data-theme="light"],html[data-theme="sepia"]) :is(input[type=text],input[type=date],input[type=url],input[type=number],select,textarea:not(.edTa)){background:var(--card)}
+:is(html[data-theme="light"],html[data-theme="sepia"]) :is(input[type=text],input[type=date],input[type=url],input[type=number],input[type=password],select,textarea:not(.edTa)){background:var(--card)}
 /* 전환 버튼(탭·원고 스타일): 회색 판 위에 고른 칸만 흰 판으로 */
 :is(html[data-theme="light"],html[data-theme="sepia"]) .cmTabs,
 :is(html[data-theme="light"],html[data-theme="sepia"]) #edStyleBar #c_style{background:var(--track);border-color:transparent}
