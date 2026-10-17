@@ -278,6 +278,10 @@ WBC 성경주석(솔로몬 한글판) 스캔 PDF 58권(38,974쪽)을 맥 Vision 
 ### v671 — Ask 패널의 코드 실행을 묻지 않고(가드) + 되돌리기 (2026-10-17 목사님 요청 「원고 수정은 묻지 말고 바로 하고 보고만」)
 `TSA_AGENT.run(callId, name, input, opts)` — `opts.trust` 면 app_js_run 확인 카드 없이 실행(`AG.trustJs` 를 그 실행 동안만 켬). 설교 작성 화면이면 실행 전 `agComposeSnap()`+`histSnap('대화 반영 전')`, 작성창이 바뀌었으면 [되돌리기](`agComposeRestore`) 단추를 붙인다. 무엇을 「묻지 않아도 되는 코드」로 볼지는 브라우저(`chat.js` `riskyJs`, 확인 방식 가드·자동·매번 확인)가 정한다. 브라우저 1.3.0 은 Aside 의 기억·스킬도 가져와 쓴다(`Dropbox/total-sermon/ask/`, README 2-2).
 
+### v672 — 전용 브라우저 1.3.5 점검 수정과 짝 (2026-10-17, 브라우저 README 2-3)
+- **`window.tsbFlush()`**(lbtSaveNow 바로 아래): 화면이 가려질 때 하던 저장(작성초안 IndexedDB + 시트 백업 `pushComposeDraftRemote` + occ/zone/lbt)을 한 번에 하고 끝나면 완료되는 Promise. 브라우저가 창 내리기·숨기기·닫기·⌘Q 때 부르고 최대 3초 기다린다 — Electron 에서는 창 닫기·종료 때 visibilitychange·pagehide 가 오지 않는다(시험). 그래서 `saveComposeDraft`·`pushComposeDraftRemote`·`occSaveNow`·`zoneSaveNow`·`_lbtPersist`/`lbtSaveNow` 가 이제 Promise 를 돌려준다(예전 호출은 반환값을 안 쓰므로 그대로). `pushComposeDraftRemote` 는 같은 내용을 보내는 중이면 그 요청을 돌려주고 다시 보내지 않는다(`_cdraftInflight`). ⚠ 새로 「가려질 때 저장」을 더하면 tsbFlush 에도 넣을 것.
+- **`pageGuide(pg, ag)`**: `sysFor` 의 화면별 문장을 떼어 냄(sysFor 결과는 그대로). `TSA_AGENT.system({neutral:true})` = 화면 무관 지침, `TSA_AGENT.context().hint` = 지금 화면 안내 — 브라우저 Ask 패널은 화면이 바뀐 메시지 앞에 `[화면 안내]`로 붙인다(한 대화 프로세스를 화면을 옮겨 가며 계속 쓰므로).
+
 ## 주일 시리즈 — 주간범위는 앱이 계산 · 제외 주일 밀림 수정 — v649 (2026-10-14 목사님 제보)
 여호수아 설교계획표(「전주간 묵상 본문」)가 묵상집과 달랐다. 원인 = `P_SERMON` 에 묵상 일정 **전체**를 넘기고 주마다 `주간범위`를 **모델이** 정했는데, 설교하지 않는(제외) 주일 앞 주를 「묵상도 없는 주」로 보고 다음 주일 범위에 합치거나 한 주씩 밀어 적었다(9/20 = 2:15-6:14, 10/18 = 9:7-11:23, 11/15 = 17:1-19:9 = 제외 주 범위 그대로, 11/22·11/29 한 주 밀림). 그 범위로 선택지를 만들어 **10/18 수 10:9-15, 11/15 수 17:14-18 이 앞(제외) 주 묵상 본문**으로 확정됐다. `weekDevoRange` 가 모델 값을 먼저 써서 표·ics 도 틀렸다.
 - **주간범위 = `sunDevoRows`/`sunDevoRange`(S.devo 의 직전 월~토)**. `weekDevoRange` 는 주일 시리즈면 이 계산값이 먼저(새벽·주제별·묵상 없음 = 적힌 값). `spSermonHtml` 이 열 때 저장된 `w['주간범위']` 를 계산값으로 바로잡는다(옛 계획의 머리 표시·보관 비고 「주간묵상:」·이달의 말씀).
