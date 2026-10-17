@@ -266,6 +266,12 @@ WBC 성경주석(솔로몬 한글판) 스캔 PDF 58권(38,974쪽)을 맥 Vision 
 - **실제 Claude Code 시험(2026-10-17)**: Claude Code **2.1.220 은 Opus 5.5 를 못 쓴다**(「2.1.280 or newer is required」) → `claude update` 로 2.1.302. 그 뒤 요약본(P_SUM, Opus 5.5) 12.5초·앱 `aiJson` 해석 통과 · 예화 인식(Haiku 5.5) 5초 · Sonnet 5.5 9초 · 설교 대화 13초. Haiku 인식은 두 번 중 한 번 한 글자 틀림(Opus·Sonnet 정확) — Aside 는 전부 Opus 였다(같게 하려면 브라우저 메뉴 [AI 모델] → Opus 고정).
 - **v668**: 브라우저 1.0.1 이 버전 오류를 받으면 `claude update` 한 번 + 같은 요청 다시(단계 `update` → 앱 표시 「Claude Code 를 업데이트하는 중」, `HOST_PHASE`·`hostOverlayPhase`). 결과함 실제 쓰기·인쇄·공유 메뉴·긴 산출물은 아직 확인 못 함. 새 브라우저는 저장소가 비어 있어 Aside 의 설교앱 설정 → 「설정 이전」으로 옮기고 결과함을 다시 연결해야 한다.
 
+### v669 — 전용 브라우저의 Ask 패널(Aside 「Ask Aside」와 같은 경험) (2026-10-17 목사님 요청)
+브라우저 1.1.0: 상단 막대 [Ask Claude] + 오른쪽 Ask 패널(⌘J). 자세한 것은 `Dropbox/total-sermon/browser/README.md` 2-1.
+- **앱 쪽(대화 모듈 IIFE)**: `window.TSA_AGENT` = { tools()(AG_TOOLS 정의) · system()(`sysFor(curPage(), true)` — forceAg) · context()(화면 이름·열린 설교 제목/본문/ID·저장 안 한 변경·열린 창·선택한 글) · run(callId, name, input)(AG_TOOLS 실행, 결과는 MCP 모양 `{content:[text|{type:'image',data,mimeType}], is_error}`) · click(nid, checked) · stop() · reset() }. 도구가 `T.attach` 로 붙이는 조각은 `agRemoteChip` 이 HTML 로 떠서(`agRemoteHtml` — 단추·입력에 `data-agr`, blob 그림은 480px JPEG data URL, on* 속성 제거) `TSA_HOST.agentUi` 로 보내고, 바뀌면(MutationObserver) 다시 보낸다.
+  → `hostPanelOn()`(TSA_HOST.panel + 에이전트 모드)이면 `openPanel` 은 브라우저 패널을 열고, `agSendText`([이걸로 교체] 등)는 패널로 보낸다. ⚠ AG_TOOLS 를 고치면 브라우저 패널에도 그대로 들어간다 — 도구가 화면에 그리는 것은 `T.attach`·`T.label/status/ok/err` 만 쓸 것(다른 DOM 에 직접 그리면 패널에 안 보인다).
+- 브라우저 쪽: `chat.js`(대화당 Claude Code 프로세스 + 127.0.0.1 MCP 도구 서버, `--setting-sources ''` 로 전역 CLAUDE.md 격리 — `--safe-mode` 는 MCP 를 꺼서 못 씀), `pagetools.js`(page_snapshot·click·type·key·scroll·screenshot·wait, 가드 확인), `ui/`(topbar·panel·md). 실제 Opus 5.5 로 이동·클릭·화면 보기·가드 확인·기억·모델 전환·기록 이어 쓰기·멈춤·첨부 시험 통과. 설교 이미지 도구의 후보 그림 조각은 실제 프로필(결과함)에서 아직 확인 못 함.
+
 ## 주일 시리즈 — 주간범위는 앱이 계산 · 제외 주일 밀림 수정 — v649 (2026-10-14 목사님 제보)
 여호수아 설교계획표(「전주간 묵상 본문」)가 묵상집과 달랐다. 원인 = `P_SERMON` 에 묵상 일정 **전체**를 넘기고 주마다 `주간범위`를 **모델이** 정했는데, 설교하지 않는(제외) 주일 앞 주를 「묵상도 없는 주」로 보고 다음 주일 범위에 합치거나 한 주씩 밀어 적었다(9/20 = 2:15-6:14, 10/18 = 9:7-11:23, 11/15 = 17:1-19:9 = 제외 주 범위 그대로, 11/22·11/29 한 주 밀림). 그 범위로 선택지를 만들어 **10/18 수 10:9-15, 11/15 수 17:14-18 이 앞(제외) 주 묵상 본문**으로 확정됐다. `weekDevoRange` 가 모델 값을 먼저 써서 표·ics 도 틀렸다.
 - **주간범위 = `sunDevoRows`/`sunDevoRange`(S.devo 의 직전 월~토)**. `weekDevoRange` 는 주일 시리즈면 이 계산값이 먼저(새벽·주제별·묵상 없음 = 적힌 값). `spSermonHtml` 이 열 때 저장된 `w['주간범위']` 를 계산값으로 바로잡는다(옛 계획의 머리 표시·보관 비고 「주간묵상:」·이달의 말씀).
