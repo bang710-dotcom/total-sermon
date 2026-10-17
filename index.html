@@ -19637,7 +19637,7 @@ var P_CARDDECK = [
   '- {"type":"scripture","ref":"요 7:17","bg":{"kind":"본문"},"quote":[[run,...],...],"after":[[run,...]],"key":"한 줄 결론"}',
   '- {"type":"point","num":1,"text":"대지 한 문장","bg":{...}} : 대지 선언(파란 배경 + 큰 민트 번호). num=대지 순번(1·2·3).',
   'run = {"t":"텍스트","e":null|"strong"|"green"} — strong=핵심 강조(남색 굵게), green=결론/제목성 한 줄(초록 굵게).',
-  'bg(배경 전환 표시): 일반 이미지 전환 시작 카드 {"kind":"전환","n":N}; 같은 배경 이어지는 카드 {"kind":"계속"}; 성경 인용 카드 {"kind":"본문"}.',
+  'bg(배경 전환 표시): 일반 이미지 전환 시작 카드 {"kind":"전환","n":N}; 같은 배경 이어지는 카드 {"kind":"계속"}; 성경 인용 카드 {"kind":"본문"} — 단 그 인용에서 본문 이미지로 바뀌면(초고의 「▶ 본문 이미지 #N 전환 ◀」 또는 기존전환표 t=본문) {"kind":"본문","n":N}. n 은 기존전환표·초고의 번호 그대로.',
   '★줄바꿈(가장 중요): line = "한 호흡" 단위로 짧게. 한 줄은 약 16~20자 이내. (1) 짧은 문장은 그대로 한 줄. (2) 긴 문장은 자연스러운 호흡(쉼표·접속어·구·절 경계)에서 끊어 여러 줄(line)로 나눈다 — 절대 어절(단어) 중간에서 끊지 말 것. 예: "충분히 이해되고, 손해 안 볼 게 확인되면," + "그때 움직이겠다는 겁니다." / "그런데 오늘 예수님은" + "이 순서를 정반대로 뒤집으십니다." (3) 두 문장을 한 줄에 합치지 마라. "/" 기호 금지. ※ 가로폭을 넘는 긴 줄을 그대로 두면 화면에서 자동 줄바꿈돼 어절이 깨진다 — 반드시 미리 짧게 끊어라.',
   '★ 성경 인용 줄바꿈: quote는 절 전문을 의미 단위로 균형 있게 끊어 여러 줄로(각 줄 약 14~18자, 구·절 경계에서). 예: ["사람이 하나님의 뜻을 행하려 하면","이 교훈이 하나님께로부터 왔는지","내가 스스로 말함인지 알리라"]. after(설명)도 위 줄바꿈 규칙대로 짧게 끊는다. ★ 긴 절이라 인용+설명이 한 화면을 넘치면, scripture 카드에는 인용(+key)만 담고 설명(after)은 다음 "계속" body 카드로 내린다(절대 카드 밖으로 넘치지 않게).',
   'blocks=호흡 단락: 서로 밀접한 1~3문장을 한 block에 모으고, 생각이 바뀌면 새 block으로 나눈다(block 사이에 빈 줄 간격이 생긴다). 긴 설명형 한 문장으로 합치지 말고 짧은 단문의 리듬을 유지한다 — 그게 강단에서 눈에 더 잘 들어온다.',
@@ -19870,7 +19870,9 @@ var CARD_CSS = ".cdk-card{width:1240px;height:840px;position:relative;overflow:h
  + ".cdk-card .foot-r.light{color:#8C8EC9}"
  + ".cdk-card .imgbadge{background:#2E3191;color:#fff;font-weight:800;font-size:29px;padding:7px 22px;border-radius:14px;line-height:1.05;white-space:nowrap}"
  + ".cdk-card .imgbadge.dark{background:#4ED4B0;color:#2E3191}"
- + ".cdk-card .imgbadge.coverbadge{position:absolute;top:84px;right:96px}";
+ + ".cdk-card .imgbadge.coverbadge{position:absolute;top:84px;right:96px}"
+ + ".cdk-card .mkchip{position:absolute;right:100%;margin-right:12px}"
+ + ".cdk-card .chiphost{position:relative}";
 function cardRunsHtml(runs){
   return (runs || []).map(function(r){
     var t = esc(r.t || '');
@@ -19889,6 +19891,22 @@ function cardBgText(bg){
   if (bg.kind === '본문') return '+ 본문 · 같은 배경';
   return '';
 }
+/* v666 디자인 카드의 이미지 전환 칩 — 카드원고 작성창·내보낸 문서와 같은 빨간 칩(그림/책 아이콘 + 번호, cardMarkPng).
+   이미지가 바뀌는 카드(bg 전환, 또는 n 이 붙은 본문)에만, 왼쪽 여백의 첫 줄 옆. 전환표를 끈 실행(noImgBadge)에는 없다.
+   번호: AI 가 준 n(기존전환표·초고 번호)을 우선, 없으면 직전 + 1. n 없는 본문 카드는 같은 배경 — 번호를 올리지 않는다. */
+var DECK_CHIP_H = 36;
+function deckChipOf(deck, c){ var bg = (c && c.bg) || {}; return !(deck && deck.noImgBadge) && (bg.kind === '전환' || (bg.kind === '본문' && bg.n)); }
+function deckImgNo(prev, c){
+  var bg = (c && c.bg) || {};
+  if (c && c.type === 'cover') return 1;
+  if ((bg.kind === '전환' || bg.kind === '본문') && +bg.n) return +bg.n;
+  return bg.kind === '전환' ? prev + 1 : prev;
+}
+function deckChipHtml(deck, c, n, top){
+  if (!deckChipOf(deck, c)) return '';
+  var im = cardMarkPng(n, (c.bg || {}).kind === '본문'), w = Math.round(DECK_CHIP_H * im.pw / im.ph);
+  return '<img class="mkchip" alt="" src="' + im.u + '" style="width:' + w + 'px;height:' + DECK_CHIP_H + 'px;top:' + Math.round(top) + 'px">';
+}
 var CARD_FOOTER = '복음의 능력으로 춤추라';   /* 올해 표어 — Opus 출력과 무관하게 항상 이 값으로 */
 function renderCardDeckHtml(deck){
   var m = deck.meta || {}, foot = esc(CARD_FOOTER), html = '';
@@ -19896,9 +19914,7 @@ function renderCardDeckHtml(deck){
   var imgN = 1;
   function badge(n, dark, cover){ if (deck && deck.noImgBadge) return ''; return '<span class="imgbadge' + (dark ? ' dark' : '') + (cover ? ' coverbadge' : '') + '">#' + n + '</span>'; }
   (deck.cards || []).forEach(function(c){
-    var bg = c.bg || {};
-    if (c.type === 'cover') imgN = 1;
-    else if (bg.kind === '전환' || bg.kind === '본문') imgN++;
+    imgN = deckImgNo(imgN, c);
     var ino = imgN;
     if (c.type === 'cover'){
       var kw = m.titleKeyword || '';
@@ -19908,22 +19924,25 @@ function renderCardDeckHtml(deck){
         + '<div class="title">' + titleHtml + '</div><div class="ref">' + esc(m.ref || '') + '</div>'
         + '<div class="foot">' + foot + '</div></div></div>';
     } else if (c.type === 'scripture'){
-      html += '<div class="cdk-card scr"><div class="pad"><div class="row"><span class="pill">' + esc(c.ref || '')
+      html += '<div class="cdk-card scr"><div class="pad"><div class="row chiphost">' + deckChipHtml(deck, c, ino, 16) + '<span class="pill">' + esc(c.ref || '')
         + '</span>' + badge(ino, false) + '</div>'
         + '<div class="quote"><span class="qm">“</span><div class="vt">' + cardLinesHtml(c.quote) + '</div></div>'
         + (c.after ? '<div class="after">' + cardLinesHtml(c.after) + '</div>' : '')
         + (c.key ? '<div class="key">' + esc(c.key) + '</div>' : '') + '</div></div>';
     } else if (c.type === 'point'){
       html += '<div class="cdk-card pt"><div class="pad">'
-        + '<div class="topbar"><span class="seclabel">핵심 대지</span>' + badge(ino, true) + '</div>'
+        + '<div class="topbar chiphost">' + deckChipHtml(deck, c, ino, 0) + '<span class="seclabel">핵심 대지</span>' + badge(ino, true) + '</div>'
         + '<div class="ptnum">' + ('0' + (c.num || 1)).slice(-2) + '</div>'
         + '<div class="pttext">' + esc(c.text || '') + '</div>'
         + '<div class="foot-r light">' + foot + '</div></div></div>';
     } else {
-      var blocks = (c.blocks || []).map(function(b){ return '<div class="blk">' + cardLinesHtml(b.lines) + '</div>'; }).join('');
       /* 넘침 안전망: 줄 수가 많으면 글자를 자동 축소해 카드 밖으로 잘리지 않게 한다(블록 간 여백도 줄 1줄로 환산). */
       var nLines = (c.blocks || []).reduce(function(s, b){ return s + (b.lines || []).length; }, 0) + Math.max(0, (c.blocks || []).length - 1);
       var dense = nLines >= 11 ? ' dense2' : nLines >= 9 ? ' dense' : '';
+      var lh1 = nLines >= 11 ? 33 * 1.36 : nLines >= 9 ? 37 * 1.42 : 42 * 1.5;   /* 첫 줄 높이 — 칩을 그 가운데에 */
+      var blocks = (c.blocks || []).map(function(b, bi){
+        return '<div class="blk' + (bi ? '' : ' chiphost') + '">' + (bi ? '' : deckChipHtml(deck, c, ino, (lh1 - DECK_CHIP_H) / 2)) + cardLinesHtml(b.lines) + '</div>';
+      }).join('');
       html += '<div class="cdk-card body' + dense + '"><div class="pad"><div class="topbar"><span class="sec">' + esc(c.section || '')
         + '</span>' + badge(ino, false) + '</div>' + blocks
         + '<div class="foot-r">' + foot + '</div></div></div>';
@@ -20119,10 +20138,14 @@ async function buildCardPptxBlob(deck){
   var series = m.series || '대학부 · 주일설교';
   var tlines = (m.titleLines && m.titleLines.length) ? m.titleLines : [m.title || ''];
   var kw = m.titleKeyword || '', ref = m.ref || '';
+  function chip(s, c, n, cy){   /* v666 이미지 전환 칩 — 왼쪽 여백, cy = 첫 줄 가운데(위에서 px) */
+    if (!deckChipOf(deck, c)) return;
+    var im = cardMarkPng(n, (c.bg || {}).kind === '본문'), h = DECK_CHIP_H, w = h * im.pw / im.ph;
+    s.addImage({ data: String(im.u).replace(/^data:/, ''), x: IN(96 - 12 - w), y: IN(cy - h / 2), w: IN(w), h: IN(h) });
+  }
   var imgN = 1;
   (deck.cards || []).forEach(function(c){
-    var bg = c.bg || {};
-    if (c.type === 'cover') imgN = 1; else if (bg.kind === '전환' || bg.kind === '본문') imgN++;
+    imgN = deckImgNo(imgN, c);
     var ino = imgN, s = pptx.addSlide();
     if (c.type === 'cover'){
       s.background = { color: NAVY };
@@ -20142,6 +20165,7 @@ async function buildCardPptxBlob(deck){
     } else if (c.type === 'point'){
       s.background = { color: NAVY };
       put(s, 96, H - 150, [{ text: '핵심 대지', options: { color: '9A9CD6' } }], 27);
+      chip(s, c, ino, 150 - BL * 27 + 27 * 0.6);
       put(s, 96, H - 360, [{ text: ('0' + (c.num || 1)).slice(-2), options: { color: MINT, bold: true } }], 150, { face: 'Jua' });
       put(s, 96, H - 470, [{ text: c.text || '', options: { color: WHITE, bold: true } }], 64, { face: 'Jua' });
       footer(s, true); badge(s, ino, true);
@@ -20149,6 +20173,7 @@ async function buildCardPptxBlob(deck){
       s.background = { color: CREAM };
       var pill = c.ref || '', pw = strw(pill, 35);
       box(s, 96, H - 205, pw + 64, 70, TEAL);
+      chip(s, c, ino, 205 - 70 / 2);
       put(s, 96 + 32, H - 188, [{ text: pill, options: { color: WHITE, bold: true } }], 35);
       var qlines = c.quote || [], qfs = 43, qlh = Math.round(qfs * 1.46);
       var boxh = qlines.length * qlh + 96, boxtop = H - 250, boxbot = boxtop - boxh;
@@ -20168,6 +20193,7 @@ async function buildCardPptxBlob(deck){
       put(s, 96, H - 150, [{ text: c.section || '', options: { color: NAVY, bold: true } }], 29);
       badge(s, ino, false);
       var yy = H - 235;
+      chip(s, c, ino, 235 - BL * fs + fs * 0.6);
       (c.blocks || []).forEach(function(b, bi){
         if (bi > 0) yy -= gap;
         (b.lines || []).forEach(function(ln){ put(s, 96, yy, lineRuns(ln, BODY), fs); yy -= lh; });
