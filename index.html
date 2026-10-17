@@ -31908,7 +31908,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v668';
+var APP_VER = 'v669';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -32690,7 +32690,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   if (toBottomBtn) toBottomBtn.addEventListener('click', function(){ jumpBottom(); input.focus(); });
 
   /* ── 페이지별 시스템 프롬프트 ── */
-  function sysFor(pg){
+  function sysFor(pg, forceAg){
     var base = '당신은 영락교회 대학부 담임 설교자(목사님)의 설교 준비를 돕는 동역자입니다. '
       + '목사님의 설교는 "오늘의 자리→본문→오늘"을 왕복하는 정서적·실천적 강해이며, 5단 구조(도입·짧은 본문배경·대지 2~3개·"말씀을 정리합니다" 결론·축복선언)를 기본으로 합니다. '
       + '대지는 본문 요약이 아니라 청중이 붙들 변화의 지침(사고의 전환·행동의 변화·새로운 이해)을 함축적·도전적인 "뼈만 남은" 명제로 잡고, 예화는 자기 일화+시사문화+성경 평행인물 세 층위로 쌓으며, 적용은 오늘 실행 가능한 구체적 행동으로 착지합니다. '
@@ -32699,7 +32699,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       + (typeof REPEAT_WORD_RULE === 'string' ? REPEAT_WORD_RULE : '')
       + (typeof METAPHOR_AXIS_RULE === 'string' ? METAPHOR_AXIS_RULE : '')
       + (typeof POINT_CHANGE_RULE === 'string' ? POINT_CHANGE_RULE : '');
-    var ag = agOn();   /* v645: API 키가 있으면 앱 도구를 쓰는 에이전트 — 작성창 반영도 코드블록 대신 compose_edit 도구로 바로 */
+    var ag = forceAg || agOn();   /* v645: API 키가 있으면 앱 도구를 쓰는 에이전트 — 작성창 반영도 코드블록 대신 compose_edit 도구로 바로 (v669: 브라우저 Ask 패널은 forceAg) */
     var core = base;
     if (pg === 'compose') core = base + ' 지금 화면은 [설교 작성]입니다. 제목·본문·핵심메시지·대지를 다듬고, 예화·적용을 보강하고, 원고 흐름을 함께 만드는 데 집중합니다.' +
       (ag ? ' 작성창을 고치거나 채워 달라는 요청은 compose_edit 도구로 바로 반영합니다(반영 전 상태로 되돌릴 수 있음). 고칠 곳을 제안만 해 달라고 하면 대화로 보여 드립니다.' : EDIT_PROTO);
@@ -33296,6 +33296,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     return out;
   }
   function agSendText(t){
+    if (hostPanelOn()){ agRemoteEmit('_', { k: 'send', text: String(t) }); return; }   /* v669: 브라우저 Ask 패널의 [이걸로 교체] 등 → 패널에서 보낸다 */
     if (busy){ if (typeof toast === 'function') toast('지금 답하는 중입니다 — 끝난 뒤 눌러 주세요.'); return; }
     input.value = t; autosize(); send();
   }
@@ -33718,6 +33719,95 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     }
   }
 
+  /* ===== v669 Total Sermon Browser 의 Ask 패널 — 브라우저 쪽 에이전트가 이 앱의 도구를 쓰는 통로 (2026-10-17 목사님 요청) =====
+     브라우저가 Claude Code 를 돌리고, 도구 호출이 오면 TSA_AGENT.run 으로 이 앱 안에서 실행한다(AG_TOOLS 그대로).
+     도구가 그려 붙이는 조각(확인 카드·되돌리기 단추·후보 그림)은 패널로 비춰 보내고(agRemoteChip — 바뀔 때마다 다시),
+     패널에서 누른 단추·체크는 TSA_AGENT.click 으로 원래 요소에 되돌린다(브라우저가 사용자 동작으로 실행 → 폴더 권한 요청도 됨). */
+  function hostPanelOn(){ try { return !!(window.TSA_HOST && window.TSA_HOST.panel && window.TSA_BRIDGE && window.TSA_BRIDGE.on()); } catch(e){ return false; } }
+  var AGR = { nodes: {}, seq: 0, obs: [] };
+  function agRemoteEmit(callId, ev){ try { if (window.TSA_HOST && window.TSA_HOST.agentUi) window.TSA_HOST.agentUi(String(callId), ev); } catch(e){} }
+  async function agRemoteHtml(node){
+    var all = [node].concat(Array.prototype.slice.call(node.querySelectorAll ? node.querySelectorAll('button,input,a,select') : []));
+    all.forEach(function(el){ if (el.nodeType === 1 && /^(BUTTON|INPUT|A|SELECT)$/.test(el.tagName) && !el.getAttribute('data-agr')){ var id = 'n' + (++AGR.seq); el.setAttribute('data-agr', id); AGR.nodes[id] = el; } });
+    var c = node.cloneNode(true), oi = [node].concat(Array.prototype.slice.call(node.querySelectorAll ? node.querySelectorAll('*') : [])), ci = [c].concat(Array.prototype.slice.call(c.querySelectorAll ? c.querySelectorAll('*') : []));
+    for (var i = 0; i < oi.length && i < ci.length; i++){
+      var o = oi[i], k = ci[i]; if (o.nodeType !== 1) continue;
+      Array.prototype.slice.call(k.attributes).forEach(function(a){ if (/^on/i.test(a.name)) k.removeAttribute(a.name); });
+      if (o.disabled) k.setAttribute('disabled', ''); else k.removeAttribute('disabled');
+      if (o.tagName === 'INPUT' && o.type === 'checkbox'){ if (o.checked) k.setAttribute('checked', ''); else k.removeAttribute('checked'); }
+      if (o.tagName === 'IMG'){
+        var src = o.currentSrc || o.src || '';
+        if (/^blob:/i.test(src)){ try { var b64 = await agB64(await (await fetch(src)).blob(), 480); src = b64 ? 'data:image/jpeg;base64,' + b64 : ''; } catch(e){ src = ''; } }
+        k.setAttribute('src', src);
+      }
+      if (/^(SCRIPT|IFRAME|OBJECT|EMBED)$/.test(o.tagName)) k.remove();
+    }
+    return c.outerHTML;
+  }
+  function agRemotePush(callId, aid, node){ agRemoteHtml(node).then(function(h){ agRemoteEmit(callId, { k: 'attach', id: aid, html: h }); }, function(){}); }
+  function agRemoteChip(callId, name){
+    var T = { done: false,
+      label: function(t){ agRemoteEmit(callId, { k: 'label', t: String(t || '') }); },
+      status: function(t){ agRemoteEmit(callId, { k: 'status', t: String(t || '') }); },
+      ok: function(t){ T.done = true; agRemoteEmit(callId, { k: 'ok', t: String(t || '완료') }); },
+      err: function(t){ T.done = true; agRemoteEmit(callId, { k: 'err', t: String(t || '실패') }); },
+      attach: function(node){
+        var aid = 'a' + (++AGR.seq);
+        agRemotePush(callId, aid, node);
+        try {
+          var mo = new MutationObserver(function(){ clearTimeout(mo._t); mo._t = setTimeout(function(){ agRemotePush(callId, aid, node); }, 80); });
+          mo.observe(node, { subtree: true, childList: true, attributes: true, characterData: true });
+          AGR.obs.push(mo);
+          node.addEventListener('change', function(){ agRemotePush(callId, aid, node); }, true);
+        } catch(e){}
+        return node;
+      } };
+    T.label((AG_TOOLS[name] && AG_TOOLS[name].label) || name);
+    return T;
+  }
+  window.TSA_AGENT = {
+    ver: 1,
+    tools: function(){ return Object.keys(AG_TOOLS).map(function(k){ return { name: k, label: AG_TOOLS[k].label, description: AG_TOOLS[k].def.description, input_schema: AG_TOOLS[k].def.input_schema }; }); },
+    system: function(){ return sysFor(curPage(), true); },
+    context: function(){
+      var pg = curPage(), o = { page: agPageName(pg), pageId: pg || '', overlays: agOverlays() };
+      if (pg === 'compose'){
+        var g = function(k){ var el = C_META && C_META[k] && document.getElementById(C_META[k]); return el ? String(el.value || '').trim() : ''; };
+        o.title = g('제목'); o.ref = g('본문'); o.sermonId = state.editing || ''; try { o.dirty = !!composeDirty(); } catch(e){}
+      }
+      try { var s = window.getSelection && String(window.getSelection() || '').trim(); if (s) o.selection = s.slice(0, 4000); } catch(e){}
+      return o;
+    },
+    run: async function(callId, name, input){
+      AG.stopped = false;
+      var spec = AG_TOOLS[name], T = agRemoteChip(callId, name), V = { log: [] };
+      if (!spec){ T.err('알 수 없는 도구'); return { is_error: true, content: [{ type: 'text', text: '알 수 없는 도구: ' + name }] }; }
+      var inv = agInvalid(spec.def.input_schema, input || {});
+      if (inv){ T.err('입력 오류'); return { is_error: true, content: [{ type: 'text', text: JSON.stringify({ INVALID_INPUT: inv }) }] }; }
+      try {
+        var out = await spec.run(input || {}, T, V);
+        var text = (typeof out === 'string') ? out : String((out && out.text) || '완료');
+        var content = [{ type: 'text', text: agCap(agRedact(text)) }];
+        if (out && out.images) out.images.forEach(function(im){ if (im) content.push({ type: 'image', data: im, mimeType: 'image/jpeg' }); });
+        if (!T.done) T.ok();
+        return { content: content, log: V.log };
+      } catch(e){
+        if (e && e.code === 'STOP'){ T.err('멈춤'); return { is_error: true, content: [{ type: 'text', text: '목사님이 멈추셨다.' }] }; }
+        var msg = (e && e.message) || String(e);
+        T.err(msg.split('\n')[0].slice(0, 80));
+        return { is_error: true, content: [{ type: 'text', text: agCap(agRedact('실패: ' + msg)) }] };
+      }
+    },
+    click: function(nid, checked){
+      var el = AGR.nodes[nid]; if (!el) return false;
+      if (el.tagName === 'INPUT' && el.type === 'checkbox'){ el.checked = !!checked; el.dispatchEvent(new Event('change', { bubbles: true })); return true; }
+      if (el.disabled) return false;
+      el.click(); return true;
+    },
+    stop: function(){ agStop(); },
+    reset: function(){ AG.trustJs = false; AG.lastCtx = ''; AGR.obs.forEach(function(o){ try { o.disconnect(); } catch(e){} }); AGR.obs = []; AGR.nodes = {}; }
+  };
+
   /* ── 한 차례 답: 도구를 부르면 실행해 결과를 돌려주고 다시 묻기를 반복 ── */
   async function agRespond(pg, aEl){
     var V = agView(aEl), model = aiModelResolve(modelSel.value), sys = sysFor(pg);
@@ -33875,6 +33965,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 
   /* ── 열기/닫기/새 대화 ── */
   function openPanel(){
+    if (hostPanelOn()){ window.TSA_HOST.panel.open(); return; }   /* v669: 전용 브라우저 — 오른쪽 Ask 패널(Claude Code 구독 에이전트)로 */
     refreshCtxTag();
     if (convo.length === 0) showHint();
     panel.classList.add('open'); document.body.classList.add('aiChatOpen');
