@@ -19905,7 +19905,8 @@ function deckImgNo(prev, c){
 function deckChipHtml(deck, c, n, top){
   if (!deckChipOf(deck, c)) return '';
   var im = cardMarkPng(n, (c.bg || {}).kind === '본문'), w = Math.round(DECK_CHIP_H * im.pw / im.ph);
-  return '<img class="mkchip" alt="" src="' + im.u + '" style="width:' + w + 'px;height:' + DECK_CHIP_H + 'px;top:' + Math.round(top) + 'px">';
+  var tp = top == null ? 'top:50%;margin-top:-' + (DECK_CHIP_H / 2) + 'px' : 'top:' + Math.round(top) + 'px';   /* null = 그 줄(가로 줄) 가운데 — transform 은 html2canvas 가 못 그릴 수 있어 쓰지 않는다 */
+  return '<img class="mkchip" alt="" src="' + im.u + '" style="width:' + w + 'px;height:' + DECK_CHIP_H + 'px;' + tp + '">';
 }
 var CARD_FOOTER = '복음의 능력으로 춤추라';   /* 올해 표어 — Opus 출력과 무관하게 항상 이 값으로 */
 function renderCardDeckHtml(deck){
@@ -19924,14 +19925,14 @@ function renderCardDeckHtml(deck){
         + '<div class="title">' + titleHtml + '</div><div class="ref">' + esc(m.ref || '') + '</div>'
         + '<div class="foot">' + foot + '</div></div></div>';
     } else if (c.type === 'scripture'){
-      html += '<div class="cdk-card scr"><div class="pad"><div class="row chiphost">' + deckChipHtml(deck, c, ino, 16) + '<span class="pill">' + esc(c.ref || '')
+      html += '<div class="cdk-card scr"><div class="pad"><div class="row chiphost">' + deckChipHtml(deck, c, ino, null) + '<span class="pill">' + esc(c.ref || '')
         + '</span>' + badge(ino, false) + '</div>'
         + '<div class="quote"><span class="qm">“</span><div class="vt">' + cardLinesHtml(c.quote) + '</div></div>'
         + (c.after ? '<div class="after">' + cardLinesHtml(c.after) + '</div>' : '')
         + (c.key ? '<div class="key">' + esc(c.key) + '</div>' : '') + '</div></div>';
     } else if (c.type === 'point'){
       html += '<div class="cdk-card pt"><div class="pad">'
-        + '<div class="topbar chiphost">' + deckChipHtml(deck, c, ino, 0) + '<span class="seclabel">핵심 대지</span>' + badge(ino, true) + '</div>'
+        + '<div class="topbar chiphost">' + deckChipHtml(deck, c, ino, null) + '<span class="seclabel">핵심 대지</span>' + badge(ino, true) + '</div>'
         + '<div class="ptnum">' + ('0' + (c.num || 1)).slice(-2) + '</div>'
         + '<div class="pttext">' + esc(c.text || '') + '</div>'
         + '<div class="foot-r light">' + foot + '</div></div></div>';
