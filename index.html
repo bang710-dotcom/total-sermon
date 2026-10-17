@@ -2804,9 +2804,10 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
         <label style="margin-top:14px">브라우저 에이전트 모드 (선택 — Aside·클로드 구독으로 생성)</label>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
           <input type="checkbox" id="setBridge" style="width:auto;margin:0">
-          <span class="cnt" style="margin:0">Aside 에서 API 키 없이 사용 — AI 버튼을 누르면 Aside 가 바로 처리</span>
+          <span class="cnt" style="margin:0">Aside·Total Sermon Browser 에서 API 키 없이 사용 — AI 버튼을 누르면 바로 처리</span>
         </div>
-        <div class="cnt" style="margin-top:6px">켜면 <b>예화 이미지 인식(비전)을 포함한 모든 AI 기능</b>이 클로드 구독(Aside)으로 처리됩니다 — API 키가 있어도 과금되지 않으며, 키는 모드가 꺼져 있을 때만 쓰입니다. 단 <b>설교 대화</b>는 API 키가 있으면 키로 직접 대화합니다. <b>자동 처리</b>: 맥에 중계기(<b>tools/install_asiderelay_agent.sh</b>)가 설치돼 있으면 AI 버튼을 누르는 즉시 Aside 가 <b>새 임시 대화</b>(사이드패널에는 안 보임)에서 처리합니다 — 처음 한 번 브라우저가 「로컬 네트워크 접근」을 물으면 허용하세요. 중계기가 없으면 Aside 대화창에 「요청처리」를 직접 입력합니다. <b>진행 표시</b>는 왼쪽 사이드바 하나에 모아 보여 줍니다(「Aside 준비됨」이면 버튼을 쓰시면 됨, 처리 중엔 경과 시간·[펼치기]·[취소]). 주소 뒤에 <b>?agent=1</b>을 붙여 열거나 에이전트가 <b>window.TSA_BRIDGE.enable()</b>을 호출해도 켜집니다. 이 설정은 브라우저마다 따로 저장되며, 다른 브라우저·아이패드는 지금처럼 API 키로 동작합니다.</div>
+        <div class="cnt" style="margin-top:6px"><b>Total Sermon Browser</b>(맥 전용 앱 — Dropbox/total-sermon/browser)에서는 이 모드가 저절로 켜지고, 중계기·「요청처리」 없이 <b>이 맥의 Claude Code(구독)</b>가 바로 처리합니다(진행은 생성 화면과 사이드바 「Claude 준비됨/처리 중」 표시). 아래 Aside 설명은 Aside 에서 쓸 때의 이야기입니다.</div>
+        <div class="cnt" style="margin-top:6px">켜면<b>예화 이미지 인식(비전)을 포함한 모든 AI 기능</b>이 클로드 구독(Aside)으로 처리됩니다 — API 키가 있어도 과금되지 않으며, 키는 모드가 꺼져 있을 때만 쓰입니다. 단 <b>설교 대화</b>는 API 키가 있으면 키로 직접 대화합니다. <b>자동 처리</b>: 맥에 중계기(<b>tools/install_asiderelay_agent.sh</b>)가 설치돼 있으면 AI 버튼을 누르는 즉시 Aside 가 <b>새 임시 대화</b>(사이드패널에는 안 보임)에서 처리합니다 — 처음 한 번 브라우저가 「로컬 네트워크 접근」을 물으면 허용하세요. 중계기가 없으면 Aside 대화창에 「요청처리」를 직접 입력합니다. <b>진행 표시</b>는 왼쪽 사이드바 하나에 모아 보여 줍니다(「Aside 준비됨」이면 버튼을 쓰시면 됨, 처리 중엔 경과 시간·[펼치기]·[취소]). 주소 뒤에 <b>?agent=1</b>을 붙여 열거나 에이전트가 <b>window.TSA_BRIDGE.enable()</b>을 호출해도 켜집니다. 이 설정은 브라우저마다 따로 저장되며, 다른 브라우저·아이패드는 지금처럼 API 키로 동작합니다.</div>
         <div class="cnt" id="asideRelayStat" style="margin-top:6px"></div>
         <button class="btn sub" id="asideRelayCheck" type="button" style="width:auto;margin-top:6px">중계기 연결 확인</button>
         </details>
@@ -18184,6 +18185,115 @@ async function asideRelayCheck(){
     toast('중계기 응답 없음 — 맥에 중계기가 설치·실행 중인지, 「로컬 네트워크 접근」을 허용했는지 확인하세요');
   }
 }
+/* ===== v667 Total Sermon Browser — 브리지 요청을 이 맥의 Claude Code(구독)로 바로 처리 (2026-10-17 목사님 요청) =====
+   맥 전용 앱(Dropbox/total-sermon/browser, Electron = Aside 와 같은 크로미움)이 window.TSA_HOST 를 내놓으면:
+   · 브라우저 에이전트 모드가 저절로 켜지고(agentBrowserHint), bridgeCall 이 요청 패널·중계기 대신 hostAgentCall 로 간다.
+   · 진행은 API 키 경로처럼 생성 오버레이(받은 글자 수·「생각하는 중」) + 사이드바 표시 하나(hostArView). 동시에 여러 요청 가능.
+   · 모델 = 기능별 모델 설정(aiModelFor·effort). 브라우저는 claude -p(--safe-mode, 도구 없음)로 한 번 돌려 결과 글만 돌려준다.
+   · 오류 문구(로그인 필요·사용 한도 등)는 브라우저가 우리말로 준다. 로그인은 브라우저가 터미널에서 공식 `claude auth login` 을 연다. */
+var _hostRuns = {}, _hostSeq = 0, _hostSt = null, _hostStP = null, _hostCancelT = null, _hostOv = 0, _hostLoginT = null;
+function hostRunCount(){ return _hostRuns ? Object.keys(_hostRuns).length : 0; }   /* arRender 가 이 줄보다 먼저 불려도 안전하게 */
+function hostStatusRefresh(force){
+  if (!hostAgentOn()) return Promise.resolve(null);
+  if (_hostStP && !force) return _hostStP;
+  _hostStP = Promise.resolve(window.TSA_HOST.agent.status(!!force)).then(function(st){ return st || { ok: false, reason: '상태를 확인하지 못했습니다' }; },
+    function(e){ return { ok: false, reason: (e && e.message) || '상태를 확인하지 못했습니다' }; })
+    .then(function(st){ _hostSt = st; _hostStP = null; arRender(); try { asideRelayPaint(); } catch (e) {} return st; });
+  return _hostStP;
+}
+function hostStatusText(){
+  var st = _hostSt;
+  if (!st) return 'Claude 확인 중…';
+  if (st.ok) return 'Claude 준비됨 — AI 버튼을 누르면 이 맥의 Claude Code(구독)로 바로 처리합니다' + (st.email ? ' (' + st.email + ')' : '');
+  return (st.reason || 'Claude 를 쓸 수 없습니다') + ' — 사이드바의 [Claude 로그인] 또는 메뉴 [Claude] → [Claude Code 로그인…]';
+}
+var HOST_PHASE = { queued: '차례를 기다리는 중', start: 'Claude 시작', thinking: '생각하는 중', writing: '쓰는 중', retry: '다시 시도하는 중', done: '받음' };
+function hostArView(){
+  var keys = Object.keys(_hostRuns);
+  if (keys.length){
+    var r = _hostRuns[keys[0]], el = _arFmt(Date.now() - r.t0);
+    var ph = (r.n ? '쓰는 중 · ' + (r.n > 1000 ? (r.n / 1000).toFixed(1) + 'k' : r.n) + '자' : (HOST_PHASE[r.phase] || '처리 중'));
+    return { kind: 'info', spin: 1, text: r.label + ' — ' + ph + ' · ' + el, sub: (keys.length > 1 ? '외 ' + (keys.length - 1) + '건 함께 처리 중 · ' : '') + 'Claude Code(구독)로 처리 중',
+      short: r.label + ' ' + el, hcancel: true, title: r.label + ' — Claude Code 로 처리 중' };
+  }
+  if (_arDone && Date.now() - _arDone.t < 5000) return { kind: 'good', check: 1, text: _arDone.label + ' — 결과 받음', short: '결과 받음', title: '' };
+  var st = _hostSt;
+  if (!st) return { kind: 'req', spin: 1, text: 'Claude 확인 중…', short: 'Claude 확인 중', title: '' };
+  if (st.ok) return { kind: 'good', spin: 0, text: 'Claude 준비됨', short: 'Claude 준비됨', title: hostStatusText() };
+  return { kind: 'bad', spin: 0, text: st.reason || 'Claude 를 쓸 수 없음', short: 'Claude 로그인 필요', title: hostStatusText(), hlogin: true };
+}
+function hostOverlayPhase(phase){
+  if (window._cascOn) return;
+  var c = $('#genCount'); if (!c) return;
+  var t = { queued: '차례를 기다리는 중…', start: 'Claude 를 깨우는 중…', thinking: '생각하는 중…', retry: '다시 시도하는 중…' }[phase];
+  if (t) c.textContent = t;
+}
+function hostAgentCall(system, user, onTick, hopt){
+  hopt = hopt || {};
+  var label = (onTick && onTick.genLabel) || '결과물';
+  var model = '', effort = 'high', f = hopt.feature, fk = '';
+  try {
+    if (/^claude-/.test(String(f || ''))) model = String(f);
+    else { var ft = aiFeature(f || 'main'); fk = ft.k; model = aiModelFor(ft.k); if (ft.effort != null) effort = ft.effort; }
+  } catch (e) {}
+  var key = 'h' + (++_hostSeq), ov = !hopt.noOverlay;
+  var run = _hostRuns[key] = { label: label, t0: Date.now(), n: 0, phase: 'queued', id: null, ov: ov };
+  if (ov) { _hostOv++; showGenOverlay(label); hostOverlayPhase('queued'); hostCancelArm(); }
+  arRender();
+  var req = { system: system, user: user, model: model, effort: effort, feature: fk, maxTokens: hopt.maxTokens || 0, label: label };
+  return Promise.resolve(window.TSA_HOST.agent.generate(req, function(n, phase, id){
+    if (id) run.id = id;
+    run.phase = phase || run.phase; run.n = n || 0;
+    if (run.n) { if (onTick) onTick(run.n); }
+    else if (ov) hostOverlayPhase(run.phase);
+  })).then(function(text){
+    _arDone = { label: label, t: Date.now() };
+    return String(text || '');
+  }, function(e){
+    if (e && /로그인/.test(String(e.message || ''))) hostStatusRefresh(true);
+    throw new Error(String((e && e.message) || e || 'AI 생성 실패'));
+  }).finally(function(){
+    delete _hostRuns[key];
+    if (ov) { _hostOv = Math.max(0, _hostOv - 1); if (!_hostOv) { hideGenOverlay(); hostCancelDisarm(); } }
+    arRender();
+  });
+}
+/* 생성 오버레이의 [취소하고 계속 작업하기] — 8초 넘게 걸리면 보인다(시트 대기와 같은 단추, 누르면 AI 생성만 취소) */
+function hostCancelArm(){
+  clearTimeout(_hostCancelT);
+  _hostCancelT = setTimeout(function(){ var cb = $('#genCancel'), o = $('#genOverlay'); if (cb && _hostOv && o && o.classList.contains('on')) cb.hidden = false; }, 8000);
+}
+function hostCancelDisarm(){ clearTimeout(_hostCancelT); _hostCancelT = null; if (!_waitN) { var cb = $('#genCancel'); if (cb) cb.hidden = true; } }
+function hostCancelRuns(onlyOverlay){
+  var n = 0;
+  Object.keys(_hostRuns).forEach(function(k){
+    var r = _hostRuns[k];
+    if (onlyOverlay && !r.ov) return;
+    if (r.id) { n++; try { window.TSA_HOST.agent.cancel(r.id); } catch (e) {} }
+  });
+  if (n) toast('AI 생성을 취소했습니다');
+  return n;
+}
+function hostLogin(){
+  if (!hostAgentOn()) return;
+  Promise.resolve(window.TSA_HOST.agent.login()).then(function(ok){
+    if (!ok) return;
+    toast('터미널에서 Claude 계정으로 로그인하세요 — 끝나면 「Claude 준비됨」으로 바뀝니다');
+    clearInterval(_hostLoginT);
+    var t0 = Date.now();
+    _hostLoginT = setInterval(function(){
+      hostStatusRefresh(true).then(function(st){
+        if (st && st.ok) { clearInterval(_hostLoginT); _hostLoginT = null; toast('Claude 준비됨 — 이제 AI 버튼이 바로 처리됩니다'); }
+        else if (Date.now() - t0 > 5 * 60000) { clearInterval(_hostLoginT); _hostLoginT = null; }
+      });
+    }, 5000);
+  }, function(e){ toast('로그인 창을 열지 못했습니다: ' + ((e && e.message) || e)); });
+}
+async function hostIndClick(){
+  var st = await hostStatusRefresh(true);
+  if (st && st.ok) { toast(hostStatusText() + (hostRunCount() ? '\n처리 중 ' + hostRunCount() + '건' : '')); return; }
+  if (await uiConfirm((st && st.reason ? st.reason : 'Claude 를 쓸 수 없습니다') + '\n\nClaude Code 로그인 창(터미널)을 열까요? 클로드 구독 계정으로 한 번만 로그인하면 됩니다.')) hostLogin();
+}
 /* 설정 토글 배선 + 주소 파라미터 + 상태 칩 초기화 */
 (function(){
   /* ?agent=1|0 — 에이전트 브라우저 전용 북마크/바로가기로 확실히 켜고 끌 수 있다 */
@@ -18210,6 +18320,10 @@ async function asideRelayCheck(){
   asideRelayPaint();
   setTimeout(asideRelayStart, 1500);       /* 조건(에이전트 모드+설정)이 안 맞으면 아무것도 안 함 */
   document.addEventListener('visibilitychange', function(){ if (!document.hidden && asideRelayActive()) asideRelayPoll(); });
+  if (hostAgentOn()) {   /* v667 전용 브라우저: Claude Code 준비 상태 */
+    hostStatusRefresh();
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) hostStatusRefresh(); });
+  }
 })();
 
 /* ── 결과물 생성 중 전체화면 오버레이 제어 ── */
@@ -18291,6 +18405,7 @@ function hideWaitOverlay(){
   var cb = document.getElementById('genCancel');
   if (cb) cb.addEventListener('click', function(){
     cb.hidden = true;
+    if (_hostOv && !_waitN) { hostCancelRuns(true); return; }   /* v667 전용 브라우저의 AI 생성 취소 */
     _cancelSheetReqs();   /* 진행 중 시트 요청 중단 → submit이 일시오류로 보고 대기열에 보관 */
     try { toast('시트 요청을 취소했습니다 — 저장분은 대기열에서 다음 동기화 때 다시 전송됩니다.'); } catch(e){}
   });
@@ -31793,7 +31908,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v666';
+var APP_VER = 'v667';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -32897,7 +33012,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     lines.push('[어시스턴트]\n(위 대화에 이어질 어시스턴트의 다음 답변 "본문만" 결과로 작성 — 역할 라벨·따옴표 없이)');
     var lb = function(){}; lb.genLabel = '설교 대화';
     var bu = imgsC.length ? imgsC.concat([{ type: 'text', text: lines.join('\n\n') }]) : lines.join('\n\n');
-    return await window.TSA_BRIDGE.call(system, bu, lb);
+    return await window.TSA_BRIDGE.call(system, bu, lb, { feature: 'chat', noOverlay: true });   /* v667: 전용 브라우저는 대화 모델로, 대화창 안에서 기다림 */
   }
 
   /* ── 한 번의 스트리밍 호출: 블록을 모으며 화면(V)에 흘린다 ── */
