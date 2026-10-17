@@ -31910,7 +31910,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v670';
+var APP_VER = 'v671';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -33783,15 +33783,32 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       try { var s = window.getSelection && String(window.getSelection() || '').trim(); if (s) o.selection = s.slice(0, 4000); } catch(e){}
       return o;
     },
-    run: async function(callId, name, input){
+    /* opts.trust(v671): 브라우저가 「묻지 않아도 되는 코드」로 판단하면 확인 카드 없이 실행한다(가드 = 저장·삭제·파일 쓰기·외부 전송만 묻기).
+       대신 설교 작성 화면이면 실행 전 작성창을 떠 두고(이력에도), 작성창이 바뀌었으면 [되돌리기] 단추를 남긴다 — compose_edit 와 같은 안전망. */
+    run: async function(callId, name, input, opts){
       AG.stopped = false;
+      opts = opts || {};
       var spec = AG_TOOLS[name], T = agRemoteChip(callId, name), V = { log: [] };
       if (!spec){ T.err('알 수 없는 도구'); return { is_error: true, content: [{ type: 'text', text: '알 수 없는 도구: ' + name }] }; }
       var inv = agInvalid(spec.def.input_schema, input || {});
       if (inv){ T.err('입력 오류'); return { is_error: true, content: [{ type: 'text', text: JSON.stringify({ INVALID_INPUT: inv }) }] }; }
+      var jsTrust = name === 'app_js_run' && !!opts.trust, prevTrust = AG.trustJs, sn = null, sig0 = '';
+      if (jsTrust){
+        AG.trustJs = true;
+        if (curPage() === 'compose'){ try { sn = agComposeSnap(); sig0 = JSON.stringify(sn); if (typeof histSnap === 'function') histSnap('대화 반영 전'); } catch(e){ sn = null; } }
+      }
       try {
         var out = await spec.run(input || {}, T, V);
         var text = (typeof out === 'string') ? out : String((out && out.text) || '완료');
+        if (sn){
+          var now = ''; try { now = JSON.stringify(agComposeSnap()); } catch(e){}
+          if (now && now !== sig0){
+            var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'agMini'; bt.textContent = '되돌리기';
+            bt.addEventListener('click', function(){ agComposeRestore(sn); bt.disabled = true; bt.textContent = '되돌림 ✓'; if (typeof toast === 'function') toast('작성창을 반영 전으로 되돌렸습니다.'); });
+            T.attach(bt);
+            text += '\n(작성창이 바뀌었다 — 목사님 화면에 [되돌리기] 단추가 있다. 시트에는 아직 저장하지 않음)';
+          }
+        }
         var content = [{ type: 'text', text: agCap(agRedact(text)) }];
         if (out && out.images) out.images.forEach(function(im){ if (im) content.push({ type: 'image', data: im, mimeType: 'image/jpeg' }); });
         if (!T.done) T.ok();
@@ -33801,6 +33818,8 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         var msg = (e && e.message) || String(e);
         T.err(msg.split('\n')[0].slice(0, 80));
         return { is_error: true, content: [{ type: 'text', text: agCap(agRedact('실패: ' + msg)) }] };
+      } finally {
+        if (jsTrust) AG.trustJs = prevTrust;
       }
     },
     click: function(nid, checked){
