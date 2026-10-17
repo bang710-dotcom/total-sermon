@@ -3697,6 +3697,7 @@ function _pullData(opts){
     if ($('#page-library') && $('#page-library').classList.contains('on')) renderLibrary();
     try { reconcileCleanDraftWithSheet(); } catch (e) {}   /* 동기화로 더 최신 저장본이 들어왔으면 깨끗한 초안을 자동 교체 */
     try { if (typeof lbtYearPull === 'function') lbtYearPull(); } catch (e) {}   /* v598 Why에서 Way로 연간 계획 — 모든 동기화(포커스·수동·부팅) 뒤 */
+    try { if (typeof vaultSync === 'function') vaultSync(); } catch (e) {}   /* v676 연결 금고 — 다른 기기에서 바꾼 키·주소를 받고, 이 기기 변경은 올린다 */
     return state.data;
   });
 }
@@ -6376,7 +6377,7 @@ function gateKeyGet(){
       || localStorage.getItem('tsa.esvKey') || '';
   } catch (e){ return ''; }
 }
-function gateKeySet(k){ try { if (String(k || '').trim()) localStorage.setItem(GATE_KEY_LS, String(k).trim()); } catch (e){} }
+function gateKeySet(k){ try { if (String(k || '').trim()) localStorage.setItem(GATE_KEY_LS, String(k).trim()); } catch (e){} if (typeof vaultTouch === 'function') vaultTouch(); }   /* v676 키코드도 다른 기기와 공유 */
 function localTrReady(t){ try { return localStorage.getItem(t.readyLs) === '1'; } catch (e){ return false; } }
 /* (구버전 호환) 자료별로 따로 넣어 둔 키 — 공용 키코드(gateKeyGet) 승계용으로만 남겨 둔다 */
 function localTrKey(t){ try { return localStorage.getItem(t.keyLs) || ''; } catch (e){ return ''; } }
@@ -15011,16 +15012,18 @@ function renderDirState(){
   $('#dirState').textContent = dirStateText();
   $('#dirState2').textContent = dirStateText();
 }
-function pickFolder(key, label, assign){
-  if (!window.showDirectoryPicker) { toast('Chrome에서만 폴더 지정이 가능합니다.'); return; }
-  window.showDirectoryPicker({ mode: 'readwrite' }).then(function(h){
+function pickFolder(key, label, assign){   /* v676: 골랐으면 true 로 끝나는 Promise — 처음 쓸 때 묻기(ensureXFolder)가 이어서 쓴다 */
+  if (!window.showDirectoryPicker) { toast('Chrome에서만 폴더 지정이 가능합니다.'); return Promise.resolve(false); }
+  return window.showDirectoryPicker({ mode: 'readwrite' }).then(function(h){
     assign(h);
     idbSet(key, h).catch(function(){});
     renderDirState(); toast(label + ' 지정: ' + h.name);
-  }).catch(function(){});
+    try { cfgStatusRender(); } catch (e){}
+    return true;
+  }).catch(function(){ return false; });
 }
 function pickDir(){ pickFolder('dir', '설교 기본원고 저장 폴더', function(h){ dirHandle = h; }); }
-function pickX(){ pickFolder('dirx', '클로드 연동 폴더', function(h){ xHandle = h; }); }
+function pickX(){ return pickFolder('dirx', '클로드 연동 폴더', function(h){ xHandle = h; }); }
 function pickLtc(){ pickFolder('dirltc', 'LTC 저장 폴더', function(h){ ltcHandle = h; state.assets = {}; }); }
 $('#pickDir').addEventListener('click', pickDir);
 $('#pickDir2').addEventListener('click', pickDir);
@@ -17570,6 +17573,7 @@ function aiModelSave(k, v){
   if (!v || (f && v === f.def)) delete o[k]; else o[k] = v;   /* 기본값은 저장하지 않는다 — 나중에 기본값을 바꾸면 따라가게 */
   if (Object.keys(o).length) state.settings.aiModels = o; else delete state.settings.aiModels;
   save(LS.settings, state.settings);
+  if (typeof vaultTouch === 'function') vaultTouch();   /* v676 다른 기기와 공유 */
 }
 /* effort 를 받는 모델인가 — 목록의 capabilities 가 정본, 모르면 세대로 어림(Haiku 4.5·Sonnet 4.5 이하는 400) */
 function aiEffortOk(id){
@@ -17690,6 +17694,7 @@ function aiModelsPaint(){
     delete state.settings.aiModels;
     save(LS.settings, state.settings);
     aiModelsPaint();
+    vaultTouch();   /* v676 */
     toast('기능별 모델을 기본값으로 되돌렸습니다.');
   });
 })();
@@ -20460,7 +20465,7 @@ function fileTypeTag(t){ return String(t || '').trim() === '카드원고' ? '카
 async function generateCardPdf(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
-    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    if (!(await ensureXFolder())) return;
     var deck = await aiCardDeck(meta);
     if (!deck || !Array.isArray(deck.cards) || !deck.cards.length) throw new Error('카드 덱 응답 형식 오류');
     setGenStage('카드 PDF — 조판·저장 중…');
@@ -20570,7 +20575,7 @@ async function buildCardPptxBlob(deck){
 async function generateCardPptx(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
-    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    if (!(await ensureXFolder())) return;
     setGenStage('카드 PPTX — 카드 덱 준비 중…');
     var deck = await aiCardDeck(meta);
     if (!deck || !Array.isArray(deck.cards) || !deck.cards.length) throw new Error('카드 덱 응답 형식 오류');
@@ -20838,7 +20843,7 @@ function buildImgDataDocx(D, meta, cuts){
 async function generateImgData(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
-    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    if (!(await ensureXFolder())) return;
     var cuts = await aiImgData(meta);
     if (!cuts.length) throw new Error('컷 응답 형식 오류');
     setGenStage('이미지자료 — 문서 저장 중…');
@@ -20881,7 +20886,7 @@ function buildTransDocx(D, meta, body){
 async function generateTransDoc(id, meta){
   try {
     if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
-    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    if (!(await ensureXFolder())) return;
     var cuts = await ensureCuts(id, meta);
     if (!cuts || !cuts.length) throw new Error('전환표 생성 실패');
     var body = await aiTransDoc(meta, cuts);
@@ -24760,7 +24765,7 @@ async function applyRetrans(id, meta){
     }
     var txt = String(meta['원고텍스트'] || '').trim();
     if (!txt) { toast('원고를 먼저 작성해 주세요.'); return; }
-    if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    if (!(await ensureXFolder())) return;
     var table = id ? sermonTrans(id) : null;
     if (!table || !table.length) { toast('저장된 전환표가 없습니다 — [🔀 이미지 전환표 생성/수정]에서 먼저 만들어 주세요.'); return; }
     var m = retransMatch(table, txt);
@@ -25477,6 +25482,7 @@ function restoreSeriesDrafts(){
     var name = r && r['시리즈명']; if (!name) return;
     if (name === CDRAFT_NAME) return;                    /* 작성초안 예약행 — 시리즈가 아님 */
     if (/^__WhyWay/.test(name)) return;                  /* v598 연간 계획 예약행 — 시리즈가 아님 */
+    if (name === VAULT_ROW) return;                      /* v676 연결 금고 예약행 — 시리즈가 아님 */
     if (seriesHasSheetRecords(name)) { dropSeriesDraft(name); return; }  /* 이미 생성됨 → 초안 제거 */
     var exists = (state.seriesList || []).some(function(S){ return (S.meta || {})['시리즈명'] === name; });
     if (exists) return;                                  /* 이미 로컬에 있음 */
@@ -28277,7 +28283,7 @@ async function refreshCascBtns(id){
 /* 어느 노드를 눌러도 그 가지의 상위 + 뿌리(DOCX원고)를 순서대로 생성. total=양쪽 가지 전부. 전용 스테퍼 오버레이 유지. */
 async function runCascade(target, id, meta){
   if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
-  if (target !== 'docx' && !canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+  if (target !== 'docx' && !(await ensureXFolder())) return;
   /* ★ Total = 가지 토글에서 켜둔 산출물만 생성(원고 DOCX는 항상 포함). 단일 버튼은 sel=null. */
   var sel = (target === 'total') ? cascSel() : null;
   if (sel && !cascSelAny(sel)) { toast('생성할 산출물을 하나 이상 켜 주세요 — 각 가지 버튼 오른쪽 토글.'); return; }
@@ -29434,6 +29440,7 @@ async function bibPrefetch(from, to, btn){
     state.settings = state.settings || {};
     state.settings.imgEngine = sel.value;
     save(LS.settings, state.settings);
+    vaultTouch();
     toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini (Nano Banana)' : sel.value === 'krea' ? 'Krea 2 Turbo' : 'Flux'));
   });
 })();
@@ -29445,6 +29452,7 @@ async function bibPrefetch(from, to, btn){
     state.settings = state.settings || {};
     state.settings.imgScreens = sel.value;
     save(LS.settings, state.settings);
+    vaultTouch();
     toast('강단 스크린 출력: ' + (sel.value === 'wide' ? '가운데 초광각만' : sel.value === 'side' ? '사이드 16:9만' : '두 벌 모두'));
   });
 })();
@@ -29456,6 +29464,7 @@ async function bibPrefetch(from, to, btn){
     state.settings = state.settings || {};
     state.settings.imgVignette = (sel.value === 'on');
     save(LS.settings, state.settings);
+    vaultTouch();
     toast('가장자리 비네팅: ' + (sel.value === 'on' ? '켬' : '끔'));
   });
 })();
@@ -29495,6 +29504,18 @@ function engineRoute(jobType, engine){
 }
 /* 데스크탑(File System Access API)에서만 폴더 저장 가능. iOS 사파리 등은 미지원 → 화면 저장. */
 function canFolderSave(){ return !!(xHandle && window.FileSystemHandle); }
+/* v676 결과함(claude-exchange) 폴더가 없으면 그 자리에서 고르게 한다 — 예전엔 「먼저 연결해 주세요」 안내로 끝나 설정 화면을
+   찾아가야 했다. 확인 단추를 누른 직후(일시적 사용자 활성화 안)라 폴더 선택 창을 바로 띄울 수 있다. opts.auto = 묻지 않고 false. */
+async function ensureXFolder(opts){
+  if (canFolderSave()) return true;
+  if (opts && opts.auto) return false;
+  if (!window.showDirectoryPicker || !window.FileSystemHandle){
+    toast('이 브라우저는 폴더 저장을 지원하지 않습니다 — 데스크탑 Chrome 이나 Total Sermons 맥 앱에서 해 주세요.');
+    return false;
+  }
+  if (!await uiConfirm('결과함 폴더(claude-exchange)가 이 브라우저에 아직 연결되지 않았습니다.\n지금 고르면 다음부터는 묻지 않습니다.', { okText: '폴더 고르기' })) return false;
+  return pickX();
+}
 /* 산출물 폴더(claude-exchange·01 Sermons)가 이 브라우저에 연결돼 있나 — 에이전트 브라우저·아이패드는 대개 없음 */
 function noFolderHere(){ return !(xHandle || dirHandle || ltcHandle); }
 function b64ToBlob(b64, type){
@@ -30594,7 +30615,7 @@ async function imgRegenOpen(){
   var id = state.editing || '';
   var meta = (typeof collectCompose === 'function') ? collectCompose() : {};
   if (id) meta['ID'] = id;
-  if (!canFolderSave()) { toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+  if (!(await ensureXFolder())) return;
   var raw = await loadCutsSidecarRaw(meta);
   if (!raw || !raw.cuts || !raw.cuts.length) {
     /* v625: 프롬프트 HWPX 가지가 없어졌으므로, 이미지를 만들기 전에 프롬프트부터 보고 고치려면 여기서 컷을 만든다 */
@@ -30888,7 +30909,7 @@ async function generateSermonImageSet(id, meta, opts){
   opts = opts || {};
   if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
   try {
-    if (!canFolderSave()) { if (!opts.auto) toast('데스크탑에서 claude-exchange 폴더를 먼저 연결해 주세요.'); return; }
+    if (!(await ensureXFolder(opts))) return;
     if (!String(meta['원고텍스트'] || '').trim()) { if (!opts.auto) toast('원고를 먼저 작성해 주세요.'); return; }
     var cuts = await loadCutsSidecar(meta);   /* 이미 만든 컷이 있으면 재사용(손실 없는 JSON) */
     if (!cuts) {
@@ -30955,6 +30976,7 @@ function showPage(name){
   if (name === 'analytics') renderAnalytics();
   if (name === 'compose') cwRender(); /* 진행중 설교 목록 갱신 */
   if (name === 'mindmap') renderMindmap();
+  if (name === 'settings') { try { cfgStatusRender(); renderDirState(); } catch (eCs){} }
   /* 사용 중에는 시트를 다시 부르지 않는다 — 실행 시 1회 전체 로드(bootLoad)만 수행 */
 }
 window.showPage = showPage;
@@ -32492,26 +32514,17 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
 /* ===================== 시작 ===================== */
 (function init(){
   setAppHeight();
-  $('#setUrl').value = state.settings.url || '';
-  $('#setToken').value = state.settings.token || '';
-  $('#setClaude').value = state.settings.claudeKey || '';
+  settingsPaint();
+  vaultMetaInit();   /* v676 공유 설정의 지금 값 지문 — 이후에 바꾼 값만 '방금 바꾼 것'으로 본다 */
   try { aiModelsPaint(); } catch (eAm){}
   setTimeout(function(){ aiModelsRefresh(false).catch(function(){}); }, 4000);   /* 하루 한 번 — 새 모델 확인(v615) */
-  if ($('#setLaUrl')) $('#setLaUrl').value = state.settings.laUrl || '';
-  if ($('#setLaToken')) $('#setLaToken').value = state.settings.laToken || '';
   try { paintFmtChips(); } catch (eFc){}
-  if ($('#setProxyUrl')) $('#setProxyUrl').value = state.settings.proxyUrl || '';
-  if ($('#setProxyToken')) $('#setProxyToken').value = state.settings.proxyToken || '';
-  if ($('#setVidProxyUrl')) $('#setVidProxyUrl').value = state.settings.vidProxyUrl || '';
-  if ($('#setGeminiKey')) $('#setGeminiKey').value = state.settings.geminiKey || '';
-  if ($('#setMemoUrl')) $('#setMemoUrl').value = state.settings.memoUrl || '';
-  if ($('#setMemoKey')) $('#setMemoKey').value = state.settings.memoKey || '';
-  if ($('#imgEngineSel')) $('#imgEngineSel').value = state.settings.imgEngine || 'flux';
-  if ($('#imgScreensSel')) $('#imgScreensSel').value = state.settings.imgScreens || 'both';
-  if ($('#imgVignetteSel')) $('#imgVignetteSel').value = state.settings.imgVignette ? 'on' : 'off';
   try { renderSetBadges(); } catch (eSb){}       /* 연결 설정 그룹 상태 배지 (v478) */
   try { renderGateBox(); } catch (eGb){}         /* 저작권 자료 상태 갱신 */
+  try { cfgStatusRender(); } catch (eCs){}       /* v676 연결 상태 */
+  var _hasSetupHash = /#tsa-setup=/.test(location.hash || '');
   setTimeout(function(){ try { xferBootFromHash(); } catch (eXf){} }, 800);   /* 이전 링크(#tsa-setup=…) 설정 주입 — uiConfirm(3번째 블록) 파싱 후 실행 */
+  setTimeout(function(){ try { if (!_hasSetupHash && window.frOpen && !(state.settings && state.settings.url && state.settings.token)) frOpen(); } catch (eFr){} }, 1200);   /* v676 새 기기 첫 연결 창 */
   try { bibCacheStat(); } catch (eBc){}          /* 성경 오프라인 저장 상태 표시 */
   $('#page-search').classList.add('on');
   setTimeout(function(){ try { renderDailyIll(); } catch (eD){} }, 600);  /* 첫 화면 오늘의 서랍 (기기 데이터 로드 여유) */
