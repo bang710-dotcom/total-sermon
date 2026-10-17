@@ -14201,10 +14201,11 @@ function composeDraftSnapshot(){
 }
 function saveComposeDraft(){
   try {
-    if (!composeHasAnyContent()) { idbSet('composeDraft', null).catch(function(){}); return; }
-    idbSet('composeDraft', composeDraftSnapshot()).catch(function(){});
+    if (!composeHasAnyContent()) return idbSet('composeDraft', null).catch(function(){});
+    var p = idbSet('composeDraft', composeDraftSnapshot()).catch(function(){});
     pushComposeDraftRemoteSoon();   /* 시트에도 경량 백업 — 다른 기기 이어쓰기용 */
     sheetWarm();
+    return p;   /* v672: 끝날 때를 알 수 있게(tsbFlush 가 기다린다) */
   } catch (e) {}
 }
 /* v637 서버 깨워 두기 — 원고를 쓰는 동안 시트 요청이 4분 넘게 없었으면 가벼운 ping 하나를 보내, 오래 쉰 Apps Script 가
@@ -14291,7 +14292,7 @@ function findComposeDraftRow(){
 function _cdraftSig(snap){
   try { return JSON.stringify({ m: snap.meta, c: snap.compose, e: snap.editing || null }); } catch (e) { return ''; }
 }
-var _cdraftLastSig = '';
+var _cdraftLastSig = '', _cdraftInflight = null;   /* v672: { sig, p } — 같은 내용을 보내는 중이면 다시 보내지 않고 그 요청을 돌려준다 */
 function pushComposeDraftRemote(){
   try {
     var s = state.settings || {};
@@ -14300,23 +14301,27 @@ function pushComposeDraftRemote(){
     var snap = composeDraftSnapshot();
     var sig = _cdraftSig(snap);
     if (!sig || sig === _cdraftLastSig) return;          /* 내용 변화 없음 → 시트 호출 안 함 */
+    if (_cdraftInflight && _cdraftInflight.sig === sig) return _cdraftInflight.p;
     var blob = JSON.stringify(snap);
     if (blob.length > 40000) return;                     /* 셀 한도 보호 — 큰 원고는 로컬 임시저장만 */
     var data = { '시리즈명': CDRAFT_NAME, '예배구분': 'composeDraft', '시작일': '', '종료일': '', '메타JSON': blob };
-    var row = findComposeDraftRow();
+    var row = findComposeDraftRow(), p;
     if (row && row['ID']) {
       data.ID = row['ID'];
-      apiPost({ action: 'update', sheet: 'seriesdraft', data: data })
+      p = apiPost({ action: 'update', sheet: 'seriesdraft', data: data })
         .then(function(){ _cdraftLastSig = sig; row['메타JSON'] = blob; row['수정일'] = nowLocalStr_(); }).catch(function(){});
     } else {
       data['로컬ID'] = stableLid_(['CDRAFT']);   /* 고정 멱등키 — 응답 유실 후 재add가 유령 행을 늘리지 않고 한 행으로 수렴 */
-      apiPost({ action: 'add', sheet: 'seriesdraft', data: data }).then(function(id){
+      p = apiPost({ action: 'add', sheet: 'seriesdraft', data: data }).then(function(id){
         _cdraftLastSig = sig;
         if (!id || typeof id !== 'string') return;
         state.data.seriesdraft = state.data.seriesdraft || [];
         state.data.seriesdraft.push({ ID: id, '시리즈명': CDRAFT_NAME, '예배구분': 'composeDraft', '메타JSON': blob, '수정일': nowLocalStr_() });
       }).catch(function(){});
     }
+    var cur = _cdraftInflight = { sig: sig, p: p };
+    p.then(function(){ if (_cdraftInflight === cur) _cdraftInflight = null; });
+    return p;
   } catch (e) {}
 }
 var pushComposeDraftRemoteSoon = debounce(pushComposeDraftRemote, 10000);
@@ -21898,7 +21903,7 @@ $('#occPane').addEventListener('input', function(e){
 $('#occ_date').addEventListener('change', function(){ state.occ.date = this.value; occSaveSoon(); });
 $('#occ_sit').addEventListener('input', function(){ state.occ.sit = this.value; occSaveSoon(); });
 /* 디바운스(600ms) 사이에 앱이 가려지거나 닫혀도 마지막 입력을 잃지 않도록 즉시 저장(composeDraft와 동일한 보호). */
-function occSaveNow(){ try { idbSet('occDraft', state.occ).catch(function(){}); } catch(e){} }
+function occSaveNow(){ try { return idbSet('occDraft', state.occ).catch(function(){}); } catch(e){} }
 document.addEventListener('visibilitychange', function(){ if (document.hidden) occSaveNow(); });
 window.addEventListener('pagehide', occSaveNow);
 
@@ -21917,7 +21922,7 @@ window.addEventListener('pagehide', occSaveNow);
 function zoneBlank(){ return { date: '', src: '', srcTitle: '', srcRef: '', sermon: '', guideName: '', guide: '', opts: [], at: '' }; }
 state.zone = zoneBlank();
 var zoneSaveSoon = debounce(function(){ idbSet('zoneDraft', state.zone).catch(function(){}); }, 600);
-function zoneSaveNow(){ try { idbSet('zoneDraft', state.zone).catch(function(){}); } catch(e){} }
+function zoneSaveNow(){ try { return idbSet('zoneDraft', state.zone).catch(function(){}); } catch(e){} }
 document.addEventListener('visibilitychange', function(){ if (document.hidden) zoneSaveNow(); });
 window.addEventListener('pagehide', zoneSaveNow);
 
@@ -22505,11 +22510,20 @@ var LBT_SERIES = 'Why에서 Way로';
 state.lbt = lbtBlank();
 /* ★ 복원(_lbtRestored) 전에는 저장하지 않는다 — 부팅 직후 화면 전환·visibilitychange 가 빈 상태로 저장본을 덮어쓰지 않게(v598).
    저장할 때마다 연간 계획의 바뀐 부분에 시각을 찍고(lbtYearStamp) 시트로 올린다(lbtYearPushSoon). */
-function _lbtPersist(){ if (!window._lbtRestored) return; try { lbtYearStamp(); } catch (e) {} idbSet('lbtDraft', state.lbt).catch(function(){}); try { lbtYearPushSoon(); } catch (e) {} }
+function _lbtPersist(){ if (!window._lbtRestored) return; try { lbtYearStamp(); } catch (e) {} var p = idbSet('lbtDraft', state.lbt).catch(function(){}); try { lbtYearPushSoon(); } catch (e) {} return p; }
 var lbtSaveSoon = debounce(_lbtPersist, 600);
-function lbtSaveNow(){ try { _lbtPersist(); } catch(e){} }
+function lbtSaveNow(){ try { return _lbtPersist(); } catch(e){} }
 document.addEventListener('visibilitychange', function(){ if (document.hidden) lbtSaveNow(); });
 window.addEventListener('pagehide', lbtSaveNow);
+/* v672 Total Sermon Browser: 창을 내리거나·닫거나·종료하기 직전에 브라우저가 부른다 — 화면이 가려질 때(visibilitychange)
+   하던 저장을 한 번에 하고, 이 기기 저장(IndexedDB)과 작성초안 시트 백업이 끝날 때까지 기다릴 수 있게 Promise 를 돌려준다.
+   (Electron 에서는 창을 닫거나 ⌘Q 할 때 visibilitychange·pagehide 가 오지 않는다 — 2026-10-17 시험) */
+window.tsbFlush = function(){
+  var P = [];
+  function add(f){ try { var r = f(); if (r && typeof r.then === 'function') P.push(r.catch(function(){})); } catch (e) {} }
+  add(saveComposeDraft); add(pushComposeDraftRemote); add(occSaveNow); add(zoneSaveNow); add(lbtSaveNow);
+  return Promise.all(P).then(function(){ return P.length; });
+};
 
 /* 시트에 저장된 설교의 비고 「뒷담화: Ⅰ-3, Ⅰ-4」 → { 'Ⅰ-3': [{날짜, 제목}], … } */
 function lbtUsedMap(){
@@ -32705,12 +32719,16 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       + (typeof METAPHOR_AXIS_RULE === 'string' ? METAPHOR_AXIS_RULE : '')
       + (typeof POINT_CHANGE_RULE === 'string' ? POINT_CHANGE_RULE : '');
     var ag = forceAg || agOn();   /* v645: API 키가 있으면 앱 도구를 쓰는 에이전트 — 작성창 반영도 코드블록 대신 compose_edit 도구로 바로 (v669: 브라우저 Ask 패널은 forceAg) */
-    var core = base;
-    if (pg === 'compose') core = base + ' 지금 화면은 [설교 작성]입니다. 제목·본문·핵심메시지·대지를 다듬고, 예화·적용을 보강하고, 원고 흐름을 함께 만드는 데 집중합니다.' +
+    return base + pageGuide(pg, ag) + (ag ? AG_SYS : '');
+  }
+  /* 화면별 안내(v672 — sysFor 에서 떼어 냄). 브라우저 Ask 패널은 시스템 지침을 화면과 무관하게 받고(TSA_AGENT.system({neutral})),
+     이 안내는 메시지마다 [화면 안내]로 받는다(TSA_AGENT.context().hint) — 대화 중에 화면을 옮겨도 지침이 옛 화면에 굳지 않게. */
+  function pageGuide(pg, ag){
+    if (pg === 'compose') return ' 지금 화면은 [설교 작성]입니다. 제목·본문·핵심메시지·대지를 다듬고, 예화·적용을 보강하고, 원고 흐름을 함께 만드는 데 집중합니다.' +
       (ag ? ' 작성창을 고치거나 채워 달라는 요청은 compose_edit 도구로 바로 반영합니다(반영 전 상태로 되돌릴 수 있음). 고칠 곳을 제안만 해 달라고 하면 대화로 보여 드립니다.' : EDIT_PROTO);
-    else if (pg === 'occ') core = base + ' 지금 화면은 [상황 설교 구상]입니다. 주어진 대상·시기·목적에 정확히 맞는 본문 선택과 설교 개요(핵심메시지·대지 3개·근거·적용)를 함께 구상합니다.';
-    else if (pg === 'series') core = base + ' 지금 화면은 [시리즈 계획]입니다. 한 책/범위를 여러 주일에 걸쳐 설교할 때의 전체 흐름, 주차별 본문 배분, 시리즈 제목·주제 아치를 함께 설계합니다.';
-    return core + (ag ? AG_SYS : '');
+    if (pg === 'occ') return ' 지금 화면은 [상황 설교 구상]입니다. 주어진 대상·시기·목적에 정확히 맞는 본문 선택과 설교 개요(핵심메시지·대지 3개·근거·적용)를 함께 구상합니다.';
+    if (pg === 'series') return ' 지금 화면은 [시리즈 계획]입니다. 한 책/범위를 여러 주일에 걸쳐 설교할 때의 전체 흐름, 주차별 본문 배분, 시리즈 제목·주제 아치를 함께 설계합니다.';
+    return '';
   }
   /* 에이전트 지침 — 도구 목록(AG_TOOLS)과 함께 고칠 것 */
   var AG_SYS = '\n\n[앱 조작 — 당신은 이 앱(토탈 설교 앱) 안에서 일하는 에이전트입니다]\n' +
@@ -33773,9 +33791,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   window.TSA_AGENT = {
     ver: 1,
     tools: function(){ return Object.keys(AG_TOOLS).map(function(k){ return { name: k, label: AG_TOOLS[k].label, description: AG_TOOLS[k].def.description, input_schema: AG_TOOLS[k].def.input_schema }; }); },
-    system: function(){ return sysFor(curPage(), true); },
+    system: function(opt){ return sysFor(opt && opt.neutral ? '' : curPage(), true); },   /* v672: 브라우저는 {neutral:true} — 화면별 안내는 context().hint 로 */
     context: function(){
       var pg = curPage(), o = { page: agPageName(pg), pageId: pg || '', overlays: agOverlays() };
+      try { o.hint = String(pageGuide(pg, true) || '').trim(); } catch(e){}
       if (pg === 'compose'){
         var g = function(k){ var el = C_META && C_META[k] && document.getElementById(C_META[k]); return el ? String(el.value || '').trim() : ''; };
         o.title = g('제목'); o.ref = g('본문'); o.sermonId = state.editing || ''; try { o.dirty = !!composeDirty(); } catch(e){}
