@@ -15238,8 +15238,10 @@ function hwpxPrvStyles(hdr){
   hdr.replace(/<hh:paraPr id="(\d+)"[^>]*>[\s\S]*?<\/hh:paraPr>/g, function(s, id){
     var d = (s.match(/<hp:default>([\s\S]*?)<\/hp:default>/) || [0, s])[1];   /* hp:switch 가 있으면 기본(default) 값 */
     var num = function(re, dv){ var m = d.match(re) || s.match(re); return m ? +m[1] : dv; };
+    var bd = s.match(/<hh:border borderFillIDRef="(\d+)"[^>]*>/), bo = function(k){ var m = bd && bd[0].match(new RegExp(k + '="(-?\\d+)"')); return m ? +m[1] : 0; };
     pp[id] = { ls: num(/<hh:lineSpacing type="PERCENT" value="(\d+)"/, 160), al: (s.match(/<hh:align horizontal="([A-Z_]+)"/) || [0, 'JUSTIFY'])[1],
-      prev: num(/<hc:prev value="(-?\d+)"/, 0), next: num(/<hc:next value="(-?\d+)"/, 0), left: num(/<hc:left value="(-?\d+)"/, 0), ind: num(/<hc:intent value="(-?\d+)"/, 0) };
+      prev: num(/<hc:prev value="(-?\d+)"/, 0), next: num(/<hc:next value="(-?\d+)"/, 0), left: num(/<hc:left value="(-?\d+)"/, 0), ind: num(/<hc:intent value="(-?\d+)"/, 0),
+      bg: bd ? bd[1] : '', bgL: bo('offsetLeft'), bgR: bo('offsetRight'), bgT: bo('offsetTop'), bgB: bo('offsetBottom') };   /* 문단 배경(LTC 머리띠 등) */
     return s;
   });
   hdr.replace(/<hh:borderFill id="(\d+)"[^>]*>[\s\S]*?<\/hh:borderFill>/g, function(s, id){
@@ -15322,9 +15324,14 @@ async function hwpxPrvMake(secHead, hdr, spec, content){
       cur.push(ch); curW += ch.w;
     });
     lines.push({ x: lx, cs: cur, w: curW, last: true });
+    lines.forEach(function(ln){ ln.mx = F0.px; ln.cs.forEach(function(ch){ if (ch.F.px > ln.mx) ln.mx = ch.F.px; }); });
+    var bgc = P.bg && S.bf[P.bg];
+    if (bgc && !/^#ffffff$/i.test(bgc)){   /* 문단 배경을 글 아래에 먼저 칠한다 */
+      var ph = lines.reduce(function(a, ln){ return a + ln.mx * P.ls / 100; }, 0);
+      g.fillStyle = bgc; g.fillRect(xs - P.bgL * s, y - P.bgT * s, (X1 - xs) + (P.bgL + P.bgR) * s, Math.min(ph, Y1 - y) + (P.bgT + P.bgB) * s);
+    }
     for (var i = 0; i < lines.length; i++){
-      var ln = lines[i], mx = F0.px;
-      ln.cs.forEach(function(ch){ if (ch.F.px > mx) mx = ch.F.px; });
+      var ln = lines[i], mx = ln.mx;
       if (y + mx > Y1){ full = true; return; }
       var avail = X1 - ln.x, off = 0, gap = 0, n = ln.cs.length;
       while (n > 0 && ln.cs[n - 1].c === ' '){ ln.w -= ln.cs[n - 1].w; n--; }   /* 줄 끝 빈칸은 맞춤에서 뺀다 */
