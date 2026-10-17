@@ -17468,7 +17468,7 @@ function aiKey(){ return bridgeOn() ? '__AGENT__' : realKey(); }
 async function callClaude(system, user, maxTokens, onTick, feature){
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
-  if (key === '__AGENT__') return bridgeCall(system, user, onTick);   /* 에이전트 모드 — 비전(이미지) 포함 전부 브리지(구독) */
+  if (key === '__AGENT__') return bridgeCall(system, user, onTick, { feature: feature, maxTokens: maxTokens });   /* 에이전트 모드 — 비전(이미지) 포함 전부 브리지(구독) */
   var ft = /^claude-/.test(String(feature || '')) ? null : aiFeature(feature || 'main');
   var model = ft ? aiModelFor(ft.k) : String(feature);
   var genLabel = (onTick && onTick.genLabel) || '결과물';
@@ -17570,8 +17570,12 @@ function aiTick(label){
    ※ 에이전트 브라우저가 일반 크롬으로 위장하면 못 잡는다 — 그 경우 ①주소 ?agent=1 진입
    ②설정 토글 ③에이전트가 window.TSA_BRIDGE.enable() 호출, 셋 중 하나로 켠다.
    localStorage는 브라우저별 저장이라 한 번 켜지면 그 브라우저에서만 계속 유지된다. */
+/* v667 Total Sermon Browser(맥 전용 앱, Dropbox/total-sermon/browser) 가 window.TSA_HOST 를 내놓으면
+   이 맥의 Claude Code(구독)로 바로 처리한다 — 요청 패널·중계기·「요청처리」 없음(hostAgentCall). */
+function hostAgentOn(){ try { return !!(window.TSA_HOST && window.TSA_HOST.agent && typeof window.TSA_HOST.agent.generate === 'function'); } catch (e) { return false; } }
 function agentBrowserHint(){
   try {
+    if (hostAgentOn()) return 'Total Sermon Browser';
     if (/aside/i.test(navigator.userAgent || '')) return 'Aside';
     var bs = navigator.userAgentData && navigator.userAgentData.brands;
     if (bs && bs.some(function(x){ return /aside/i.test(String(x.brand || '')); })) return 'Aside';
@@ -17688,7 +17692,8 @@ function bridgeCancel(msg){
   _arPhase = ''; arRender(); arPanelPaint();
   p.reject(new Error(msg || '에이전트 요청이 취소되었습니다'));
 }
-function bridgeCall(system, user, onTick){
+function bridgeCall(system, user, onTick, hopt){
+  if (hostAgentOn()) return hostAgentCall(system, user, onTick, hopt);   /* v667 전용 브라우저 — 바로 처리 */
   if (_bridgePend) return Promise.reject(new Error('이미 대기 중인 에이전트 요청이 있습니다 — 먼저 처리하거나 취소해 주세요.'));
   bridgeEnsureUi();
   var label = (onTick && onTick.genLabel) || '결과물';
@@ -17751,7 +17756,7 @@ window.TSA_BRIDGE = {
   detected: agentBrowserHint,
   enable: function(){ bridgeSet(true); toast('브라우저 에이전트 모드 켜짐 — AI 버튼이 요청 패널을 엽니다'); return true; },
   disable: function(){ bridgeSet(false); toast('브라우저 에이전트 모드 꺼짐'); return true; },
-  call: function(system, user, onTick){ return bridgeCall(system, user, onTick); },   /* 다른 모듈(설교 대화 등)에서 브리지 직접 사용 */
+  call: function(system, user, onTick, hopt){ return bridgeCall(system, user, onTick, hopt); },   /* 다른 모듈(설교 대화 등)에서 브리지 직접 사용 */
   request: function(){ arMarkRead('req'); return _bridgePend ? _bridgePend.payload : null; },   /* v664: 처음 읽으면 「Aside가 요청을 읽음」 */
   deliver: function(text){ return bridgeDeliver(text); },
   cancel: function(){ bridgeCancel(); },
@@ -17784,7 +17789,7 @@ var _arState = { s: 'off', h: null, toasted: false };
 var _arPhase = '', _arDone = null, _arTickT = null;   /* v657 표시 하나: 진행 단계 · 방금 끝난 요청 · 경과 시간 시계 */
 function asideRelayOn(){ return true; }   /* v657: 설정 「Aside 자동 처리」를 「브라우저 에이전트 모드」에 합쳤다(호환용) */
 function asideSessionId(){ try { return localStorage.getItem('tsa.asideSession') || ''; } catch (e) { return ''; } }
-function asideRelayActive(){ return bridgeOn(); }
+function asideRelayActive(){ return bridgeOn() && !hostAgentOn(); }   /* v667: 전용 브라우저에서는 중계기를 쓰지 않는다 */
 function asideRelayReq(path, body, ms){
   var ctl = new AbortController();
   var tm = setTimeout(function(){ ctl.abort(); }, ms || 5000);
@@ -17825,6 +17830,7 @@ function _arFmt(ms){ var t = Math.max(0, Math.floor(ms / 1000)); return Math.flo
 /* 지금 보여 줄 것 하나: 처리 중인 요청 > 방금 받은 결과(5초) > 준비 상태 */
 function arView(){
   if (!bridgeOn()) return null;
+  if (hostAgentOn()) return hostArView();   /* v667 전용 브라우저 */
   if (_bridgePend){
     var lab = _bridgePend.label || '요청', el = _arFmt(Date.now() - (_bridgePend.t0 || Date.now())), g = arStage(_bridgePend);
     return { kind: g.kind, spin: g.spin, text: lab + ' — ' + g.st + ' · ' + el, sub: g.sub, short: (_arPhase === 'manual' && !_bridgePend.readAt ? '「요청처리」 입력' : lab + ' ' + el),
@@ -17850,7 +17856,9 @@ function arRender(){
       side.innerHTML = '<div class="arRow">' + icon + '<span class="arTx">' + esc(v.text) + '</span></div>'
         + (v.sub ? '<div class="arSub">' + esc(v.sub) + '</div>' : '')
         + (v.btns ? '<div class="arBtns">' + (v.kick ? '<button type="button" data-ar="kick">다시 맡기기</button>' : '') + '<button type="button" data-ar="open">자세히</button><button type="button" data-ar="cancel">취소</button></div>' : '')
-        + (v.restart ? '<div class="arBtns"><button type="button" data-ar="restart">Aside 다시 시작</button></div>' : '');
+        + (v.restart ? '<div class="arBtns"><button type="button" data-ar="restart">Aside 다시 시작</button></div>' : '')
+        + (v.hcancel ? '<div class="arBtns"><button type="button" data-ar="hcancel">취소</button></div>' : '')
+        + (v.hlogin ? '<div class="arBtns"><button type="button" data-ar="hlogin">Claude 로그인</button></div>' : '');
     }
   }
   ['#arIndM', '#arIndF'].forEach(function(sel){
@@ -17859,7 +17867,7 @@ function arRender(){
     if (v){ e.className = (sel === '#arIndM' ? 'arIndM' : 'arIndF') + ' k-' + v.kind; e.title = v.text + (v.title ? ' — ' + v.title : ''); e.innerHTML = icon + '<span>' + esc(v.short) + '</span>'; }
   });
   /* 경과 시간·「결과 받음」을 위해 그동안만 1초마다 다시 그린다 */
-  var need = !!_bridgePend || !!(_arDone && Date.now() - _arDone.t < 5000);
+  var need = !!_bridgePend || hostRunCount() > 0 || !!(_arDone && Date.now() - _arDone.t < 5000);
   if (need && !_arTickT) _arTickT = setInterval(arRender, 1000);
   else if (!need && _arTickT) { clearInterval(_arTickT); _arTickT = null; }
   arPanelTick();
@@ -18048,6 +18056,9 @@ async function arRestartAside(){
 /* v664: 표시를 누르면 AI 요청 상태 창(지금 요청의 단계 기록·할 일 + 중계기 상태 + 최근 요청 내역). 모드 끄기·Aside 다시 시작도 거기서 */
 async function arIndClick(ev){
   var b = ev && ev.target && ev.target.closest ? ev.target.closest('[data-ar]') : null, a = b ? b.getAttribute('data-ar') : '';
+  if (a === 'hcancel'){ hostCancelRuns(); return; }   /* v667 전용 브라우저 */
+  if (a === 'hlogin'){ hostLogin(); return; }
+  if (hostAgentOn() && bridgeOn()){ hostIndClick(); return; }
   if (a === 'cancel'){ bridgeCancel('에이전트 요청을 취소했습니다'); return; }
   if (a === 'restart'){ arRestartAside(); return; }
   if (a === 'kick'){ arKickNow(); return; }
@@ -18160,9 +18171,10 @@ function asideRelayWatch(){
 }
 function asideRelayPaint(){
   var st = $('#asideRelayStat'); if (!st) return;
-  st.textContent = bridgeOn() ? '지금 상태: ' + (asideRelayStateText() || '확인 중…') : '';
+  st.textContent = bridgeOn() ? '지금 상태: ' + (hostAgentOn() ? hostStatusText() : (asideRelayStateText() || '확인 중…')) : '';
 }
 async function asideRelayCheck(){
+  if (hostAgentOn()) { var hs = await hostStatusRefresh(true); toast(hostStatusText()); if (hs && !hs.ok) hostIndClick(); return; }   /* v667 */
   try {
     var h = await asideRelayReq('/health', null, 3000);
     toast('중계기 응답 ✓ (v' + h.version + ')' + (h.busy ? ' · 처리 중' : (h.browser === false ? ' · Aside 브라우저 연결 끊김' : (h.ready ? ' · 준비됨' : ' · 준비 중'))) + (h.dryRun ? ' · 시험 모드' : ''));
