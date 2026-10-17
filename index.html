@@ -1338,6 +1338,7 @@ html[data-theme="sepia"]{
 #aiFab.show{display:flex}
 #aiFab svg{width:19px;height:19px}
 body.aiChatOpen #aiFab{display:none}
+body.tsbHost #aiFab{display:none !important}   /* v670: 전용 브라우저(Total Sermon Browser)는 상단 [Ask Claude] 패널을 쓴다 — 앱 설교 대화 단추는 보통 웹앱(휴대폰 등)에서만 */
 
 #aiPanel{position:fixed;top:14px;left:14px;bottom:14px;width:var(--aip-w);max-width:92vw;z-index:135;
   background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;
@@ -17597,6 +17598,7 @@ function bridgeSet(on){
   try { localStorage.setItem('tsa.bridge', on ? '1' : '0'); } catch (e) {}
   var el = document.getElementById('setBridge'); if (el) el.checked = bridgeOn();
   if (on) bridgeNotifyPerm();   /* 켜는 순간 알림 권한 확보 — 에이전트의 알림 트리거 루틴용 */
+  if (window.tsbHostMark) window.tsbHostMark();   /* v670 */
   bridgeChip();
 }
 /* 알림 권한 요청(미결정 상태일 때만) — 요청 등록 시 발사하는 알림이 Aside 루틴을 깨운다 */
@@ -31908,7 +31910,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v669';
+var APP_VER = 'v670';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -32666,6 +32668,9 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
   }
   var $ = function(s){ return document.querySelector(s); };
   var fab = $('#aiFab'), panel = $('#aiPanel'), body = $('#aiBody');
+  /* v670: 전용 브라우저에서는 앱 설교 대화 단추를 숨긴다(Ask 패널이 대신 — ⌘K 「설교 대화」도 그 패널을 연다) */
+  window.tsbHostMark = function(){ try { document.body.classList.toggle('tsbHost', hostPanelOn()); } catch(e){} };
+  window.tsbHostMark();
   var input = $('#aiInput'), sendBtn = $('#aiSend'), modelSel = $('#aiModel');
   var ctxOn = $('#aiCtxOn'), ctxTag = $('#aiCtxTag');
   /* v646: 생각 요약 한국어 정리 — 기기별(기본 켬) */
