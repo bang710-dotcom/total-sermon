@@ -15218,6 +15218,192 @@ function hwpxFillSlots(sec, texts){
   }
   return out + rest;
 }
+/* ── v674 Finder 미리보기: 한글이 저장한 문서처럼 첫 쪽 그림(Preview/PrvImage.png, 긴 변 1024px)과 앞부분 글(Preview/PrvText.txt)을 넣는다 ──
+   예전엔 서식 파일의 빈 흰 종이(210×297)·빈 글이 그대로 들어가 Finder 아이콘이 하얀 종이로만 보였다(2026-10-18 제보 — 한글로 다시 저장한 파일만 내용이 보임).
+   쪽 크기·여백 = section0 의 pagePr, 글자 크기·색·굵기·글꼴 = header 의 charPr, 줄 간격·정렬·여백 = paraPr, 칠한 색 = borderFill 에서 읽으므로
+   서식(원고·새벽·카드·LTC·계획표)마다 따로 맞출 것이 없다. 글은 글자 단위로 줄을 나눈다(한글 기본). 실패하면 서식 파일의 그림을 그대로 둔다. */
+var HWPX_PRV_MAX = 1024, HWPX_PRV_TXT = 1000;
+var HWPX_PRV_SERIF = '"함초롬바탕","HCR Batang","HCRBatang","AppleMyungjo","Apple Myungjo","Nanum Myeongjo","NanumMyeongjo","Batang","바탕",serif';
+var HWPX_PRV_SANS = '"Apple SD Gothic Neo","Malgun Gothic","맑은 고딕",sans-serif';
+function hwpxUnesc(s){ return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&'); }
+function hwpxPrvStyles(hdr){
+  var fonts = {}, ch = {}, pp = {}, bf = {};
+  var hf = hdr.match(/<hh:fontface lang="HANGUL"[^>]*>([\s\S]*?)<\/hh:fontface>/);
+  if (hf) hf[1].replace(/<hh:font id="(\d+)" face="([^"]*)"/g, function(m, id, f){ fonts[id] = f; return m; });
+  hdr.replace(/<hh:charPr id="(\d+)"[^>]*>[\s\S]*?<\/hh:charPr>/g, function(s, id){
+    var hm = s.match(/\bheight="(\d+)"/), cm = s.match(/textColor="(#[0-9A-Fa-f]{6})"/), fm = s.match(/<hh:fontRef hangul="(\d+)"/);
+    ch[id] = { h: hm ? +hm[1] : 1000, c: cm ? cm[1] : '#000000', b: /<hh:bold\s*\/>/.test(s), face: fonts[fm ? fm[1] : '0'] || '' };
+    return s;
+  });
+  hdr.replace(/<hh:paraPr id="(\d+)"[^>]*>[\s\S]*?<\/hh:paraPr>/g, function(s, id){
+    var d = (s.match(/<hp:default>([\s\S]*?)<\/hp:default>/) || [0, s])[1];   /* hp:switch 가 있으면 기본(default) 값 */
+    var num = function(re, dv){ var m = d.match(re) || s.match(re); return m ? +m[1] : dv; };
+    pp[id] = { ls: num(/<hh:lineSpacing type="PERCENT" value="(\d+)"/, 160), al: (s.match(/<hh:align horizontal="([A-Z_]+)"/) || [0, 'JUSTIFY'])[1],
+      prev: num(/<hc:prev value="(-?\d+)"/, 0), next: num(/<hc:next value="(-?\d+)"/, 0), left: num(/<hc:left value="(-?\d+)"/, 0), ind: num(/<hc:intent value="(-?\d+)"/, 0) };
+    return s;
+  });
+  hdr.replace(/<hh:borderFill id="(\d+)"[^>]*>[\s\S]*?<\/hh:borderFill>/g, function(s, id){
+    var fc = s.match(/faceColor="(#[0-9A-Fa-f]{6})"/); if (fc) bf[id] = fc[1];
+    return s;
+  });
+  return { ch: ch, pp: pp, bf: bf };
+}
+/* 그릴 문단 목록: 머리 문단(서식 파일의 첫 문단 — 제목·꼬리표 칸) + content.blocks */
+function hwpxPrvItems(secHead, spec, content){
+  var st = spec.styles, roles = spec.roles, items = [], headPic = null;
+  var hx = secHead.slice(Math.max(0, secHead.indexOf('</hp:secPr>'))).replace(/<hp:ctrl>[\s\S]*?<\/hp:ctrl>/g, '');
+  var hr = [];
+  hx.replace(/<hp:run charPrIDRef="(\d+)"[^>]*>([\s\S]*?)<\/hp:run>/g, function(m, cid, inner){
+    var t = (inner.match(/<hp:t>[\s\S]*?<\/hp:t>/g) || []).map(function(x){
+      return hwpxUnesc(x.replace(/<hp:lineBreak\/>/g, '\n').replace(/<hp:tab[^>]*\/>/g, '\t').replace(/<[^>]+>/g, ''));
+    }).join('');
+    if (t) hr.push({ cid: cid, t: t });
+    return m;
+  });
+  items.push({ k: 'p', pid: (secHead.match(/<hp:p [^>]*paraPrIDRef="(\d+)"/) || [0, '0'])[1], runs: hr, cid0: hr.length ? hr[0].cid : String(st.normal != null ? st.normal : 0), head: true });
+  (content.blocks || []).forEach(function(b){
+    if (!b) return;
+    var role = b.role || 'body';
+    if (role === 'bar' && spec.bar) return items.push({ k: 'bar', t: String(b.text || ''), img: b.img, brk: b.brk });
+    if (role === 'pic'){
+      if (b.head){ headPic = b; return items.push({ k: 'p', pid: String((spec.bar && spec.bar.para) || (roles.line || roles.normal).para), runs: [], cid0: String(st.normal), brk: b.brk }); }
+      if (b.img && b.img.u) items.push({ k: 'pic', img: b.img, ratio: b.ratio || 0.24, brk: b.brk });
+      return;
+    }
+    if (role === 'table' && spec.table) return items.push({ k: 'table', rows: b.rows || [], brk: b.brk });
+    var r = roles[role] || roles.body || roles.normal || roles.line;
+    var cid = String(st[r.style] != null ? st[r.style] : 0);
+    var runs = (b.runs && b.runs.length) ? b.runs.map(function(x){ return { cid: String(st[x[0]] != null ? st[x[0]] : cid), t: String(x[1] == null ? '' : x[1]) }; })
+      : (b.text ? [{ cid: cid, t: String(b.text) }] : []);
+    var plain = runs.map(function(x){ return x.t; }).join('');
+    items.push({ k: 'p', pid: String(r.para), runs: runs, cid0: cid, tab: !!plain && hwpxWantsTab(r, b, plain), brk: b.brk });
+  });
+  return { items: items, headPic: headPic };
+}
+function hwpxPrvImg(u){ return new Promise(function(res){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = function(){ res(null); }; im.src = u; }); }
+async function hwpxPrvMake(secHead, hdr, spec, content){
+  var pg = secHead.match(/<hp:pagePr\b[^>]*?\bwidth="(\d+)"[^>]*?\bheight="(\d+)"[^>]*>\s*<hp:margin\b([^>]*)\/>/);
+  if (!pg || !hdr) return null;
+  var W = +pg[1], H = +pg[2];
+  var mg = function(k){ var m = pg[3].match(new RegExp('\\b' + k + '="(\\d+)"')); return m ? +m[1] : 2834; };
+  var ML = mg('left'), MR = mg('right'), MT = mg('top'), MB = mg('bottom');
+  var s = HWPX_PRV_MAX / Math.max(W, H);
+  var cv = document.createElement('canvas'); cv.width = Math.round(W * s); cv.height = Math.round(H * s);
+  var g = cv.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, cv.width, cv.height);
+  var S = hwpxPrvStyles(hdr), L = hwpxPrvItems(secHead, spec, content), st = spec.styles;
+  var X0 = ML * s, X1 = (W - MR) * s, Y1 = (H - MB) * s, y = MT * s, full = false, txt = [];
+  var font = function(cid){
+    var c = S.ch[cid] || S.ch[String(st.normal)] || { h: 1000, c: '#000000', b: false, face: '' };
+    var serif = /바탕|명조|Batang|Myeong|Myung|궁서|Gungsuh/i.test(c.face);
+    return { f: (c.b ? '700 ' : '400 ') + (c.h * s).toFixed(2) + 'px ' + (serif ? HWPX_PRV_SERIF : HWPX_PRV_SANS), px: c.h * s, c: c.c };
+  };
+  /* 그림 먼저 읽어 둔다(표지·전환 바 그림·가운데 그림) — 첫 쪽에 들어갈 만큼만 */
+  var imgs = {}, urls = [];
+  if (L.headPic && L.headPic.img && L.headPic.img.u) urls.push(L.headPic.img.u);
+  L.items.slice(0, 80).forEach(function(it){ if (it.img && it.img.u) urls.push(it.img.u); });
+  await Promise.all(urls.map(function(u){ return hwpxPrvImg(u).then(function(im){ if (im) imgs[u] = im; }); }));
+  function para(it){
+    var P = S.pp[it.pid] || { ls: 160, al: 'JUSTIFY', prev: 0, next: 0, left: 0, ind: 0 };
+    var F0 = font(it.cid0), xs = X0 + Math.max(0, P.left) * s;
+    y += P.prev * s;
+    var chars = [];
+    it.runs.forEach(function(r){ var F = font(r.cid); Array.from(r.t).forEach(function(c){ chars.push({ c: c, F: F }); }); });
+    txt.push(it.runs.map(function(r){ return r.t; }).join(''));
+    if (!chars.length){ y += F0.px * P.ls / 100 + P.next * s; if (y > Y1) full = true; return; }
+    var lines = [], cur = [], curW = 0, lx = xs + (it.tab ? 4000 * s : 0) + P.ind * s;
+    chars.forEach(function(ch){
+      if (ch.c === '\n'){ lines.push({ x: lx, cs: cur, w: curW, last: true }); cur = []; curW = 0; lx = xs; return; }
+      g.font = ch.F.f;
+      ch.w = ch.c === '\t' ? 4000 * s : g.measureText(ch.c).width;
+      if (cur.length && lx + curW + ch.w > X1 + 0.5){
+        lines.push({ x: lx, cs: cur, w: curW }); cur = []; curW = 0; lx = xs;
+        if (ch.c === ' ') return;   /* 줄 첫머리 빈칸은 버린다 */
+      }
+      cur.push(ch); curW += ch.w;
+    });
+    lines.push({ x: lx, cs: cur, w: curW, last: true });
+    for (var i = 0; i < lines.length; i++){
+      var ln = lines[i], mx = F0.px;
+      ln.cs.forEach(function(ch){ if (ch.F.px > mx) mx = ch.F.px; });
+      if (y + mx > Y1){ full = true; return; }
+      var avail = X1 - ln.x, off = 0, gap = 0, n = ln.cs.length;
+      while (n > 0 && ln.cs[n - 1].c === ' '){ ln.w -= ln.cs[n - 1].w; n--; }   /* 줄 끝 빈칸은 맞춤에서 뺀다 */
+      if (P.al === 'CENTER') off = (avail - ln.w) / 2;
+      else if (P.al === 'RIGHT') off = avail - ln.w;
+      else if ((P.al === 'JUSTIFY' || P.al === 'DISTRIBUTE') && !ln.last && n > 1) gap = Math.min(F0.px, Math.max(0, (avail - ln.w) / (n - 1)));
+      var x = ln.x + off, base = y + mx * 0.86;
+      for (var k = 0; k < n; k++){ var ch = ln.cs[k]; if (ch.c !== '\t' && ch.c !== ' '){ g.font = ch.F.f; g.fillStyle = ch.F.c; g.fillText(ch.c, x, base); } x += ch.w + gap; }
+      y += mx * P.ls / 100;
+    }
+    y += P.next * s;
+  }
+  function bar(it){
+    var B = spec.bar, bw = B.width * s, bh = (B.cellHeight || B.height) * s;
+    var m = +((B.outMargin || '').match(/top="(\d+)"/) || [0, 140])[1], im = it.img && it.img.u && imgs[it.img.u], iw = 0, ih = 0;
+    if (im){ iw = B.width * HWPX_BAR_IMG_RATIO * s; ih = iw * it.img.ph / it.img.pw; m = Math.max(140, (ih / s - B.height) / 2); }
+    y += m * s;
+    if (y + bh > Y1){ full = true; return; }
+    g.fillStyle = S.bf[String(B.cellFill)] || '#EE0000'; g.fillRect(X0, y, bw, bh);
+    var F = font(String(st[B.style])); g.font = F.f; g.fillStyle = F.c; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(it.t, X0 + bw / 2, y + bh / 2); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    if (im) g.drawImage(im, X0 + bw - iw, y + bh / 2 - ih / 2, iw, ih);
+    txt.push(it.t);
+    y += bh + m * s;
+  }
+  function pic(it){
+    var im = imgs[it.img.u]; if (!im) return;
+    var w = ((spec.bar && spec.bar.width) || (W - ML - MR)) * it.ratio * s, h = w * it.img.ph / it.img.pw;
+    if (y + h > Y1){ full = true; return; }
+    g.drawImage(im, (X0 + X1) / 2 - w / 2, y, w, h); y += h;
+  }
+  function table(it){
+    var T = spec.table, om = 283 * s;
+    y += om;
+    for (var ri = 0; ri < it.rows.length; ri++){
+      var rh = (ri === 0 ? T.headHeight : T.rowHeight) * s;
+      if (y + rh > Y1){ full = true; return; }
+      var fills = ri === 0 ? T.headFill : (ri === 1 ? T.firstFill : T.rowFill), F = font(String(st[ri === 0 ? T.headStyle : T.dataStyle])), cx = X0, row = it.rows[ri] || [];
+      for (var ci = 0; ci < T.cols.length; ci++){
+        var cw = T.cols[ci] * s, cell = row[ci], ls = (Array.isArray(cell) ? cell : [cell]).map(function(t){ return String(t == null ? '' : t); }).filter(Boolean);
+        g.fillStyle = S.bf[String(fills[ci])] || '#ffffff'; g.fillRect(cx, y, cw, rh);
+        g.strokeStyle = '#8a8a8a'; g.lineWidth = Math.max(0.5, s * 12); g.strokeRect(cx, y, cw, rh);
+        g.save(); g.beginPath(); g.rect(cx + 2, y, cw - 4, rh); g.clip();
+        g.font = F.f; g.fillStyle = F.c; g.textAlign = 'center'; g.textBaseline = 'middle';
+        var lh = F.px * 1.3, top = y + rh / 2 - (ls.length - 1) * lh / 2;
+        ls.slice(0, 3).forEach(function(t, k){ g.fillText(t, cx + cw / 2, top + k * lh); });
+        g.restore();
+        txt.push(ls.join(' '));
+        cx += cw;
+      }
+      y += rh;
+    }
+    y += om;
+  }
+  var drew = false;
+  for (var i = 0; i < L.items.length && !full; i++){
+    var it = L.items[i];
+    if (it.brk && drew) break;   /* 첫 쪽까지만(카드원고 = 첫 카드) */
+    var top = y;
+    if (it.k === 'bar') bar(it); else if (it.k === 'pic') pic(it); else if (it.k === 'table') table(it); else para(it);
+    if (it.head && L.headPic && imgs[L.headPic.img.u]){   /* v652 표지 — 제목 문단 오른쪽 위 */
+      var hb = (spec.bar && spec.bar.width) || (W - ML - MR), hw = hb * (L.headPic.ratio || 0.24) * s, hh = hw * L.headPic.img.ph / L.headPic.img.pw;
+      g.drawImage(imgs[L.headPic.img.u], X0 + hb * s - hw, top, hw, hh);
+    }
+    drew = true;
+  }
+  if (/<hp:pageNum\b[^>]*pos="BOTTOM_CENTER"/.test(secHead)){
+    var side = (secHead.match(/<hp:pageNum\b[^>]*sideChar="([^"]*)"/) || [0, ''])[1], Fn = font(String(st.normal));
+    g.font = Fn.f; g.fillStyle = '#000000'; g.textAlign = 'center';
+    g.fillText((side ? side + ' ' : '') + '1' + (side ? ' ' + side : ''), cv.width / 2, cv.height - MB * s * 0.55); g.textAlign = 'left';
+  }
+  /* 앞부분 글: 머리 문단·이어지는 문단(첫 쪽 뒤도 1,000자까지) — 한글 저장본과 같은 CRLF */
+  for (; i < L.items.length && txt.join('\r\n').length < HWPX_PRV_TXT; i++){
+    var r = L.items[i];
+    if (r.k === 'p') txt.push(r.runs.map(function(x){ return x.t; }).join('')); else if (r.k === 'bar') txt.push(r.t);
+  }
+  var text = txt.join('\r\n').slice(0, HWPX_PRV_TXT);
+  return { png: cv.toDataURL('image/png').split(',')[1], txt: text };
+}
 async function hwpxBuild(content){
   var spec = HWPX_TYPES[content.type];
   if (!spec) throw new Error('알 수 없는 hwpx 유형: ' + content.type);
@@ -15254,6 +15440,7 @@ async function hwpxBuild(content){
     var hW = (spec.bar && spec.bar.width) || 55532, hCw = hW * (hp.ratio || 0.24);
     sec = sec.slice(0, hAt) + hwpxPicXml({ bin: hp.img.bin, pw: hp.img.pw, ph: hp.img.ph, cw: hCw, ch: hCw * hp.img.ph / hp.img.pw, head: true, hOff: hW - Math.round(hCw), note: hp.img.note }) + sec.slice(hAt);
   }
+  var secHead = sec;   /* v674 미리보기용 — 쪽 설정·머리 문단 */
   sec = sec.replace('</hs:sec>', hwpxBlocks(spec, content.blocks) + '</hs:sec>');
   /* v636: content.charHeights = {charPr id: HWPUNIT 높이} — 서식 파일은 그대로 두고 이 문서의 글자 크기만 바꾼다(카드원고 문서 22pt) */
   var hdrName = 'Contents/header.xml', hdr = null;
@@ -15272,12 +15459,20 @@ async function hwpxBuild(content){
     var items = bins.map(function(x){ return '<opf:item id="' + x.id + '" href="BinData/' + x.id + '.' + x.ext + '" media-type="image/' + (x.ext === 'png' ? 'png' : 'jpeg') + '" isEmbeded="1"/>'; }).join('');
     hpf = /<opf:item id="header"[^>]*\/>/.test(hpf) ? hpf.replace(/(<opf:item id="header"[^>]*\/>)/, '$1' + items) : hpf.replace('</opf:manifest>', items + '</opf:manifest>');
   }
+  /* v674: Finder 미리보기 — 실패하면 서식 파일의 그림·글 그대로 */
+  var prv = null;
+  try {
+    var hdrPrv = hdr || (zip.file(hdrName) ? await zip.file(hdrName).async('string') : '');
+    prv = await hwpxPrvMake(secHead, hdrPrv, spec, content);
+  } catch (e) { console.warn('[hwpx 미리보기]', e); prv = null; }
   var out = new window.JSZip();
   out.file('mimetype', await zip.file('mimetype').async('string'), { compression: 'STORE', createFolders: false });
   var names = Object.keys(zip.files).filter(function(n){ return n !== 'mimetype' && !zip.files[n].dir; });
   for (var i = 0; i < names.length; i++){
     var n = names[i];
-    var data = (n === 'Contents/section0.xml') ? sec : (n === hpfName && hpf) ? hpf : (n === hdrName && hdr) ? hdr : await zip.file(n).async('uint8array');
+    if (prv && n === 'Preview/PrvImage.png'){ out.file(n, prv.png, { base64: true, compression: 'STORE', createFolders: false }); continue; }
+    var data = (n === 'Contents/section0.xml') ? sec : (n === hpfName && hpf) ? hpf : (n === hdrName && hdr) ? hdr
+      : (prv && n === 'Preview/PrvText.txt') ? prv.txt : await zip.file(n).async('uint8array');
     out.file(n, data, { compression: 'DEFLATE', createFolders: false });
   }
   bins.forEach(function(x){ out.file('BinData/' + x.id + '.' + x.ext, x.b64, { base64: true, compression: 'STORE', createFolders: false }); });
@@ -31925,7 +32120,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v673';
+var APP_VER = 'v674';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
