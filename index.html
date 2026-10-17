@@ -18207,7 +18207,7 @@ function hostStatusText(){
   if (st.ok) return 'Claude 준비됨 — AI 버튼을 누르면 이 맥의 Claude Code(구독)로 바로 처리합니다' + (st.email ? ' (' + st.email + ')' : '');
   return (st.reason || 'Claude 를 쓸 수 없습니다') + ' — 사이드바의 [Claude 로그인] 또는 메뉴 [Claude] → [Claude Code 로그인…]';
 }
-var HOST_PHASE = { queued: '차례를 기다리는 중', start: 'Claude 시작', thinking: '생각하는 중', writing: '쓰는 중', retry: '다시 시도하는 중', done: '받음' };
+var HOST_PHASE = { queued: '차례를 기다리는 중', start: 'Claude 시작', thinking: '생각하는 중', writing: '쓰는 중', retry: '다시 시도하는 중', update: 'Claude Code 업데이트 중', done: '받음' };
 function hostArView(){
   var keys = Object.keys(_hostRuns);
   if (keys.length){
@@ -18225,7 +18225,7 @@ function hostArView(){
 function hostOverlayPhase(phase){
   if (window._cascOn) return;
   var c = $('#genCount'); if (!c) return;
-  var t = { queued: '차례를 기다리는 중…', start: 'Claude 를 깨우는 중…', thinking: '생각하는 중…', retry: '다시 시도하는 중…' }[phase];
+  var t = { queued: '차례를 기다리는 중…', start: 'Claude 를 깨우는 중…', thinking: '생각하는 중…', retry: '다시 시도하는 중…', update: 'Claude Code 를 업데이트하는 중(한 번만)…' }[phase];
   if (t) c.textContent = t;
 }
 function hostAgentCall(system, user, onTick, hopt){
@@ -31908,7 +31908,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v667';
+var APP_VER = 'v668';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
