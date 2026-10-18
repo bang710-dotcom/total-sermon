@@ -32705,7 +32705,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v679';
+var APP_VER = 'v680';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -33586,28 +33586,28 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       ['uiConfirm(글, opts)', 'await → 목사님 클릭(true/false). 코드 실행은 3분 제한이니 오래 기다릴 일엔 쓰지 말 것'],
       ['callClaude(system, user, maxTokens, onTick, 기능키)', 'AI 한 번 부르기(기능키는 AI_FEATURES: main·chat·transdoc·devoplan·ocr·cardtrans·imgprompt·illocr)']]]
   ];
-  var AG_MAP_DATA = '데이터: state.data = { sermons, ideas, outputs, devo, devonotes, seriesdraft }.\\n'
-    + '- 설교(sermons) 칸: ID(예 S123)·날짜·예배구분·시리즈·시리즈순번·제목·본문·상태(구상/연구·작성중·완료·설교함·보관·초안)·핵심메시지·대지·예화·원고텍스트·키워드·비고·요약본·실제요약본·파일맵(JSON)·원고유형·카드원고·전사문·수정일. 원고텍스트·카드원고는 ensureText(id) 뒤에 채워진다.\\n'
-    + '- 예화·아이디어(ideas): ID·유형·제목·내용·출처·관련본문·키워드·상태·사용설교ID. 묵상(devo): 날짜·본문범위·제목·관찰/묵상/적용질문. 묵상노트(devonotes)·시리즈 초안(seriesdraft).\\n'
-    + '- state.editing = 작성창에 열린 설교 ID(새 설교면 null). state.compose = { style: 기본원고|자유원고|카드원고, introTitle, intro, free, concIntro, concPoints, concBody, points:[{ text, blocks:[ {type:body,role,body} | {type:apply,role:대지실천,apply} | {type:ill,ill,illBody} ] }], cards }. 메타 칸 입력: C_META(제목→#c_title·본문→#c_ref·날짜→#c_date·예배구분→#c_service·시리즈→#c_series·상태→#c_state·핵심메시지→#c_msg).\\n'
+  var AG_MAP_DATA = '데이터: state.data = { sermons, ideas, outputs, devo, devonotes, seriesdraft }.\n'
+    + '- 설교(sermons) 칸: ID(예 S123)·날짜·예배구분·시리즈·시리즈순번·제목·본문·상태(구상/연구·작성중·완료·설교함·보관·초안)·핵심메시지·대지·예화·원고텍스트·키워드·비고·요약본·실제요약본·파일맵(JSON)·원고유형·카드원고·전사문·수정일. 원고텍스트·카드원고는 ensureText(id) 뒤에 채워진다.\n'
+    + '- 예화·아이디어(ideas): ID·유형·제목·내용·출처·관련본문·키워드·상태·사용설교ID. 묵상(devo): 날짜·본문범위·제목·관찰/묵상/적용질문. 묵상노트(devonotes)·시리즈 초안(seriesdraft).\n'
+    + '- state.editing = 작성창에 열린 설교 ID(새 설교면 null). state.compose = { style: 기본원고|자유원고|카드원고, introTitle, intro, free, concIntro, concPoints, concBody, points:[{ text, blocks:[ {type:body,role,body} | {type:apply,role:대지실천,apply} | {type:ill,ill,illBody} ] }], cards }. 메타 칸 입력: C_META(제목→#c_title·본문→#c_ref·날짜→#c_date·예배구분→#c_service·시리즈→#c_series·상태→#c_state·핵심메시지→#c_msg).\n'
     + '- state.settings 는 비밀값(키·토큰)이 들어 있으니 읽지 않는다.';
   var AG_MAP_WARN = '주의: ⚠ 표시는 시트에 쓰거나 파일을 덮어쓰는 일 — 목사님이 시키신 것만. 삭제(deleteSermon·trashPurge 영구 삭제·archiveDelete 되돌릴 수 없음·slDel)는 시키셔도 한 번 더 여쭌다. aiLeadersTsv 는 외부 리더스앱 시트에 올리고 옛 게시를 내린다 — 시키실 때만. 폴더 권한(결과함)은 목사님이 화면에서 눌러야 열린다.';
   var _agMap = null;
   function agMapText(){
     if (_agMap != null) return _agMap;
-    var out = ['\\n\\n[앱 지도 — 코드를 찾기 전에 먼저 여기서 고르세요. 모두 app_js_run 에서 바로 부를 수 있는 전역 함수입니다(인자 모양이 애매하면 app_code_read 로 그 함수 앞부분만 확인). 여기 없을 때만 app_code_search]'], miss = 0;
+    var out = ['\n\n[앱 지도 — 코드를 찾기 전에 먼저 여기서 고르세요. 모두 app_js_run 에서 바로 부를 수 있는 전역 함수입니다(인자 모양이 애매하면 app_code_read 로 그 함수 앞부분만 확인). 여기 없을 때만 app_code_search]'], miss = 0;
     AG_MAP_FN.forEach(function(g){
       var lines = [];
       g[1].forEach(function(f){
-        var nm = (String(f[0]).match(/^[A-Za-z_$][\\w$]*/) || [''])[0];
+        var nm = (String(f[0]).match(/^[A-Za-z_$][\w$]*/) || [''])[0];
         if (!nm || typeof window[nm] !== 'function'){ miss++; return; }
         lines.push('  ' + f[0] + (f[1] ? ' — ' + f[1] : ''));
       });
-      if (lines.length) out.push('· ' + g[0] + '\\n' + lines.join('\\n'));
+      if (lines.length) out.push('· ' + g[0] + '\n' + lines.join('\n'));
     });
     out.push(AG_MAP_DATA, AG_MAP_WARN);
     if (miss) out.push('(이 앱 버전에 없는 지도 함수 ' + miss + '개는 뺐다 — 필요하면 app_code_search)');
-    _agMap = out.join('\\n');
+    _agMap = out.join('\n');
     return _agMap;
   }
 
