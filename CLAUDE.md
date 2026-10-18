@@ -1,7 +1,7 @@
 # CLAUDE.md — 토탈 설교 앱 (작업 메모리)
 
 이 폴더(`total-sermon-web`)는 **정적 PWA "토탈 설교 앱"**의 배포 저장소다.
-- 앱 본체: `index.html`(단일 파일, 메인 로직은 끝부분 큰 IIFE) · 서비스워커 `sw.js`.
+- 앱 본체: `index.html`(단일 파일 — 메인 스크립트는 대부분 전역 `function` 선언, 마지막 `<script>` 의 대화·에이전트 모듈만 IIFE) · 서비스워커 `sw.js`.
 - 백엔드: 구글시트 Apps Script 웹앱(`Code.gs`, 이 저장소가 아니라 `Dropbox/total-sermon/apps-script/Code.gs`에 보관). 델타 동기화(변경분만, `ID` 기준 멱등 upsert + 삭제로그 툼스톤).
 - 로컬 저장: 설정·대기열·테마는 localStorage, 대용량 데이터(`data`)·`syncAt`·`seriesList`·`composeDraft`는 IndexedDB(`tsa`/`kv`).
 - 자동 커밋·푸시 워처가 이 폴더에서 돌며 origin/main에 푸시 → 배포된다.
@@ -242,6 +242,16 @@ WBC 성경주석(솔로몬 한글판) 스캔 PDF 58권(38,974쪽)을 맥 Vision 
   - **거절 안내**: 스트림 `message_delta` 의 `stop_details`(`delta.stop_details` 또는 `stop_details`, 있을 때만)를 받아 `agRefusalMsg` 가 분류별 문구(reasoning_extraction·cyber·bio·그 밖). 분류가 안 오면 질문 글에 「사고/생각/추론 과정」 등이 있으면 생각 과정 안내. ⚠ 실제 스트림에서 `stop_details` 가 어느 자리에 오는지는 문서로 확인하지 못해 두 자리를 다 본다.
   - 「AI가 본 화면 내용」 펼침 글자가 안 보이던 것: 전역 `details summary{color:var(--accent)}` 가 말풍선 색과 같았다 → `.aiCtxPrev summary{color:inherit}`.
 - 시험(시험 사본 + 콘솔에서 `fetch` 를 가짜 SSE 로·`genSermonImage` 를 가짜 그림으로 덮어쓰고, `xHandle` = OPFS 폴더로 가짜 결과함): 생각 요약 흐름·접힘 · 요청 본문(thinking summarized·effort high·tools 10개 eager) · 화면 읽기 → 코드 찾기 → 승인 후 실행 → 답(서명 그대로 되돌려 보냄 확인) · 건너뛰기 · 묻지 않기 · 비밀값 가림 · 깨진 JSON·없는 도구 오류 결과 · 컷 읽기 → 후보 2장(그림 첨부) → [이걸로 교체] → zip 의 02·03(초광각 4160×1620 jpg + 사이드 1920×1080 png)만 바뀜·사이드카 갱신(origSig 유지) → [되돌리기] 로 크기까지 원래대로 · 작성창 반영·되돌리기 · 멈춤(받은 데까지 남김) · 다시 생성 · 질문 고치기 · 기록에서 다시 열기 · 브리지 경로(원고수정 카드) · 키 없음 안내 · 휴대폰 폭 가로 넘침 없음. ⚠ 실제 Claude API·이미지 프록시·Dropbox 결과함으로는 아직 돌려 보지 않았다.
+
+## 앱 에이전트 속도 — Aside 의 원리 적용 — v678 · v679 · v680 (2026-10-19 목사님 요청 「전부 적용해줘」)
+Aside 에이전트가 빠른 이유(설계 분석)를 설교 대화 에이전트(`agRespond`, Electron Ask 패널도 `TSA_AGENT` 로 같은 지침·도구)에 옮겼다.
+- **1시간 프롬프트 캐시 (v678)**: `agStream` 의 system 블록과 `withCachedTail`(대화 끝 기준점)의 `cache_control` = `{type:'ephemeral', ttl:'1h'}`. 5분 캐시는 잠깐 생각하다 돌아오면 지침·도구·대화를 다시 써야 했다. 대가: 캐시 쓰기 2배(5분은 1.25배), 읽기 값은 5분 캐시와 같음 — 한 시간 안에 두 번째 질문부터 이득. ⚠ 시스템 지침이 질문마다 바뀌면 캐시가 깨진다 → 지침 안에 시각·화면 내용 같은 바뀌는 값을 넣지 말 것(화면 내용은 사용자 메시지 쪽 「현재 화면 참고」).
+- **읽기 도구 동시 실행 (v678)**: 한 차례에 모델이 낸 도구 중 **연이은 읽기 전용**(`AG_RO` = screen_read·image_cuts·image_view·app_code_search·app_code_read)은 `Promise.all` 로 함께 돌리고, 쓰기·실행(compose_edit·image_generate/apply/undo·app_js_run)은 예전처럼 하나씩·승인 그대로. 결과 순서는 받은 tool_use 순서 유지. 지침(AG_SYS)에 「상관없는 읽기는 한 번에」 한 줄.
+- **screen_read 변경분만 (v678)**: `agScreenDiff` — 같은 화면(페이지·manuscript·full 옵션이 같은 key)을 15분 안에 다시 읽으면 `histDiff` 로 달라진 줄만(`- `/`+ `, 첫 줄 제목은 늘 붙임), 같으면 「달라진 것이 없다」 한 줄. 변경분이 전체의 60%를 넘으면 그냥 전체. `fresh:true` = 늘 전체. 직전 판은 `AG.scr`(차례 시작·새 대화·reset 때 비움 — `AG.lastCtx=''` 있는 다섯 곳 모두).
+- **앱 지도 (v679, v680 수정)**: `AG_MAP_FN`(묶음별 `[호출 모양, 설명]`) + `AG_MAP_DATA`(state.data·설교 칸·state.compose 구조·C_META) + `AG_MAP_WARN`(⚠ 시트 쓰기·삭제·외부 업로드) → `agMapText()` 가 `sysFor(…, true)` 끝(AG_SYS 뒤)에 붙인다. 모델이 2.5MB 코드를 app_code_search 로 뒤지는 왕복을 없애려는 것(Aside 의 사이트 메모리·스킬과 같은 생각). 처음 쓸 때 **함수 이름이 전역에 실제로 있는지**(`typeof window[이름]==='function'`) 확인해 없는 줄은 빼고 끝에 뺀 수를 적는다 — app_js_run 은 전역 범위라 대화 모듈 IIFE 안 함수는 넣으면 안 된다. 한 번 만들면 메모(`_agMap`) — 캐시를 깨지 않게. 지도 약 4.6K자, 에이전트 지침 전체 약 7.7K자. AG_SYS 의 옛 「출발점: showPage(…)…」 목록은 지도로 대체.
+  → ⚠ **v679 사고**: 파이썬 raw 문자열로 넣다가 정규식 `\\w`·문자열 `\\n` 이 역슬래시 두 개로 들어가 함수 이름을 첫 글자만 읽었다 → 58개 전부 「없음」으로 빠지고 줄바꿈도 글자 `\n` 으로 나감(문법 검사는 통과). v680 에서 고침. **지도를 고치면 배포본에서 `TSA_AGENT.system()` 을 열어 「지도 함수 N개는 뺐다」가 없는지·함수 줄 수를 꼭 확인할 것.**
+  → 함수 이름·인자·기능이 바뀌면 지도도 함께 고칠 것(없어진 함수는 자동으로 빠지지만 **인자 모양·설명은 자동으로 안 맞춰진다**).
+- 시험: v678 = 가짜 SSE API(시스템·꼬리 cache_control ttl 1h · app_code_search 두 개가 0ms 차이로 함께 시작·결과 순서 tA,tB,tC 유지 · 같은 차례 두 번째 screen_read = 「달라진 것이 없다」 · `TSA_AGENT.run` 으로 한 줄 추가 → 변경분, fresh → 전체). v680 = 배포본에서 지도 함수 58줄·9묶음·뺀 것 0·`\n` 글자 없음·`system()` 두 번 같음, 지도의 기능키(AI_FEATURES)·내보내기 대상(runCascade)·검색 범위·산출물 유형·페이지 이름이 실제 코드와 일치. ⚠ 실제 Claude API 로 캐시 적중(`cache_read_input_tokens`)·지도 덕에 줄어든 왕복 수는 아직 재 보지 않았다.
 
 ## Aside 자동 처리 (맥 중계기) — v654 (2026-10-16 목사님 요청)
 목사님 요청: 「AI 버튼을 누르면 요청 패널에 등록되고, Aside 대화창에 직접 '요청처리'를 쳐야 처리된다 → 버튼만 누르면 바로 Aside 가 반응하게」. 웹페이지는 Aside 에이전트를 직접 부를 통로가 없다(확장 외부 메시지는 Aside Vault 만, 창 메시지는 chrome-extension 출처+무작위 frameId, 프롬프트 받는 URL 파라미터 없음 — REA·코드 확인). 그래서 맥 중계기가 Aside CLI 로 그 대화에 메시지를 넣는다.
