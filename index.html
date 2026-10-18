@@ -1106,6 +1106,9 @@ body.lbtDraggingBody,body.lbtDraggingBody *{cursor:grabbing!important;user-selec
 .edIllLib:hover{background:var(--accent2);color:var(--on-gold)}
 /* 구조화 에디터 (오른쪽) */
 #editorPane{display:flex;flex-direction:column;gap:0}
+/* v677: 작성창 높이가 정해진 배치(아이패드 가로 — 작성창이 스스로 스크롤)에서 칸이 줄어들지 않게.
+   카드 묶음(.cdWrap)은 overflow-x:auto 라 최소 높이가 0 으로 잡혀, 카드 23장이 높이 190px 남짓한 안쪽 스크롤 상자로 눌렸다 */
+#editorPane > *{flex-shrink:0}
 .edHeader{padding:6px 4px 14px}
 .edTitle{font-size:var(--fs-xl);font-weight:700;line-height:1.4}
 .edRef{color:var(--accent2);font-size:var(--fs-body);margin-top:3px;font-weight:700}
@@ -1922,12 +1925,30 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
 @media (max-width: 899px), (hover: none){
   #edStyleBar{top:var(--cmHeadH,112px);padding:8px 0 10px;margin:0 0 12px}
   #edStyleBar .edTitle{font-size:var(--fs-lg)}
+  /* v677 머리 줄 다듬기: 제목·본문은 한 줄(긴 제목은 말줄임 — 전체 제목은 설교 작성 머리줄·정보 탭에 있다), 「원고 스타일」 이름표는 뺀다
+     → 아이패드 가로에서 원고 스타일 칩이 둘째 줄로 내려가지 않는다 */
+  #edStyleBar .esbInfo{flex:1 1 160px;flex-wrap:nowrap}
+  #edStyleBar .edTitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #edStyleBar .edRef{flex:0 0 auto}
+  #edStyleBar .esbLab{display:none}
 }
 /* 아이패드 가로: 오른쪽 열이 스스로 스크롤하는 칸이 아니라 작성창이 스크롤한다 — 스타일 줄은 그 위에 그대로 서 있다 */
 @media (hover: none) and (orientation: landscape) and (min-width: 1000px){
   #page-compose.on #edCol{min-height:0;display:flex;flex-direction:column}
-  #page-compose.on #edStyleBar{position:static;flex:0 0 auto;padding:0 0 10px;margin:0 0 12px}
+  #page-compose.on #edStyleBar{position:static;flex:0 0 auto;padding:0 0 8px;margin:0 0 10px}
   #page-compose.on #editorPane{flex:1 1 auto}
+}
+/* v677 쓰는 동안 넓게 — 휴대폰·아이패드에서 작성칸에 글자를 넣기 시작하면(JS 가 body.edTyping) 앱 머리줄·탭바·작성창 제목 줄을 숨겨
+   작성창이 그 높이를 쓴다. 글 밖을 누르거나 작성칸을 벗어나면 돌아온다. 설교 작성 머리줄(저장·내보내기)과 자유원고 구조화 도구 줄은 남긴다.
+   머리줄·탭바가 맡던 안전영역(상태 표시줄·홈 표시줄)은 #app 이 대신 띄운다 */
+@media (max-width: 899px), (hover: none){
+  body.edTyping:not(.focusMode) header.mobile,
+  body.edTyping:not(.focusMode) .tabbar,
+  body.edTyping:not(.focusMode) #aiFab,
+  body.edTyping:not(.focusMode) #edStyleBar .esbInfo,
+  body.edTyping:not(.focusMode) #edStyleBar .esbStyle,
+  body.edTyping:not(.focusMode) #edStyleBar:has(> .esbKit[hidden]){display:none!important}
+  body.edTyping:not(.focusMode) #app{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 }
 body.focusMode #edStyleBar{display:none!important}
 #edStyleBar{transition:opacity .5s ease}
@@ -2063,6 +2084,8 @@ body.cardView.edPaper:not(.focusMode) #editorPane{--bg:inherit;--card:inherit;--
 .cdOverTx{color:var(--bad);font-weight:700}
 .cdBarActs{display:flex;gap:6px;flex-wrap:wrap}
 .cdBarActs .btn{width:auto;flex:0 0 auto;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:var(--fs-sm)}
+/* v677: 터치 화면의 .btn.mini(높이 54px)를 카드 도구 줄에서는 설교 작성 머리줄 단추 정도로 낮춘다 */
+@media (max-width: 899px), (hover: none){ .cdBar{margin-bottom:8px} .cdBarActs .btn{min-height:38px} }
 .cdWrap{display:flex;flex-direction:column;gap:24px;overflow-x:auto;padding:2px 2px 8px}
 .cdCard{flex:0 0 auto}
 .cdHead{display:flex;align-items:center;gap:8px;min-height:28px;margin:0 0 6px;font-size:var(--fs-xs);color:var(--dim);width:calc(310 * var(--cdS,3px));max-width:100%}
