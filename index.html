@@ -32705,7 +32705,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v676';
+var APP_VER = 'v677';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -35236,6 +35236,29 @@ function cmReveal(el){
   var on0 = false; try { on0 = localStorage.getItem('tsa.navRail') === '1'; } catch (e) {}
   set(on0);
   b.addEventListener('click', function(){ set(!document.body.classList.contains('navRail')); });
+})();
+/* 쓰는 동안 넓게(v677) — 휴대폰·아이패드에서 작성칸에 글자를 넣기 시작하면 body.edTyping → 앱 머리줄·탭바·작성창 제목 줄을 숨긴다(CSS).
+   누르는 순간이 아니라 글자를 넣을 때 숨기는 것은, 누르는 사이 화면이 움직여 커서·단추가 엇나가지 않게 하려는 것.
+   글 밖(다른 칸·단추·빈 곳)을 누르거나 작성칸을 벗어나면(키보드 내리기 포함) 돌아온다. 카드·작성칸·구조화 도구 줄을 누르는 것은 글 안으로 본다.
+   데스크탑(마우스)·집중 모드에서는 켜지 않는다. 프로그램이 보낸 input(AI 채움 등)은 무시한다(isTrusted). */
+(function(){
+  var B = document.body, mq = window.matchMedia ? window.matchMedia('(max-width: 899px), (hover: none)') : null;
+  function isEd(el){ return !!(el && el.tagName === 'TEXTAREA' && el.closest && el.closest('#editorPane')); }
+  function off(){ if (B.classList.contains('edTyping')) B.classList.remove('edTyping'); }
+  document.addEventListener('input', function(e){
+    if (!e.isTrusted || !mq || !mq.matches || B.classList.contains('focusMode') || !isEd(e.target)) return;
+    if (!B.classList.contains('edTyping')) B.classList.add('edTyping');
+  }, true);
+  document.addEventListener('focusout', function(e){
+    if (!isEd(e.target)) return;
+    setTimeout(function(){ if (!isEd(document.activeElement)) off(); }, 150);   /* 카드 나누기·다시 그리기처럼 다른 작성칸으로 옮겨 가면 그대로 */
+  }, true);
+  document.addEventListener('click', function(e){
+    if (!B.classList.contains('edTyping')) return;
+    var t = e.target;
+    if (isEd(t) || (t && t.closest && t.closest('.cdCard, .edHl, .esbKit'))) return;
+    off();
+  }, true);
 })();
 /* ⌘K 빠른 실행 — 화면 이름·기능 이름으로 바로 이동·실행 */
 (function(){
