@@ -32705,7 +32705,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v680';
+var APP_VER = 'v681';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -34680,6 +34680,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     tools: function(){ return Object.keys(AG_TOOLS).map(function(k){ return { name: k, label: AG_TOOLS[k].label, description: AG_TOOLS[k].def.description, input_schema: AG_TOOLS[k].def.input_schema }; }); },
     system: function(opt){ return sysFor(opt && opt.neutral ? '' : curPage(), true); },   /* v672: 브라우저는 {neutral:true} — 화면별 안내는 context().hint 로 */
     context: function(){
+      AG.scr = null;   /* v681: 맥 앱은 보낼 때마다 context() 를 먼저 부른다 → screen_read 변경분은 그 차례 안에서만(프로세스를 새로 띄운 뒤 모델이 못 본 화면과 비교하지 않게 — 웹 대화의 agRespond 와 같은 규칙) */
       var pg = curPage(), o = { page: agPageName(pg), pageId: pg || '', overlays: agOverlays() };
       try { o.hint = String(pageGuide(pg, true) || '').trim(); } catch(e){}
       if (pg === 'compose'){
@@ -34696,6 +34697,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       opts = opts || {};
       var spec = AG_TOOLS[name], T = agRemoteChip(callId, name), V = { log: [] };
       if (!spec){ T.err('알 수 없는 도구'); return { is_error: true, content: [{ type: 'text', text: '알 수 없는 도구: ' + name }] }; }
+      if (callId === '_ctx' && name === 'screen_read') input = Object.assign({}, input || {}, { fresh: true });   /* v681: 맥 앱 「작성 중 원고」 첨부는 늘 전문(변경분 X) */
       var inv = agInvalid(spec.def.input_schema, input || {});
       if (inv){ T.err('입력 오류'); return { is_error: true, content: [{ type: 'text', text: JSON.stringify({ INVALID_INPUT: inv }) }] }; }
       var jsTrust = name === 'app_js_run' && !!opts.trust, prevTrust = AG.trustJs, sn = null, sig0 = '';
