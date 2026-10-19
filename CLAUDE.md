@@ -332,6 +332,13 @@ Finder 의 hwpx 아이콘 = 파일 안 `Preview/PrvImage.png`(한글이 저장�
 ### v673 — 전용 브라우저에서 「Claude 준비됨」 숨김 (2026-10-17 목사님 요청)
 `hostArView` 가 준비됨·확인 중이면 null → 사이드바 `#arInd`·모바일 `#arIndM`·집중 모드 `#arIndF` 가 숨는다(상단 막대 [Ask Claude] 의 점이 같은 것을 알려 준다). **작업 중**(라벨·쓰는 중 N자·경과 + [취소])·**결과 받음**(5초)·**쓸 수 없음**(「로그인이 필요합니다」 + [Claude 로그인])일 때만 보인다. Aside 경로(`arView` 의 나머지)는 그대로. 시험(브라우저 시험 사본 + 로컬 v673 + 가짜 claude): 준비됨 숨김 → 생성 중 보임(진행·취소) → 결과 받음 5초 → 숨김 · 로그아웃 보임(로그인 단추) → 다시 로그인 숨김.
 
+### 브라우저 1.4.0 — Ask 패널 에이전트 = Aside 에이전트가 하던 일 (2026-10-19 목사님 요청 「Aside 의 것과 동일하게」)
+설교앱(index.html)은 바꾸지 않았다(앱 버전 v681 그대로). 브라우저 본체만: 새 파일 `Dropbox/total-sermon/browser/extras.js` + chat.js·main.js·ui-preload.js·ui/panel.*·agent.js·build.sh. 자세한 것은 브라우저 README 2-4.
+- Aside 대화 기록 268개에서 쓴 도구를 세어 대조 → Claude Code 내장 도구를 켬: 웹 검색·웹 읽기·파일 읽기/찾기/만들기/고치기·Bash·하위 에이전트(`researcher`)·할 일(TaskCreate/Update → 패널 체크리스트). 추가 도구 ask_user(선택지 카드)·notify(맥 알림)·files_show(파일 카드 [열기][Finder][저장])·history_search/read(지난 Ask 대화). 메시지마다 [지금] 날짜·시각. 답하는 동안 Enter = 대기열. 답이 끝나면 **대화 자동 기록**(Sonnet 5.5 로 정리 → 기억 `episodic/날짜.md`, Aside 와 같은 「## HH:MM 제목」 형식).
+- 대화마다 작업 폴더 `~/Library/Application Support/Total Sermon Browser/chat-work/<대화 id>`. 문서용 파이썬(`pyenv`, python-docx 등)은 build.sh 가 설치(없으면 Aside 런타임).
+- 허락 = `--permission-prompt-tool` → `extras.js decide()`(가드: 작업 폴더 밖 쓰기·지우기·설치·외부 전송·시스템 명령만 묻기, 비밀 자료는 어느 방식이든 묻기). 하위 에이전트는 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` 로 동기(백그라운드면 차례가 끝난 뒤 새 차례가 저절로 이어져 패널이 놓친다).
+- ⚠ 앱 도구(TSA_AGENT)를 고치면 그대로 Ask 패널에 들어간다는 점은 같다. 설교앱 v669 이상 필요.
+
 ## 주일 시리즈 — 주간범위는 앱이 계산 · 제외 주일 밀림 수정 — v649 (2026-10-14 목사님 제보)
 여호수아 설교계획표(「전주간 묵상 본문」)가 묵상집과 달랐다. 원인 = `P_SERMON` 에 묵상 일정 **전체**를 넘기고 주마다 `주간범위`를 **모델이** 정했는데, 설교하지 않는(제외) 주일 앞 주를 「묵상도 없는 주」로 보고 다음 주일 범위에 합치거나 한 주씩 밀어 적었다(9/20 = 2:15-6:14, 10/18 = 9:7-11:23, 11/15 = 17:1-19:9 = 제외 주 범위 그대로, 11/22·11/29 한 주 밀림). 그 범위로 선택지를 만들어 **10/18 수 10:9-15, 11/15 수 17:14-18 이 앞(제외) 주 묵상 본문**으로 확정됐다. `weekDevoRange` 가 모델 값을 먼저 써서 표·ics 도 틀렸다.
 - **주간범위 = `sunDevoRows`/`sunDevoRange`(S.devo 의 직전 월~토)**. `weekDevoRange` 는 주일 시리즈면 이 계산값이 먼저(새벽·주제별·묵상 없음 = 적힌 값). `spSermonHtml` 이 열 때 저장된 `w['주간범위']` 를 계산값으로 바로잡는다(옛 계획의 머리 표시·보관 비고 「주간묵상:」·이달의 말씀).
