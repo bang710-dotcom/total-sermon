@@ -31135,6 +31135,336 @@ async function imgRegenOne(n){
 }
 window.imgRegenOne = imgRegenOne;
 
+/* ══ 이미지 삭제 · 뒤 번호 당기기 (v683, 2026-10-20 목사님 요청) ══════════════════════════════
+   필요 없는 이미지 #N 을 지우면 뒤 번호가 하나씩 당겨진다(#N+1 → #N …). 그 자리에서는 앞 이미지가 이어진다.
+   번호를 쓰는 곳을 모두 같은 규칙으로 고친다 — 컷 목록(이미지자료 JSON) · 전환표(파일맵 trans + 전환표 JSON) ·
+   백스테이지 zip(가운데·사이드 판, 파일 이름의 장수) · 낱장 재생성 파일 · 이미 만든 전환표시본·전환 표시 PDF·이미지자료 문서 ·
+   카드원고의 전환 표시(시트 칸·작성창·내보낸 카드원고 문서) · 옛 AI 카드(파일맵 cardArr) · 대화 에이전트의 후보·교체 전 판.
+   일반 이미지를 지우면 뒤에 딸린 본문 이미지는 앞 일반 이미지에서 다시 파생한다(AI 없음, imgComposeMade).
+   첫 일반 이미지 뒤에 본문 이미지가 붙어 있으면 지우지 않는다 — 본문 이미지가 파생할 그림이 없다(표지는 파생 원본이 아니다).
+   카드 디자인 PDF·PPTX 는 AI 조판이라 저절로 고칠 수 없다 — 있으면 다시 만들라고 안내만 한다.
+   ⚠ 이미 있는 문서만 다시 만든다(없던 산출물을 새로 만들지 않는다). */
+/* 글 안의 전환 줄(「▶ 이미지 #n 전환 ◀」·「▶ 본문 이미지 #n 전환 ◀」)에서 #N 줄을 빼고 뒤 번호를 하나씩 당긴다 */
+function imgBarShift(text, N){
+  var changed = false, out = [];
+  String(text == null ? '' : text).split('\n').forEach(function(l){
+    var k = cardIsBar(l) ? cardMarkInfo(l).n : 0;
+    if (k && k === N) { changed = true; return; }
+    if (k > N) { changed = true; out.push(l.replace(/#\s*\d+/, '#' + (k - 1))); return; }
+    out.push(l);
+  });
+  return { text: out.join('\n'), changed: changed };
+}
+/* 전환표에서 #N 행을 빼고 #2부터 다시 번호(normalizeTransTable) — 그 번호가 표에 없으면 null */
+function transTableDropCut(table, N){
+  if (!Array.isArray(table) || !table.length) return null;
+  var kept = table.filter(function(r){ return !(r && +r.n === N); });
+  return kept.length === table.length ? null : normalizeTransTable(kept);
+}
+/* 옛 AI 카드(파일맵 cardArr — {t:'trans', x:'▶ 이미지 #n 전환 ◀'} 블록) — 바뀐 게 없으면 null */
+function cardArrDropCut(arr, N){
+  var ch = false, out = [];
+  (arr || []).forEach(function(b){
+    var k = (b && b.t === 'trans') ? cardMarkInfo(b.x).n : 0;
+    if (k && k === N) { ch = true; return; }
+    if (k > N) { ch = true; out.push(Object.assign({}, b, { x: String(b.x).replace(/#\s*\d+/, '#' + (k - 1)) })); return; }
+    out.push(b);
+  });
+  return ch ? out : null;
+}
+/* zip 안 번호 N 의 모든 판을 지우고 그 뒤 번호를 하나씩 당긴다(루트·하위 폴더, 확장자 그대로) */
+async function zipShiftCuts(zip, N){
+  zipDropCut(zip, N);
+  var items = [];
+  Object.keys(zip.files).forEach(function(k){
+    if (zip.files[k].dir) return;
+    var m = k.match(/^((?:.*\/)?)(\d{1,3})(\.(?:png|jpe?g))$/i);
+    if (m && +m[2] > N) items.push({ k: k, dir: m[1], n: +m[2], ext: m[3] });
+  });
+  items.sort(function(a, b){ return a.n - b.n; });   /* 작은 번호부터 — 한 칸 앞 자리는 늘 이미 비어 있다 */
+  for (var i = 0; i < items.length; i++){
+    var it = items[i], data = await zip.file(it.k).async('uint8array');
+    zip.remove(it.k);
+    zip.file(it.dir + ('0' + (it.n - 1)).slice(-2) + it.ext, data);
+  }
+}
+function zipRootCount(zip){
+  var seen = {};
+  Object.keys(zip.files).forEach(function(k){ var m = !zip.files[k].dir && k.match(/^(\d{1,3})\.(?:png|jpe?g)$/i); if (m) seen[+m[1]] = 1; });
+  return Object.keys(seen).length;
+}
+/* zip 을 저장한다. 이름의 장수(「…_20장.zip」)가 달라졌으면 같은 폴더에서 새 이름으로 바꾼다
+   (새 이름의 다른 zip 이 이미 있으면 덮지 않고 원래 이름에 그대로 쓴다). 저장한 이름을 돌려준다. */
+async function imgZipSaveAs(pack, count){
+  var out = await pack.zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  var name = pack.name, nm = name.normalize ? name.normalize('NFC') : name;
+  var nn = (count && /_\d+장\.zip$/i.test(nm)) ? nm.replace(/_\d+장(\.zip)$/i, '_' + count + '장$1') : nm;
+  if (nn !== nm && pack.dir){
+    var taken = false; try { await pack.dir.getFileHandle(nn); taken = true; } catch (e) {}
+    if (!taken){
+      var h2 = await pack.dir.getFileHandle(nn, { create: true });
+      var w2 = await h2.createWritable(); await w2.write(out); await w2.close();
+      try { await pack.dir.removeEntry(name); } catch (e) {}   /* 못 지워도 새 파일이 더 최근이라 앱은 새 것을 읽는다 */
+      pack.name = nn; pack.h = h2;
+      return nn;
+    }
+  }
+  var w = await pack.h.createWritable(); await w.write(out); await w.close();
+  return name;
+}
+/* 낱장 재생성 파일(zip 이 없을 때 저장된 「…_재생성_NN.png」·「…_재생성_NN_사이드.png」)도 같은 규칙으로. 고친 파일 수 */
+async function imgLooseShift(meta, N){
+  if (!canFolderSave()) return 0;
+  var pre = imgDataNames(meta).backstagePrefixes, list = [];
+  try {
+    await eachResultFile(async function(e, parent){
+      var nm = e.name.normalize ? e.name.normalize('NFC') : e.name;
+      var m = nm.match(/_재생성_(\d{1,3})((?:_사이드)?\.(?:png|jpe?g))$/i);
+      if (m && +m[1] >= N && _nfcInclAny(nm, pre)) list.push({ dir: parent, name: e.name, nm: nm, n: +m[1], h: e });
+    });
+  } catch (e) { return 0; }
+  list.sort(function(a, b){ return a.n - b.n; });   /* #N 을 먼저 지우고 작은 번호부터 옮긴다 — 겹치지 않는다 */
+  var cnt = 0;
+  for (var i = 0; i < list.length; i++){
+    var it = list[i];
+    try {
+      if (it.n > N){
+        var nn = it.nm.replace(/_재생성_\d{1,3}(?=(?:_사이드)?\.(?:png|jpe?g)$)/i, '_재생성_' + ('0' + (it.n - 1)).slice(-2));
+        var file = await it.h.getFile();
+        var h2 = await it.dir.getFileHandle(nn, { create: true });
+        var w = await h2.createWritable(); await w.write(file); await w.close();
+      }
+      await it.dir.removeEntry(it.name);
+      cnt++;
+    } catch (e) {}
+  }
+  return cnt;
+}
+/* 카드원고의 전환 표시 — 작성창(이 설교가 열려 있으면)과 시트 칸을 따로 고친다.
+   작성창에 저장 안 한 글이 있어도 그 글은 시트로 보내지 않는다(시트 칸은 시트 값을 고친 것만). 내보낼 글을 돌려준다. */
+function imgCardShift(id, N){
+  var changed = false, text = '', c = state.compose;
+  var mine = !!c && (id ? String(state.editing || '') === String(id) : !state.editing);
+  if (mine && Array.isArray(c.cards) && c.cards.length){
+    var r = c.cards.map(function(t){ return imgBarShift(t, N); });
+    if (r.some(function(x){ return x.changed; })){
+      var wasClean = !composeDirty();
+      try { histSnap('이미지 #' + N + ' 삭제 전'); } catch (e) {}   /* histCapture 는 지금(바꾸기 전) 작성창을 바로 떠 둔다 */
+      c.cards = r.map(function(x){ return x.text; });
+      if (wasClean && id) state.savedSig = composeSig();   /* 시트 칸도 아래에서 같은 글로 고친다 — 미저장으로 보이지 않게 */
+      try { if (c.style === '카드원고') renderEditor(); else cardNavRender(); } catch (e) {}
+      changed = true;
+    }
+    text = cardsJoin(c.cards);
+  }
+  var s = id ? findSermon(id) : null;
+  if (s && String(s['카드원고'] || '').trim()){
+    var r2 = imgBarShift(s['카드원고'], N);
+    if (r2.changed){
+      s['카드원고'] = r2.text; saveData();
+      apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '카드원고': r2.text } }).catch(function(){});
+      changed = true;
+    }
+    if (!text) text = s['카드원고'];
+  }
+  return { changed: changed, text: text };
+}
+/* 결과함에서 여러 이름 조건의 '최신' 파일을 한 번 훑어 찾는다 → { 키: {m,dir,name,h} } */
+async function findResultFilesMulti(preds){
+  var best = {};
+  try {
+    await eachResultFile(async function(e, parent){
+      for (var k in preds){
+        if (!preds[k](e.name)) continue;
+        var f = await e.getFile();
+        if (!best[k] || f.lastModified > best[k].m) best[k] = { m: f.lastModified, dir: parent, name: e.name, h: e };
+      }
+    });
+  } catch (e) {}
+  return best;
+}
+function imgDelDocPreds(meta){
+  function doc(type, re){ var want = sermonFileNames(meta, type, ''); return function(nm){ return re.test(nm) && _nfcEqAny(nm.replace(re, ''), want); }; }
+  return {
+    trans: doc('이미지전환표시본', /\.(hwpx|docx)$/i),
+    transPdf: doc('이미지전환표시본', /\.pdf$/i),
+    imgData: doc('이미지자료', /\.(hwpx|docx)$/i),
+    card: doc('카드원고', /\.(hwpx|docx)$/i),
+    deck: doc('[디자인]', /\.(pdf|pptx)$/i)
+  };
+}
+/* 이미 만든 전환표시본·전환 표시 PDF 를 새 번호로 다시 만든다. 지금 문서의 전환 바 자리(바 바로 다음 줄)를 그대로 쓰고
+   #N 바만 빼서, 원고 수정 반영(applyRetrans)과 같은 방식(retransMatch → retransBody)으로 본문을 다시 짠다 —
+   되읽은 문서 글은 빈 줄이 빠져 있어 그대로 쓰면 문단 간격이 달라진다. 문서가 없고 PDF 만 있으면 전환표로 자리를 잡는다. */
+async function imgTransDocShift(id, meta, N, table, hits){
+  var res = { done: [], weak: [] };
+  var txt = String(meta['원고텍스트'] || '').trim();
+  if (!txt || !(hits.trans || hits.transPdf)) return res;
+  var rows = null;
+  if (hits.trans){
+    try {
+      var lines = await zipDocParas(await (await hits.trans.h.getFile()).arrayBuffer()) || [];
+      rows = [];
+      for (var i = 0; i < lines.length; i++){
+        if (!cardIsBar(lines[i])) continue;
+        var inf = cardMarkInfo(lines[i]); if (!inf.n || inf.n === N) continue;
+        var nx = ''; for (var j = i + 1; j < lines.length; j++) if (!cardIsBar(lines[j])) { nx = lines[j]; break; }
+        rows.push({ n: inf.n > N ? inf.n - 1 : inf.n, t: inf.scr ? '본문' : '일반', a: String(nx).trim().slice(0, 30), role: '' });
+      }
+      if (!rows.length) rows = null;
+    } catch (e) { rows = null; }
+  }
+  if (!rows) rows = (table || []).slice();
+  if (!rows.length) return res;
+  var m = retransMatch(rows, txt), body = retransBody(m);
+  res.weak = m.weak;
+  if (hits.trans){
+    var blob;
+    if (outFmt() === 'hwpx') blob = await transHwpxBlob(meta, body);
+    else { var Dx = await ensureDocxLib(); blob = await Dx.Packer.toBlob(buildTransDocx(Dx, meta, body)); }
+    await saveBlobToResults(blob, imgDataNames(meta).trans);
+    res.done.push('전환표시본');
+  }
+  if (hits.transPdf){
+    var imgMap = await tpdfImgMap(meta);
+    if (Object.keys(imgMap).length){
+      await saveBlobToResults(await buildTransPdfBlob(meta, body, imgMap), sermonFileBase(meta, '이미지전환표시본') + '.pdf');
+      res.done.push('전환 표시 PDF');
+    }
+  }
+  if (id && res.done.length) setSermonFileMapMulti(id, { transBodySig: manuscriptSig(meta) });   /* 이 본문은 지금 원고로 짰다 */
+  return res;
+}
+async function imgCutDelete(n){
+  var S = window._irState; if (!S) return;
+  var cuts = S.cuts, i = -1;
+  for (var k = 0; k < cuts.length; k++) if (cuts[k].n === n) { i = k; break; }
+  if (i < 0) return;
+  if (i === 0) { toast('표지(#1)는 지울 수 없습니다 — [↻ 재생성]으로 바꿔 주세요.'); return; }
+  var c = cuts[i], isScr = (c.type === '본문'), follow = [];
+  if (!isScr) for (var q = i + 1; q < cuts.length && cuts[q].type === '본문'; q++) follow.push(cuts[q].n);
+  var p = i - 1; while (p > 0 && cuts[p].type === '본문') p--;   /* 앞 일반 이미지(0 = 표지) */
+  if (follow.length && p < 1){
+    irStage('<b style="color:var(--warn)">#' + n + ' 은(는) 지울 수 없습니다</b> — 첫 일반 이미지이고, 바로 뒤 본문 이미지 #' + follow.join(', #') +
+      ' 이(가) 이 그림을 가공해 만든 것이라 지우면 그 본문 이미지를 만들 그림이 없습니다. 본문 이미지를 먼저 지우거나, 이 이미지를 [↻ 재생성]으로 바꿔 주세요.', 'err');
+    return;
+  }
+  var maxN = cuts[cuts.length - 1].n;
+  var dirty = Object.keys(S.draft || {}).map(Number).filter(function(x){ return x !== n && irDirty(x); });
+  function rng(a, b){ return a === b ? '#' + a : '#' + a + '~#' + b; }
+  var L = ['#' + n + (isScr ? ' 본문' : '') + ' 이미지를 지웁니다 — 그 자리에서는 앞 이미지 ' + (i === 1 ? '(표지 #1)' : '#' + cuts[i - 1].n) + ' 이(가) 이어집니다.', ''];
+  L.push(n < maxN ? '· 뒤 번호가 하나씩 당겨집니다: ' + rng(n + 1, maxN) + ' → ' + rng(n, maxN - 1) : '· 마지막 번호라 다른 번호는 그대로입니다.');
+  if (follow.length) L.push('· 뒤에 딸린 본문 이미지(지금 #' + follow.join(', #') + ')는 앞 일반 이미지 #' + cuts[p].n + ' 에서 다시 만듭니다(AI 없음).');
+  if (dirty.length) L.push('· 저장하지 않은 프롬프트 수정(#' + dirty.join(', #') + ')은 먼저 저장합니다.');
+  L.push('· 함께 고치는 것: 컷 목록(프롬프트) · 이미지 전환표 · 이미지 zip · 이미 만든 전환표시본·전환 표시 PDF·이미지자료 문서 · 카드원고의 전환 표시');
+  L.push('', '지운 그림은 되돌릴 수 없습니다 — 다시 필요하면 새로 만들어야 합니다.');
+  if (!await uiConfirm(L.join('\n'), { okText: '삭제', cancelText: '취소', danger: true })) return;
+  for (var d = 0; d < dirty.length; d++) if (!await irSave(dirty[d], true)) return;
+  delete S.draft[n];
+  var meta = S.meta, id = S.id, done = [], notes = [], step = '이미지 zip', pack = null;
+  irBusy(true, 0);
+  irStage('#' + n + ' 지우는 중 — 결과함의 관련 파일 확인…', 'busy');
+  try {
+    var hits = await findResultFilesMulti(imgDelDocPreds(meta));   /* 다시 만들 문서는 지금 있는 것만 — 쓰기 전에 한 번 훑는다 */
+    /* ① 새 컷 목록 — 표지 #1, 나머지 #2부터 다시 번호(= 뒤 번호 한 칸씩 당김) */
+    var nc = cuts.filter(function(x, k2){ return k2 !== i; }).map(function(x){ return Object.assign({}, x); });
+    renumberCuts(nc);
+    /* ② 이미지 zip — 그 번호를 지우고 당긴 뒤, 딸린 본문 이미지는 앞 일반 이미지에서 다시 파생 */
+    irStage('#' + n + ' 지우는 중 — 이미지 zip 정리…', 'busy');
+    pack = await loadImgSetZip(meta);
+    if (pack){
+      await zipShiftCuts(pack.zip, n);
+      if (follow.length){
+        var pf = zipCutFile(pack.zip, cuts[p].n);
+        var newF = follow.map(function(x){ return x - 1; });
+        if (pf){
+          irStage('본문 이미지 #' + newF.join(', #') + ' 을(를) #' + cuts[p].n + ' 에서 다시 만드는 중…', 'busy');
+          var src = await pngToCanvas(await pf.async('blob'));
+          var made = follow.map(function(x, f){ var cc = nc[i + f]; return { n: cc.n, bg: src, kind: 'scr', cut: cc }; });
+          await imgComposeMade(made, meta);
+          made.forEach(function(M){
+            var tg = ('0' + M.n).slice(-2);
+            zipDropCut(pack.zip, M.n);
+            M.files.forEach(function(f){ pack.zip.file(f.dir + tg + f.ext, f.blob); });
+          });
+        } else notes.push('본문 이미지 #' + newF.join(', #') + ' 은(는) 앞 이미지 #' + cuts[p].n + ' 을(를) zip 에서 찾지 못해 다시 만들지 못했습니다 — [↻ 재생성]을 눌러 주세요');
+      }
+      var cnt = zipRootCount(pack.zip);
+      irStage('이미지 zip 저장 중… (' + cnt + '장)', 'busy');
+      S.zipName = await imgZipSaveAs(pack, cnt);
+      done.push('이미지 zip(' + cnt + '장)');
+    }
+    step = '낱장 파일';
+    var loose = await imgLooseShift(meta, n);
+    if (loose) done.push('낱장 파일 ' + loose + '개');
+    /* ③ 컷 목록(이미지자료 JSON) — 원고 서명(origSig)은 처음 값 그대로(irWriteSidecar) */
+    step = '컷 목록';
+    S.cuts = nc;
+    await irWriteSidecar();
+    done.push('컷 목록');
+    /* ④ 전환표·옛 AI 카드(파일맵 — 한 번에 보낸다) */
+    step = '전환표';
+    var newTable = null;
+    var s0 = id ? findSermon(id) : null;
+    if (s0){
+      var fm = {}; try { fm = JSON.parse(s0['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
+      var up = {};
+      newTable = transTableDropCut(sermonTrans(id), n);
+      if (newTable) up.trans = newTable;
+      var ca = Array.isArray(fm.cardArr) ? cardArrDropCut(fm.cardArr, n) : null;
+      if (ca) up.cardArr = ca;
+      if (Object.keys(up).length) setSermonFileMapMulti(id, up);
+      if (newTable){
+        try { await saveBlobToResults(new Blob([JSON.stringify({ ref: meta['본문'] || '', sig: fm.transSig || manuscriptSig(meta), trans: newTable }, null, 1)], { type: 'application/json' }), sermonFileBase(meta, '전환표') + '.json'); } catch (e) {}
+        done.push('전환표');
+      }
+    }
+    /* ⑤ 카드원고의 전환 표시 */
+    step = '카드원고';
+    var card = imgCardShift(id, n);
+    if (card.changed) { done.push('카드원고 전환 표시'); if (card.text) meta['카드원고'] = card.text; }
+    /* ⑥ 이미 만든 문서 — 새 번호·새 zip 으로 다시 만든다 */
+    step = '전환표시본';
+    if (hits.trans || hits.transPdf){
+      irStage('전환표시본을 새 번호로 다시 만드는 중…', 'busy');
+      var tr = await imgTransDocShift(id, meta, n, newTable || nc.filter(function(x){ return x.n >= 2; })
+        .map(function(x){ return { n: x.n, t: x.type === '본문' ? '본문' : '일반', a: x.anchor || '', role: x.role || '' }; }), hits);
+      done = done.concat(tr.done);
+      if (tr.weak.length) notes.push('전환표시본의 #' + tr.weak.join(', #') + ' 위치는 확인해 보세요');
+    }
+    step = '이미지자료 문서';
+    if (hits.imgData) { await saveImgDataDocxFile(meta, nc); done.push('이미지자료 문서'); }
+    step = '카드원고 문서';
+    if (hits.card && card.changed && String(card.text || '').trim()) {
+      await saveBlobToResults(await cardDocBlob(meta, card.text), sermonFileBase(meta, '카드원고') + outExt());
+      done.push('카드원고 문서');
+    }
+    if (hits.deck) notes.push('카드 디자인 PDF·PPTX 는 AI 조판이라 번호를 고치지 못했습니다 — 이미지 번호가 들어 있다면 다시 만들어 주세요');
+    /* ⑦ 대화 에이전트가 들고 있는 후보·교체 전 판은 엉뚱한 번호를 가리키게 되므로 버린다 */
+    try { document.dispatchEvent(new CustomEvent('tsa:imgcutdel', { detail: { n: n, max: maxN, meta: meta } })); } catch (e) {}
+    /* ⑧ 창 다시 그리기 */
+    S.draft = {}; S.open = {};
+    (window._irThumbs || []).forEach(function(u){ try { URL.revokeObjectURL(u); } catch (e) {} });
+    window._irThumbs = [];
+    imgRegenList();
+    var zn = document.getElementById('irZipName'); if (zn && pack) zn.textContent = ' · ' + S.zipName;
+    irStage('<b style="color:var(--ok)">#' + n + ' 삭제 완료</b>' + (n < maxN ? ' — 뒤 번호가 하나씩 당겨졌습니다(지금 마지막 #' + (maxN - 1) + ').' : '.') +
+      '<br>함께 고친 것: ' + esc(done.join(' · ') || '없음') +
+      (notes.length ? '<br><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> ' + esc(notes.join(' · ')) : ''), 'ok');
+    toast('#' + n + ' 이미지를 지웠습니다' + (n < maxN ? ' — 뒤 번호를 하나씩 당겼습니다' : ''));
+  } catch (e) {
+    try { imgRegenList(); } catch (x) {}
+    irStage('<b style="color:var(--warn)">삭제 중 오류</b> (' + esc(step) + ') — ' + esc((e && e.message) || String(e)) +
+      (done.length ? '<br>이미 고친 것: ' + esc(done.join(' · ')) + ' — 나머지는 그대로입니다.' : ' — 아무것도 바꾸지 않았습니다.'), 'err');
+    toast('이미지 삭제 실패: ' + ((e && e.message) || e));
+  } finally {
+    irBusy(false, 0);
+    try { hideGenOverlay(); } catch (e) {}   /* 전환 PDF 조판이 띄운 진행 표시(모달 뒤)가 남지 않게 */
+    try { renderSyncState(); } catch (e) {}
+  }
+}
+window.imgCutDelete = imgCutDelete;
+
 async function generateSermonImageSet(id, meta, opts){
   opts = opts || {};
   if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
@@ -32712,7 +33042,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v682';
+var APP_VER = 'v683';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -34330,6 +34660,19 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     await idbSet(key, null);
     return { nums: bk.nums || [n], zip: pack.name };
   }
+  /* v683: 낱장 재생성 창에서 이미지 #N 을 지우면 뒤 번호가 당겨진다(imgCutDelete) — 그 번호부터를 가리키는 후보와
+     교체 전 판(되돌리면 엉뚱한 번호에 옛 그림이 들어간다)은 버린다 */
+  document.addEventListener('tsa:imgcutdel', function(e){
+    var d = (e && e.detail) || {}, N = +d.n || 0; if (!N) return;
+    Object.keys(AG.cands).forEach(function(k){ if (AG.cands[k] && AG.cands[k].n >= N) delete AG.cands[k]; });
+    if (!d.meta) return;
+    for (var k = 2; k <= (+d.max || N); k++) (function(k0){
+      var key = agUndoKey(d.meta, k0);
+      idbGet(key).then(function(bk){
+        if (bk && (bk.nums || [k0]).some(function(x){ return x >= N; })) return idbSet(key, null);
+      }).catch(function(){});
+    })(k);
+  });
 
   /* ── 도구 ── (정의 순서를 바꾸지 말 것 — 도구 목록이 바뀌면 프롬프트 캐시가 처음부터 다시 쌓인다) */
   var CE_FIELDS = ['제목', '본문', '핵심메시지', '시리즈', '예배구분', '키워드', '서론', '결론도입', '결론내용', '명제', '주해근거', '대지적용', '대지강화', '대지정리', '대지실천', '예화', '자유원고'];
