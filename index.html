@@ -20,8 +20,8 @@ try{var _z=parseFloat(localStorage.getItem('tsa.uiZoom')||'1')||1;window.__uiZoo
   --text:#e8eaf0; --dim:#9aa3b2; --accent:#7c9aff; --accent2:#e0b65c;
   --ok:#5dbb7a; --warn:#e07a5c;
   --on-accent:#0c1020; --on-gold:#0c1020;                       /* 강조색·금색 위 글자 */
-  --info:var(--info); --info-bg:#16324a; --info-line:#2d6da8;        /* 결과 있음(파랑) */
-  --req:var(--req); --req-bg:#43320e; --req-line:#b8860b;           /* 요청·대기(노랑) */
+  --info:#7fc4ff; --info-bg:#16324a; --info-line:#2d6da8;        /* 결과 있음(파랑) — v682: v624 부터 자기 자신을 가리켜(var(--info)) 다크에서 이 색을 쓰는 곳이 안 그려졌다 */
+  --req:#ffc24d; --req-bg:#43320e; --req-line:#b8860b;           /* 요청·대기(노랑) — v682: 같은 문제 */
   --good:#5fca86; --caution:#e2b440; --bad:#f07b6f;              /* 판정: 좋음·주의·문제 */
   --warn-bg:#2a1f1c; --warn-line:#4a3a33; --ok-bg:#1b2a20;
   --c-ill:#5b9bd5; --c-act:#9a6fd0; --c-sum:#c98a3a; --c-str:#d6555f; --c-star:#d4af37;   /* 구조 분류색: 예화·실천·정리·강조·주제절 */
@@ -480,6 +480,10 @@ body.focusMode .arIndF{display:inline-flex}
 #genOverlay.on{display:flex;animation:fade .18s ease}
 #genOverlay .genCard{text-align:center;max-width:440px;padding:38px 34px;border-radius:var(--r-lg);background:color-mix(in srgb,var(--card) 94%,transparent);border:1px solid color-mix(in srgb,var(--info) 35%,transparent);box-shadow:0 18px 60px rgba(0,0,0,.5)}
 #genOverlay .genRing{width:64px;height:64px;margin:0 auto 22px;border-radius:50%;border:5px solid color-mix(in srgb,var(--info) 22%,transparent);border-top-color:var(--accent);animation:spin .85s linear infinite}
+/* v682 앱 아이콘을 도는 링 가운데에(목사님 요청 — 다크 테마에서 링이 안 그려져 위쪽이 빈 여백으로 보였다) */
+#genOverlay .genMark{position:relative;width:76px;height:76px;margin:0 auto 20px}
+#genOverlay .genMark .genRing{position:absolute;inset:0;width:auto;height:auto;margin:0}
+#genOverlay .genIco{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:var(--r-md);display:block;pointer-events:none}
 #genOverlay .genTitle{font-size:var(--fs-xl);font-weight:700;color:var(--text);line-height:1.4;margin-bottom:10px}
 #genOverlay .genTitle .dots{vertical-align:bottom}
 /* 움직이는 점 — opacity 기반(모든 브라우저에서 동작). content 애니메이션은 일부 환경에서 멈춰 보임 */
@@ -1338,7 +1342,7 @@ html[data-theme="light"]{
   --on-accent:#fff; --on-gold:#fff;
   --info:#0058b8; --info-bg:#e8f1fd; --info-line:#9cc4f0;
   --req:#9a6a10; --req-bg:#fdf0db; --req-line:#e0a93a;
-  --good:#2f8a4e; --caution:#9a6f06; --bad:var(--bad);
+  --good:#2f8a4e; --caution:#9a6f06; --bad:#c0392b;   /* v682: 자기 참조(var(--bad))였다 */
   --warn-bg:#fbeae5; --warn-line:#e3c6bb; --ok-bg:#e6f3ec;
   --c-ill:#2f6fb0; --c-act:#7a4fb5; --c-sum:#a5641a; --c-str:#c03a47; --c-star:#a07f12;
   --scrim:rgba(24,26,32,.42);
@@ -3202,7 +3206,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
 </div>
 <div id="genOverlay">
   <div class="genCard">
-    <div class="genRing"></div>
+    <div class="genMark"><div class="genRing"></div><img class="genIco" src="icon-192.png" alt=""></div>
     <div class="genTitle"><span id="genTitleTxt">생성 중</span><span class="dots"><i>.</i><i>.</i><i>.</i></span></div>
     <div class="genSub" id="genSub">잠시만 기다려 주세요. 생성하는 동안 다른 작업을 하거나<br>화면을 이동하면 생성이 중단됩니다.</div>
     <div class="genCount" id="genCount"></div>
@@ -32705,7 +32709,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v681';
+var APP_VER = 'v682';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
