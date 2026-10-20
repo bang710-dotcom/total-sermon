@@ -30243,6 +30243,33 @@ function devoFitPages(doc){
   });
   return n;
 }
+/* A3 펼침면(v685) — 조판·쪽 맞추기가 끝난 A4 쪽(.pg)을 그대로 두 쪽씩 A3 가로(420×297mm) 한 장(.sp)으로 묶는다.
+   1쪽(표지)은 혼자, 그다음부터 (2,3)(4,5)… — buildDevoBookletHtml 이 이미 펼침면 패리티를 맞춰 두었다(본문 = 짝수 = 왼쪽, 관찰하기 = 오른쪽,
+   주차 표지 왼쪽 · 일정표 오른쪽). 남는 한 쪽은 오른쪽을 빈 흰 칸으로. 쪽 안의 조판은 손대지 않는다(크기가 같으므로 devoFitPages 결과 그대로).
+   uniform = 표지도 A3 가로 한 장 가운데(맥 앱 인쇄 창처럼 용지가 하나뿐일 때), 아니면 표지만 A4 세로 한 쪽(이름 붙은 쪽 devoCover). */
+function devoSpreadPages(doc, uniform){
+  var pgs = Array.prototype.filter.call(doc.body.children, function(el){ return el.classList && el.classList.contains('pg'); });
+  if (!pgs.length) return 0;
+  var st = doc.createElement('style');
+  st.textContent = '@page{size:420mm 297mm;margin:0}' + (uniform ? '' : '@page devoCover{size:210mm 297mm;margin:0}')
+    + '.sp{display:flex;width:420mm;height:297mm;overflow:hidden;page-break-after:always;break-after:page}'
+    + '.sp:last-child{page-break-after:auto;break-after:auto}'
+    + '.sp>.pg{flex:0 0 210mm;page-break-after:auto;break-after:auto}'
+    + '.sp.spCover{' + (uniform ? 'justify-content:center' : 'page:devoCover;width:210mm') + '}'
+    + '.spGap{flex:0 0 210mm;height:297mm;background:#fff}';
+  doc.head.appendChild(st);
+  var wrap = function(arr, cls){
+    var s = doc.createElement('div'); s.className = 'sp' + (cls ? ' ' + cls : '');
+    doc.body.insertBefore(s, arr[0]); arr.forEach(function(p){ s.appendChild(p); });
+    return s;
+  };
+  wrap([pgs[0]], 'spCover');
+  for (var i = 1; i < pgs.length; i += 2) {
+    var s = wrap(pgs[i + 1] ? [pgs[i], pgs[i + 1]] : [pgs[i]]);
+    if (!pgs[i + 1]) { var g = doc.createElement('div'); g.className = 'spGap'; s.appendChild(g); }
+  }
+  return doc.querySelectorAll('.sp').length;
+}
 /* 묵상집 인쇄 (v605) — 앱 안의 숨은 iframe 에 조판해 그 iframe 만 인쇄한다.
    ★ 예전엔 window.open 새 창에 쓰고 그 창에서 print() 했다. Aside 처럼 새 창을 '뒤쪽 탭'으로 여는 브라우저에서는
      인쇄 창이 앞으로 나오지 않는데, print() 는 동기라 같은 스레드를 쓰는 앱 전체가 그 인쇄 창을 기다리며 멈췄다
@@ -30274,12 +30301,21 @@ async function printDevoBooklet(S, opts){
     var nPg = d.querySelectorAll('.pg').length;
     hideWaitOverlay(); shown = false;
     try { d.title = title; } catch (eT) {}   /* 인쇄 창이 iframe 문서 제목을 PDF 이름으로 쓰는 경우에도 같은 이름 */
-    /* v684: 맥 앱(Total Sermons, Electron)은 미리보기 없는 macOS 인쇄 창을 바로 띄우고, 쪽 수를 늘 「1페이지 모두」로 보여 준다
-       (본 문서를 인쇄해도 같다 — 쪽 수를 넘기지 않는 것). 그대로 [PDF로 저장]하면 전체 쪽이 A4 로 저장된다(시험 확인). 먼저 알린다. */
-    if (devoNativePrintUi()) {
-      var go = await uiConfirm('묵상집 ' + nPg + '쪽을 조판했습니다.\n\n맥 앱의 인쇄 창에는 미리보기가 없고, 쪽 수가 「1페이지 모두」로 보여도 ' + nPg + '쪽이 모두 저장됩니다(용지 A4 세로).\n\n인쇄 창 왼쪽 아래 [PDF ▾]를 눌러 [PDF로 저장…]을 고르세요. 페이지 범위는 바꾸지 마세요. 연결된 프린터가 없으면 [프린트] 단추는 눌리지 않습니다.', { okText: '인쇄 창 열기' });
-      if (!go) { f.remove(); return; }
-    }
+    /* v685: 판 고르기 — A3 펼침면(기본, 2026-10-20 목사님 요청: 표지는 한 쪽, 나머지는 두 쪽씩 A3 가로 한 장) / A4 낱장(예전).
+       v684: 맥 앱(Total Sermons, Electron)은 미리보기 없는 macOS 인쇄 창을 바로 띄우고, 쪽 수를 늘 「1페이지 모두」로 보여 준다
+       (본 문서를 인쇄해도 같다 — 쪽 수를 넘기지 않는 것). 그대로 [PDF로 저장]하면 전체 쪽이 저장된다(시험 확인). 그래서 맥 앱은 안내를 함께 싣는다.
+       ★ 맥 앱의 인쇄 창은 CSS 쪽 크기를 무시하고 인쇄 창의 용지 한 가지에 모든 쪽을 맞춘다(시험: A3 가로 쪽이 A4 세로에 돌아 들어감) →
+         맥 앱에서는 표지도 A3 가로 한 장(가운데)으로 통일하고 용지를 A3·가로로 바꾸라고 안내한다. 크롬·Aside 의 「PDF로 저장」은 쪽마다 크기를 지킨다
+         (크롬 155 시험: 표지 A4 세로 + 펼침면 A3 가로) — 그래서 표지만 A4 한 쪽. */
+    var natUi = devoNativePrintUi(), nSh = 1 + Math.ceil(Math.max(0, nPg - 1) / 2);
+    var pick = await uiChoose('묵상집 ' + nPg + '쪽을 조판했습니다. 어떤 판으로 만들까요?\n\n'
+      + '· A3 펼침면 — 표지는 한 쪽만, 나머지는 두 쪽씩(왼쪽 본문 · 오른쪽 관찰하기처럼) A3 가로 한 장에: ' + nSh + '장\n'
+      + '· A4 낱장 — 예전처럼 한 쪽씩: ' + nPg + '장'
+      + (natUi ? '\n\n맥 앱의 인쇄 창에는 미리보기가 없고, 쪽 수가 「1페이지 모두」로 보여도 전체가 저장됩니다. 왼쪽 아래 [PDF ▾]를 눌러 [PDF로 저장…]을 고르세요(페이지 범위는 바꾸지 마세요).'
+        + '\nA3 펼침면이면 먼저 인쇄 창의 [용지 크기]를 A3, [방향]을 가로로 바꾸세요 — 맥 앱에서는 표지도 A3 가로 한 장 가운데에 놓입니다.' : ''),
+      { okText: 'A3 펼침면', extraText: 'A4 낱장', cancelText: '취소' });
+    if (pick !== 'ok' && pick !== 'extra') { f.remove(); return; }
+    if (pick === 'ok') devoSpreadPages(d, natUi);
     /* 대기 안내(·확인창)가 사라진 화면을 먼저 그린다 — print() 는 화면을 멈춘 채 인쇄 창을 띄우므로,
        바로 부르면 「묵상집 조판 중」 안내가 인쇄 창 뒤에 그대로 남아 멈춘 것처럼 보였다(v684, 맥 앱 제보 화면) */
     await new Promise(function(res){ var ok = false, fin = function(){ if (!ok) { ok = true; res(); } };
