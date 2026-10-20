@@ -30248,6 +30248,8 @@ function devoFitPages(doc){
      인쇄 창이 앞으로 나오지 않는데, print() 는 동기라 같은 스레드를 쓰는 앱 전체가 그 인쇄 창을 기다리며 멈췄다
      (2026-09-29 제보 — 클릭·스크롤 불가, 「조판 중」 안내도 안 보임). 새 창으로 되돌리지 말 것.
    진행 안내는 앱 화면의 대기 오버레이, 인쇄 대화상자는 지금 보고 있는 화면 위에 뜬다. */
+/* 맥 앱(Total Sermons — main.js 의 userAgentFallback 끝 「TotalSermonBrowser/버전」)인가 — 크롬식 인쇄 미리보기 대신 macOS 인쇄 창이 뜬다 */
+function devoNativePrintUi(){ try { return /TotalSermonBrowser\/|Electron\//.test(navigator.userAgent) || !!window.TSA_HOST; } catch (e) { return false; } }
 async function printDevoBooklet(S, opts){
   var old = document.getElementById('devoPrintFrame'); if (old) old.remove();
   var title = String(((S && S.meta) || {})['시리즈명'] || '묵상집') + ' 말씀묵상집' + ((((S && S.meta) || {})['기간']) ? ' ' + S.meta['기간'] : '');
@@ -30269,7 +30271,19 @@ async function printDevoBooklet(S, opts){
     try { if (d.fonts && d.fonts.ready) await d.fonts.ready; } catch (eF) {}
     await new Promise(function(res){ setTimeout(res, 200); });
     try { devoFitPages(d); } catch (eFit) {}
+    var nPg = d.querySelectorAll('.pg').length;
     hideWaitOverlay(); shown = false;
+    try { d.title = title; } catch (eT) {}   /* 인쇄 창이 iframe 문서 제목을 PDF 이름으로 쓰는 경우에도 같은 이름 */
+    /* v684: 맥 앱(Total Sermons, Electron)은 미리보기 없는 macOS 인쇄 창을 바로 띄우고, 쪽 수를 늘 「1페이지 모두」로 보여 준다
+       (본 문서를 인쇄해도 같다 — 쪽 수를 넘기지 않는 것). 그대로 [PDF로 저장]하면 전체 쪽이 A4 로 저장된다(시험 확인). 먼저 알린다. */
+    if (devoNativePrintUi()) {
+      var go = await uiConfirm('묵상집 ' + nPg + '쪽을 조판했습니다.\n\n맥 앱의 인쇄 창에는 미리보기가 없고, 쪽 수가 「1페이지 모두」로 보여도 ' + nPg + '쪽이 모두 저장됩니다(용지 A4 세로).\n\n인쇄 창 왼쪽 아래 [PDF ▾]를 눌러 [PDF로 저장…]을 고르세요. 페이지 범위는 바꾸지 마세요. 연결된 프린터가 없으면 [프린트] 단추는 눌리지 않습니다.', { okText: '인쇄 창 열기' });
+      if (!go) { f.remove(); return; }
+    }
+    /* 대기 안내(·확인창)가 사라진 화면을 먼저 그린다 — print() 는 화면을 멈춘 채 인쇄 창을 띄우므로,
+       바로 부르면 「묵상집 조판 중」 안내가 인쇄 창 뒤에 그대로 남아 멈춘 것처럼 보였다(v684, 맥 앱 제보 화면) */
+    await new Promise(function(res){ var ok = false, fin = function(){ if (!ok) { ok = true; res(); } };
+      requestAnimationFrame(function(){ requestAnimationFrame(fin); }); setTimeout(fin, 200); });
     var t0 = document.title; document.title = title;   /* PDF 파일 이름 기본값 */
     var restore = function(){ document.title = t0; };
     try { f.contentWindow.addEventListener('afterprint', restore); } catch (eA) {}
@@ -33042,7 +33056,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v683';
+var APP_VER = 'v684';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
