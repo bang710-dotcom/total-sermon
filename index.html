@@ -2210,6 +2210,98 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
 .aiMsg .agActs .copyMsg{display:inline;margin:0}
 .aiFt .send.stop{background:var(--card);color:var(--text);border:1px solid var(--line2)}
 .aiFt .send.stop svg{width:15px;height:15px}
+/* ── v688 Logos 이식 ── */
+/* 작성칸 성구 바로 넣기 — 화면 아래 안내 줄 */
+#refInsBar{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:330;display:flex;align-items:center;gap:6px;max-width:calc(100vw - 24px);background:var(--card);border:1px solid var(--line2);border-radius:var(--r-pill);padding:5px 6px 5px 14px;box-shadow:0 8px 26px color-mix(in srgb,var(--bg) 70%,transparent)}
+#refInsBar[hidden]{display:none}
+#refInsBar .riRef{font-weight:700;color:var(--accent2);font-size:var(--fs-sm);white-space:nowrap}
+#refInsBar button{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-pill);padding:6px 11px;font:inherit;font-size:var(--fs-sm);cursor:pointer;white-space:nowrap}
+#refInsBar button:hover{border-color:var(--accent)}
+#refInsBar button[hidden]{display:none}
+#refInsBar kbd{font-family:inherit;font-size:var(--fs-xs);color:var(--dim);margin-left:3px}
+body.focusMode #refInsBar{bottom:72px}
+@media (max-width:520px){#refInsBar kbd{display:none}}
+/* AI 사용량(설정 · 고급) */
+#aiUsageBox{margin-top:8px}
+#aiUsageBox .auHd{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#aiUsageBox .chip{padding:4px 11px;font-size:var(--fs-sm)}
+#aiUsageBox .auTot{font-size:var(--fs-sm);color:var(--dim)}
+#aiUsageBox .tblWrap{overflow-x:auto;margin-top:6px}
+.auTbl{border-collapse:collapse;width:100%;font-size:var(--fs-sm);min-width:420px}
+.auTbl th,.auTbl td{text-align:left;padding:5px 7px;border-top:1px solid var(--line);vertical-align:top}
+.auTbl th{color:var(--dim);font-weight:600;border-top:none}
+.auTbl small{color:var(--dim)}
+.agLenNote{margin-top:6px;font-size:var(--fs-sm);color:var(--dim);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.agLenNote button{background:none;border:1px solid var(--line2);color:var(--accent);border-radius:var(--r-pill);padding:2px 10px;font:inherit;font-size:var(--fs-sm);cursor:pointer}
+/* 설교 대화 성경 인용 대조 */
+.agCite{margin-top:6px;font-size:var(--fs-sm);color:var(--dim)}
+.agCite .ok{color:var(--good)}
+.agCite .bad{color:var(--warn)}
+/* 설교 노트 · 나눔지 */
+#noteOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+#noteOv.on{display:flex;animation:fade .12s ease}
+#noteOv .illBox{width:1080px;max-height:90vh}
+#noteOv .ntBody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:start}
+@media (max-width:860px){#noteOv .ntBody{grid-template-columns:minmax(0,1fr)}}
+.ntSec{font-weight:700;font-size:var(--fs-sm);margin:14px 0 6px;color:var(--text)}
+.ntSec small{font-weight:400;color:var(--dim)}
+.ntMode .chip,.ntQt .chip,.ntAns .chip{padding:5px 12px;font-size:var(--fs-sm)}
+.ntCks{display:flex;flex-wrap:wrap;gap:4px 14px}
+.ntCk{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm);margin:0;cursor:pointer}
+.ntCk input{width:auto;margin:0}
+.ntWords{display:flex;flex-wrap:wrap;gap:4px;align-items:baseline;margin:0 0 7px;line-height:1.4}
+.ntWl{font-size:var(--fs-xs);color:var(--dim);min-width:3.2em}
+.ntW{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-sm);padding:3px 7px;font:inherit;font-size:var(--fs-sm);cursor:pointer}
+.ntW.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.ntQt{align-items:center}
+.ntQt select{width:auto;padding:4px 8px;font-size:var(--fs-sm)}
+.ntQBtns{display:flex;gap:6px;margin:8px 0 6px}
+.ntQBtns .btn.mini{flex:0 0 auto;width:auto;padding:6px 12px}
+#illMore{width:auto}
+.ntQs{width:100%;box-sizing:border-box;resize:vertical;font-size:var(--fs-sm);line-height:1.55}
+.ntFoot{margin-top:14px;display:flex;flex-direction:column;gap:8px;align-items:stretch;position:sticky;bottom:0;background:var(--card);padding:8px 0 2px;border-top:1px solid var(--line)}
+.ntFoot .btn small{opacity:.8;margin-left:4px}
+.ntPrev{position:sticky;top:0}
+.ntAns{margin-bottom:8px}
+/* 미리보기 종이 — 테마와 무관한 흰 종이(LTC 서식과 같은 남색 머리띠) */
+.ntPaper{--np-ink:#1b1d22;--np-dim:#555b66;--np-navy:#1f3864;--np-box:#e8eef6;background:#fff;color:var(--np-ink);border-radius:var(--r-sm);padding:18px 20px 22px;font-size:13px;line-height:1.6;box-shadow:0 2px 12px color-mix(in srgb,var(--bg) 40%,transparent);max-height:70vh;overflow-y:auto}
+.ntBan{background:var(--np-navy);color:#fff;font-weight:700;padding:6px 10px;margin:-6px -8px 10px;border-radius:4px;font-size:13px}
+.ntBan span{color:#aab;margin:0 8px;font-weight:400}
+.nt-reftop{text-align:center;color:var(--np-dim);font-size:12px}
+.nt-title{text-align:center;font-weight:700;font-size:17px;margin:2px 0 8px}
+.nt-read{font-weight:700;margin-bottom:4px}
+.nt-body{text-indent:1.2em}
+.nt-point{font-weight:700;font-size:14px;border-bottom:1px solid #999;margin:12px 0 5px;padding-bottom:2px}
+.nt-boxhead{background:var(--np-box);color:var(--np-navy);font-weight:700;padding:4px 10px 0;margin-top:8px}
+.nt-boxitem,.nt-boxitem_end{background:var(--np-box);padding:2px 10px 6px}
+.nt-share{color:var(--np-navy);font-style:italic;padding-left:10px}
+.nt-gbshead,.nt-noticehead{font-weight:700;border-top:1px solid #aaa;margin-top:12px;padding-top:6px}
+.nt-blank{min-height:1.2em}
+.ntBlank{border-bottom:1px solid var(--np-ink);white-space:pre}
+/* AI 정리 근거 각주 */
+.aiCiteM{display:inline-block;min-width:1.35em;text-align:center;font-size:.72em;font-weight:700;line-height:1.35;padding:0 3px;margin-left:2px;border-radius:var(--r-pill);vertical-align:super;cursor:pointer;background:var(--accent-soft);color:var(--accent)}
+.aiCiteM.miss{background:var(--warn-bg);color:var(--warn)}
+.aiCiteM.part{background:var(--gold-soft);color:var(--accent2)}
+.aiCiteHot{background:var(--accent-soft);border-radius:var(--r-sm);transition:background .15s}
+.aiCites .aiCite{display:flex;gap:9px;align-items:flex-start;padding:7px 8px;border-radius:var(--r-md);cursor:pointer;border:1px solid transparent}
+.aiCites .aiCite:hover,.aiCites .aiCite.hot{background:var(--card2);border-color:var(--line)}
+.aiCiteN{flex:0 0 auto;min-width:1.6em;text-align:center;font-weight:700;font-size:var(--fs-xs);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent);padding:1px 5px}
+.aiCite.miss .aiCiteN{background:var(--warn-bg);color:var(--warn)}
+.aiCite.part .aiCiteN{background:var(--gold-soft);color:var(--accent2)}
+.aiCiteB{font-size:var(--fs-sm);line-height:1.5}
+.aiCiteTag{font-size:var(--fs-xs);color:var(--good)}
+.aiCite.miss .aiCiteTag,.aiCiteBad{color:var(--warn)}
+.aiCite.part .aiCiteTag{color:var(--accent2)}
+.aiCiteIn{font-size:var(--fs-xs);color:var(--dim)}
+.aiCiteQ{color:var(--dim);margin-top:2px}
+.aiCiteFlash{animation:aiCiteFl 2.4s ease}
+@keyframes aiCiteFl{0%,35%{background:color-mix(in srgb,var(--accent2) 30%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 30%,transparent)}100%{background:transparent;box-shadow:none}}
+/* AI 생성 손잡이 — 유형·어조·상황·대지 수·청중 */
+.aiKnobs{display:flex;flex-direction:column;gap:6px;margin:8px 0 2px}
+.aiKnob{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.aiKnob > b{font-size:var(--fs-xs);color:var(--dim);font-weight:600;min-width:3.6em}
+.aiKnob .chip{padding:4px 11px;font-size:var(--fs-sm)}
+.illNote{margin-top:5px;font-size:var(--fs-sm);color:var(--warn)}
 </style>
 </head>
 <body>
@@ -2380,6 +2472,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
               <button type="button" class="desktop-only" data-proxy="#btnImgRegen"><svg class=ico aria-hidden=true><use href=#i-image></use></svg><span class="pxl">이미지 낱장 재생성</span></button>
               <button type="button" class="desktop-only" data-proxy="#btnRetrans"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg><span class="pxl">원고 수정 반영</span></button>
               <button type="button" data-proxy="#c_kakao"><svg class=ico aria-hidden=true><use href=#i-send></use></svg><span class="pxl">주보내용 공유하기</span></button>
+              <button type="button" data-proxy="#c_sermonNote"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg><span class="pxl">설교 노트 · 나눔지</span></button>
               <div class="cmMenuSep"></div>
               <button type="button" data-gotab="out"><svg class=ico aria-hidden=true><use href=#i-package></use></svg><span class="pxl">산출물 탭에서 단계별로…</span></button>
             </div></div>
@@ -2437,6 +2530,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
           <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
           <div id="concBox" style="margin-top:8px"></div>
           <div class="toolrow" style="margin-top:6px;gap:6px;flex-wrap:wrap"><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:1 1 0"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 대지 보강 (재정의·대조)</button><button class="btn sub mini" id="ptApplyBtn" type="button" style="flex:1 1 0"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 실천 강화 (세대별)</button></div>
+          <div class="aiKnobs"><div class="aiKnob" title="실천 강화 · 블록별 [대지적용]·[대지실천] AI 생성에 쓰는 삶의 자리 — 고르지 않으면 AI가 정합니다"><b>삶의 자리</b><span class="chips" id="applyCtxChips"><span class="chip" data-v="가정">가정</span><span class="chip" data-v="직장">직장</span><span class="chip" data-v="학교">학교</span><span class="chip" data-v="교회">교회</span><span class="chip" data-v="공적 삶">공적 삶</span></span></div></div>
           <div id="ptReframe"></div>
           <div id="ptApply"></div>
         </div>
@@ -2490,6 +2584,7 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
             <button class="btn sub" id="btnRetrans" style="width:100%;margin-top:6px"><span class="blab"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 원고 수정 반영 (전환표·이미지 유지)</span><small class="bpath">고친 문장에 전환 지점만 다시 맞춰 전환표시본 · 전환 PDF 재생성</small></button>
           </div>
           <button class="btn sub" id="c_kakao" style="width:100%;margin-top:8px"><span class="blab"><svg class=ico aria-hidden=true><use href=#i-send></use></svg> 주보내용 공유하기</span><small class="bpath">제목·본문·결단찬양·GBS 질문 → 카카오·메시지로 바로 공유</small></button>
+          <button class="btn sub" id="c_sermonNote" type="button" style="width:100%;margin-top:6px"><span class="blab"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg> 설교 노트 · 나눔지</span><small class="bpath">회중 핸드아웃(대지 빈칸·핵심 성구) · 나눔 질문 → 결과함</small></button>
           <div class="cnt" id="dirState" style="margin-top:10px"></div>
           <button class="linkbtn" id="pickDir">설교 기본원고 저장 폴더 지정</button>
           <button class="linkbtn" id="pickX">클로드 연동 폴더 지정</button>
@@ -2522,6 +2617,10 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
         <label style="margin-top:0">설교일</label><input type="date" id="occ_date">
         <label>설교 상황 — 대상, 시기, 목적 등</label>
         <textarea id="occ_sit" rows="8" placeholder="예) 여름 수련회 둘째 날 저녁 집회. 대학 새내기가 절반, 신앙의 첫 결단을 끌어내는 자리. 찬양 후 바로 설교."></textarea>
+        <div class="aiKnobs" id="occKnobs">
+          <div class="aiKnob"><b>대지 수</b><span class="chips" data-ok="np"><span class="chip" data-v="">자동</span><span class="chip" data-v="2">2</span><span class="chip" data-v="3">3</span><span class="chip" data-v="4">4</span><span class="chip" data-v="5">5</span></span></div>
+          <div class="aiKnob"><b>청중</b><span class="chips" data-ok="aud"><span class="chip" data-v="">대학부(기본)</span><span class="chip" data-v="장년">장년</span><span class="chip" data-v="청소년">청소년</span><span class="chip" data-v="어린이">어린이</span><span class="chip" data-v="온 세대">온 세대</span></span></div>
+        </div>
         <div class="cmSec pgHelp"><span>개요 생성 안내</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>Opus가 본문·주제(근거 포함)·대지 3개(근거·적용 포함) 선택지 3세트를 만듭니다. 세트를 그 자리에서 다듬은 뒤 [이 개요로 설교 작성]을 누르면 설교 작성으로 넘어갑니다.<br><br>[새로 시작]은 오른쪽에 생성된 선택지를 비웁니다. 설교일·상황 입력은 그대로 두므로, 상황만 고쳐 다시 [개요 생성]을 누르시면 됩니다.</div>
       </div>
@@ -2991,6 +3090,10 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
           </div>
           <div class="cnt" style="margin-top:6px">기본값은 「최신 Opus/Sonnet/Haiku 자동」이라 새 모델이 나오면 저절로 바뀝니다(바뀔 때 알림). 늘 같은 결과물이 필요하면 모델을 직접 고정하세요. 고르는 즉시 저장되고 다른 기기와 공유됩니다. 브라우저 에이전트 모드에서는 적용되지 않습니다.</div>
 
+          <div class="setSec">AI 사용량 <span class="sgSub">이 기기</span></div>
+          <div id="aiUsageBox"></div>
+          <div class="cnt" style="margin-top:6px">이 기기에서 API 키로 부른 것만 셉니다(브라우저 에이전트·맥 앱의 Claude 처리는 구독이라 빠짐). 비용은 2026-10 가격표로 계산한 추정값이고, 캐시 읽기는 「입력」 옆 「+캐시」로 따로 보입니다. 정확한 청구액은 Anthropic 콘솔에서 확인하세요.</div>
+
           <div class="setSec">원고 작성</div>
           <label style="margin-top:4px">원고 작성창</label>
           <div class="chips" id="edPaperChips">
@@ -3142,6 +3245,10 @@ body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none
     <div class="illOvBody">
       <div class="cnt" style="margin-bottom:8px">이 자리에 어떤 예화가 필요한지 자유롭게 설명해 주세요. 설명하신 내용을 최우선 기준으로 삼아, 소장 서랍 예화를 우선 고르고 부족분만 창작해 추천합니다.</div>
       <textarea id="illReqText" rows="6" placeholder="예) 용서가 얼마나 어려운지, 그러나 용서할 때 오히려 내가 자유로워진다는 것을 보여 주는 실화. 가족 사이의 갈등을 소재로 하면 좋겠습니다."></textarea>
+      <div class="aiKnobs" id="illKnobs">
+        <div class="aiKnob"><b>유형</b><span class="chips" data-ilk="type"><span class="chip" data-v="">자동</span><span class="chip" data-v="personal">내 경험</span><span class="chip" data-v="historical">역사</span><span class="chip" data-v="hypothetical">가상</span><span class="chip" data-v="biblical">성경</span></span></div>
+        <div class="aiKnob"><b>어조</b><span class="chips" data-ilk="tone"><span class="chip" data-v="">자동</span><span class="chip" data-v="serious">진지</span><span class="chip" data-v="emotive">감동</span><span class="chip" data-v="light">가벼움</span></span></div>
+      </div>
       <div class="illOvFoot"><button class="btn" id="illReqGen" type="button">예화 추천</button></div>
     </div>
   </div>
@@ -3296,7 +3403,7 @@ function anyOverlayOpen(){
     var r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1;
   }
-  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'illViewOv', 'histOv', 'arOv', 'calOv', 'uiDlgOv', 'penPad', 'frOv'];
+  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'illViewOv', 'histOv', 'arOv', 'calOv', 'uiDlgOv', 'penPad', 'frOv', 'noteOv'];
   for (var i = 0; i < ids.length; i++){ if (vis(document.getElementById(ids[i]))) return true; }
   return false;
 }
@@ -7523,12 +7630,13 @@ var P_STUDYSYN = [
 '당신은 영락교회 대학부 담임 설교자(목사님)의 본문연구를 돕는 주해 비서다. 입력(JSON: 본문·책·개역개정 절들·원문[히브리어/헬라어]·원어 핵심단어 후보[한글/원어/발음/스트롱/뜻]·NET 번역노트·호크마 주석·ESV 스터디바이블 주석·Holman 핸드북 발췌·책개요[Holman 핸드북의 큰 단락·소단락 제목과 범위 — "← 이 본문" 표시]·책소개·앞문맥/뒤문맥[본문 바로 앞뒤의 개역개정 절]·묵상과설교[성서유니온 「묵상과 설교」에서 이 본문을 다룬 단원 — 요약·단락구분·본문주해·배경이해·도움말·설교아웃라인 요지, 같은 본문을 다른 해에 다룬 단원이 여럿일 수 있다]·WBC[WBC 성경주석에서 이 본문을 다룬 단원의 양식/구조/배경·해설])을 읽고 목사님 설교 방법에 맞춰 주해 재료를 정리한다.',
 '목사님 방법: ①한 단어를 깊이 판다(두나미스·아케다·하-니글로트처럼 결정적 원어 1~2개) ②1차 독자의 정황을 짧고 분명히 ③본문 자체의 구조·흐름을 빌려온다 ④본문의 절정 한 구절(클라이맥스)을 정확히 짚는다.',
 '출력은 반드시 JSON 객체만(설명·코드펜스 금지):',
-'{"장르":"내러티브/시가/지혜/예언/율법/복음서/서신/묵시 중 하나 + 그 장르가 이 본문 해석에 주는 단서 한 줄","핵심원어":[{"단어":"한글단어","원어":"히브리어/헬라어","발음":"...","스트롱":"H또는G번호","뜻":"한 문장","왜":"이 본문에서 이 단어를 깊이 팔 이유 1~2문장"}],"정황":"1차 독자의 상황·배경 2~3문장","구속사위치":"이 본문이 구속사 흐름에서 차지하는 위치와 그리스도로의 연결 2~3문장","책구조":{"개요":[{"범위":"장:절-장:절","제목":"큰 단락 제목","이본문":true}],"자리":"이 본문이 속한 큰 단락 안에서 어디쯤인지 한 줄","의미":"책 전체의 흐름·주제 전개에서 이 본문이 맡는 구조적 역할 2~4문장(무엇을 열고·잇고·닫는지, 책의 목적과 어떻게 맞물리는지)"},"앞뒤문맥":{"앞":{"범위":"장:절-장:절","요지":"바로 앞 단락 요지 한 줄","관계":"이 본문이 앞에서 무엇을 이어받고 어떻게 잇거나 뒤집는지 1~2문장"},"뒤":{"범위":"장:절-장:절","요지":"바로 뒤 단락 요지 한 줄","관계":"이 본문이 뒤로 무엇을 넘겨주는지 1~2문장"},"기능":"앞뒤 사이에서 이 본문이 하는 일 한 문장"},"상호본문":[{"본문":"구약/신약 장:절 ref","관계":"인용/암시/성취/대조 등 한 줄"}],"구조":{"유형":"교차대구(chiasm)/평행/점층·발전/수미상관/내러티브 플롯 등","단락":[{"범위":"장:절-절","요지":"이 단락 한 줄 요지"}],"설명":"구조가 메시지를 어떻게 실어 나르는지 1~2문장"},"클라이맥스":{"절":"책 장:절","이유":"이 절이 다른 절들을 호명하는 중심인 이유 1~2문장"},"해석이견":[{"쟁점":"해석이 갈리는 지점 한 줄","견해":["견해A 요약","견해B 요약"],"택함":"어느 쪽이 본문에 더 충실한지와 이유 1~2문장"}],"신학주제":["이 본문이 여는 신학 주제 2~4개"],"흔한오용":[{"주장":"강단에서 자주 들리는 잘못된 해석 한 줄","유형":"가짜어원/풍유곡해/아전인수/문맥이탈/근거없는인용 중 하나","바로잡기":"본문이 실제로 말하는 것 1~2문장"}],"설교다리":"주해에서 오늘 청중의 삶으로 넘어가는 다리 2~3문장(대지를 대신 쓰지는 말 것)"}',
+'{"장르":"내러티브/시가/지혜/예언/율법/복음서/서신/묵시 중 하나 + 그 장르가 이 본문 해석에 주는 단서 한 줄","핵심원어":[{"단어":"한글단어","원어":"히브리어/헬라어","발음":"...","스트롱":"H또는G번호","뜻":"한 문장","왜":"이 본문에서 이 단어를 깊이 팔 이유 1~2문장"}],"정황":"1차 독자의 상황·배경 2~3문장","구속사위치":"이 본문이 구속사 흐름에서 차지하는 위치와 그리스도로의 연결 2~3문장","책구조":{"개요":[{"범위":"장:절-장:절","제목":"큰 단락 제목","이본문":true}],"자리":"이 본문이 속한 큰 단락 안에서 어디쯤인지 한 줄","의미":"책 전체의 흐름·주제 전개에서 이 본문이 맡는 구조적 역할 2~4문장(무엇을 열고·잇고·닫는지, 책의 목적과 어떻게 맞물리는지)"},"앞뒤문맥":{"앞":{"범위":"장:절-장:절","요지":"바로 앞 단락 요지 한 줄","관계":"이 본문이 앞에서 무엇을 이어받고 어떻게 잇거나 뒤집는지 1~2문장"},"뒤":{"범위":"장:절-장:절","요지":"바로 뒤 단락 요지 한 줄","관계":"이 본문이 뒤로 무엇을 넘겨주는지 1~2문장"},"기능":"앞뒤 사이에서 이 본문이 하는 일 한 문장"},"상호본문":[{"본문":"구약/신약 장:절 ref","관계":"인용/암시/성취/대조 등 한 줄"}],"구조":{"유형":"교차대구(chiasm)/평행/점층·발전/수미상관/내러티브 플롯 등","단락":[{"범위":"장:절-절","요지":"이 단락 한 줄 요지"}],"설명":"구조가 메시지를 어떻게 실어 나르는지 1~2문장"},"클라이맥스":{"절":"책 장:절","이유":"이 절이 다른 절들을 호명하는 중심인 이유 1~2문장"},"해석이견":[{"쟁점":"해석이 갈리는 지점 한 줄","견해":["견해A 요약","견해B 요약"],"택함":"어느 쪽이 본문에 더 충실한지와 이유 1~2문장"}],"신학주제":["이 본문이 여는 신학 주제 2~4개"],"흔한오용":[{"주장":"강단에서 자주 들리는 잘못된 해석 한 줄","유형":"가짜어원/풍유곡해/아전인수/문맥이탈/근거없는인용 중 하나","바로잡기":"본문이 실제로 말하는 것 1~2문장"}],"설교다리":"주해에서 오늘 청중의 삶으로 넘어가는 다리 2~3문장(대지를 대신 쓰지는 말 것)","근거":[{"번호":1,"자료":"입력 키 이름 그대로(예: WBC)","위치":"절이나 단원(예: 3:16 해설)","원문":"그 자료에서 글자 그대로 옮긴 15~60자"}]}',
 '책구조.개요는 책 전체를 3~7개 큰 단락으로 — 입력 책개요가 있으면 그 큰 단락 구분과 범위를 그대로 따르고(제목만 간결하게), 없으면 널리 인정되는 구분을 쓴다. 이 본문이 속한 단락 하나만 "이본문":true. 범위는 책 이름 없이 "장:절-장:절". 앞뒤문맥은 앞문맥·뒤문맥 절과 책개요의 소단락을 근거로 바로 앞·뒤 단락을 잡고, 책의 처음이나 끝이라 앞·뒤가 없으면 그 칸은 null.',
 '핵심원어는 1~2개만. 구조.단락은 본문 절 범위 안에서만 나눈다. 상호본문·해석이견은 실제로 있을 때만 채우고 없으면 빈 배열 []로 둔다(억지로 만들지 않는다).',
 '근거는 입력의 원문·원어후보·NET·호크마·ESV스터디·Holman·묵상과설교·WBC·책개요·앞뒤문맥에서만 끌어오고 없는 사실을 지어내지 않는다. 주석 입력이 비어 있으면 원문과 절 본문만으로 정리한다.',
 '묵상과설교가 있으면 그 단락구분은 구조.단락의 참고로, 본문주해·배경이해·도움말은 정황·핵심원어·해석이견·설교다리의 근거로 함께 쓴다(다른 주석과 다르면 해석이견에 드러낸다).',
 'WBC가 있으면 양식구조배경은 장르·구조·역사적 정황의 근거로, 해설은 신학적 의미·설교다리의 근거로 쓴다(학자 이름은 입력에 있는 것만, 다른 주석과 다르면 해석이견에 드러낸다).',
+'★근거 각주: 주석 입력(NET노트·호크마·ESV스터디·Holman발췌·책개요·책소개·묵상과설교·WBC)에 기댄 주장에는 그 문장 끝에 [^1] 같은 표시를 단다(번호는 1부터, 같은 근거는 같은 번호). 표시를 단 번호마다 "근거"에 {번호, 자료(입력 키 이름 그대로), 위치(절이나 단원), 원문}을 넣는다. 원문은 그 자료에서 한 글자도 바꾸지 않고 옮긴 15~60자 한 토막 — 요약·번역·의역·말줄임 금지(앱이 입력과 글자 대조한다). 원문·절 본문에서 직접 읽은 내용에는 달지 않는다. 정리 전체에서 3~8개. 주석 입력이 없으면 근거는 빈 배열 [].',
 '한국어로, 통찰이 번뜩이되 간결하게. 설교 대지를 대신 쓰지 말고 "연구 재료"를 정리하는 데 집중한다.'].join('\n') + MISUSE_RULE;
 function studyRangeKey(){ var R = STUDY.range; return R ? (R.idx + ':' + R.r.c1 + ':' + R.r.v1 + '-' + R.r.c2 + ':' + R.r.v2) : ''; }
 /* v648: AI 정리 키 — 성경앱 주석 창 「AI 정리」(성경앱 SHELL v515)와 같은 키로 한 기록을 함께 쓴다.
@@ -7828,7 +7936,7 @@ async function studyAiSynth(){
       WBC: wbcIn
     };
     var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 12000, aiTick('본문연구 정리'));
-    var _j = aiJson(out);
+    var _j = aiCiteVerify(aiJson(out), input);   /* v688: 근거 각주의 원문 토막을 보낸 자료와 글자 대조 */
     studyAiSet(key, _j);             /* 로컬 저장 + 시트 동기화(다기기) */
     studyBibleAutoUpdate(R, _j);     /* 성경앱에 이미 보낸 노트면 새 정리로 덮어쓴다(v642) — 기다리지 않는다 */
     if (STUDY.tab === 'ai') studyRenderPane();
@@ -7937,7 +8045,7 @@ function renderStudyAi(j){
     _bx.forEach(function(x){ bare.push(String(x).replace(/^[^\d]+/, '')); });
     vf = vf.concat(refAuditBare(bare, bi));
   } catch (e){ vf = []; }
-  return refAuditHtml(vf, '본문 연구 정리') + h;
+  return refAuditHtml(vf, '본문 연구 정리') + aiCiteMarks(h, j) + aiCiteListHtml(j);   /* v688 근거 각주 */
 }
 /* ── 원어 심층 연구 (단어 하나 깊이 파기) ── */
 var P_WORDSTUDY = [
@@ -8115,7 +8223,10 @@ function studyBibleNoteText(j){
     put(j.신학주제.join(' · '));
   }
   if (j.설교다리){ sec('설교로 넘어가는 다리'); put(j.설교다리); }
-  return L.join('\n');
+  /* v688 근거 각주 — 본문의 [^n] 은 빼고 끝에 근거 목록(성경앱 AISYN 의 노트와 같은 글이어야 두 앱이 노트를 번갈아 덮지 않는다) */
+  var cl = aiCiteNoteLines(j, true);
+  if (cl){ sec('근거'); L.push(cl); }
+  return aiCiteStrip(L.join('\n'));
 }
 /* ── 연구 → 원고 파이프라인 ── */
 function studyResearchText(j, title){
@@ -8142,7 +8253,8 @@ function studyResearchText(j, title){
   if (j.해석이견 && j.해석이견.length) L.push('해석이견: ' + j.해석이견.map(function(v){ return (v.쟁점 || '') + ' → ' + (v.택함 || ''); }).join(' / '));
   if (j.신학주제 && j.신학주제.length) L.push('신학주제: ' + j.신학주제.join(', '));
   if (j.설교다리) L.push('설교 다리: ' + j.설교다리);
-  return L.join('\n');
+  var cl = aiCiteNoteLines(j, false);
+  return aiCiteStrip(L.join('\n')) + (cl ? '\n근거:\n' + cl : '');
 }
 function studyCopyNote(){
   var j = studyAiGet(studyAiKey()); if (!j){ toast('먼저 AI 정리를 생성해 주세요.'); return; }
@@ -8221,7 +8333,7 @@ function studyToCompose(){
         + (j.구조.설명 ? ' — ' + j.구조.설명 : ''));
     }
     if (j.클라이맥스 && (j.클라이맥스.절 || j.클라이맥스.이유)) ex.push('클라이맥스 ' + (j.클라이맥스.절 || '') + ': ' + (j.클라이맥스.이유 || ''));
-    var body = ex.join('\n').trim();
+    var body = aiCiteStrip(ex.join('\n')).trim();   /* v688: 근거 각주 표시 [^1] 은 원고에 넣지 않는다 */
     if (!body){ toast('AI 정리에 옮길 주해 재료가 없습니다 — [다시 정리]로 새로 생성해 보세요.'); return; }
     /* 마지막 대지가 완전히 비어 있으면 그 칸을 쓰고, 아니면 새 대지를 만든다(빈 대지가 쌓이지 않게) */
     var pts = state.compose.points, last = pts.length ? normPoint(pts[pts.length - 1]) : null;
@@ -11051,7 +11163,7 @@ async function aiApplyGen(){
   if (!pts.length){ toast('먼저 대지(명제)를 한 개 이상 작성해 주세요.'); return; }
   try {
     var input = { 본문: $('#c_ref').value.trim(), 핵심메시지: $('#c_msg').value.trim(), 대지: pts.map(function(p){ return { 문: p.문, 적용: p.적용 }; }) };
-    var out = await callClaude(P_APPLY, JSON.stringify(input), 6000, aiTick('적용 강화'));
+    var out = await callClaude(P_APPLY + applyCtxDirective(), JSON.stringify(input), 6000, aiTick('적용 강화'));   /* v688 삶의 자리 */
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
     $('#ptApply').innerHTML = '<div class="rfBox apBox"><div class="rfHd">적용·실천 강화 <small>· 적용=주해근거 다음 [대지적용] 칸 · 실천=세대별 결단 [대지실천] 칸</small></div>'
@@ -11146,7 +11258,7 @@ async function aiBlockGen(pi, bi){
       if (ch === 'cancel') return;
       append = (ch === 'extra');
     }
-    var out = await callClaude(prompt + audienceDirective(), JSON.stringify(input), 2500, aiTick(label + ' 생성'));
+    var out = await callClaude(prompt + audienceDirective() + ((role === '대지적용' || role === '대지실천') ? applyCtxDirective() : ''), JSON.stringify(input), 2500, aiTick(label + ' 생성'));
     var j = aiJson(out);
     var text = String((j && j.결과) || '').trim();
     if (!text) throw new Error('생성 결과가 비었습니다 — 다시 시도해 주세요.');
@@ -11251,7 +11363,7 @@ var ILL_PEND = null;
 var ILL_REQ_TARGET = null;
 /* userReq(선택): 목사님이 왼쪽 구조화 창의 AI 버튼으로 "필요한 예화 설명"을 직접 입력한 경우.
    그 요청을 최우선 기준으로 삼아 후보 선별·프롬프트가 작동한다. 오른쪽 편집기 버튼은 userReq 없이 자동 맥락으로 작동. */
-async function aiIllustration(i, bi, userReq){
+async function aiIllustration(i, bi, userReq, knob){
   if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 예화 AI를 쓸 수 있습니다.'); return; }
   var p = state.compose.points[i]; if (!p) return;
   userReq = String(userReq || '').trim();
@@ -11276,7 +11388,7 @@ async function aiIllustration(i, bi, userReq){
       });
       var input2 = { 본문: input.본문, 핵심메시지: input.핵심메시지, 대지: input.대지, 직전내용: input.직전내용, 예화역할: input.예화역할, 서랍후보: candList };
       if (userReq) input2.예화요청 = userReq;
-      var out = await callClaude(P_ILLUS_PICK + reqDirective + audienceDirective(), JSON.stringify(input2), 4000, aiTick('예화 추천(서랍 우선)'));
+      var out = await callClaude(P_ILLUS_PICK + reqDirective + illKnobDirective(knob) + audienceDirective(), JSON.stringify(input2), 4000, aiTick('예화 추천(서랍 우선)'));
       var picked = aiJson(out);
       if (Array.isArray(picked) && picked.length){
         arr = [];
@@ -11295,12 +11407,12 @@ async function aiIllustration(i, bi, userReq){
     }
     if (!arr){
       /* 서랍 후보가 없거나 응답 이상 → 기존 창작 흐름 */
-      var out2 = await callClaude(P_ILLUS + reqDirective + audienceDirective(), JSON.stringify(input), 4000, aiTick('예화 추천'));
+      var out2 = await callClaude(P_ILLUS + reqDirective + illKnobDirective(knob) + audienceDirective(), JSON.stringify(input), 4000, aiTick('예화 추천'));
       arr = aiJson(out2);
       if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
       arr.forEach(function(d){ if (d) d._src = '창작'; });
     }
-    illPick(i, bi, role, arr);
+    illPick(i, bi, role, arr, { req: userReq, knob: knob || {} });
   } catch (e){ toast('예화 추천 실패: ' + e.message); }
 }
 /* 왼쪽 구조화 창의 예화 AI 버튼: 상황설교처럼 "필요한 예화 설명"을 먼저 입력받는 모달을 연다. */
@@ -11312,7 +11424,7 @@ function aiIllustrationAsk(i, bi){
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
   setTimeout(function(){ if (ta) ta.focus(); }, 60);
 }
-function illPick(i, bi, role, arr){
+function illPick(i, bi, role, arr, ctx){
   var ov = $('#illOv'); if (!ov) return;
   var hasDrawer = arr.some(function(d){ return d && d._src === '서랍'; });
   $('#illOvTitle').textContent = (role === 'apply' ? '적용 강화' : '본문 이해') + ' 예화 추천' + (hasDrawer ? ' — 서랍 우선, 부족분만 창작' : ' — 여러 개 추가하거나 도서관에 저장하세요');
@@ -11326,15 +11438,16 @@ function illPick(i, bi, role, arr){
     /* 출처 — 서랍 예화는 도서관 출처(등급·비고 포함), 창작은 사실 확인이 필요하다는 표시 (v621) */
     if (d._src === '서랍') meta += d._source ? illSrc(d._source, d._sourceConf, d._sourceNote).replace(/font-size:var(--fs-xs)/g, 'font-size:var(--fs-sm)')
       : '<div style="margin-top:5px;font-size:var(--fs-sm);color:var(--dim);font-style:italic"><svg class=ico data-c=d aria-hidden=true><use href=#i-paperclip></use></svg> 출처 기록 없음</div>';
-    else meta += '<div style="margin-top:5px;font-size:var(--fs-sm);color:var(--dim);font-style:italic"><svg class=ico data-c=d aria-hidden=true><use href=#i-paperclip></use></svg> AI 창작 예화 — 출처 없음(실화처럼 쓸 경우 사실 확인 필요)</div>';
+    else meta += '<div style="margin-top:5px;font-size:var(--fs-sm);color:var(--dim);font-style:italic"><svg class=ico data-c=d aria-hidden=true><use href=#i-paperclip></use></svg> AI 창작 예화 — 출처 없음(실화처럼 쓸 경우 사실 확인 필요)</div>' + illKnobNote(ctx && ctx.knob);
     return '<div class="illOpt" data-k="' + k + '">'
       + '<div class="illOptT">' + badge + esc(d.제목 || '') + '</div>'
       + '<div class="illOptB">' + esc(d.내용 || '') + '</div>' + meta
       + '<div class="illOptAct"><button class="btn sub mini illAdd" type="button" data-k="' + k + '">＋ 원고에 추가</button>'
       + (d._src === '서랍' ? '' : '<button class="btn sub mini illSave" type="button" data-k="' + k + '"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 도서관 저장</button>') + '</div>'
       + '</div>';
-  }).join('') + '<div class="illOvFoot"><button class="btn" id="illDone" type="button">완료</button></div>';
-  ILL_PEND = { i: i, bi: bi, arr: arr, added: {}, saved: {}, usedExisting: false, lastBi: bi };
+  }).join('') + '<div class="illOvFoot">' + (ctx ? '<button class="btn sub" id="illMore" type="button" style="margin-right:auto">' + uiIco('refresh') + ' 더 만들기</button>' : '')
+    + '<button class="btn" id="illDone" type="button">완료</button></div>';
+  ILL_PEND = { i: i, bi: bi, arr: arr, added: {}, saved: {}, usedExisting: false, lastBi: bi, ctx: ctx || null };
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
 }
 function illAddToManuscript(k, btn){
@@ -11365,6 +11478,7 @@ function illSaveToLibrary(k, btn){
   ov.addEventListener('click', function(e){
     if (e.target === ov || (e.target.closest && (e.target.closest('#illOvClose') || e.target.closest('#illDone')))){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); ILL_PEND = null; return; }
     var addB = e.target.closest && e.target.closest('.illAdd'); if (addB){ illAddToManuscript(+addB.dataset.k, addB); return; }
+    var moreB = e.target.closest && e.target.closest('#illMore'); if (moreB){ illMore(moreB); return; }   /* v688 */
     var saveB = e.target.closest && e.target.closest('.illSave'); if (saveB){ illSaveToLibrary(+saveB.dataset.k, saveB); return; }
   });
 })();
@@ -11377,7 +11491,7 @@ function illSaveToLibrary(k, btn){
     if (!txt){ toast('필요한 예화를 한 줄이라도 설명해 주세요.'); if (ta) ta.focus(); return; }
     var t = ILL_REQ_TARGET; if (!t){ close(); return; }
     close();
-    aiIllustration(t.i, t.bi, txt);
+    aiIllustration(t.i, t.bi, txt, illKnobGet());   /* v688: 유형·어조 손잡이 */
   }
   ov.addEventListener('click', function(e){
     if (e.target === ov || (e.target.closest && e.target.closest('#illReqClose'))){ close(); return; }
@@ -17760,6 +17874,7 @@ async function callClaude(system, user, maxTokens, onTick, feature){
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
+  var _usage = {};
   try {
   var res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -17794,6 +17909,7 @@ async function callClaude(system, user, maxTokens, onTick, feature){
       if (l.indexOf('data:') !== 0) continue;
       var ev;
       try { ev = JSON.parse(l.slice(5)); } catch (e) { continue; }
+      aiUsageEv(_usage, ev);   /* v688 사용량 */
       if (ev.type === 'content_block_delta' && ev.delta && ev.delta.text) {
         out += ev.delta.text;
         if (onTick) onTick(out.length);
@@ -17808,6 +17924,7 @@ async function callClaude(system, user, maxTokens, onTick, feature){
   } finally {
     wd.clear();
     hideGenOverlay();
+    aiUsageAdd(ft ? ft.k : 'main', model, _usage);   /* v688: 이 기기 AI 사용량(설정 · 고급) — 멈춘 호출도 받은 만큼 */
   }
 }
 function aiJson(text){
@@ -22135,7 +22252,7 @@ async function aiOccGen(){
   b.disabled = true; b.innerHTML = '<span class="spin"></span>생성 중…';
   try {
     toast('Opus가 상황에 맞는 설교 개요 3세트를 구상합니다 — 1~2분');
-    var out = await callClaude(P_OCC, JSON.stringify({ '설교일': O.date, '설교상황': O.sit }), 32000, aiTick('상황 설교 개요'));
+    var out = await callClaude(P_OCC + occKnobDirective(O), JSON.stringify(Object.assign({ '설교일': O.date, '설교상황': O.sit }, occKnobInput(O))), 32000, aiTick('상황 설교 개요'));   /* v688 대지 수·청중 */
     var arr = aiJson(out);
     if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
     arr = await outlineGround(arr.slice(0, 3), '상황 설교 개요');   /* v650 본문 대조 */
@@ -33194,7 +33311,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v687';
+var APP_VER = 'v688';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -33248,6 +33365,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     state.occ = o;
     if (o.date) $('#occ_date').value = o.date;
     $('#occ_sit').value = o.sit || '';
+    try { occKnobPaint(); } catch (eK){}   /* v688 */
     if (o.opts && o.opts.length) renderOccPane();
   }).catch(function(){});
   $('#zone_date').value = zoneNextFriday();
@@ -33740,6 +33858,713 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var inp = e.target.closest && e.target.closest('input[data-cal="1"]');
     if (inp){ e.preventDefault(); inp.blur(); open(inp); }
   }, true);
+})();
+/* ===================== Logos 이식 (v688, 2026-10-22) =====================
+   Logos 53.1 분석(Dropbox/total-sermon/docs/Logos분석_이식검토_20261022.html)에서 가져온 틀:
+   ① 작성칸 성구 바로 넣기(Sermon Builder 의 Insert inline · Insert block)
+   ② AI 사용량 기록·표시(Faithlife 기능별 크레딧) — 설정 「고급」·설교 대화
+   ③ 설교 노트(회중 핸드아웃 · 나눔지) + 원고에서 나눔 질문 만들기(Sermon Assistant 의 Questions)
+   ④ AI 정리 근거 각주 대조 · 설교 대화 성경 인용 대조(Study Assistant 의 인용 구조) */
+
+/* ── ① 작성칸 성구 바로 넣기 ──
+   작성창(#editorPane)의 입력칸에서 「요 3:16」처럼 성구 표기를 친 바로 뒤에서
+     Tab       → 한 줄: 「요 3:16, “…”」. 절이 여럿이면 「 / 」로 잇는다(목사님 원고 표기 그대로)
+     ⌘⏎/Ctrl⏎ → 절마다 한 줄: 첫 줄 「요 3:16-18, “…」 … 끝 줄 「…”」(카드원고 행갈이 인용과 같은 모양)
+   절마다 넣기는 성구가 그 줄 맨 앞일 때만 — 카드원고의 ⌘⏎(카드 나누기)와 겹치지 않게.
+   본문은 앱의 개역개정(scriptureArr) — 빨간 볼드 판별·자체 점검의 인용 대조를 그대로 통과하는 모양이다.
+   성구 뒤에 커서가 있으면 화면 아래에 안내 줄(#refInsBar) — 손가락으로 눌러도 된다(아이패드). */
+var _refInsRe = null;
+function refInsRe(){
+  if (!_refInsRe) _refInsRe = new RegExp('(^|[^0-9A-Za-z가-힣])((' + BOOKS + ')\\s*(\\d{1,3})\\s*:\\s*(\\d{1,3})(?:\\s*[-~]\\s*(?:(\\d{1,3})\\s*:\\s*)?(\\d{1,3}))?)$');
+  return _refInsRe;
+}
+/* 커서 바로 앞의 성구 표기 → { start, end, raw, ref(띄어쓰기 맞춘 표기), lineStart(그 줄 맨 앞인가) } */
+function refInsAt(ta){
+  if (!ta || ta.tagName !== 'TEXTAREA' || ta.selectionStart !== ta.selectionEnd) return null;
+  var v = ta.value, pos = ta.selectionStart, ls = v.lastIndexOf('\n', pos - 1) + 1, from = Math.max(ls, pos - 60);
+  var m = v.slice(from, pos).match(refInsRe()); if (!m) return null;
+  if (!m[1] && from > ls && /[0-9A-Za-z가-힣]/.test(v.charAt(from - 1))) return null;
+  var start = pos - m[2].length;
+  var ref = m[3] + ' ' + m[4] + ':' + m[5] + (m[7] ? '-' + (m[6] ? m[6] + ':' : '') + m[7] : '');
+  return { start: start, end: pos, raw: m[2], ref: ref, lineStart: !v.slice(ls, start).trim() };
+}
+async function refInsDo(ta, mode){
+  var hit = refInsAt(ta); if (!hit) return false;
+  if (mode === 'block' && !hit.lineStart) return false;
+  var sa = null;
+  try { sa = await scriptureArr(hit.ref); } catch (e){ sa = null; }
+  var vs = (sa && sa.arr) ? sa.arr.map(function(x){ return _stripStrong(x.t); }).filter(Boolean) : [];
+  if (!vs.length){ toast('개역개정에서 찾지 못했습니다: ' + hit.ref); return true; }
+  if (vs.length > 20 && !(await uiConfirm(hit.ref + ' — ' + vs.length + '절입니다. 모두 넣을까요?', { okText: '넣기', cancelText: '취소' }))) return true;
+  if (!document.body.contains(ta) || ta.value.slice(hit.start, hit.end) !== hit.raw) return true;   /* 기다리는 사이 글이 바뀜 */
+  var txt = (mode === 'block' && vs.length > 1)
+    ? [hit.ref + ', “' + vs[0]].concat(vs.slice(1, -1), [vs[vs.length - 1] + '”']).join('\n')
+    : hit.ref + ', “' + vs.join(' / ') + '”';
+  ta.focus();
+  ta.setSelectionRange(hit.start, hit.end);
+  var ok = false;
+  try { ok = document.execCommand('insertText', false, txt); } catch (e){ ok = false; }   /* 되돌리기(⌘Z)가 되게 */
+  if (!ok || ta.value.slice(hit.start, hit.start + txt.length) !== txt){
+    ta.value = ta.value.slice(0, hit.start) + txt + ta.value.slice(hit.end);
+    var p = hit.start + txt.length; ta.setSelectionRange(p, p);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  refInsBarSync();
+  return true;
+}
+var REFINS_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘⏎' : 'Ctrl+⏎';
+var _riTa = null, _riRaf = 0, _riPress = false;
+function refInsBar(){
+  var b = document.getElementById('refInsBar'); if (b) return b;
+  b = document.createElement('div'); b.id = 'refInsBar'; b.hidden = true; b.setAttribute('role', 'toolbar');
+  b.innerHTML = '<span class="riRef"></span><button type="button" data-ri="inline">한 줄로 넣기 <kbd>Tab</kbd></button>'
+    + '<button type="button" data-ri="block">절마다 줄 바꿔 넣기 <kbd>' + REFINS_KEY + '</kbd></button>';
+  b.addEventListener('pointerdown', function(e){ _riPress = true; e.preventDefault(); });   /* 입력칸 포커스·커서 유지 */
+  b.addEventListener('click', function(e){
+    var x = e.target.closest && e.target.closest('[data-ri]'), ta = _riTa; _riPress = false;
+    if (x && ta) refInsDo(ta, x.dataset.ri);
+  });
+  document.body.appendChild(b); return b;
+}
+function refInsBarSync(){
+  cancelAnimationFrame(_riRaf);
+  _riRaf = requestAnimationFrame(function(){
+    var a = document.activeElement, hit = (a && a.closest && a.closest('#editorPane')) ? refInsAt(a) : null;
+    if (!hit && _riPress && _riTa) return;   /* 안내 줄을 누르는 중 */
+    var b = hit ? refInsBar() : document.getElementById('refInsBar'); if (!b) return;
+    if (!hit){ b.hidden = true; _riTa = null; return; }
+    _riTa = a;
+    b.querySelector('.riRef').textContent = hit.ref;
+    b.querySelector('[data-ri="block"]').hidden = !hit.lineStart;
+    var vv = window.visualViewport;   /* 화면 키보드가 떠 있으면 그 위에 */
+    b.style.bottom = (vv ? Math.max(12, window.innerHeight - (vv.offsetTop + vv.height) + 12) : 16) + 'px';
+    b.hidden = false;
+  });
+}
+document.addEventListener('keydown', function(e){
+  var ta = e.target;
+  if (!ta || ta.tagName !== 'TEXTAREA' || !ta.closest || !ta.closest('#editorPane')) return;
+  if (e.isComposing || e.keyCode === 229 || e.altKey) return;
+  var mode = (e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey) ? 'inline'
+    : (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey) ? 'block' : '';
+  if (!mode) return;
+  var hit = refInsAt(ta); if (!hit || (mode === 'block' && !hit.lineStart)) return;
+  e.preventDefault(); e.stopPropagation();   /* 캡처 단계 — 카드원고의 ⌘⏎(카드 나누기)까지 가지 않게 */
+  refInsDo(ta, mode);
+}, true);
+['input', 'keyup', 'click', 'focusin'].forEach(function(t){
+  document.addEventListener(t, function(e){ if (e.target && e.target.closest && e.target.closest('#editorPane')) refInsBarSync(); }, true);
+});
+document.addEventListener('focusout', function(e){
+  if (e.target && e.target.closest && e.target.closest('#editorPane')) setTimeout(function(){ if (!_riPress) refInsBarSync(); }, 150);
+}, true);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', function(){ if (_riTa) refInsBarSync(); });
+
+/* ── ② AI 사용량 ──
+   Claude 응답마다 오는 사용량(입력·출력·캐시)을 기능별로 이 기기에 쌓는다(localStorage tsa.aiUsage, 최근 12달).
+   API 키로 직접 부른 것만 — 브라우저 에이전트(Aside)·맥 앱 Claude 처리는 구독이라 여기 들어오지 않는다.
+   비용은 claude-api 스킬 가격표(2026-10-06)로 계산한 추정값이다(달러 / 100만 토큰: 입력 · 출력 · 캐시 읽기).
+   캐시 쓰기 = 입력 값 × 1.25(5분 캐시) / × 2(1시간 캐시). 가격이 바뀌면 AI_PRICE 만 고치면 된다. */
+var AI_PRICE = [
+  [/^claude-(fable|mythos)-5-1/, 10, 50, 0.25], [/^claude-(fable|mythos)-5/, 10, 50, 1],
+  [/^claude-opus-5-5/, 4, 20, 0.2], [/^claude-opus-5/, 5, 25, 0.5], [/^claude-opus-4/, 5, 25, 0.5],
+  [/^claude-sonnet-5/, 2, 10, 0.2], [/^claude-sonnet-4/, 3, 15, 0.3],
+  [/^claude-haiku-5-5/, 0.1, 0.5, 0.01], [/^claude-haiku-4/, 1, 5, 0.1]
+];
+var AI_USAGE_LS = 'tsa.aiUsage';
+function aiUsageCost(model, u){
+  var p = null;
+  AI_PRICE.some(function(x){ if (x[0].test(String(model || ''))){ p = x; return true; } return false; });
+  if (!p || !u) return null;
+  var cw = +u.cache_creation_input_tokens || 0, cw1 = +((u.cache_creation || {}).ephemeral_1h_input_tokens) || 0;
+  return ((+u.input_tokens || 0) * p[1] + (+u.output_tokens || 0) * p[2] + (+u.cache_read_input_tokens || 0) * p[3]
+    + Math.max(0, cw - cw1) * p[1] * 1.25 + cw1 * p[1] * 2) / 1e6;
+}
+/* 스트림 이벤트에서 사용량 모으기 — message_start 에 입력·캐시, message_delta 에 출력(누적값) */
+function aiUsageEv(acc, ev){
+  if (!acc || !ev) return;
+  var u = ev.type === 'message_start' ? (ev.message && ev.message.usage) : ev.type === 'message_delta' ? ev.usage : null;
+  if (u) Object.keys(u).forEach(function(k){ if (u[k] != null) acc[k] = u[k]; });
+}
+function aiUsageMonthKey(d){ d = d || new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }
+function aiUsageLoad(){ try { return JSON.parse(localStorage.getItem(AI_USAGE_LS) || '{}') || {}; } catch (e){ return {}; } }
+/* feat = 기능별 모델 키(main·chat·thinkko…) · 돌려주는 값 = 이번 호출의 추정 비용(달러, 모르면 null) */
+function aiUsageAdd(feat, model, u){
+  if (!u || !(u.input_tokens || u.output_tokens || u.cache_read_input_tokens || u.cache_creation_input_tokens)) return null;
+  var c = aiUsageCost(model, u);
+  try {
+    var all = aiUsageLoad(), M = all[aiUsageMonthKey()] = all[aiUsageMonthKey()] || {};
+    var F = M[feat || 'main'] = M[feat || 'main'] || { n: 0, i: 0, o: 0, cr: 0, cw: 0, usd: 0 };
+    F.n++; F.i += +u.input_tokens || 0; F.o += +u.output_tokens || 0;
+    F.cr += +u.cache_read_input_tokens || 0; F.cw += +u.cache_creation_input_tokens || 0;
+    if (c != null) F.usd += c; else F.unk = (F.unk || 0) + 1;
+    Object.keys(all).sort().slice(0, -12).forEach(function(k){ delete all[k]; });
+    localStorage.setItem(AI_USAGE_LS, JSON.stringify(all));
+  } catch (e){}
+  try { aiUsagePaint(); } catch (e){}
+  return c;
+}
+function aiTokFmt(n){ n = +n || 0; return n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n); }
+function aiUsdFmt(x){ return x == null ? '—' : x < 0.01 ? '$' + x.toFixed(3) : '$' + x.toFixed(2); }
+var _aiUsageMonth = 0;   /* 0 = 이번 달, 1 = 지난 달 */
+function aiUsagePaint(){
+  var box = document.getElementById('aiUsageBox'); if (!box) return;
+  var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - _aiUsageMonth);
+  var mk = aiUsageMonthKey(d), M = aiUsageLoad()[mk] || {}, keys = Object.keys(M);
+  var lab = function(k){ var f = typeof aiFeature === 'function' ? aiFeature(k) : null; return f ? f.label : k; };
+  var order = AI_FEATURES.map(function(f){ return f.k; });
+  keys.sort(function(a, b){ var x = order.indexOf(a), y = order.indexOf(b); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y); });
+  var tot = { n: 0, i: 0, o: 0, cr: 0, cw: 0, usd: 0, unk: 0 };
+  var rows = keys.map(function(k){
+    var F = M[k]; ['n', 'i', 'o', 'cr', 'cw', 'usd'].forEach(function(z){ tot[z] += +F[z] || 0; }); tot.unk += F.unk || 0;
+    return '<tr><td>' + esc(lab(k)) + '</td><td>' + F.n + '</td><td>' + aiTokFmt(F.i + F.cw) + ' <small>+캐시 ' + aiTokFmt(F.cr) + '</small></td><td>' + aiTokFmt(F.o) + '</td><td><b>' + aiUsdFmt(F.usd) + (F.unk ? '+' : '') + '</b></td></tr>';
+  }).join('');
+  box.innerHTML = '<div class="auHd"><span class="chips"><span class="chip' + (_aiUsageMonth === 0 ? ' on' : '') + '" data-aum="0">이번 달</span><span class="chip' + (_aiUsageMonth === 1 ? ' on' : '') + '" data-aum="1">지난 달</span></span>'
+    + '<span class="auTot">' + (keys.length ? '합계 약 <b>' + aiUsdFmt(tot.usd) + (tot.unk ? '+' : '') + '</b> · ' + tot.n + '회' : '') + '</span></div>'
+    + (keys.length
+      ? '<div class="tblWrap"><table class="auTbl"><thead><tr><th>기능</th><th>호출</th><th>입력</th><th>출력</th><th>추정 비용</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<div class="cnt" style="margin:6px 0 0">' + mk + ' — 이 기기에서 API 키로 부른 기록이 없습니다.</div>');
+}
+document.addEventListener('click', function(e){
+  var c = e.target.closest && e.target.closest('#aiUsageBox [data-aum]'); if (!c) return;
+  _aiUsageMonth = +c.dataset.aum; aiUsagePaint();
+});
+
+/* ── ③ 설교 노트(회중 핸드아웃) · 나눔지 ──
+   Logos Sermon Builder 의 핸드아웃·질문지 보기를 이 앱의 원고 구조로 옮겼다. AI 로 고쳐 쓰지 않고 원고를 그대로 쓴다
+   (LTC 교재는 AI 가 리더용으로 다시 쓰는 것 — 이것은 회중이 설교를 들으며 채우는 노트).
+   · 대지 명제·핵심메시지에서 낱말을 눌러 빈칸으로(조사는 칸 밖에 남김) → 빈칸 판 / 답 넣은 판
+   · 대지마다 핵심 성구(그 대지 안 첫 성경 인용) · 실천 한 줄 · 메모 칸, 본문 말씀 전문, 나눔 질문
+   · 서식 = LTC 서식 파일(hwpx/templates/ltc.hwpx)의 역할 그대로 — 머리띠 글자만 「설교 노트」·「나눔지」
+   설정은 설교마다 파일맵.note 에 둔다(새 설교는 저장 전까지 작성 버퍼에만). */
+var NOTE_JOSA = /(으로서|으로써|에서는|에게서|이라는|이라고|입니다|이었다|이다|으로|에서|에게|께서|부터|까지|처럼|보다|라는|이란|이며|이고|에는|과|와|은|는|이|가|을|를|의|도|에|로|만)$/;
+var NOTE_QT = ['이해', '신학', '영성', '삶 적용'];
+function noteDefault(){ return { v: 1, mode: 'note', blanks: {}, inc: { passage: true, msg: true, verse: true, prac: false, qs: true, memo: true }, qs: '', qt: ['이해', '삶 적용'], qn: 2 }; }
+/* 지금 작성창의 노트 설정 — 작성 버퍼(state.compose)가 바뀌면(다른 설교·새 설교) 다시 읽는다.
+   새 설교에서 고른 빈칸은 첫 저장으로 ID 를 받으면 그 설교로 옮긴다. 작성 버퍼에는 넣지 않는다(초안·이력·서명과 무관). */
+var _noteCur = null;
+function noteGet(){
+  var id = state.editing || '', c = state.compose;
+  if (_noteCur && _noteCur.c === c){
+    if (_noteCur.id === id) return _noteCur.n;
+    if (!_noteCur.id && id){ _noteCur.id = id; notePersist(); return _noteCur.n; }
+  }
+  var s = id && findSermon(id), n = null;
+  if (s){ try { n = (JSON.parse(s['파일맵'] || '{}') || {}).note || null; } catch (e){ n = null; } }
+  n = Object.assign(noteDefault(), n || {});
+  n.inc = Object.assign(noteDefault().inc, n.inc || {});
+  n.blanks = n.blanks || {};
+  _noteCur = { id: id, c: c, n: n };
+  return n;
+}
+var _notePersistT = null;
+function notePersist(){
+  clearTimeout(_notePersistT);
+  _notePersistT = setTimeout(function(){
+    var id = state.editing, n = _noteCur && _noteCur.id === id ? _noteCur.n : null; if (!id || !n) return;
+    var s = findSermon(id); if (!s) return;
+    var cur = ''; try { cur = JSON.stringify((JSON.parse(s['파일맵'] || '{}') || {}).note || null); } catch (e){}
+    if (cur !== JSON.stringify(n)) setSermonFileMap(id, 'note', n);
+  }, 900);
+}
+/* 낱말 → { pre, stem, post } — 빈칸은 stem 만(조사·문장부호는 칸 밖) */
+function noteWordParts(w){
+  var m = String(w).match(/^([“"‘'「『(\[]*)(.*?)([.,!?…·」』"”’'\])]*)$/), pre = m ? m[1] : '', core = m ? m[2] : w, post = m ? m[3] : '';
+  var j = core.match(NOTE_JOSA), stem = core, tail = '';
+  if (j && core.length - j[0].length >= 1 && /[가-힣]/.test(core)){ stem = core.slice(0, core.length - j[0].length); tail = j[0]; }
+  return { pre: pre, stem: stem, post: tail + post };
+}
+function noteBlankStr(stem){ return '(' + new Array(Math.max(6, String(stem).length * 3) + 1).join(' ') + ')'; }
+/* 글 + 빈칸 번호 목록 → 빈칸 판 / 답 넣은 판 */
+function noteApplyBlanks(text, idxs, answers){
+  var on = {}; (idxs || []).forEach(function(i){ on[i] = 1; });
+  return String(text || '').split(/(\s+)/).map(function(tok, k){
+    if (k % 2) return tok;
+    var wi = k / 2; if (!on[wi]) return tok;
+    var p = noteWordParts(tok);
+    return p.pre + (answers ? '(' + p.stem + ')' : noteBlankStr(p.stem)) + p.post;
+  }).join('');
+}
+/* 원고 구조(자유원고면 임시 파싱본) → 노트 재료 */
+function noteSource(){
+  var c = (typeof saStructView === 'function' ? saStructView() : null) || state.compose || {};
+  var meta = collectCompose();
+  var pts = (c.points || []).map(function(p, i){
+    var text = String(p.text || '').trim(); if (!text) return null;
+    var verse = '', prac = '';
+    pBlocks(p).forEach(function(b){
+      var t = b.type === 'ill' ? '' : String(b[blockField(b)] || '');
+      if (!verse && t){ var q = saFindQuotes(t)[0]; if (q && q.quote.trim()) verse = q.ref + ' “' + q.quote.replace(/\s+/g, ' ').trim() + '”'; }
+      if (!prac && blockRole(b) === '대지실천' && t.trim()){ var ss = saSentences(t); prac = ss.slice(0, 2).join(' '); }
+    });
+    return { key: 'p' + i, text: text, verse: verse, prac: prac };
+  }).filter(Boolean);
+  return { meta: meta, msg: String(meta['핵심메시지'] || '').trim(), pts: pts };
+}
+/* 노트 블록(LTC 서식 역할) — 미리보기·hwpx·docx 가 같은 목록을 쓴다 */
+async function noteBlocks(N, answers){
+  var S = noteSource(), m = S.meta, share = N.mode === 'share', out = [], inc = N.inc;
+  out.push({ role: 'reftop', text: '- ' + (m['본문'] || '') + ' -' });
+  out.push({ role: 'title', text: '"' + (m['제목'] || '') + '"' });
+  out.push({ role: 'read', runs: [['read', '오늘 말씀  '], ['readref', '- ' + (m['본문'] || '') + ' - (개역개정)']] });
+  if (inc.passage && m['본문']){
+    try {
+      var sa = await scriptureArr(m['본문']);
+      sa.arr.slice(0, 40).forEach(function(v){ var t = _stripStrong(v.t); if (t) out.push({ role: 'body', text: v.v + ' ' + t }); });
+      if (sa.arr.length > 40) out.push({ role: 'body', text: '(이하 ' + (sa.arr.length - 40) + '절 생략)' });
+    } catch (e){}
+  }
+  if (inc.msg && S.msg){
+    out.push({ role: 'boxhead', text: '[ 오늘의 메시지 ]' });
+    out.push({ role: 'boxitem_end', runs: [['bullet', '•'], ['boxtext', ' ' + (share ? S.msg : noteApplyBlanks(S.msg, N.blanks.msg, answers))]] });
+  }
+  S.pts.forEach(function(p, i){
+    out.push({ role: 'point', runs: [['num', (i + 1) + '. '], ['pname', share ? p.text : noteApplyBlanks(p.text, N.blanks[p.key], answers)]] });
+    if (inc.verse && p.verse) out.push({ role: 'body', text: p.verse });
+    if (inc.prac && p.prac) out.push({ role: 'share', runs: [['sharemark', '✦'], ['sharelabel', ' 삶으로: '], ['sharetext', p.prac]] });
+    if (inc.memo && !share){ out.push({ role: 'blank' }); out.push({ role: 'blank' }); }
+  });
+  var qs = String(N.qs || '').split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+  if ((inc.qs || share) && qs.length){
+    out.push({ role: 'gbshead', runs: [['num', '●'], ['sechead', ' 함께 나눌 질문']] });
+    qs.forEach(function(q, k){
+      var mm = q.match(/^\[([^\]]{1,8})\]\s*(.*)$/);
+      out.push({ role: 'gbsq', runs: [['gnum', (k + 1) + '. ']].concat(mm ? [['readref', '[' + mm[1] + '] '], ['body', mm[2]]] : [['body', q]]) });
+      out.push({ role: 'blank' });
+    });
+  }
+  if (inc.memo){ out.push({ role: 'noticehead', runs: [['num', '●'], ['sechead', ' 메모']] }); out.push({ role: 'blank' }); out.push({ role: 'blank' }); out.push({ role: 'blank' }); }
+  return out;
+}
+function noteBanner(N){
+  var m = collectCompose(), d = String(m['날짜'] || '').split('-');
+  var date = d.length === 3 ? (+d[0]) + '. ' + (+d[1]) + '. ' + (+d[2]) + '.' : '';
+  var ser = seriesShown(m['시리즈']), no = String(m['시리즈순번'] || '').trim();
+  return { name: (m['예배구분'] || '대학부') + ' ' + (N.mode === 'share' ? '나눔지' : '설교 노트'), date: date, series: ser ? ser + (no ? ' ' + no : '') : (m['본문'] || '') };
+}
+function noteRunsText(b){ return b.runs ? b.runs.map(function(r){ return r[1]; }).join('') : String(b.text || ''); }
+function notePreviewHtml(N, blocks){
+  var B = noteBanner(N);
+  return '<div class="ntPaper"><div class="ntBan">' + esc(B.name) + '<span>|</span>' + esc(B.date) + '<span>|</span>' + esc(B.series) + '</div>'
+    + blocks.map(function(b){
+      var t = esc(noteRunsText(b)).replace(/\((\s{4,})\)/g, function(_, s){ return '<span class="ntBlank">(' + s.replace(/ /g, '&nbsp;') + ')</span>'; });
+      return '<div class="nt-' + b.role + '">' + (t || '&nbsp;') + '</div>';
+    }).join('') + '</div>';
+}
+function noteFileType(N, answers){ return (N.mode === 'share' ? '나눔지' : '설교노트') + (answers ? '(답)' : ''); }
+async function noteBuildBlob(N, answers){
+  var blocks = await noteBlocks(N, answers), B = noteBanner(N);
+  if (outFmt() === 'hwpx') return hwpxBuild({ type: 'ltc', slots: ['  ' + B.name, '   |   ', B.date, '   |   ', B.series], blocks: blocks });
+  var D = await ensureDocxLib(), ch = [];
+  function R(t, o){ o = o || {}; return new D.TextRun({ text: t, bold: o.b, italics: o.i, size: o.s || 21, color: o.c }); }
+  function P(o){ ch.push(new D.Paragraph(o)); }
+  P({ shading: { type: D.ShadingType.CLEAR, fill: '1F3864' }, spacing: { after: 160 }, indent: { left: 240 },
+    children: [R(B.name, { b: 1, c: 'FFFFFF', s: 24 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(B.date, { c: 'FFFFFF', s: 22 }), R('  |  ', { c: 'AAAAAA', s: 22 }), R(B.series, { c: 'FFFFFF', s: 22 })] });
+  blocks.forEach(function(b){
+    var t = noteRunsText(b);
+    if (b.role === 'reftop') P({ alignment: D.AlignmentType.CENTER, spacing: { after: 40 }, children: [R(t, { s: 20, c: '555555' })] });
+    else if (b.role === 'title') P({ alignment: D.AlignmentType.CENTER, spacing: { after: 160 }, children: [R(t, { b: 1, s: 32 })] });
+    else if (b.role === 'read') P({ spacing: { after: 120 }, children: [R(t, { b: 1 })] });
+    else if (b.role === 'point') P({ spacing: { before: 160, after: 80 }, border: { bottom: { style: D.BorderStyle.SINGLE, size: 4, color: '888888', space: 2 } }, children: [R(t, { b: 1, s: 24 })] });
+    else if (b.role === 'boxhead') P({ shading: { type: D.ShadingType.CLEAR, fill: 'E8EEF6' }, spacing: { before: 100, after: 60 }, indent: { left: 360 }, children: [R(t, { b: 1, s: 20, c: '1F3864' })] });
+    else if (b.role === 'boxitem_end' || b.role === 'boxitem') P({ shading: { type: D.ShadingType.CLEAR, fill: 'E8EEF6' }, spacing: { after: 120 }, indent: { left: 360 }, children: [R(t, { s: 21 })] });
+    else if (b.role === 'share') P({ spacing: { before: 60, after: 120 }, indent: { left: 200 }, children: [R(t, { i: 1, c: '1F3864' })] });
+    else if (b.role === 'gbshead' || b.role === 'noticehead') P({ spacing: { before: 200, after: 80 }, border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: 'AAAAAA', space: 6 } }, children: [R(t, { b: 1, s: 22 })] });
+    else if (b.role === 'gbsq') P({ spacing: { after: 60, line: 300 }, children: [R(t)] });
+    else if (b.role === 'blank') P({ spacing: { after: 200 }, children: [R('')] });
+    else P({ spacing: { after: 80, line: 300 }, children: [R(t)] });
+  });
+  return D.Packer.toBlob(new D.Document({ styles: { default: { document: { run: { font: { ascii: '맑은 고딕', eastAsia: '맑은 고딕', hAnsi: '맑은 고딕' }, size: 21 } } } },
+    sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 900 } } }, children: ch }] }));
+}
+/* 원고에서 나눔 질문 — Logos Sermon Assistant 의 Questions(입력 = 완성된 설교문 자체, 유형 4가지) */
+var P_NOTEQ = [
+'당신은 영락교회 담임 설교자(목사님)의 설교 뒤 소그룹 나눔을 돕는 비서다. 입력(JSON: 제목·본문·핵심메시지·원고·유형·유형별개수·청중·이미있는질문)의 완성된 설교 원고로 나눔 질문을 만든다.',
+'유형(입력의 유형만, 그 순서대로):',
+'· 이해 = 본문과 설교가 실제로 말한 내용을 함께 되짚게 하는 질문(무엇이·왜). 정답 맞히기 퀴즈가 아니라 본문을 다시 펴 보게 한다.',
+'· 신학 = 이 설교가 드러낸 하나님·그리스도·구원·교회에 대한 진리를 함께 생각하게 하는 질문.',
+'· 영성 = 하나님 앞에서의 내 마음·관계·예배를 돌아보게 하는 질문.',
+'· 삶 적용 = 이번 주 내 삶의 구체적 자리(가정·학교·일터·관계)에서 무엇을 다르게 할지 나누게 하는 질문.',
+'규칙: 원고가 실제로 말한 내용에서만 묻는다(원고에 없는 주장·예화를 끌어오지 않는다). 서로 다르게 답할 수 있는 발산형으로, 한 질문에 한 물음. 이미있는질문과 겹치지 않게.',
+'어조: 청중이 20대 청년이면 청년들끼리 나누는 해요체("~인가요?", "~까요?"), 참석자의 행동에 주체높임 "-시-"를 붙이지 않는다. 장년이면 정중한 해요체.',
+'출력은 반드시 JSON 배열만(설명·코드펜스 금지): [{"유형":"이해","질문":"..."}] — 유형 순서대로, 유형마다 유형별개수만큼.'
+].join('\n') + REPEAT_WORD_RULE;
+async function noteGenQuestions(more){
+  var N = noteGet(), m = collectCompose(), body = String(m['원고텍스트'] || '').trim();
+  if (body.replace(/\s/g, '').length < 300){ toast('원고가 너무 짧습니다 — 원고를 쓴 뒤 만들어 주세요.'); return; }
+  var types = (N.qt && N.qt.length) ? N.qt : ['이해', '삶 적용'];
+  var words = body.split(/\s+/), cut = words.length > 10000;
+  var have = String(N.qs || '').split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+  var input = { 제목: m['제목'] || '', 본문: m['본문'] || '', 핵심메시지: m['핵심메시지'] || '', 원고: cut ? words.slice(0, 10000).join(' ') : body,
+    유형: types, 유형별개수: +N.qn || 2, 청중: composeAudience(), 이미있는질문: more ? have : [] };
+  var arr = aiJson(await callClaude(P_NOTEQ, JSON.stringify(input), 6000, aiTick('나눔 질문')));
+  if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
+  var lines = arr.filter(function(x){ return x && x.질문; }).map(function(x){ return '[' + String(x.유형 || '').trim() + '] ' + String(x.질문).trim(); });
+  N.qs = (more ? have.concat(lines) : lines).join('\n');
+  N.inc.qs = true;
+  notePersist();
+  if (cut) toast('원고가 길어 앞 1만 단어만 넣어 만들었습니다.');
+}
+var _noteAns = false;
+function noteOpen(){
+  var m = collectCompose();
+  if (!String(m['원고텍스트'] || '').trim() && !(state.compose.points || []).some(function(p){ return String(p.text || '').trim(); })){ toast('원고를 먼저 작성해 주세요.'); return; }
+  var ov = document.getElementById('noteOv');
+  if (!ov){
+    ov = document.createElement('div'); ov.id = 'noteOv'; ov.setAttribute('aria-hidden', 'true');
+    ov.innerHTML = '<div class="illBox" role="dialog" aria-modal="true" aria-label="설교 노트 · 나눔지">'
+      + '<div class="brefHd"><span class="t">설교 노트 · 나눔지</span><button class="x" type="button" data-nt="close" aria-label="닫기">✕</button></div>'
+      + '<div class="illOvBody ntBody"><div class="ntCtl"></div><div class="ntPrev"></div></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', noteClick);
+    ov.addEventListener('input', noteInput);
+    ov.addEventListener('change', noteInput);
+  }
+  _noteAns = false;
+  ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  noteRender();
+}
+function noteClose(){ var ov = document.getElementById('noteOv'); if (ov){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); } notePersist(); }
+function noteWordsHtml(key, text, idxs){
+  var on = {}; (idxs || []).forEach(function(i){ on[i] = 1; });
+  return String(text || '').split(/\s+/).filter(function(w){ return w !== ''; }).map(function(w, i){
+    return '<button type="button" class="ntW' + (on[i] ? ' on' : '') + '" data-ntw="' + esc(key) + ':' + i + '">' + esc(w) + '</button>';
+  }).join(' ');
+}
+function noteRender(){
+  var ov = document.getElementById('noteOv'); if (!ov) return;
+  var N = noteGet(), S = noteSource(), share = N.mode === 'share', inc = N.inc;
+  var ck = function(k, label){ return '<label class="ntCk"><input type="checkbox" data-ntinc="' + k + '"' + (inc[k] ? ' checked' : '') + '> ' + label + '</label>'; };
+  var hasId = !!state.editing;
+  var h = '<div class="chips ntMode"><span class="chip' + (share ? '' : ' on') + '" data-ntmode="note">설교 노트 (빈칸)</span><span class="chip' + (share ? ' on' : '') + '" data-ntmode="share">나눔지 (질문 중심)</span></div>';
+  h += '<div class="ntSec">넣을 것</div><div class="ntCks">' + ck('passage', '본문 말씀 전문') + ck('msg', '핵심메시지') + ck('verse', '대지마다 핵심 성구') + ck('prac', '대지마다 실천 한 줄') + ck('qs', '나눔 질문') + ck('memo', '메모 칸') + '</div>';
+  if (!share){
+    h += '<div class="ntSec">빈칸 — 낱말을 누르면 빈칸이 됩니다 <small>(조사는 칸 밖에 남습니다)</small></div>';
+    if (S.msg) h += '<div class="ntWords"><span class="ntWl">메시지</span>' + noteWordsHtml('msg', S.msg, N.blanks.msg) + '</div>';
+    S.pts.forEach(function(p, i){ h += '<div class="ntWords"><span class="ntWl">' + (i + 1) + '.</span>' + noteWordsHtml(p.key, p.text, N.blanks[p.key]) + '</div>'; });
+    if (!S.pts.length) h += '<div class="cnt">대지 명제가 없습니다 — 기본원고의 대지를 쓰거나 자유원고에 「(대지)」·「1.」을 넣어 주세요.</div>';
+  }
+  h += '<div class="ntSec">나눔 질문 <small>— 한 줄에 하나, 「[유형] 질문」</small></div>'
+    + '<div class="chips ntQt">' + NOTE_QT.map(function(t){ return '<span class="chip' + ((N.qt || []).indexOf(t) >= 0 ? ' on' : '') + '" data-ntqt="' + esc(t) + '">' + esc(t) + '</span>'; }).join('')
+    + '<select data-ntqn aria-label="유형마다 질문 수">' + [1, 2, 3].map(function(n){ return '<option value="' + n + '"' + ((+N.qn || 2) === n ? ' selected' : '') + '>유형마다 ' + n + '개</option>'; }).join('') + '</select></div>'
+    + '<div class="ntQBtns"><button class="btn sub mini" type="button" data-nt="qgen">' + uiIco('spark') + ' 원고에서 만들기</button><button class="btn sub mini" type="button" data-nt="qmore">더 만들기</button></div>'
+    + '<textarea class="ntQs" rows="6" data-ntqs placeholder="[이해] 오늘 본문에서 …&#10;[삶 적용] 이번 주에 …">' + esc(N.qs || '') + '</textarea>';
+  h += '<div class="ntFoot">' + (hasId ? '' : '<div class="cnt" style="margin:0 0 6px">새 설교 — 빈칸·질문은 저장한 뒤부터 설교에 함께 남습니다.</div>')
+    + '<label class="ntCk"><input type="checkbox" data-ntboth' + (N.both ? ' checked' : '') + '> 답 넣은 판도 함께 저장</label>'
+    + '<button class="btn gold" type="button" data-nt="export">' + uiIco('download') + ' ' + (share ? '나눔지' : '설교 노트') + ' 내보내기 <small class="fmtLbl">' + outFmt().toUpperCase() + '</small></button></div>';
+  ov.querySelector('.ntCtl').innerHTML = h;
+  notePreview();
+}
+var _notePrevSeq = 0;
+function notePreview(){
+  var ov = document.getElementById('noteOv'); if (!ov) return;
+  var N = noteGet(), seq = ++_notePrevSeq, pv = ov.querySelector('.ntPrev');
+  noteBlocks(N, _noteAns).then(function(bl){
+    if (seq !== _notePrevSeq) return;
+    pv.innerHTML = (N.mode === 'share' ? '' : '<div class="chips ntAns"><span class="chip' + (_noteAns ? '' : ' on') + '" data-ntans="0">빈칸 판</span><span class="chip' + (_noteAns ? ' on' : '') + '" data-ntans="1">답 넣은 판</span></div>')
+      + notePreviewHtml(N, bl);
+  });
+}
+function noteInput(e){
+  var t = e.target, N = noteGet();
+  if (t.matches('[data-ntinc]')) N.inc[t.dataset.ntinc] = t.checked;
+  else if (t.matches('[data-ntqs]')) N.qs = t.value;
+  else if (t.matches('[data-ntqn]')) N.qn = +t.value || 2;
+  else if (t.matches('[data-ntboth]')) N.both = t.checked;
+  else return;
+  notePersist();
+  if (e.type === 'change' || !t.matches('[data-ntqs]')) notePreview();
+  else { clearTimeout(noteInput._t); noteInput._t = setTimeout(notePreview, 400); }
+}
+function noteClick(e){
+  var ov = document.getElementById('noteOv'), t = e.target, N = noteGet(), x;
+  if (t === ov){ noteClose(); return; }
+  if ((x = t.closest('[data-ntw]'))){
+    var sp = x.dataset.ntw.split(':'), key = sp[0], i = +sp[1], L = (N.blanks[key] || []).slice(), at = L.indexOf(i);
+    if (at >= 0) L.splice(at, 1); else L.push(i);
+    N.blanks[key] = L.sort(function(a, b){ return a - b; }); x.classList.toggle('on', at < 0);
+    notePersist(); notePreview(); return;
+  }
+  if ((x = t.closest('[data-ntmode]'))){ N.mode = x.dataset.ntmode; notePersist(); noteRender(); return; }
+  if ((x = t.closest('[data-ntqt]'))){
+    var q = (N.qt || []).slice(), k = q.indexOf(x.dataset.ntqt);
+    if (k >= 0) q.splice(k, 1); else q.push(x.dataset.ntqt);
+    N.qt = NOTE_QT.filter(function(z){ return q.indexOf(z) >= 0; }); x.classList.toggle('on', k < 0); notePersist(); return;
+  }
+  if ((x = t.closest('[data-ntans]'))){ _noteAns = x.dataset.ntans === '1'; notePreview(); return; }
+  if (!(x = t.closest('[data-nt]'))) return;
+  var act = x.dataset.nt;
+  if (act === 'close'){ noteClose(); return; }
+  if (act === 'qgen' || act === 'qmore'){
+    if (!aiKey()){ toast('설정에서 Claude API 키를 넣거나 브라우저 에이전트 모드를 켜야 질문을 만들 수 있습니다.'); return; }
+    if (act === 'qmore' && !String(N.qs || '').trim()) act = 'qgen';
+    if (act === 'qgen' && String(N.qs || '').trim()){
+      uiConfirm('적어 둔 질문을 새로 만든 질문으로 바꿀까요?\n(덧붙이려면 [더 만들기])', { okText: '바꾸기', cancelText: '취소' }).then(function(ok){
+        if (ok) withBusy(x, '만드는 중…', function(){ return noteGenQuestions(false).then(noteRender).catch(function(err){ toast('나눔 질문 실패: ' + err.message); }); })();
+      });
+      return;
+    }
+    withBusy(x, '만드는 중…', function(){ return noteGenQuestions(act === 'qmore').then(noteRender).catch(function(err){ toast('나눔 질문 실패: ' + err.message); }); })();
+    return;
+  }
+  if (act === 'export') withBusy(x, '저장 중…', noteExport)();
+}
+async function noteExport(){
+  var N = noteGet(), m = collectCompose();
+  if (!m['제목']){ toast('제목을 넣은 뒤 내보내 주세요(파일 이름에 씁니다).'); return; }
+  try {
+    var both = N.both && N.mode !== 'share', names = [];
+    var list = both ? [false, true] : [false];
+    for (var i = 0; i < list.length; i++){
+      var fname = sermonFileBase(m, noteFileType(N, list[i])) + outExt();
+      await saveBlobToResults(await noteBuildBlob(N, list[i]), fname);
+      names.push(fname);
+    }
+    notePersist();
+    toast('저장했습니다 — ' + names.join(' · '));
+  } catch (e){ toast('내보내기 실패: ' + ((e && e.message) || e)); }
+}
+
+/* ── ④ AI 정리 근거 각주 대조 ──
+   P_STUDYSYN 이 주석 자료에 기댄 문장 끝에 [^1] 을 달고 「근거」 목록(자료·위치·원문 토막)을 함께 낸다.
+   앱이 그 원문 토막이 실제로 보낸 입력 자료 안에 있는지 글자 대조해 근거마다 _v(ok/part/miss)·_in(찾은 자료)을 붙여 저장한다.
+   검증 게이트(v548)가 장·절 수 표로 성경 참조를 대조하는 것과 같은 발상을 주석 인용까지 넓힌 것. 성경앱 주석 창 「AI 정리」도 같은 규칙(⚠ 함께 고칠 것). */
+var AI_CITE_SRC = [
+  ['WBC', /WBC/i, 'wbc'], ['묵상과설교', /묵상|설교$/, 'muk'], ['ESV스터디', /ESV/i, 'esvsb'], ['NET노트', /NET/i, 'net'],
+  ['호크마', /호크마/, 'com'], ['Holman발췌', /Holman|홀만|핸드북/i, 'holman'], ['책개요', /책\s*개요/, 'holman'], ['책소개', /책\s*소개/, 'holman'],
+  ['원문', /원문|히브리|헬라/, ''], ['절', /개역|절|본문/, ''], ['앞문맥', /앞\s*문맥/, ''], ['뒤문맥', /뒤\s*문맥/, '']
+];
+function aiCiteNorm(s){ return String(s || '').replace(/\[[GHgh]\d+\]/g, '').replace(/[^가-힣A-Za-z0-9Ͱ-Ͽἀ-῿֐-׿]/g, '').toLowerCase(); }
+function aiCiteFlat(v, out){
+  out = out || [];
+  if (v == null) return out;
+  if (typeof v === 'string' || typeof v === 'number') out.push(String(v));
+  else if (Array.isArray(v)) v.forEach(function(x){ aiCiteFlat(x, out); });
+  else if (typeof v === 'object') Object.keys(v).forEach(function(k){ aiCiteFlat(v[k], out); });
+  return out;
+}
+function aiCiteHay(input){
+  var H = {};
+  AI_CITE_SRC.forEach(function(s){ if (input && input[s[0]] != null) H[s[0]] = aiCiteNorm(aiCiteFlat(input[s[0]]).join(' ')); });
+  return H;
+}
+function aiCiteScore(q, hay){
+  if (!hay) return 0;
+  if (hay.indexOf(q) >= 0) return 1;
+  var n = 0, hit = 0;
+  for (var i = 0; i + 10 <= q.length; i += 5){ n++; if (hay.indexOf(q.substr(i, 10)) >= 0) hit++; }
+  return n ? hit / n : 0;
+}
+/* j.근거 의 원문 토막마다 대조 결과를 붙인다 — 돌려주는 값은 j 그대로 */
+function aiCiteVerify(j, input){
+  if (!j || !Array.isArray(j.근거)) return j;
+  var H = aiCiteHay(input);
+  j.근거.forEach(function(c){
+    if (!c) return;
+    var q = aiCiteNorm(c.원문); delete c._v; delete c._in;
+    if (q.length < 6){ c._v = 'miss'; return; }
+    var named = AI_CITE_SRC.filter(function(s){ return s[1].test(String(c.자료 || '')); }).map(function(s){ return s[0]; });
+    var best = 0, at = '';
+    named.concat(Object.keys(H).filter(function(k){ return named.indexOf(k) < 0; })).forEach(function(k){
+      var sc = aiCiteScore(q, H[k]); if (sc > best + 0.001){ best = sc; at = k; }
+    });
+    c._v = best >= 0.8 ? 'ok' : best >= 0.4 ? 'part' : 'miss';
+    if (at && c._v !== 'miss' && named.indexOf(at) < 0) c._in = at;   /* 이름을 댄 자료가 아닌 다른 자료에서 찾았을 때만 */
+  });
+  return j;
+}
+function aiCiteStrip(s){ return String(s == null ? '' : s).replace(/\s*\[\^\d{1,2}\]/g, ''); }
+/* 노트·연구노트 복사용 근거 목록(글) — md = 성경앱 노트 모양(「- 」 줄). 성경앱 AISYN 에 같은 함수가 있다 */
+function aiCiteNoteLines(j, md){
+  return ((j && j.근거) || []).filter(function(c){ return c && c.원문; }).map(function(c){
+    return (md ? '- ' : '  ') + '[' + c.번호 + '] ' + (c.자료 || '') + (c.위치 ? ' · ' + c.위치 : '') + ' 「' + String(c.원문).replace(/\s+/g, ' ').trim() + '」'
+      + (c._v === 'miss' ? ' (자료에서 찾지 못함)' : c._v === 'part' ? ' (일부만 같음)' : '');
+  }).join('\n');
+}
+function aiCiteCls(v){ return v === 'ok' ? 'ok' : v === 'part' ? 'part' : v === 'miss' ? 'miss' : 'none'; }
+function aiCiteMarks(html, j){
+  var st = {}; ((j && j.근거) || []).forEach(function(c){ if (c) st[+c.번호] = c._v || ''; });
+  return String(html).replace(/\s*\[\^(\d{1,2})\]/g, function(_, n){
+    return '<sup class="aiCiteM ' + aiCiteCls(st[+n]) + '" data-cn="' + n + '" tabindex="0" title="근거 ' + n + '">' + n + '</sup>';
+  });
+}
+function aiCiteListHtml(j){
+  var L = ((j && j.근거) || []).filter(function(c){ return c && c.원문; }); if (!L.length) return '';
+  var nOk = L.filter(function(c){ return c._v === 'ok'; }).length, nMiss = L.filter(function(c){ return c._v === 'miss'; }).length;
+  return '<div class="stAiSec aiCites"><h4>근거 각주 <small>— 자료 ' + L.length + '곳 · 원문과 같음 ' + nOk + (nMiss ? ' · <b class="aiCiteBad">찾지 못함 ' + nMiss + '</b>' : '') + '</small></h4>'
+    + L.map(function(c){
+      var v = c._v, tag = v === 'ok' ? '✓ 자료에서 확인' : v === 'part' ? '△ 일부만 같음' : v === 'miss' ? '⚠ 자료에서 찾지 못함' : '대조 전';
+      var src = c._in ? ' <span class="aiCiteIn">(' + esc(c._in) + '에서 찾음)</span>' : '';
+      return '<div class="aiCite ' + aiCiteCls(v) + '" data-cn="' + esc(String(c.번호)) + '" data-src="' + esc(c._in || c.자료 || '') + '">'
+        + '<span class="aiCiteN">' + esc(String(c.번호)) + '</span><div class="aiCiteB"><b>' + esc(c.자료 || '') + '</b>' + (c.위치 ? ' · ' + esc(c.위치) : '')
+        + ' <span class="aiCiteTag">' + tag + '</span>' + src + '<div class="aiCiteQ">「' + esc(c.원문) + '」</div></div></div>';
+    }).join('')
+    + '<div class="cnt" style="margin-top:6px">각주 번호에 마우스를 올리면 그 근거가 받치는 문단이, 목록을 누르면 그 자료 탭의 해당 자리가 보입니다.</div></div>';
+}
+/* 마우스 → 받치는 문단 칠하기 · 각주 번호 → 목록으로 · 목록 → 그 자료 탭의 그 자리 */
+function aiCiteHost(el){ return el.closest('.stAiBody, .stWhy, .stSegPt, .stCtxBody, li, .stAiSec > div') || el.parentNode; }
+document.addEventListener('mouseover', function(e){
+  var m = e.target.closest && e.target.closest('.aiCiteM'); if (!m) return;
+  var h = aiCiteHost(m); if (h) h.classList.add('aiCiteHot');
+  var pane = m.closest('#stPane'), it = pane && pane.querySelector('.aiCite[data-cn="' + m.dataset.cn + '"]'); if (it) it.classList.add('hot');
+});
+document.addEventListener('mouseout', function(e){
+  var m = e.target.closest && e.target.closest('.aiCiteM'); if (!m) return;
+  var h = aiCiteHost(m); if (h) h.classList.remove('aiCiteHot');
+  var pane = m.closest('#stPane'), it = pane && pane.querySelector('.aiCite[data-cn="' + m.dataset.cn + '"]'); if (it) it.classList.remove('hot');
+});
+document.addEventListener('click', function(e){
+  var m = e.target.closest && e.target.closest('#stPane .aiCiteM');
+  if (m){
+    var pane = document.getElementById('stPane'), it = pane.querySelector('.aiCite[data-cn="' + m.dataset.cn + '"]');
+    if (it){ pane.scrollTop += it.getBoundingClientRect().top - pane.getBoundingClientRect().top - 80; aiCiteFlash(it); }
+    return;
+  }
+  var c = e.target.closest && e.target.closest('#stPane .aiCite[data-src]'); if (!c) return;
+  var src = AI_CITE_SRC.filter(function(s){ return s[0] === c.dataset.src || s[1].test(c.dataset.src); })[0];
+  if (!src || !src[2]){ toast('이 근거는 본문(절·원문)에서 왔습니다 — 본문연구 왼쪽 본문에서 확인하세요.'); return; }
+  var q = c.querySelector('.aiCiteQ'), quote = q ? q.textContent.replace(/^「|」$/g, '') : '';
+  studySetTab(src[2]);
+  aiCiteSeek(quote, src[2], 0);
+});
+function aiCiteFlash(el){ el.classList.remove('aiCiteFlash'); void el.offsetWidth; el.classList.add('aiCiteFlash'); setTimeout(function(){ el.classList.remove('aiCiteFlash'); }, 2600); }
+/* 자료 탭이 그려질 때까지 기다렸다가(최대 6초) 원문 토막이 든 가장 작은 요소를 찾아 보여 준다 */
+function aiCiteSeek(quote, tab, tries){
+  var pane = document.getElementById('stPane'); if (!pane || STUDY.tab !== tab) return;
+  var q = aiCiteNorm(quote), key = q.slice(0, 14);
+  var best = null;
+  if (key.length >= 6) Array.prototype.forEach.call(pane.querySelectorAll('p, li, div, span, td, blockquote'), function(el){
+    if (el.children.length > 40) return;
+    if (aiCiteNorm(el.textContent).indexOf(key) < 0) return;
+    if (!best || best.contains(el)) best = el;
+  });
+  if (!best){ if (tries < 30) setTimeout(function(){ aiCiteSeek(quote, tab, tries + 1); }, 200); else toast('자료 탭에서 그 원문을 찾지 못했습니다 — 단원이 접혀 있거나 다른 장일 수 있습니다.'); return; }
+  for (var d = best.closest('details'); d; d = d.parentNode && d.parentNode.closest ? d.parentNode.closest('details') : null) d.open = true;
+  /* 그 요소 안에서 원문 첫머리가 든 글 조각만 감싸 칠한다(주석 단원은 <br> 로 문단을 나눠 한 요소인 경우가 많다) */
+  var tw = document.createTreeWalker(best, NodeFilter.SHOW_TEXT), tn, head = key.slice(0, 8), mark = null;
+  while ((tn = tw.nextNode())){
+    if (aiCiteNorm(tn.nodeValue).indexOf(head) >= 0){ mark = document.createElement('span'); tn.parentNode.insertBefore(mark, tn); mark.appendChild(tn); break; }
+  }
+  var tgt = mark || best;
+  pane.scrollTop += tgt.getBoundingClientRect().top - pane.getBoundingClientRect().top - 90;
+  aiCiteFlash(tgt);
+}
+/* 설교 대화 — 답 안의 「성구 + 따옴표 인용」을 앱의 개역개정과 대조(자체 점검 saCheckQuote 그대로).
+   돌려주는 값: { n, ok, bad:[{ref, why}] } — 인용이 없으면 n 0 */
+async function chatQuoteAudit(text){
+  var qs = saFindQuotes(String(text || '')), base = null, out = { n: 0, ok: 0, bad: [] };
+  if (!qs.length) return out;
+  try { var cr = document.getElementById('c_ref'); base = cr && cr.value ? parseRange(cr.value.trim()) : null; } catch (e){ base = null; }
+  for (var i = 0; i < qs.length && i < 12; i++){
+    var r = await saCheckQuote(qs[i], base);
+    if (r.st === 'skip') continue;
+    out.n++;
+    if (r.st === 'ok' || r.st === 'part') out.ok++;
+    else out.bad.push({ ref: qs[i].ref, why: r.why || '' });
+  }
+  return out;
+}
+/* ── ⑤ AI 생성 손잡이(Logos Sermon Assistant 의 선택 항목) ──
+   예화 요청 창: 유형(내 경험·역사·가상·성경) · 어조(진지·감동·가벼움) + 결과의 유형별 주의 문구 · [더 만들기]
+   구조 탭: 삶의 자리(가정·직장·학교·교회·공적 삶, 여럿) → 실천 강화 · 블록별 대지적용/대지실천 생성
+   상황 설교 구상: 대지 수(자동·2~5) · 청중. 고른 값은 이 기기에 둔다(tsa.illKnob · tsa.applyCtx · 상황 설교 초안). */
+var ILL_KNOB_TYPE = {
+  personal: '목사님 자신·가족의 경험처럼 쓰는 1인칭 일화(창작이면 목사님이 자기 경험으로 바꿔 쓸 수 있게 장면의 뼈대 위주로)',
+  historical: '실제 역사 속 인물·사건 — 널리 알려진 사실만, 연도·장소·인물은 확실한 것만(지어내지 않는다)',
+  hypothetical: '가정임을 밝히는 가상 상황("이런 사람이 있다고 해 봅시다")',
+  biblical: '성경의 다른 인물·사건(장·절 표기)'
+};
+var ILL_KNOB_TONE = { serious: '진지하고 무게 있게', emotive: '마음을 움직이는 감동으로', light: '가볍고 미소가 지어지게' };
+function illKnobGet(){ try { return JSON.parse(localStorage.getItem('tsa.illKnob') || '{}') || {}; } catch (e){ return {}; } }
+function illKnobDirective(o){
+  if (!o) return '';
+  var s = [];
+  if (ILL_KNOB_TYPE[o.type]) s.push('예화 유형 = ' + ILL_KNOB_TYPE[o.type] + '. 서랍 후보도 이 유형에 맞는 것만 고른다.');
+  if (ILL_KNOB_TONE[o.tone]) s.push('어조 = ' + ILL_KNOB_TONE[o.tone] + '.');
+  if (o.exclude && o.exclude.length) s.push('이미 보여 준 예화(' + o.exclude.slice(0, 12).join(' / ') + ')와 겹치지 않는 다른 예화로.');
+  return s.length ? '\n[목사님이 고른 조건] ' + s.join(' ') : '';
+}
+/* 창작 예화 아래 유형별 주의(Logos: 개인 예화는 「내 경험에 맞게」, 역사·성경 예화는 「부정확할 수 있으니 확인」) */
+function illKnobNote(o){
+  var t = o && o.type;
+  var m = t === 'personal' ? '내 경험 유형 — 목사님의 실제 경험으로 바꿔 써야 합니다(그대로 쓰면 지어낸 간증이 됩니다).'
+    : (t === 'historical' || t === 'biblical') ? '역사·성경 예화 — 인물·연도·장소·장절을 확인한 뒤 쓰세요(AI 가 틀릴 수 있습니다).'
+    : t === 'hypothetical' ? '가상 예화 — 강단에서 「이런 사람이 있다고 해 봅시다」처럼 가정임을 밝혀 주세요.' : '';
+  return m ? '<div class="illNote">' + uiIco('alert') + ' ' + esc(m) + '</div>' : '';
+}
+function illMore(btn){
+  var P = ILL_PEND; if (!P || !P.ctx) return;
+  var ex = (P.arr || []).map(function(d){ return d && d.제목; }).filter(Boolean);
+  var knob = Object.assign({}, P.ctx.knob || {}, { exclude: ex.concat((P.ctx.knob && P.ctx.knob.exclude) || []) });
+  withBusy(btn, '만드는 중…', function(){ return aiIllustration(P.i, P.bi, P.ctx.req, knob); })();
+}
+function applyCtxGet(){ try { var a = JSON.parse(localStorage.getItem('tsa.applyCtx') || '[]'); return Array.isArray(a) ? a : []; } catch (e){ return []; } }
+function applyCtxDirective(){
+  var a = applyCtxGet(); if (!a.length) return '';
+  return '\n\n★삶의 자리(목사님이 고름): 적용의 장면과 실천의 권면은 「' + a.join('·') + '」의 자리를 배경으로 쓴다(여럿이면 대지마다 고루 나누되 억지로 다 넣지 않는다).';
+}
+function occKnobInput(O){ var r = {}; if (O && O.np) r['대지수'] = +O.np; if (O && O.aud) r['청중'] = O.aud; return r; }
+function occKnobDirective(O){
+  var s = [];
+  if (O && O.np) s.push('★대지 수(목사님이 고름): 선택지마다 대지를 정확히 ' + (+O.np) + '개로 쓴다(출력 예시의 3개 대신).');
+  if (O && O.aud) s.push('★청중(목사님이 고름): ' + O.aud + ' — 제목·예시·어휘·적용의 눈높이를 이 청중에 맞춘다(본문의 메시지와 무게는 그대로).');
+  return s.length ? '\n' + s.join('\n') : '';
+}
+function occKnobPaint(){
+  var box = document.getElementById('occKnobs'), O = state.occ || {}; if (!box) return;
+  Array.prototype.forEach.call(box.querySelectorAll('[data-ok]'), function(g){
+    var v = String(O[g.dataset.ok] || '');
+    Array.prototype.forEach.call(g.querySelectorAll('.chip'), function(c){ c.classList.toggle('on', c.dataset.v === v); });
+  });
+}
+(function(){
+  var ib = document.getElementById('illKnobs');
+  function illPaint(){
+    var k = illKnobGet();
+    Array.prototype.forEach.call(ib.querySelectorAll('[data-ilk]'), function(g){
+      var v = k[g.dataset.ilk] || '';
+      Array.prototype.forEach.call(g.querySelectorAll('.chip'), function(c){ c.classList.toggle('on', c.dataset.v === v); });
+    });
+  }
+  if (ib){
+    ib.addEventListener('click', function(e){
+      var c = e.target.closest && e.target.closest('.chip'), g = c && c.closest('[data-ilk]'); if (!g) return;
+      var k = illKnobGet(); k[g.dataset.ilk] = c.dataset.v;
+      try { localStorage.setItem('tsa.illKnob', JSON.stringify(k)); } catch (e2){}
+      illPaint();
+    });
+    illPaint();
+  }
+  var ac = document.getElementById('applyCtxChips');
+  function acPaint(){ var a = applyCtxGet(); Array.prototype.forEach.call(ac.querySelectorAll('.chip'), function(c){ c.classList.toggle('on', a.indexOf(c.dataset.v) >= 0); }); }
+  if (ac){
+    ac.addEventListener('click', function(e){
+      var c = e.target.closest && e.target.closest('.chip'); if (!c) return;
+      var a = applyCtxGet(), k = a.indexOf(c.dataset.v);
+      if (k >= 0) a.splice(k, 1); else a.push(c.dataset.v);
+      try { localStorage.setItem('tsa.applyCtx', JSON.stringify(a)); } catch (e2){}
+      acPaint();
+    });
+    acPaint();
+  }
+  var ok = document.getElementById('occKnobs');
+  if (ok){
+    ok.addEventListener('click', function(e){
+      var c = e.target.closest && e.target.closest('.chip'), g = c && c.closest('[data-ok]'); if (!g || !state.occ) return;
+      state.occ[g.dataset.ok] = c.dataset.v; occKnobPaint();
+      try { occSaveSoon(); } catch (e2){}
+    });
+    occKnobPaint();
+  }
+})();
+/* 연결 — 설교 노트 단추·Esc 닫기 · 사용량 표 첫 그리기 */
+(function(){
+  var b = document.getElementById('c_sermonNote'); if (b) b.addEventListener('click', noteOpen);
+  document.addEventListener('keydown', function(e){
+    var ov = document.getElementById('noteOv');
+    if (e.key === 'Escape' && ov && ov.classList.contains('on') && !document.body.classList.contains('uiDlgOpen')) noteClose();
+  });
+  try { aiUsagePaint(); } catch (e){}
 })();
 </script>
 
@@ -34412,7 +35237,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       messages: withCachedTail(req.messages) }, (window.modelExtra ? modelExtra(req.model, ((window.aiFeature && aiFeature('chat')) || {}).effort || 'high') : {}));
     var th = agThinking(req.model); if (th) body.thinking = th;
     if (req.tools && req.tools.length) body.tools = req.tools;
-    var blocks = [], stop = '', det = null;
+    var blocks = [], stop = '', det = null, usage = {};
     try {
       var res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctrl.signal,
         headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
@@ -34427,6 +35252,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         for (var k = 0; k < ls.length; k++){
           var l = ls[k]; if (l.indexOf('data:') !== 0) continue;
           var ev; try { ev = JSON.parse(l.slice(5)); } catch(e){ continue; }
+          if (window.aiUsageEv) aiUsageEv(usage, ev);   /* v688 사용량 */
           if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || '스트림 오류');
           if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason;
           if (ev.type === 'message_delta'){ var sd = (ev.delta && ev.delta.stop_details) || ev.stop_details; if (sd) det = sd; }   /* 거절 분류(있을 때만) */
@@ -34436,7 +35262,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     } catch (e) {
       if (e && e.name === 'AbortError') throw (why === 'user' ? agStopErr() : new Error('응답이 2분 동안 오지 않아 중단했습니다. 네트워크를 확인하고 다시 보내 주세요.'));
       throw e;
-    } finally { clearTimeout(idleT); AG.stopNow = null; }
+    } finally {
+      clearTimeout(idleT); AG.stopNow = null;
+      var usd = window.aiUsageAdd ? aiUsageAdd('chat', req.model, usage) : null;   /* v688: 이 대화 누적 비용 — 대화 길이 안내에 쓴다 */
+      if (usd) AG.convUsd = (AG.convUsd || 0) + usd;
+    }
     var bad = {};
     blocks.forEach(function(b){ if (b && b.type === 'tool_use' && b._bad) bad[b.id] = b._j || ''; });
     return { blocks: agClean(blocks), stop: stop, bad: bad, det: det };
@@ -34558,6 +35388,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         body: JSON.stringify(body) });
       if (!res.ok){ var et = ''; try { et = (await res.json()).error.message; } catch(e){ et = 'HTTP ' + res.status; } throw new Error(et); }
       var j = await res.json();
+      if (window.aiUsageAdd) aiUsageAdd('thinkko', model, j.usage);   /* v688 사용량 */
       if (j.stop_reason === 'refusal') throw new Error('거절됨' + (j.stop_details && j.stop_details.category ? '(' + j.stop_details.category + ')' : ''));
       var out = (j.content || []).filter(function(b){ return b && b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
       return out.split('\n').map(function(l){ return l.trim().replace(/^[-•·*]\s*/, '').trim(); }).filter(Boolean).slice(0, 5);
@@ -35292,6 +36123,28 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     V.note('도구를 ' + AG_MAX_STEPS + '번 넘게 써서 여기서 멈췄습니다 — 이어서 하려면 「계속」이라고 보내 주세요.');
     return { text: V.allText(), log: V.log };
   }
+  /* v688 — 답 안의 「성구 + 따옴표 인용」을 앱의 개역개정과 대조해 한 줄로(자체 점검과 같은 판정). 인용이 없으면 아무것도 붙이지 않는다 */
+  function agCiteNote(aEl, text){
+    if (!window.chatQuoteAudit || !text) return;
+    chatQuoteAudit(text).then(function(r){
+      if (!r || !r.n || !aEl.isConnected) return;
+      var d = document.createElement('div'); d.className = 'agCite';
+      d.innerHTML = '성경 인용 ' + r.n + '곳 대조 — <span class="ok">개역개정과 같음 ' + r.ok + '</span>'
+        + (r.bad.length ? ' · <span class="bad">다름 ' + r.bad.length + ': ' + r.bad.map(function(b){ return mdEsc(b.ref) + (b.why ? '(' + mdEsc(b.why) + ')' : ''); }).join(', ') + '</span>' : '');
+      aEl.appendChild(d); followBottom();
+    }).catch(function(){});
+  }
+  /* v688 — 대화가 길어지면 한 줄 안내(Logos 는 대화당 답 50개에서 끊는다). 앞 대화를 매번 다시 보내므로 길수록 느리고 비싸다 */
+  var AG_LONG = 20;
+  function agLenNote(aEl){
+    var n = convo.filter(function(m){ return m.role === 'assistant'; }).length;
+    if (n < AG_LONG || (n - AG_LONG) % 10) return;
+    var d = document.createElement('div'); d.className = 'agLenNote';
+    d.innerHTML = '<span>이 대화에 답이 ' + n + '개 쌓였습니다' + (AG.convUsd ? ' (이 기기에서 이 대화 약 $' + AG.convUsd.toFixed(2) + ')' : '')
+      + ' — 앞 대화를 매번 함께 보내므로, 새 대화로 이어 가면 더 빠르고 비용도 줄어듭니다.</span><button type="button">새 대화</button>';
+    d.querySelector('button').addEventListener('click', newChat);
+    aEl.appendChild(d); followBottom();
+  }
   /* 답 아래 단추 — [복사] [작성칸에 넣기] + 마지막 답에만 [다시 생성] [질문 고치기] */
   function agActs(aEl, text){
     Array.prototype.forEach.call(body.querySelectorAll('.agActs .agLastOnly'), function(x){ x.remove(); });
@@ -35378,6 +36231,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       agActs(aEl, shown);
       convo.push({ role: 'assistant', content: (shown || '(도구로 작업함)') + agLogLine(r.log) });
       persistCurrent();   /* 완료된 대화를 기록에 저장/갱신 */
+      agCiteNote(aEl, shown); agLenNote(aEl);   /* v688 */
     } catch(e){
       if (myGen !== chatGen) return;
       var V = aEl._agV, partial = V ? V.allText() : '', acted = !!(V && V.log.length), stopped = !!(e && e.code === 'STOP');
@@ -35413,7 +36267,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     chatRemotePull();   /* 열 때 다른 기기 대화 조용히 동기화 */
   }
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
-  function newChat(){ agStop(); persistCurrent(); chatGen++; convo = []; curSessId = null; AG.lastCtx = ''; AG.scr = null; AG.last = null; AG.trustJs = false; clearAttach(); showHint(); input.value = ''; autosize(); autoFollow = true; syncFollowBtn(); input.focus(); }
+  function newChat(){ agStop(); persistCurrent(); chatGen++; convo = []; curSessId = null; AG.lastCtx = ''; AG.scr = null; AG.last = null; AG.trustJs = false; AG.convUsd = 0; clearAttach(); showHint(); input.value = ''; autosize(); autoFollow = true; syncFollowBtn(); input.focus(); }
 
   /* ===================== 대화 기록(localStorage) ===================== */
   var STORE_KEY = 'tsa.aiChats', MAX_SESS = 60;
@@ -35612,7 +36466,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     agStop();                   /* v645: 진행 중 답·도구·확인 카드 멈춤 */
     persistCurrent();           /* 보던 대화 저장 후 전환 */
     chatGen++;                  /* 진행 중 응답 차단 */
-    AG.lastCtx = ''; AG.scr = null; AG.last = null; AG.trustJs = false;
+    AG.lastCtx = ''; AG.scr = null; AG.last = null; AG.trustJs = false; AG.convUsd = 0;
     convo = (s.convo || []).map(function(m){ return { role: m.role, content: m.content }; });
     curSessId = s.id;
     clearAttach();
@@ -35910,6 +36764,7 @@ function cmReveal(el){
     ['이미지 낱장 재생성 · 프롬프트 수정', 'compose', '#btnImgRegen', 'image', '프롬프트 이미지', 1],
     ['원고 수정 반영 (전환표 재정렬)', 'compose', '#btnRetrans', 'refresh', '전환표', 1],
     ['주보내용 공유하기', 'compose', '#c_kakao', 'send', '카카오 카톡 주보'],
+    ['설교 노트 · 나눔지', 'compose', '#c_sermonNote', 'clipboard', '핸드아웃 빈칸 나눔 질문 handout'],
     ['요약본·주제어 생성', 'compose', '[data-req="설교요약"]', 'spark', '요약'],
     ['LTC 교재 만들기', 'compose', '[data-req="LTC교재"]', 'spark', '교재 리더'],
     ['집중 모드', 'compose', '.edFocusBtn', 'monitor', '글쓰기 포커스'],
