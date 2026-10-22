@@ -2302,6 +2302,17 @@ body.focusMode #refInsBar{bottom:72px}
 .aiKnob > b{font-size:var(--fs-xs);color:var(--dim);font-weight:600;min-width:3.6em}
 .aiKnob .chip{padding:4px 11px;font-size:var(--fs-sm)}
 .illNote{margin-top:5px;font-size:var(--fs-sm);color:var(--warn)}
+/* v689 근거 창 — 본문연구 창(330) 위, 성구 본문 창(350) 아래 */
+#citeOv{position:fixed;inset:0;z-index:345;display:none;align-items:center;justify-content:center;background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+#citeOv.on{display:flex;animation:fade .12s ease}
+#citeOv .citeBox{width:640px}
+.citeStat{font-size:var(--fs-sm);font-weight:600;padding:8px 10px;border-radius:var(--r-md);background:var(--ok-bg);color:var(--good);line-height:1.55}
+.citeStat.part{background:var(--gold-soft);color:var(--accent2)}
+.citeStat.miss{background:var(--warn-bg);color:var(--warn)}
+.citeSec{font-size:var(--fs-xs);color:var(--dim);font-weight:600;margin:12px 0 5px}
+.citeClaim{border-left:3px solid var(--accent);padding:3px 0 3px 11px;line-height:1.65}
+.citeCtx{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:11px 13px;line-height:1.8;word-break:keep-all;overflow-wrap:anywhere}
+.citeCtx mark{background:color-mix(in srgb,var(--accent2) 30%,transparent);color:var(--text);border-radius:3px;padding:1px 2px;font-weight:600}
 </style>
 </head>
 <body>
@@ -3403,7 +3414,7 @@ function anyOverlayOpen(){
     var r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1;
   }
-  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'illViewOv', 'histOv', 'arOv', 'calOv', 'uiDlgOv', 'penPad', 'frOv', 'noteOv'];
+  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'illViewOv', 'histOv', 'arOv', 'calOv', 'uiDlgOv', 'penPad', 'frOv', 'noteOv', 'citeOv'];
   for (var i = 0; i < ids.length; i++){ if (vis(document.getElementById(ids[i]))) return true; }
   return false;
 }
@@ -33311,7 +33322,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v688';
+var APP_VER = 'v689';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -34343,33 +34354,67 @@ function aiCiteFlat(v, out){
   else if (typeof v === 'object') Object.keys(v).forEach(function(k){ aiCiteFlat(v[k], out); });
   return out;
 }
+/* 원문 → { n: 정규화 글, m: 정규화 글자마다 원문 위치, o: 원문 } — 찾은 자리를 원문 앞뒤 글로 되돌리려고(v689 근거 모달) */
+var AI_CITE_KEEP = /[가-힣A-Za-z0-9Ͱ-Ͽἀ-῿֐-׿]/;
+function aiCiteIndex(o){
+  var n = '', m = [], i = 0, L = o.length, tag = /\[[GHgh]\d+\]/y;
+  while (i < L){
+    var ch = o.charAt(i);
+    if (ch === '['){ tag.lastIndex = i; if (tag.test(o)){ i = tag.lastIndex; continue; } }
+    if (AI_CITE_KEEP.test(ch)){ n += ch.toLowerCase().charAt(0); m.push(i); }
+    i++;
+  }
+  return { n: n, m: m, o: o };
+}
 function aiCiteHay(input){
   var H = {};
-  AI_CITE_SRC.forEach(function(s){ if (input && input[s[0]] != null) H[s[0]] = aiCiteNorm(aiCiteFlat(input[s[0]]).join(' ')); });
+  AI_CITE_SRC.forEach(function(s){ if (input && input[s[0]] != null) H[s[0]] = aiCiteIndex(aiCiteFlat(input[s[0]]).join(' ')); });
   return H;
 }
-function aiCiteScore(q, hay){
-  if (!hay) return 0;
-  if (hay.indexOf(q) >= 0) return 1;
-  var n = 0, hit = 0;
-  for (var i = 0; i + 10 <= q.length; i += 5){ n++; if (hay.indexOf(q.substr(i, 10)) >= 0) hit++; }
-  return n ? hit / n : 0;
+/* 정규화 원문 토막 q 를 자료 X 에서 찾기 → { sc: 같은 정도(0~1), s·e: 정규화 글 안의 자리 } */
+function aiCiteFind(q, X){
+  if (!X || !X.n) return { sc: 0 };
+  var p = X.n.indexOf(q);
+  if (p >= 0) return { sc: 1, s: p, e: p + q.length };
+  var n = 0, hit = 0, a = -1, b = -1;
+  for (var i = 0; i + 10 <= q.length; i += 5){
+    n++; var f = X.n.indexOf(q.substr(i, 10));
+    if (f < 0) continue;
+    hit++;
+    if (a < 0){ a = f; b = f + 10; } else if (f > a && f - a < q.length * 2) b = Math.max(b, f + 10);
+  }
+  return n ? { sc: hit / n, s: a, e: b } : { sc: 0 };
 }
-/* j.근거 의 원문 토막마다 대조 결과를 붙인다 — 돌려주는 값은 j 그대로 */
+/* 찾은 자리 → [앞 글, 옮긴 부분, 뒤 글](원문 그대로, 앞뒤 AI_CITE_CTX 자) — 근거 모달에 보여 준다 */
+var AI_CITE_CTX = 160;
+function aiCiteCtx(X, s, e){
+  if (!X || s == null || s < 0 || !(e > s)) return null;
+  var o = X.o, os = X.m[s], oe = X.m[Math.min(e, X.m.length) - 1] + 1;
+  var cl = function(t){ return t.replace(/\[[GHgh]\d+\]/g, '').replace(/\\"/g, '"').replace(/\s+/g, ' '); };   /* \" = 일부 자료(Holman)에 글자로 박힌 따옴표 */
+  var a = Math.max(0, os - AI_CITE_CTX), z = Math.min(o.length, oe + AI_CITE_CTX);
+  var pre = cl(o.slice(a, os)), post = cl(o.slice(oe, z));
+  if (a > 0) pre = '…' + pre.replace(/^\S*\s/, '');
+  if (z < o.length) post = post.replace(/\s\S*$/, '') + '…';
+  return [pre, cl(o.slice(os, oe)), post];
+}
+/* j.근거 의 원문 토막마다 대조 결과를 붙인다 — 돌려주는 값은 j 그대로
+   _v = ok(80% 이상)/part(40% 이상)/miss · _in = 이름 댄 자료가 아닌 곳에서 찾았을 때 그 자료 · _ctx = 원문 앞뒤(모달용) */
 function aiCiteVerify(j, input){
   if (!j || !Array.isArray(j.근거)) return j;
   var H = aiCiteHay(input);
   j.근거.forEach(function(c){
     if (!c) return;
-    var q = aiCiteNorm(c.원문); delete c._v; delete c._in;
+    var q = aiCiteNorm(c.원문); delete c._v; delete c._in; delete c._ctx;
     if (q.length < 6){ c._v = 'miss'; return; }
     var named = AI_CITE_SRC.filter(function(s){ return s[1].test(String(c.자료 || '')); }).map(function(s){ return s[0]; });
-    var best = 0, at = '';
+    var best = { sc: 0 }, at = '';
     named.concat(Object.keys(H).filter(function(k){ return named.indexOf(k) < 0; })).forEach(function(k){
-      var sc = aiCiteScore(q, H[k]); if (sc > best + 0.001){ best = sc; at = k; }
+      var r = aiCiteFind(q, H[k]); if (r.sc > best.sc + 0.001){ best = r; at = k; }
     });
-    c._v = best >= 0.8 ? 'ok' : best >= 0.4 ? 'part' : 'miss';
-    if (at && c._v !== 'miss' && named.indexOf(at) < 0) c._in = at;   /* 이름을 댄 자료가 아닌 다른 자료에서 찾았을 때만 */
+    c._v = best.sc >= 0.8 ? 'ok' : best.sc >= 0.4 ? 'part' : 'miss';
+    if (c._v === 'miss') return;
+    if (at && named.indexOf(at) < 0) c._in = at;   /* 이름을 댄 자료가 아닌 다른 자료에서 찾았을 때만 */
+    var cx = aiCiteCtx(H[at], best.s, best.e); if (cx) c._ctx = cx;
   });
   return j;
 }
@@ -34399,9 +34444,9 @@ function aiCiteListHtml(j){
         + '<span class="aiCiteN">' + esc(String(c.번호)) + '</span><div class="aiCiteB"><b>' + esc(c.자료 || '') + '</b>' + (c.위치 ? ' · ' + esc(c.위치) : '')
         + ' <span class="aiCiteTag">' + tag + '</span>' + src + '<div class="aiCiteQ">「' + esc(c.원문) + '」</div></div></div>';
     }).join('')
-    + '<div class="cnt" style="margin-top:6px">각주 번호에 마우스를 올리면 그 근거가 받치는 문단이, 목록을 누르면 그 자료 탭의 해당 자리가 보입니다.</div></div>';
+    + '<div class="cnt" style="margin-top:6px">각주 번호나 목록을 누르면 그 근거의 자료 원문이 창으로 뜹니다. 번호에 마우스를 올리면 그 근거가 받치는 문단이 칠해집니다.</div></div>';
 }
-/* 마우스 → 받치는 문단 칠하기 · 각주 번호 → 목록으로 · 목록 → 그 자료 탭의 그 자리 */
+/* 마우스 → 받치는 문단 칠하기 · 각주 번호·목록 → 근거 창(#citeOv, v689) · 창의 [자료 탭에서 보기] → 그 자료 탭의 그 자리 */
 function aiCiteHost(el){ return el.closest('.stAiBody, .stWhy, .stSegPt, .stCtxBody, li, .stAiSec > div') || el.parentNode; }
 document.addEventListener('mouseover', function(e){
   var m = e.target.closest && e.target.closest('.aiCiteM'); if (!m) return;
@@ -34415,18 +34460,73 @@ document.addEventListener('mouseout', function(e){
 });
 document.addEventListener('click', function(e){
   var m = e.target.closest && e.target.closest('#stPane .aiCiteM');
-  if (m){
-    var pane = document.getElementById('stPane'), it = pane.querySelector('.aiCite[data-cn="' + m.dataset.cn + '"]');
-    if (it){ pane.scrollTop += it.getBoundingClientRect().top - pane.getBoundingClientRect().top - 80; aiCiteFlash(it); }
-    return;
-  }
-  var c = e.target.closest && e.target.closest('#stPane .aiCite[data-src]'); if (!c) return;
-  var src = AI_CITE_SRC.filter(function(s){ return s[0] === c.dataset.src || s[1].test(c.dataset.src); })[0];
-  if (!src || !src[2]){ toast('이 근거는 본문(절·원문)에서 왔습니다 — 본문연구 왼쪽 본문에서 확인하세요.'); return; }
-  var q = c.querySelector('.aiCiteQ'), quote = q ? q.textContent.replace(/^「|」$/g, '') : '';
-  studySetTab(src[2]);
-  aiCiteSeek(quote, src[2], 0);
+  if (m){ aiCiteOpen(m.dataset.cn, m); return; }
+  var c = e.target.closest && e.target.closest('#stPane .aiCite[data-cn]');
+  if (c) aiCiteOpen(c.dataset.cn, null);
 });
+document.addEventListener('keydown', function(e){   /* 번호 칩은 tabindex — Enter 로도 연다 */
+  if (e.key !== 'Enter') return;
+  var m = e.target.closest && e.target.closest('#stPane .aiCiteM'); if (m){ e.preventDefault(); aiCiteOpen(m.dataset.cn, m); }
+});
+/* 근거가 가리키는 자료 탭 키(묵상과설교·WBC·Holman…) — 본문(절·원문)이면 '' */
+function aiCiteSrcTab(c){
+  var name = String((c && (c._in || c.자료)) || '');
+  var s = AI_CITE_SRC.filter(function(x){ return x[0] === name || x[1].test(name); })[0];
+  return s && s[2] ? s[2] : '';
+}
+/* 그 각주가 붙은 문장 — 같은 문단에서 이 번호 바로 앞까지의 마지막 문장(짧으면 앞 문장까지) */
+function aiCiteClaim(m){
+  var h = m && aiCiteHost(m); if (!h) return '';
+  var idx = Array.prototype.indexOf.call(h.querySelectorAll('.aiCiteM'), m), cl = h.cloneNode(true);
+  Array.prototype.forEach.call(cl.querySelectorAll('.aiCiteM'), function(x, k){ if (k === idx) x.replaceWith('\u0001'); else x.remove(); });
+  var t = cl.textContent, at = t.indexOf('\u0001'); if (at < 0) return '';
+  var before = t.slice(0, at).replace(/\s+/g, ' ').replace(/^\s*↳\s*/, '').trim().replace(/[.?!。…]+$/, '');
+  var parts = before.split(/[.?!。](?:\s+|$)/), s = (parts.pop() || '').trim();
+  if (s.length < 12 && parts.length) s = parts.pop().trim() + '. ' + s;
+  return s ? s + '.' : '';
+}
+/* 근거 창 — 받치는 문장 · 자료 원문 앞뒤(옮긴 부분 칠함) · 대조 결과. 원문 앞뒤 글(_ctx)은 v689 이후 정리에만 있다 */
+function aiCiteOpen(n, m){
+  var j = studyAiGet(studyAiKey());
+  var c = ((j && j.근거) || []).filter(function(x){ return x && String(x.번호) === String(n); })[0];
+  if (!c){ toast('이 각주의 근거 기록이 없습니다 — [↻ 다시 정리]로 새로 정리해 주세요.'); return; }
+  var pane = document.getElementById('stPane');
+  if (!m && pane) m = pane.querySelector('.aiCiteM[data-cn="' + n + '"]');
+  var ov = document.getElementById('citeOv');
+  if (!ov){
+    ov = document.createElement('div'); ov.id = 'citeOv'; ov.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('[data-cite]');
+      if (e.target === ov || (b && b.dataset.cite === 'close')){ aiCiteClose(); return; }
+      if (b && b.dataset.cite === 'go'){ var cc = ov._c; aiCiteClose(); if (cc){ studySetTab(aiCiteSrcTab(cc)); aiCiteSeek(String(cc.원문 || ''), aiCiteSrcTab(cc), 0); } }
+    });
+  }
+  ov._c = c;
+  var v = c._v, tab = aiCiteSrcTab(c), claim = aiCiteClaim(m);
+  var stat = v === 'ok' ? '✓ 보낸 자료에서 이 글을 그대로 찾았습니다.'
+    : v === 'part' ? '△ 보낸 자료와 일부만 같습니다 — AI가 줄이거나 바꿔 옮겼을 수 있습니다.'
+    : v === 'miss' ? '⚠ 보낸 자료에서 이 글을 찾지 못했습니다 — AI가 지어냈거나 다른 데서 가져왔을 수 있으니, 이 근거에 기댄 문장은 확인한 뒤 쓰세요.'
+    : '대조하지 않은 근거입니다.';
+  var src = c._in || c.자료 || '';
+  var body = c._ctx
+    ? '<div class="citeCtx">' + esc(c._ctx[0]) + '<mark>' + esc(c._ctx[1]) + '</mark>' + esc(c._ctx[2]) + '</div>'
+    : '<div class="citeCtx">「' + esc(c.원문 || '') + '」</div>' + (v === 'miss' ? '' : '<div class="cnt" style="margin-top:6px">원문 앞뒤 글은 [↻ 다시 정리]로 새로 정리하면 함께 저장됩니다.</div>');
+  ov.innerHTML = '<div class="illBox citeBox" role="dialog" aria-modal="true" aria-label="근거 ' + esc(String(n)) + '">'
+    + '<div class="brefHd"><span class="t">근거 ' + esc(String(n)) + ' · ' + esc(c.자료 || '') + (c.위치 ? ' · ' + esc(c.위치) : '') + '</span>'
+    + '<button class="x" type="button" data-cite="close" aria-label="닫기">✕</button></div>'
+    + '<div class="illOvBody"><div class="citeStat ' + aiCiteCls(v) + '">' + esc(stat) + '</div>'
+    + (claim ? '<div class="citeSec">이 근거가 받치는 문장</div><div class="citeClaim">' + esc(claim) + '</div>' : '')
+    + '<div class="citeSec">' + (v === 'miss' ? 'AI가 적은 원문' : '자료 원문 — ' + esc(src) + (c._in ? ' (이름 댄 「' + esc(c.자료 || '') + '」이 아닌 곳에서 찾음)' : '')) + '</div>' + body
+    + '<div class="illOvFoot">' + (tab && v !== 'miss' ? '<button class="btn sub" type="button" data-cite="go" style="margin-right:auto;width:auto">' + uiIco('book') + ' 자료 탭에서 보기</button>' : '')
+    + '<button class="btn" type="button" data-cite="close" style="width:auto">닫기</button></div></div></div>';
+  ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+}
+function aiCiteClose(){ var ov = document.getElementById('citeOv'); if (ov){ ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); } }
+document.addEventListener('keydown', function(e){   /* Esc — 근거 창만 닫는다(본문연구 창까지 닫히지 않게 캡처 단계에서 멈춤) */
+  var ov = document.getElementById('citeOv');
+  if (e.key === 'Escape' && ov && ov.classList.contains('on') && !document.body.classList.contains('uiDlgOpen')){ e.stopImmediatePropagation(); e.preventDefault(); aiCiteClose(); }
+}, true);
 function aiCiteFlash(el){ el.classList.remove('aiCiteFlash'); void el.offsetWidth; el.classList.add('aiCiteFlash'); setTimeout(function(){ el.classList.remove('aiCiteFlash'); }, 2600); }
 /* 자료 탭이 그려질 때까지 기다렸다가(최대 6초) 원문 토막이 든 가장 작은 요소를 찾아 보여 준다 */
 function aiCiteSeek(quote, tab, tries){
