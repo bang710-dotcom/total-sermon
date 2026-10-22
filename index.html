@@ -2306,6 +2306,13 @@ body.focusMode #refInsBar{bottom:72px}
 #citeOv{position:fixed;inset:0;z-index:345;display:none;align-items:center;justify-content:center;background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
 #citeOv.on{display:flex;animation:fade .12s ease}
 #citeOv .citeBox{width:640px}
+/* v691 [AI 정리로 돌아가기] — 오른쪽 창 아래 가운데에 떠 있다(휴대폰은 화면 아래) */
+#studyDetail{position:relative}
+.citeBack{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:6;display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:0;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font:inherit;font-size:var(--fs-md);font-weight:600;white-space:nowrap;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.3);animation:fade .15s ease}
+.citeBack[hidden]{display:none}
+.citeBack small{font-size:var(--fs-xs);font-weight:400;opacity:.85}
+#studyDetail.citeBackOn .stPane{padding-bottom:72px}
+@media (max-width:720px){ .citeBack{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom, 0px))} }
 .citeStat{font-size:var(--fs-sm);font-weight:600;padding:8px 10px;border-radius:var(--r-md);background:var(--ok-bg);color:var(--good);line-height:1.55}
 .citeStat.part{background:var(--gold-soft);color:var(--accent2)}
 .citeStat.miss{background:var(--warn-bg);color:var(--warn)}
@@ -8598,6 +8605,7 @@ function studyCloseOv(){
   var ov = $('#studyOv'); if (!ov) return;
   snFlush();
   ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true');
+  AI_CITE_BACK = null; aiCiteBackPaint();
   devoStudyRemount();
 }
 function devoStudyRemount(){
@@ -8687,6 +8695,7 @@ function studySetTab(tab){
   var tabs = $('#stTabs');
   if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-sttab') === tab); });
   studyRenderPane();
+  aiCiteBackPaint();   /* v691: 근거 → 자료 탭으로 왔으면 [AI 정리로 돌아가기] */
 }
 function studyRenderPane(){
   var pane = $('#stPane'); if (!pane) return;
@@ -33333,7 +33342,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v690';
+var APP_VER = 'v691';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -34473,7 +34482,7 @@ document.addEventListener('click', function(e){
   var m = e.target.closest && e.target.closest('#stPane .aiCiteM');
   if (m){ aiCiteOpen(m.dataset.cn, m); return; }
   var c = e.target.closest && e.target.closest('#stPane .aiCite[data-cn]');
-  if (c) aiCiteOpen(c.dataset.cn, null);
+  if (c) aiCiteOpen(c.dataset.cn, null, c);
 });
 document.addEventListener('keydown', function(e){   /* 번호 칩은 tabindex — Enter 로도 연다 */
   if (e.key !== 'Enter') return;
@@ -34497,7 +34506,7 @@ function aiCiteClaim(m){
   return s ? s + '.' : '';
 }
 /* 근거 창 — 받치는 문장 · 자료 원문 앞뒤(옮긴 부분 칠함) · 대조 결과. 원문 앞뒤 글(_ctx)은 v689 이후 정리에만 있다 */
-function aiCiteOpen(n, m){
+function aiCiteOpen(n, m, from){
   var j = studyAiGet(studyAiKey());
   var c = ((j && j.근거) || []).filter(function(x){ return x && String(x.번호) === String(n); })[0];
   if (!c){ toast('이 각주의 근거 기록이 없습니다 — [↻ 다시 정리]로 새로 정리해 주세요.'); return; }
@@ -34510,10 +34519,10 @@ function aiCiteOpen(n, m){
     ov.addEventListener('click', function(e){
       var b = e.target.closest && e.target.closest('[data-cite]');
       if (e.target === ov || (b && b.dataset.cite === 'close')){ aiCiteClose(); return; }
-      if (b && b.dataset.cite === 'go'){ var cc = ov._c; aiCiteClose(); if (cc){ studySetTab(aiCiteSrcTab(cc)); aiCiteSeek(String(cc.원문 || ''), aiCiteSrcTab(cc), 0); } }
+      if (b && b.dataset.cite === 'go'){ var cc = ov._c; aiCiteClose(); if (cc){ aiCiteBackSave(cc, ov._from); studySetTab(aiCiteSrcTab(cc)); aiCiteSeek(String(cc.원문 || ''), aiCiteSrcTab(cc), 0); } }
     });
   }
-  ov._c = c;
+  ov._c = c; ov._from = from || m;
   var v = c._v, tab = aiCiteSrcTab(c), claim = aiCiteClaim(m);
   var stat = v === 'ok' ? '✓ 보낸 자료에서 이 글을 그대로 찾았습니다.'
     : v === 'part' ? '△ 보낸 자료와 일부만 같습니다 — AI가 줄이거나 바꿔 옮겼을 수 있습니다.'
@@ -34556,9 +34565,53 @@ function aiCiteSeek(quote, tab, tries){
   while ((tn = tw.nextNode())){
     if (aiCiteNorm(tn.nodeValue).indexOf(head) >= 0){ mark = document.createElement('span'); tn.parentNode.insertBefore(mark, tn); mark.appendChild(tn); break; }
   }
-  var tgt = mark || best;
-  pane.scrollTop += tgt.getBoundingClientRect().top - pane.getBoundingClientRect().top - 90;
+  var tgt = mark || best, sc = aiCiteScroller();
+  sc.scrollTop += tgt.getBoundingClientRect().top - sc.getBoundingClientRect().top - 90;
   aiCiteFlash(tgt);
+}
+/* 오른쪽 창에서 실제로 스크롤되는 상자 — 넓은 화면은 #stPane, 휴대폰(720px 이하)은 창 몸통(.studyBody)이 함께 스크롤한다 */
+function aiCiteScroller(){
+  var pane = document.getElementById('stPane'); if (!pane) return document.scrollingElement;
+  var oy = getComputedStyle(pane).overflowY;
+  return (oy === 'auto' || oy === 'scroll') ? pane : (pane.closest('.studyBody') || pane);
+}
+/* v691: [자료 탭에서 보기] 뒤 [AI 정리로 돌아가기] — 누른 각주(또는 목록 줄)가 창의 같은 높이에 오도록 되돌린다.
+   기억하는 것: 정리 키 · 근거 번호 · 같은 번호 중 몇 번째 · 창 위에서의 거리. AI 정리 탭으로 직접 가거나 창을 닫거나 본문이 바뀌면 잊는다. */
+var AI_CITE_BACK = null;
+function aiCiteBackSave(c, from){
+  var pane = document.getElementById('stPane'); if (!pane || !c) return;
+  var sc = aiCiteScroller(), sel = '', idx = -1, off = null, cn = String(c.번호);
+  if (from && pane.contains(from)){
+    sel = from.classList.contains('aiCiteM') ? '.aiCiteM' : '.aiCite';
+    idx = Array.prototype.indexOf.call(pane.querySelectorAll(sel + '[data-cn="' + cn + '"]'), from);
+    off = from.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+  }
+  AI_CITE_BACK = { key: studyAiKey(), cn: cn, sel: sel, idx: idx, off: off, top: sc.scrollTop };
+}
+function aiCiteBackPaint(){
+  var det = document.getElementById('studyDetail'); if (!det) return;
+  var b = AI_CITE_BACK;
+  if (b && (STUDY.tab === 'ai' || b.key !== studyAiKey())) b = AI_CITE_BACK = null;
+  var el = document.getElementById('citeBack');
+  if (!b){ if (el) el.hidden = true; det.classList.remove('citeBackOn'); return; }
+  if (!el){
+    el = document.createElement('button'); el.id = 'citeBack'; el.type = 'button'; el.className = 'citeBack';
+    el.addEventListener('click', aiCiteBackGo); det.appendChild(el);
+  }
+  el.innerHTML = uiIco('spark') + ' AI 정리로 돌아가기 <small>근거 ' + esc(b.cn) + '</small>';
+  el.hidden = false; det.classList.add('citeBackOn');
+}
+function aiCiteBackGo(){
+  var b = AI_CITE_BACK; AI_CITE_BACK = null;
+  if (!b || b.key !== studyAiKey()){ aiCiteBackPaint(); return; }
+  studySetTab('ai');
+  var pane = document.getElementById('stPane'); if (!pane) return;
+  var sc = aiCiteScroller(), tgt = null;
+  if (b.sel && b.idx >= 0) tgt = pane.querySelectorAll(b.sel + '[data-cn="' + b.cn + '"]')[b.idx] || null;
+  if (!tgt) tgt = pane.querySelector('.aiCiteM[data-cn="' + b.cn + '"]');
+  if (tgt && b.off != null) sc.scrollTop += tgt.getBoundingClientRect().top - sc.getBoundingClientRect().top - b.off;
+  else sc.scrollTop = b.top;
+  if (tgt) aiCiteFlash(tgt.classList.contains('aiCiteM') ? (aiCiteHost(tgt) || tgt) : tgt);
 }
 /* 설교 대화 — 답 안의 「성구 + 따옴표 인용」을 앱의 개역개정과 대조(자체 점검 saCheckQuote 그대로).
    돌려주는 값: { n, ok, bad:[{ref, why}] } — 인용이 없으면 n 0 */
