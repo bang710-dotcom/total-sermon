@@ -2245,6 +2245,21 @@ body.focusMode #refInsBar{bottom:72px}
 #noteOv .illBox{width:1080px;max-height:90vh}
 #noteOv .ntBody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:start}
 @media (max-width:860px){#noteOv .ntBody{grid-template-columns:minmax(0,1fr)}}
+/* v693 MemoMind 프롬프터용 복사 */
+#prOv{position:fixed;inset:0;z-index:340;display:none;align-items:center;justify-content:center;background:var(--scrim);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+#prOv.on{display:flex;animation:fade .12s ease}
+#prOv .illBox{width:560px}
+.prInfo{font-size:var(--fs-sm);color:var(--dim);line-height:1.55}
+.prCtl{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:10px 0 12px;font-size:var(--fs-sm);color:var(--text)}
+.prCtl label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.prCtl input[type=number]{width:58px;padding:5px 6px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--text);font:inherit}
+.prBlks{display:flex;flex-direction:column;gap:6px}
+.prBlk{position:relative;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);padding:6px 34px 6px 10px;font-size:var(--fs-md);line-height:1.6}
+.prBlk .no{position:absolute;top:6px;right:8px;font-size:var(--fs-xs);color:var(--dim)}
+.prBlk .ln{white-space:pre-wrap;word-break:keep-all;min-height:1.6em}
+.prBlk .ln.pad{color:var(--dim);opacity:.45}
+.prActs{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);flex:0 0 auto}
+.prActs .btn{flex:1 1 0}
 .ntSec{font-weight:700;font-size:var(--fs-sm);margin:14px 0 6px;color:var(--text)}
 .ntSec small{font-weight:400;color:var(--dim)}
 .ntMode .chip,.ntQt .chip,.ntAns .chip{padding:5px 12px;font-size:var(--fs-sm)}
@@ -2493,6 +2508,7 @@ body.focusMode #refInsBar{bottom:72px}
               <button type="button" class="desktop-only" data-proxy="#btnRetrans"><svg class=ico aria-hidden=true><use href=#i-refresh></use></svg><span class="pxl">원고 수정 반영</span></button>
               <button type="button" data-proxy="#c_kakao"><svg class=ico aria-hidden=true><use href=#i-send></use></svg><span class="pxl">주보내용 공유하기</span></button>
               <button type="button" data-proxy="#c_sermonNote"><svg class=ico aria-hidden=true><use href=#i-clipboard></use></svg><span class="pxl">설교 노트 · 나눔지</span></button>
+              <button type="button" id="cmPrompterBtn"><svg class=ico aria-hidden=true><use href=#i-monitor></use></svg><span class="pxl">MemoMind 프롬프터용 복사</span></button>
               <div class="cmMenuSep"></div>
               <button type="button" data-gotab="out"><svg class=ico aria-hidden=true><use href=#i-package></use></svg><span class="pxl">산출물 탭에서 단계별로…</span></button>
             </div></div>
@@ -11682,6 +11698,149 @@ function composeNormCard(c){
 }
 /* 원고(원고텍스트) 산출물의 서식 — 카드원고는 별도 문서가 됐으므로 옛 행의 원고유형 '카드원고'도 기본원고 서식으로 */
 function msStyleOf(meta){ var t = String((meta && meta['원고유형']) || '').trim(); return t === '자유원고' ? '자유원고' : '기본원고'; }
+
+/* ── v693 MemoMind 프롬프터용 복사 (목사님 요청 2026-10-22) ──
+   MemoMind 앱의 프롬프터(연설)는 빈 줄을 버리고 단락과 상관없이 3줄씩 강조하며, 안경은 한 줄 폭을 넘으면
+   띄어쓰기에서 꺾는다(2026-10-22 실기기 실측). 그래서 카드원고를
+   ① 안경 한 줄 폭(한글 20자)에 맞춰 미리 줄바꿈하고 ② 단락을 3줄 묶음으로 나누고(문장 끝에서) ③ 모자란 줄은
+   폭 0 공백(U+200B) 한 줄로 채운다 — 전각 공백 줄은 프롬프터가 버리지만 U+200B 줄은 빈 줄 모양으로 남는다.
+   폭(한글 1칸 기준, 실측 띄어쓰기 0.35·숫자 0.56 — 부호는 넉넉히): 한글·그 밖 문자 1, 영문 0.6, ASCII 부호 0.5.
+   전환 줄 「▶ 이미지 #N 전환 ◀」은 줄을 차지하지 않게 다음 줄 앞 「▶N」(본문 이미지는 「▶본N」)으로 붙인다. */
+var PR_SPACER = '​';
+function prCharW(ch){
+  if (ch === ' ') return 0.35;
+  var c = ch.charCodeAt(0);
+  if (c >= 48 && c <= 57) return 0.56;
+  if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) return 0.6;
+  if (c >= 33 && c <= 126) return 0.5;
+  return 1;
+}
+function prWidth(s){ var w = 0; s = String(s || ''); for (var i = 0; i < s.length; i++) w += prCharW(s[i]); return w; }
+/* 넘치는 줄 나누기 — 두 줄이면 끊어 읽는 자리(쉼표·마침표 뒤, 여는 따옴표 앞)나 길이가 비슷해지는 띄어쓰기에서,
+   세 줄 이상이면 안경처럼 앞에서부터 채운다(한 낱말이 한 줄보다 길면 글자에서 자른다) */
+function prWrap(line, max){
+  line = String(line == null ? '' : line).replace(/\s+/g, ' ').trim();
+  if (prWidth(line) <= max) return [line];
+  var g = prWrapGreedy(line, max);
+  if (g.length !== 2) return g;
+  var words = line.split(' '), best = null;
+  for (var i = 1; i < words.length; i++) {
+    var a = words.slice(0, i).join(' '), b = words.slice(i).join(' '), wa = prWidth(a), wb = prWidth(b);
+    if (wa > max || wb > max) continue;
+    var cost = Math.max(wa, wb) - (/[,.?!…—」』)]$/.test(a) || /^["'“‘「『(]/.test(b) ? 3 : 0);
+    if (!best || cost < best.cost) best = { cost: cost, lines: [a, b] };
+  }
+  return best ? best.lines : g;
+}
+function prWrapGreedy(line, max){
+  var out = [], cur = '';
+  line.split(' ').forEach(function(w){
+    var cand = cur ? cur + ' ' + w : w;
+    if (prWidth(cand) <= max) { cur = cand; return; }
+    if (cur) out.push(cur);
+    while (prWidth(w) > max) {
+      var k = 0, acc = 0;
+      while (k < w.length && acc + prCharW(w[k]) <= max) { acc += prCharW(w[k]); k++; }
+      if (!k) k = 1;
+      out.push(w.slice(0, k)); w = w.slice(k);
+    }
+    cur = w;
+  });
+  if (cur) out.push(cur);
+  return out;
+}
+function prEndsSentence(l){ return /[.?!…][\s"'”’」』)\]]*$/.test(String(l || '')); }
+/* 카드원고(카드 배열) → { blocks: [[줄,줄,줄], …](모자란 줄은 PR_SPACER), text: 붙여넣을 글 }
+   opt: width(한 줄 칸 수, 기본 20) · merge(짧은 단락을 3줄 안에서 한 묶음으로, 기본 켬) · marks(전환 표시, 기본 켬) */
+function prBuild(cards, opt){
+  opt = opt || {};
+  var max = +opt.width > 0 ? +opt.width : 20, merge = opt.merge !== false, marks = opt.marks !== false;
+  var paras = [], cur = [], pend = '';
+  function flush(){ if (cur.length) paras.push(cur); cur = []; }
+  (cards || []).forEach(function(card){
+    flush();
+    String(card == null ? '' : card).replace(/\r/g, '').split('\n').forEach(function(l){
+      if (cardIsBar(l)) { if (marks) { var mi = cardMarkInfo(l); if (mi.n) pend += '▶' + (mi.scr ? '본' : '') + mi.n + ' '; } return; }
+      if (CARD_MARK_RE.test(l) || !l.trim()) { flush(); return; }
+      cur.push(pend + l.trim()); pend = '';
+    });
+  });
+  flush();
+  if (pend.trim()) paras.push([pend.trim()]);
+  var chunks = [];
+  paras.forEach(function(p){
+    var L = [];
+    p.forEach(function(l){ L = L.concat(prWrap(l, max)); });
+    var first = true;
+    while (L.length > 3) {
+      var k = prEndsSentence(L[2]) ? 3 : (prEndsSentence(L[1]) ? 2 : 3);
+      chunks.push({ lines: L.slice(0, k), first: first, last: false }); L = L.slice(k); first = false;
+    }
+    if (L.length) chunks.push({ lines: L, first: first, last: true });
+  });
+  var blocks = [];
+  chunks.forEach(function(ch){
+    var prev = blocks.length ? blocks[blocks.length - 1] : null;
+    if (merge && prev && prev.last && ch.first && prev.lines.length + ch.lines.length <= 3) {
+      prev.lines = prev.lines.concat(ch.lines); prev.last = ch.last; return;
+    }
+    blocks.push({ lines: ch.lines.slice(), last: ch.last });
+  });
+  var out = blocks.map(function(b){ var a = b.lines.slice(); while (a.length < 3) a.push(PR_SPACER); return a; });
+  return { blocks: out, text: out.map(function(a){ return a.join('\n'); }).join('\n') };
+}
+function prOpt(){
+  var o = { width: 20, merge: true, marks: true };
+  try { var s = JSON.parse(localStorage.getItem('tsa.prOpt') || 'null'); if (s) { if (+s.width >= 10 && +s.width <= 40) o.width = +s.width; o.merge = s.merge !== false; o.marks = s.marks !== false; } } catch (e) {}
+  return o;
+}
+function prOptSave(o){ try { localStorage.setItem('tsa.prOpt', JSON.stringify(o)); } catch (e) {} }
+function prCards(){ var c = state.compose; return (c && Array.isArray(c.cards)) ? c.cards : []; }
+function prOpen(){
+  if (!prCards().some(function(t){ return String(t || '').trim(); })) { toast('카드원고가 없습니다 — 먼저 카드원고를 만들어 주세요.'); return; }
+  var ov = document.getElementById('prOv');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'prOv'; ov.setAttribute('aria-hidden', 'true');
+    ov.innerHTML = '<div class="illBox" role="dialog" aria-modal="true" aria-label="MemoMind 프롬프터용 복사">'
+      + '<div class="brefHd"><span class="t">MemoMind 프롬프터용 복사</span><button class="x" type="button" data-pr="close" aria-label="닫기">✕</button></div>'
+      + '<div class="illOvBody"><div class="prInfo"></div><div class="prCtl"></div><div class="prBlks"></div></div>'
+      + '<div class="prActs"><button class="btn" type="button" data-pr="copy">본문 복사</button><button class="btn sub" type="button" data-pr="title">제목 복사</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function(e){
+      var b = e.target.closest('[data-pr]');
+      if (e.target === ov || (b && b.dataset.pr === 'close')) { prClose(); return; }
+      if (!b) return;
+      if (b.dataset.pr === 'copy') xferCopy(prBuild(prCards(), prOpt()).text, '복사했습니다 — MemoMind 앱 › 프롬프터 › 원고 추가에서 붙여넣으세요.');
+      if (b.dataset.pr === 'title') { if (!String(cardMetaNow()['제목'] || '').trim()) { toast('제목이 비어 있습니다.'); return; } xferCopy(cardTitleNow(), '제목을 복사했습니다.'); }
+    });
+    ov.addEventListener('change', function(e){
+      var o = prOpt(), t = e.target;
+      if (t.name === 'prW') o.width = Math.max(10, Math.min(40, +t.value || 20));
+      if (t.name === 'prMerge') o.merge = t.checked;
+      if (t.name === 'prMarks') o.marks = t.checked;
+      prOptSave(o); prRender();
+    });
+  }
+  ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  prRender();
+}
+function prClose(){ var ov = document.getElementById('prOv'); if (ov) { ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); } }
+function prRender(){
+  var ov = document.getElementById('prOv'); if (!ov) return;
+  var o = prOpt(), r = prBuild(prCards(), o);
+  ov.querySelector('.prInfo').innerHTML = 'MemoMind 프롬프터는 빈 줄을 버리고 <b>3줄씩</b> 강조합니다. 단락을 3줄 묶음으로 맞추고, 안경에서 꺾일 줄은 미리 나눴습니다 — '
+    + '<b>' + r.blocks.length + '묶음</b> · ' + (r.blocks.length * 3) + '줄.';
+  ov.querySelector('.prCtl').innerHTML = '<label>한 줄 <input type="number" name="prW" min="10" max="40" value="' + o.width + '"> 칸(한글 기준)</label>'
+    + '<label><input type="checkbox" name="prMerge"' + (o.merge ? ' checked' : '') + '> 짧은 단락은 3줄 안에서 합치기</label>'
+    + '<label><input type="checkbox" name="prMarks"' + (o.marks ? ' checked' : '') + '> 이미지 전환 표시(▶5)</label>';
+  ov.querySelector('.prBlks').innerHTML = r.blocks.map(function(b, i){
+    return '<div class="prBlk"><span class="no">' + (i + 1) + '</span>' + b.map(function(l){
+      return l === PR_SPACER ? '<div class="ln pad">·</div>' : '<div class="ln">' + esc(l) + '</div>';
+    }).join('') + '</div>';
+  }).join('');
+}
+document.addEventListener('click', function(e){ if (e.target.closest && e.target.closest('#cmPrompterBtn')) prOpen(); });
+document.addEventListener('keydown', function(e){ var ov = document.getElementById('prOv'); if (e.key === 'Escape' && ov && ov.classList.contains('on')) prClose(); });
 
 /* ── 측정(실제 쪽과 같은 글꼴·크기 비율) ── */
 var _cdMeas = null;
@@ -33344,7 +33503,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v692';
+var APP_VER = 'v693';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -36931,6 +37090,7 @@ function cmReveal(el){
     ['원고 수정 반영 (전환표 재정렬)', 'compose', '#btnRetrans', 'refresh', '전환표', 1],
     ['주보내용 공유하기', 'compose', '#c_kakao', 'send', '카카오 카톡 주보'],
     ['설교 노트 · 나눔지', 'compose', '#c_sermonNote', 'clipboard', '핸드아웃 빈칸 나눔 질문 handout'],
+    ['MemoMind 프롬프터용 복사', 'compose', '#cmPrompterBtn', 'monitor', '안경 프롬프터 메모마인드 teleprompter 카드원고 연설'],
     ['요약본·주제어 생성', 'compose', '[data-req="설교요약"]', 'spark', '요약'],
     ['LTC 교재 만들기', 'compose', '[data-req="LTC교재"]', 'spark', '교재 리더'],
     ['집중 모드', 'compose', '.edFocusBtn', 'monitor', '글쓰기 포커스'],
