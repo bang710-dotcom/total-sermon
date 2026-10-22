@@ -2257,6 +2257,7 @@ body.focusMode #refInsBar{bottom:72px}
 .prCtl label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
 .prCtl input[type=number]{width:58px;padding:5px 6px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--text);font:inherit}
 .prMode{margin:0 0 10px}
+.prMode .prAI{margin-left:auto;border-color:var(--accent);color:var(--accent)}
 .prBlks{display:flex;flex-direction:column;gap:6px}
 .prBlk{position:relative;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);padding:6px 34px 6px 10px;font-size:var(--fs-md);line-height:1.6}
 .prBlk .no{position:absolute;top:6px;right:8px;font-size:var(--fs-xs);color:var(--dim)}
@@ -11743,7 +11744,9 @@ function msStyleOf(meta){ var t = String((meta && meta['원고유형']) || '').t
    v695: 편집 화면 = 왼쪽 원고 전문(또는 카드원고) · 오른쪽 편집(창이 넓어진다, 휴대폰은 위아래). 편집 영역은
    contenteditable(plaintext-only)이고, 안경 한 화면을 넘는 부분(한 줄 폭을 넘어 꺾일 부분 · 묶음의 4번째 화면 줄부터)을
    CSS Custom Highlight(::highlight(pr-over))로 빨갛게 칠한다 — 글자를 다시 쓰지 않으므로 한글 조합·커서에 영향이 없다.
-   지원하지 않는 브라우저에선 칠하지 않고 아래 안내 줄로만 알린다. */
+   지원하지 않는 브라우저에선 칠하지 않고 아래 안내 줄로만 알린다.
+   v696: [✦ AI로 다시 쓰기] — 목사님이 처음 다듬은 원고(S1149, 2026-10-22)에서 뽑은 문체 지침(P_PROMPTER, 정본 문서
+   Dropbox/total-sermon/docs/프롬프터원고_문체지침_20261022.md)으로 카드원고(+원고 전문 참고)를 다시 써 편집창에 넣는다. */
 var PR_SPACER = '​';
 var PR_HL = typeof CSS !== 'undefined' && !!CSS.highlights && typeof Highlight === 'function';
 function prCharW(ch){
@@ -11932,6 +11935,69 @@ function prPaint(){
   CSS.highlights.set('pr-over', hl);
 }
 function prRefHtml(t){ return esc(String(t || '')).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>'); }
+/* v696 문체 지침 — 정본: Dropbox/total-sermon/docs/프롬프터원고_문체지침_20261022.md (고칠 땐 둘 다) */
+var P_PROMPTER = [
+'당신은 영락대학부 설교자의 강단 프롬프터 원고 편집 비서다. 설교자는 MemoMind AR 안경의 프롬프터로 원고를 보며 설교한다. 안경은 한 번에 3줄을 강조하고, 한 줄 폭이 좁다.',
+'입력(JSON): 제목 · 카드원고(카드 사이 「(카드)」 줄, 이미지 전환 줄 「▶ 이미지 #N 전환 ◀」/「▶ 본문 이미지 #N 전환 ◀」, 강조 **…**) · 원고전문(참고용).',
+'할 일: 카드원고의 순서·내용·전환 표시를 뼈대로, 설교자가 소리 내어 말하듯 읽을 프롬프터 원고를 쓴다. 원고전문은 말투와 연결 말, 빠진 설명을 가져오는 참고로만 쓴다.',
+'',
+'【형식 — 반드시】',
+'- 묶음 사이에 빈 줄 한 줄. 한 묶음은 1~3줄 — 대부분 3줄, 2줄도 자연스럽게. 1줄 묶음은 힘을 줄 한 문장에만.',
+'- 한 줄은 안경 폭 20칸 안(한글 1칸, 띄어쓰기 0.35칸, 숫자·영문·부호 약 0.5칸). 한글로 대략 17자 안팎, 평균 14칸 정도로 여유 있게. 넘칠 것 같으면 줄을 나눈다.',
+'- 줄바꿈은 말의 호흡(어절 덩어리) 단위. 한 묶음 = 한 문장 또는 한 생각. 문장이 묶음 경계를 넘지 않게 하고, 긴 문장은 2~3줄로 나눠 한 묶음을 채운다.',
+'- 전환 표시: 카드원고의 「▶ 이미지 #N 전환 ◀」 다음에 오는 첫 묶음의 첫 줄 맨 앞에 「▶N 」, 본문 이미지는 「▶본N 」을 붙인다. 번호·순서 그대로, 하나도 빠뜨리지 않는다. 전환 줄 자체는 쓰지 않는다.',
+'- 대지 제목은 번호 그대로 「1. …」 독립 묶음(2~3줄). 예화 제목은 「ex) …」로 시작하는 독립 묶음.',
+'- 성경 인용: 첫 줄에 「수 13:1,」처럼 약어 장:절, 이어서 본문을 의미 단위로 나눠 3줄씩 묶음. 인용 문구는 카드원고(없으면 원고전문) 그대로 — 한 글자도 바꾸지 않는다.',
+'- ** 강조 표시는 쓰지 않는다. 힘줄 말은 작은따옴표 \' \' 나 1줄 묶음으로.',
+'- 쉼 표시: 짧은 쉼은 줄 끝 「/」, 큰 흐름이 바뀌는 긴 쉼은 줄 끝 「//」 — 전체에서 5~8번만.',
+'',
+'【문체 — 카드원고의 메모체를 말하듯】',
+'- 카드원고의 짧은 메모(명사로 끝나는 구절·개조식·숫자 나열)를 말로 하는 완결된 문장으로 푼다. 분량은 카드원고의 1.1~1.2배(원고전문보다는 훨씬 짧게).',
+'- 어미를 섞는다: 「~습니다」 위주에 「~지요/~죠」「~잖아요」「~거예요」「~답니다」를 자연스럽게.',
+'- 청중에게 묻는다: 사실·숫자 앞에 질문(「여호수아가 당시 몇 살이었을까요?」), 예화 뒤 평가 질문(「멋있지 않습니까?」), 메모 조각은 질문으로(「맡기신 일 —」 → 「맡기신 일은 무엇이었을까요?」).',
+'- 잇는 말로 흐름을 잇는다: 그런데 · 그리고 · 그래서 · 바로 · 실제로 · 잘 생각해보면 · 마치.',
+'- 단락 사이에 다리 문장을 넣는다(「그런데 군대만 그런 건 아니죠.」 「그렇게 생각하기 쉽습니다」). 본론 앞에는 「…말씀을 통해 / 오늘의 우리에게 주시는 메시지를 / 차례로 살펴보도록 하겠습니다.」처럼 안내한다.',
+'- 추상 꼬리표·전문 용어 메모는 쉬운 말로 푼다(「\'이제\'의 언어」 → 「\'끝\'만 보는 언어」, 「접속사 하나(와우)로 이어집니다」 → 「한계를 인정하신 후에 / 곧바로 이어서 하시는 말씀이」).',
+'- 피동보다 능동(「왕들이 쓰러졌습니다」 → 「왕들을 쓰러뜨렸습니다」). 인용한 사람의 말은 존댓말로(「준비한 은퇴다.」 → 「준비한 은퇴입니다.」).',
+'- 대지마다 적용 권면으로 맺고 「…저와 여러분 되시기 바랍니다 / 됩시다」로 마무리한다.',
+'- 정직: 카드원고·원고전문에 없는 사실·숫자·인용·예화는 지어내지 않는다. 호칭은 「여러분」.',
+'',
+'【예시 — 설교자가 직접 고친 원고(카드원고 → 프롬프터)】',
+'예1 카드원고:',
+'▶ 이미지 #2 전환 ◀\n여러분, \'말년 병장\' 아시지요?\n전역이 가까우면 "떨어지는 낙엽도 조심하라."\n\n일은 안 벌이고, 몸은 사리고,\n조용히 날짜만 셉니다.\n\n학기 마지막 주, 그만둘 아르바이트의 남은 한 달,\n이사 가기 직전의 동네…\n\n끝이 보이면 사람은 힘을 빼고 물러섭니다.\n\n**"이제 할 만큼 했다. 내 몫은 끝났다."**',
+'예1 프롬프터:',
+'▶2 여러분, \'말년 병장\' 아시지요?\n"떨어지는 낙엽도 조심하라."\n그러잖아요?\n\n그때가 되면, 일 안 벌이고, 몸 사리고,\n조용히 날짜만 셉니다. /\n그런데 군대만 그런 건 아니죠.\n\n학기 마지막 주, 아르바이트의 마지막 달,\n끝이 보이면 사람은\n자연스럽게 힘을 빼고 물러서게 됩니다.\n\n"이제 할 만큼 했다. 내 몫은 끝났다."\n그렇게 생각하기 쉽습니다 //',
+'예2 카드원고:',
+'▶ 본문 이미지 #6 전환 ◀\n수 13:1, "여호수아가 나이가 많아 늙으매\n여호와께서 그에게 이르시되\n너는 나이가 많아 늙었고\n얻을 땅이 매우 많이 남아 있도다."\n\n늙었다 — 본문이 한 번, 하나님이 한 번 더.\n갈렙이 여든다섯(14:10), 여호수아도 그 또래.\n그런데 접속사 하나(와우)로 바로 이어집니다.\n\'매우 많이\' — \'하르베 메오드\', 겹친 강조.\n\n**끝이 가깝다는 진단과 아직 많다는 선언이**\n**한 문장 안에 붙어 있습니다.**',
+'예2 프롬프터:',
+'▶본6 수 13:1,\n"여호수아가 나이가 많아 늙으매\n여호와께서 그에게 이르시되\n\n너는 나이가 많아 늙었고\n얻을 땅이 매우 많이 남아 있도다."\n\n늙었다\n— 본문이 한 번,\n하나님이 한 번 더.\n\n여호수아가 당시 몇 살이었을까요?\n14:10을 보면, 갈렙이 여든다섯이죠.\n여호수아도 그 또래였습니다\n\n그런데 그 늙었다는 한계를 인정하신 후에\n곧바로 이어서 하시는 말씀이\n"얻을 땅이 매우 많이 남았도다"\n\n\'매우 많이\' —\n\'하르베 메오드\', 겹친 강조입니다. /\n\n끝이 가깝다는 진단과 아직 많다는 선언이\n한 문장 안에 붙어 있는 거예요.',
+'예3 카드원고:',
+'그해 142경기, 타율 3할 3푼 1리,\n홈런 23개, 101타점. 전반기 타율 1위.\n12월, 지명타자 골든글러브.\n당시 KBO 최고령, 은퇴 시즌 첫 수상자였습니다.\n\n**끝이 정해진 사람이 \'아직\'을 말했습니다.**\n끝을 알았기에 오히려 더 준비했습니다.',
+'예3 프롬프터:',
+'그런데 그해 142경기를 뛰고,\n타율 3할 3푼 1리, 홈런 23개, 101타점.\n전반기를 마쳤을 때 리그 타율 1위였죠.\n\n그리고 그해 12월,\n지명타자 부문 골든글러브까지\n받았습니다.\n\n당시 KBO 역사상 최고령 수상자이자,\n은퇴 시즌에 골든글러브를 받은\n첫 선수였습니다.\n\n멋있지 않습니까?\n끝이 정해진 사람이 \'아직\'을 말한 거예요.\n끝을 알았는데, 오히려 더 준비한 것입니다.',
+'예4 카드원고:',
+'끝나 가는 것 하나를 떠올리고, 소리 내어 바꿔 말합시다.\n"얼마 안 남았다" → "아직 이만큼 남았다"',
+'예4 프롬프터:',
+'끝나 가는 것 하나를 떠올리고,\n소리 내어 바꿔 말합시다.\n"얼마 안 남았다" → "아직 이만큼 남았다"\n\n마지막까지 주신 사명에 최선을 다하는\n저와 여러분 되시기 바랍니다',
+'',
+'출력은 프롬프터 원고 글만 — 머리말·설명·제목 줄·코드 블록 없이, 첫 묶음부터 마지막 묶음까지.'
+].join('\n');
+/* [✦ AI로 다시 쓰기] — 카드원고(+원고 전문)를 문체 지침으로 다시 써 고친 원고로 저장하고 편집창을 연다 */
+async function prAI(){
+  var ov = document.getElementById('prOv'); if (!ov) return;
+  prFlushEdit();
+  if (prSaved() && !await uiConfirm('지금 고친 원고를 AI 초안으로 바꿀까요?\n고친 내용은 사라집니다.')) return;
+  var input = { '제목': cardTitleNow(), '카드원고': cardsJoin(prCards()), '원고전문': '' };
+  try { input['원고전문'] = String(assembleText() || '').trim(); } catch (e) {}
+  var out;
+  try { out = await callClaude(P_PROMPTER, JSON.stringify(input), 16000, aiTick('프롬프터 원고'), 'prompter'); }
+  catch (e) { toast('AI 초안을 만들지 못했습니다 — ' + ((e && e.message) || e)); return; }
+  var t = String(out || '').replace(/\r/g, '').replace(/^\s*```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/, '').replace(/\*\*/g, '').trim();
+  if (t.split('\n').filter(function(l){ return l.trim(); }).length < 6) { toast('AI 응답이 비어 있거나 너무 짧습니다 — 다시 시도해 주세요.'); return; }
+  try { localStorage.setItem(prKey(), JSON.stringify({ base: prHash(prToEdit(prAuto().blocks)), text: t, at: Date.now(), ai: 1 })); } catch (e) {}
+  _prMode = 'edit'; prEdSet(t); prRender();
+  toast(callClaude.lastStop === 'max_tokens' ? 'AI 응답이 길어 끝부분이 잘렸을 수 있습니다 — 마지막 묶음을 확인해 주세요.' : 'AI 초안을 만들었습니다 — 빨간 글자를 확인하며 다듬어 주세요.');
+}
 var _prMode = 'view', _prRef = 'ms', _prSaveT = 0;
 function prRefRender(){
   var ov = document.getElementById('prOv'); if (!ov) return;
@@ -11949,7 +12015,7 @@ function prOpen(){
     ov.innerHTML = '<div class="illBox" role="dialog" aria-modal="true" aria-label="MemoMind 프롬프터용 복사">'
       + '<div class="brefHd"><span class="t">MemoMind 프롬프터용 복사</span><button class="x" type="button" data-pr="close" aria-label="닫기">✕</button></div>'
       + '<div class="illOvBody"><div class="prInfo"></div><div class="prCtl"></div>'
-      + '<div class="chips prMode"><span class="chip" data-prmode="view">묶음 보기</span><span class="chip" data-prmode="edit">편집</span></div>'
+      + '<div class="chips prMode"><span class="chip" data-prmode="view">묶음 보기</span><span class="chip" data-prmode="edit">편집</span><span class="chip prAI" data-pr="ai" title="문체 지침으로 카드원고를 다시 씁니다">✦ AI로 다시 쓰기</span></div>'
       + '<div class="prBlks"></div>'
       + '<div class="prEdWrap" hidden>'
       + '<div class="prRef"><div class="chips prRefMode"><span class="chip" data-prref="ms">원고 전문</span><span class="chip" data-prref="card">카드원고</span></div><div class="prRefBody"></div></div>'
@@ -11973,6 +12039,7 @@ function prOpen(){
       var b = e.target.closest('[data-pr]');
       if (e.target === ov || (b && b.dataset.pr === 'close')) { prClose(); return; }
       if (!b) return;
+      if (b.dataset.pr === 'ai') { await prAI(); return; }
       if (b.dataset.pr === 'copy') { prFlushEdit(); xferCopy(prResult().text, '복사했습니다 — MemoMind 앱 › 프롬프터 › 원고 추가에서 붙여넣으세요.'); }
       if (b.dataset.pr === 'title') { if (!String(cardMetaNow()['제목'] || '').trim()) { toast('제목이 비어 있습니다.'); return; } xferCopy(cardTitleNow(), '제목을 복사했습니다.'); }
       if (b.dataset.pr === 'reset') {
@@ -18068,6 +18135,7 @@ var AI_FEATURES = [
   { k: 'devoplan', label: '묵상 본문 배분',   def: 'auto:sonnet',      effort: 'high', desc: '시리즈 묵상집의 날짜별 본문 나누기' },
   { k: 'ocr',      label: '원고·교재 읽기',   def: 'auto:sonnet',      effort: 'high', desc: '구역권찰 — 설교·교재 이미지와 스캔 PDF 옮겨 적기' },
   { k: 'cardtrans', label: '카드원고 전환 시점', def: 'auto:sonnet', effort: 'medium', desc: '카드원고에 이미지 전환 아이콘 자리 찾기(전환표의 원고 문장 ↔ 카드원고 줄, 글은 바꾸지 않음)' },
+  { k: 'prompter', label: '프롬프터 원고', def: 'auto:opus', effort: 'high', desc: 'MemoMind 안경 프롬프터 — 카드원고를 목사님 문체(3줄 묶음·말하듯)로 다시 쓰기 [AI로 다시 쓰기]' },
   { k: 'imgprompt', label: '이미지 프롬프트 다시 쓰기', def: 'auto:sonnet', effort: '', desc: '이미지 낱장 재생성 창 — 한국어 설명을 반영해 영문 장면 프롬프트를 다시 쓰기' },
   { k: 'illocr',   label: '예화 이미지 인식', def: 'auto:haiku',       effort: '',     desc: '예화 사진·캡처 글 옮겨 적기(인식 뒤 다듬기는 「기본 생성」 모델)' }
 ];
@@ -33717,7 +33785,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v695';
+var APP_VER = 'v696';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
