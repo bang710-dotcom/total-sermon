@@ -7848,6 +7848,8 @@ async function studyNotePull(prefix, key, store, lsName){
     return store[key] || rec;
   } catch (e){ return null; }
 }
+/* v690: 정리 기록 모양 확인 — 배열·빈 객체(잘린 응답에서 꺼낸 조각)는 정리가 아니다 */
+function studyAiValid(j){ return !!(j && typeof j === 'object' && !Array.isArray(j) && (j.장르 || j.정황 || j.구조 || j.구속사위치 || j.설교다리 || (j.핵심원어 && j.핵심원어.length))); }
 function studyAiGet(key){ var r = SAI[key]; return r ? r.j : (STUDY.ai && STUDY.ai[key]) || null; }
 /* ── 원어 심층연구: 본문(구간)별 저장 ──────────────────────────────────
    SAI[구간키] = { j: AI정리, deep: { H2617: {...}, H530: {...} }, _t }
@@ -7946,8 +7948,15 @@ async function studyAiSynth(){
       묵상과설교: mukIn,
       WBC: wbcIn
     };
-    var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 12000, aiTick('본문연구 정리'));
-    var _j = aiCiteVerify(aiJson(out), input);   /* v688: 근거 각주의 원문 토막을 보낸 자료와 글자 대조 */
+    /* v690: 12000 → 32000 — Opus 5.5 는 생각 토큰도 한도에 든다. v688 근거 각주로 답이 길어지자 한도에서 잘렸고,
+       aiJson 이 잘린 바깥 객체 대신 첫 배열(핵심원어)을 꺼내 그것이 정리로 저장돼 이전 정리까지 덮였다(2026-10-22 제보, 수 15:63). */
+    var out = await callClaude(P_STUDYSYN, JSON.stringify(input), 32000, aiTick('본문연구 정리'));
+    var _stop = callClaude.lastStop, _j0 = null;
+    try { _j0 = aiJson(out); } catch (eJ){ _j0 = null; }
+    if (!studyAiValid(_j0)) throw new Error(_stop === 'max_tokens'
+      ? '응답이 출력 한도에서 잘렸습니다 — 이전 정리는 그대로 두었습니다. 범위를 줄이거나 다시 시도해 주세요.'
+      : '정리 형식을 읽지 못했습니다 — 이전 정리는 그대로 두었습니다. 다시 시도해 주세요.');
+    var _j = aiCiteVerify(_j0, input);   /* v688: 근거 각주의 원문 토막을 보낸 자료와 글자 대조 */
     studyAiSet(key, _j);             /* 로컬 저장 + 시트 동기화(다기기) */
     studyBibleAutoUpdate(R, _j);     /* 성경앱에 이미 보낸 노트면 새 정리로 덮어쓴다(v642) — 기다리지 않는다 */
     if (STUDY.tab === 'ai') studyRenderPane();
@@ -8005,6 +8014,7 @@ function renderStudyFrame(j){
   return h;
 }
 function renderStudyAi(j){
+  if (!studyAiValid(j)) return '<div class="stWarn">이 정리 기록은 응답이 잘려 비어 있는 채로 저장됐습니다(v688~v689 의 출력 한도 문제) — 아래 [↻ 다시 정리]를 눌러 새로 정리해 주세요.</div>';
   var h = '';
   if (j.장르){ var gs = String(j.장르), gm = gs.match(/^([^+·:—-]+)[+·:—-]\s*(.*)$/); var gLabel = gm ? gm[1].trim() : gs.trim(), gDesc = gm ? gm[2].trim() : '';
     h += '<div class="stAiSec"><span class="stGenre">' + esc(gLabel || '장르') + '</span>' + (gDesc ? ' <span class="stAiBody" style="display:inline">' + esc(gDesc) + '</span>' : '') + '</div>'; }
@@ -17885,7 +17895,7 @@ async function callClaude(system, user, maxTokens, onTick, feature){
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
-  var _usage = {};
+  var _usage = {}; callClaude.lastStop = '';
   try {
   var res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -17921,6 +17931,7 @@ async function callClaude(system, user, maxTokens, onTick, feature){
       var ev;
       try { ev = JSON.parse(l.slice(5)); } catch (e) { continue; }
       aiUsageEv(_usage, ev);   /* v688 사용량 */
+      if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) callClaude.lastStop = ev.delta.stop_reason;   /* v690: 잘림(max_tokens) 판별용 */
       if (ev.type === 'content_block_delta' && ev.delta && ev.delta.text) {
         out += ev.delta.text;
         if (onTick) onTick(out.length);
@@ -33322,7 +33333,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v689';
+var APP_VER = 'v690';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -34208,7 +34219,7 @@ async function noteGenQuestions(more){
   var have = String(N.qs || '').split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
   var input = { 제목: m['제목'] || '', 본문: m['본문'] || '', 핵심메시지: m['핵심메시지'] || '', 원고: cut ? words.slice(0, 10000).join(' ') : body,
     유형: types, 유형별개수: +N.qn || 2, 청중: composeAudience(), 이미있는질문: more ? have : [] };
-  var arr = aiJson(await callClaude(P_NOTEQ, JSON.stringify(input), 6000, aiTick('나눔 질문')));
+  var arr = aiJson(await callClaude(P_NOTEQ, JSON.stringify(input), 16000, aiTick('나눔 질문')));
   if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류 — 다시 시도해 주세요.');
   var lines = arr.filter(function(x){ return x && x.질문; }).map(function(x){ return '[' + String(x.유형 || '').trim() + '] ' + String(x.질문).trim(); });
   N.qs = (more ? have.concat(lines) : lines).join('\n');
