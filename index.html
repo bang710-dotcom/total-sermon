@@ -2291,6 +2291,7 @@ body.focusMode #refInsBar{bottom:72px}
 .pmWarn{font-size:var(--fs-sm);color:var(--warn);margin:-4px 0 10px;line-height:1.5}
 .pmWarn[hidden],.pmView [hidden]{display:none!important}
 .pmOverTx{color:var(--bad);font-weight:600}
+.pmUnsaved{color:var(--warn);font-weight:600}
 .pmHelp{width:var(--pmW,600px);max-width:100%;margin:14px auto 0}
 .pmSet{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:10px 0;font-size:var(--fs-sm);color:var(--text)}
 .pmSet label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
@@ -2677,7 +2678,7 @@ body.focusMode #refInsBar{bottom:72px}
           <div class="esbInfo"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div></div>
           <div class="esbStyle"><span class="esbLab">원고 스타일</span>
           <div class="chips" id="c_style">
-          <span class="chip" data-v="프롬프터" title="MemoMind 안경 프롬프터 원고 — 안경 화면(한 줄 20칸 · 3줄씩)과 같은 모양으로 고칩니다. 카드원고에서 자동으로 만들어지고, 고친 글은 이 기기에 저장됩니다">프롬프터</span>
+          <span class="chip" data-v="프롬프터" title="MemoMind 안경 프롬프터 원고 — 안경 화면(한 줄 20칸 · 3줄씩)과 같은 모양으로 고칩니다. 카드원고에서 자동으로 만들어지고, 고친 글은 [저장]하면 시트에 함께 저장됩니다(다른 기기·사역 안경 앱에서도 읽음)">프롬프터</span>
           <span class="chip gold" data-v="카드원고" title="강단 화면용 카드원고 — 원고와 따로 저장됩니다(처음 열면 AI 초안)">카드원고</span>
           <span class="chip on" data-v="기본원고">기본원고</span>
           <span class="chip" data-v="자유원고">자유원고</span>
@@ -3784,6 +3785,7 @@ function heldApply(force){
         r['원고텍스트'] = loc['원고텍스트']; if (loc._txt) r._txt = loc._txt; if (loc._txtAt) r._txtAt = loc._txtAt;
       }
       if (loc && !String(r['카드원고'] || '').trim() && String(loc['카드원고'] || '').trim()) r['카드원고'] = loc['카드원고'];   /* v635: 목록엔 카드원고가 없다 */
+      if (loc && !String(r['프롬프터원고'] || '').trim() && String(loc['프롬프터원고'] || '').trim()) r['프롬프터원고'] = loc['프롬프터원고'];   /* v698: 프롬프터원고도 */
       upsertById(arr, [r]);
     }
     delete H[id]; changed = true;
@@ -3829,6 +3831,7 @@ function mergeDelta(d){
         if (!r || r['ID'] == null) return;
         var old = _local[r['ID']];
         if (old && !String(r['카드원고'] || '').trim() && String(old['카드원고'] || '').trim()) r['카드원고'] = old['카드원고'];   /* v635: 목록엔 카드원고가 없다 */
+        if (old && !String(r['프롬프터원고'] || '').trim() && String(old['프롬프터원고'] || '').trim()) r['프롬프터원고'] = old['프롬프터원고'];   /* v698: 프롬프터원고도 */
         if (old && !String(r['원고텍스트'] || '').trim() && String(old['원고텍스트'] || '').trim()) {
           r['원고텍스트'] = old['원고텍스트']; if (old._txt) r._txt = old._txt;
           if (old._txtAt) r._txtAt = old._txtAt;   /* 스탬프 없는 옛 캐시는 그대로 '낡음'으로 남겨 1회 자가치유 */
@@ -3898,6 +3901,8 @@ function _pullData(opts){
          본문 캐시가 전부 사라져 오프라인 강단에서 설교를 열 수 없었다. 수정일이 바뀐 행은 _txtStale 이 열 때 다시 받는다. */
       var _lc = {}; (state.data.sermons || []).forEach(function(r){ if (r && r['ID'] != null && String(r['카드원고'] || '').trim()) _lc[r['ID']] = r['카드원고']; });
       (d.sermons || []).forEach(function(r){ if (r && _lc[r['ID']] && !String(r['카드원고'] || '').trim()) r['카드원고'] = _lc[r['ID']]; });   /* v635 카드원고도 보존 */
+      var _lp = {}; (state.data.sermons || []).forEach(function(r){ if (r && r['ID'] != null && String(r['프롬프터원고'] || '').trim()) _lp[r['ID']] = r['프롬프터원고']; });
+      (d.sermons || []).forEach(function(r){ if (r && _lp[r['ID']] && !String(r['프롬프터원고'] || '').trim()) r['프롬프터원고'] = _lp[r['ID']]; });   /* v698 프롬프터원고도 보존 */
       var _lt = {}; (state.data.sermons || []).forEach(function(r){ if (r && r['ID'] != null && String(r['원고텍스트'] || '').trim()) _lt[r['ID']] = r; });
       (d.sermons || []).forEach(function(r){
         var o = r && _lt[r['ID']]; if (!o || String(r['원고텍스트'] || '').trim()) return;
@@ -4415,12 +4420,13 @@ function openMerge_(d){
   if (!d || !d.ID) return null;
   var r = Object.assign({}, d), same = !!r._same;
   delete r._same;
-  if (!same && r['원고텍스트'] != null) { r._txt = true; r._txtAt = String(r['수정일'] || '') || nowLocalStr_(); }
+  if (!same && r['원고텍스트'] != null) { r._txt = true; r._txtAt = String(r['수정일'] || '') || nowLocalStr_(); pmColSet(r['프롬프터원고'] !== undefined); }   /* v698: 키가 없으면 시트에 「프롬프터원고」 칸이 없다 */
   mergeDelta({ sermons: [r], deletes: [] });
   var cur = findSermon(String(r.ID));
   if (!same && cur && String(_editingGuardId() || '') !== String(r.ID)) {
     /* 델타 병합은 '빈 본문 = 목록이라 생략된 것'으로 보고 로컬 본문을 살린다 — open 은 진짜 값이므로 그대로 쓴다 */
     cur['원고텍스트'] = r['원고텍스트']; if (r['카드원고'] != null) cur['카드원고'] = r['카드원고'];
+    if (r['프롬프터원고'] != null) cur['프롬프터원고'] = r['프롬프터원고'];   /* v698 */
     cur._txt = true; cur._txtAt = r._txtAt;
   }
   saveData();
@@ -4463,6 +4469,8 @@ function ensureText(id){
     if (d && d['전사문'] != null && String(d['전사문']).trim()) s['전사문'] = d['전사문'];
     if (d && d['카드원고'] != null) s['카드원고'] = d['카드원고'];   /* v635 카드원고 문서(별도 칸) */
     else if (d && d['원고텍스트'] != null) state._noCardCol = true;   /* 시트에 「카드원고」 칸이 아직 없다(Code.gs 미반영) */
+    if (d && d['프롬프터원고'] != null) s['프롬프터원고'] = d['프롬프터원고'];   /* v698 프롬프터 원고(별도 칸) */
+    if (d && d['원고텍스트'] != null) pmColSet(d['프롬프터원고'] !== undefined);   /* 키가 없으면 시트에 칸이 없다(Code.gs 미반영) */
     s._txt = true; s._txtAt = mod0 || String(s['수정일'] || '') || nowLocalStr_(); saveData(); return s;
   }).catch(function(){
     /* 통신 실패 → 캐시 본문 유지. 단, 낡은 캐시임을 알면서 갱신에 실패한 경우엔 알려준다. */
@@ -11696,7 +11704,7 @@ function pStructFilled(p){ return pBlocks(p).some(function(b){ return (b.body ||
 function pHasContent(p){ return p && ((p.text || '').trim() || pStructFilled(p)); }
 /* 구조(서론·대지·결론)에 작성된 내용이 하나라도 있는가 */
 function structHasContent(c){ return !!((c.intro || '').trim() || (c.concBody || '').trim() || (c.points || []).some(pHasContent)); }
-function newCompose(){ return { style: '기본원고', introTitle: '', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', concBodySeeded: false, points: [newPoint()], cards: null }; }
+function newCompose(){ return { style: '기본원고', introTitle: '', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', concBodySeeded: false, points: [newPoint()], cards: null, prompter: null, prompterBase: null }; }
 
 /* ===================== 카드원고 = 따로 저장되는 문서 (v635) =====================
    기본원고·자유원고는 같은 원고(원고텍스트)를 보여 주는 방식만 다르다. 카드원고는 그 원고를 추려 강단 화면용으로
@@ -11739,6 +11747,7 @@ function composeNormCard(c){
   if (!c) return c;
   if (c.style === '카드원고' && c.cards === undefined) { c.style = '기본원고'; c.baseStyle = '기본원고'; }
   if (c.cards === undefined) c.cards = null;
+  if (c.prompter === undefined) { c.prompter = null; c.prompterBase = null; }   /* v698 */
   return c;
 }
 /* 원고(원고텍스트) 산출물의 서식 — 카드원고는 별도 문서가 됐으므로 옛 행의 원고유형 '카드원고'도 기본원고 서식으로 */
@@ -11906,13 +11915,49 @@ function prCards(){ var c = state.compose; return (c && Array.isArray(c.cards)) 
 /* 고친 글 — 설교별·기기별. base = 고치기 시작할 때 자동 원고의 지문(카드원고·설정이 그 뒤 바뀌었는지 알리려고) */
 function prKey(){ return 'tsa.prEdit.' + (state.editing || '_new'); }
 function prHash(s){ var h = 5381; s = String(s || ''); for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
-function prSaved(){ try { var s = JSON.parse(localStorage.getItem(prKey()) || 'null'); return (s && typeof s.text === 'string') ? s : null; } catch (e) { return null; } }
+/* v698: 고친 글은 작성 버퍼 c.prompter(시트 「프롬프터원고」 칸) — 고친 적 없거나 되돌렸으면(null·'') 자동 원고 */
+function prSaved(){ var c = state.compose; return (c && c.prompter) ? { text: String(c.prompter), base: c.prompterBase || '' } : null; }
+/* 시트 칸 ↔ 버퍼: JSON {v:1, text:편집 글(빈 줄 = 묶음 경계), base:카드원고 지문, width:한 줄 칸 수} — 사역 안경 앱도 이 형식을 읽는다.
+   null = 칸을 건드리지 않음(고친 적 없음) · '' = 되돌림(시트 칸을 비움). 손으로 넣은 글(JSON 아님)은 글 그대로 읽는다. */
+var PR_CELL_MAX = 49000;
+function prCellOf(c){
+  if (!c || c.prompter == null) return null;
+  if (!String(c.prompter).trim()) return '';
+  var s = JSON.stringify({ v: 1, text: String(c.prompter), base: c.prompterBase || '', width: prOpt().width });
+  if (s.length > PR_CELL_MAX) {   /* 셀 한도(5만 자) — 넘치면 보내지 않는다(행 전체 저장이 실패하지 않게) */
+    if (!prCellOf._w) { prCellOf._w = 1; toast('프롬프터 원고가 너무 길어(' + s.length + '자) 시트에 저장하지 않습니다 — 묶음을 줄여 주세요.'); }
+    return null;
+  }
+  return s;
+}
+function prCellParse(v){
+  v = String(v == null ? '' : v); if (!v.trim()) return null;
+  if (/^\s*\{/.test(v)) { try { var o = JSON.parse(v); if (o && typeof o.text === 'string') return o.text.trim() ? { text: o.text, base: String(o.base || ''), width: +o.width || 0 } : null; } catch (e) {} }
+  return { text: v, base: '', width: 0 };
+}
+/* 저장 뒤 — 시트 칸이 있으면 이 기기의 옛 저장분을 지우고, 칸이 없거나 아직 모르면 사본을 남긴다(초안은 저장과 함께 지워지므로) */
+function pmAfterSave(cap, id){
+  try { if (pmView()) pmSumSoon(); } catch (e) {}   /* 「저장 전」 표시를 지운다 */
+  try {
+    var pr = cap && cap.compose ? cap.compose.prompter : null; if (pr == null || !id) return;
+    var k = 'tsa.prEdit.' + id;
+    if (pmColKnown() || !String(pr).trim()) localStorage.removeItem(k);
+    else localStorage.setItem(k, JSON.stringify({ text: String(pr), base: cap.compose.prompterBase || '', at: Date.now(), m: 1 }));
+  } catch (e) {}
+}
+/* 시트에 「프롬프터원고」 칸이 있는가 — open·text 응답에 키가 있으면 있다. 한 번 확인되면 이 시트 주소로 기억(앱을 다시 열어도) */
+function pmColSet(on){ state._pmCol = !!on; try { if (on) localStorage.setItem('tsa.pmCol', String((state.settings || {}).url || '')); } catch (e) {} }
+function pmColKnown(){
+  if (state._pmCol != null) return state._pmCol === true;   /* 이번에 직접 확인한 값이 먼저 */
+  try { var u = localStorage.getItem('tsa.pmCol'); if (u && u === String((state.settings || {}).url || '')) return true; } catch (e) {}
+  return ((state.data && state.data.sermons) || []).some(function(r){ return r && String(r['프롬프터원고'] || '').trim(); });   /* 받아 둔 값이 있으면 칸이 있다 */
+}
 function prAuto(){ return prBuild(prCards(), prOpt()); }
 function prResult(){
   var o = prOpt(), auto = prAuto(), sv = prSaved();
   if (!sv) { auto.edited = false; return auto; }
   var r = prFromEdit(sv.text, o.width);
-  r.edited = true; r.stale = sv.base !== prHash(prToEdit(auto.blocks));
+  r.edited = true; r.stale = !!sv.base && sv.base !== prHash(prToEdit(auto.blocks));
   return r;
 }
 function prRefHtml(t){ return esc(String(t || '')).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>'); }
@@ -11965,10 +12010,10 @@ var P_PROMPTER = [
 ].join('\n');
 /* [✦ AI로 다시 쓰기] — 카드원고(+원고 전문)를 문체 지침으로 다시 써 고친 원고로 저장하고 프롬프터 보기에 넣는다 */
 async function prAI(){
-  pmSaveNow();
+  var c0 = state.compose;
   if (!prCards().some(function(t){ return String(t || '').trim(); })) { toast('카드원고가 없습니다 — 프롬프터 원고는 카드원고를 뼈대로 씁니다. [카드원고]를 먼저 만들어 주세요.'); return; }
   if (prSaved() && !await uiConfirm('지금 고친 프롬프터 원고를 AI 초안으로 바꿀까요?\n고친 내용은 사라집니다.')) return;
-  var key = prKey(), base = prHash(prToEdit(prAuto().blocks));
+  var base = prHash(prToEdit(prAuto().blocks));
   var input = { '제목': cardTitleNow(), '카드원고': cardsJoin(prCards()), '원고전문': '' };
   try { input['원고전문'] = String(assembleText() || '').trim(); } catch (e) {}
   var out;
@@ -11976,15 +12021,17 @@ async function prAI(){
   catch (e) { toast('AI 초안을 만들지 못했습니다 — ' + ((e && e.message) || e)); return; }
   var t = String(out || '').replace(/\r/g, '').replace(/^\s*```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/, '').replace(/\*\*/g, '').trim();
   if (t.split('\n').filter(function(l){ return l.trim(); }).length < 6) { toast('AI 응답이 비어 있거나 너무 짧습니다 — 다시 시도해 주세요.'); return; }
-  if (_pm.key === key) { clearTimeout(_pmSaveT); _pm.dirty = false; }   /* 기다리는 동안 친 글이 AI 초안을 덮지 않게 */
-  try { localStorage.setItem(key, JSON.stringify({ base: base, text: t, at: Date.now(), ai: 1 })); } catch (e) {}
-  if (_pm.key === key && pmView()) { pmLoad(); _pm.cur = 0; pmPaint(); }
-  toast(callClaude.lastStop === 'max_tokens' ? 'AI 응답이 길어 끝부분이 잘렸을 수 있습니다 — 마지막 묶음을 확인해 주세요.' : 'AI 초안을 만들었습니다 — 빨간 글자를 확인하며 다듬어 주세요.');
+  if (state.compose !== c0) { toast('AI 초안이 왔지만 다른 설교로 옮겨 가 넣지 않았습니다.'); return; }
+  c0.prompter = t; c0.prompterBase = base;
+  try { saveComposeDraftSoon(); } catch (e) {}
+  if (pmView()) { pmLoad(); _pm.cur = 0; pmPaint(); }
+  toast(callClaude.lastStop === 'max_tokens' ? 'AI 응답이 길어 끝부분이 잘렸을 수 있습니다 — 마지막 묶음을 확인해 주세요.' : 'AI 초안을 만들었습니다 — 빨간 글자를 확인하며 다듬은 뒤 [저장]하세요.');
 }
 /* ── v697 원고 스타일 [프롬프터] — MemoMind One 안경 화면을 흉내 낸 작성창 (목사님 요청 2026-10-23) ──
    v693~v696 의 「MemoMind 프롬프터용 복사」 창(내보내기 메뉴)을 원고 스타일 칩으로 옮겼다(카드원고 왼쪽 — 자주 쓰므로).
    카드원고처럼 원고를 바꾸지 않는 보기다: c.style = '프롬프터', 원고 형식은 c.baseStyle(composeBaseStyle).
-   글은 예전 그대로 이 기기·설교별 localStorage(tsa.prEdit.<ID>) — 고친 적이 없으면 카드원고에서 자동으로 만든 글(prAuto)을 보여 준다.
+   v698: 글은 작성 버퍼 c.prompter(고친 적 없으면 null — 카드원고에서 자동으로 만든 글 prAuto 를 보여 준다)이고, 원고처럼 [저장]하면
+   시트 「프롬프터원고」 칸에 간다(prCellOf/prCellParse — 사역 안경 앱도 읽는다). v697 까지 이 기기에만 두던 글(tsa.prEdit.<ID>)은 처음 볼 때 버퍼로 옮긴다.
    화면 = 안경(600×350, 검정 바탕·초록 글자)과 같은 비율.
    [한 장씩](기본): 가운데 상자 = 지금 읽는 묶음(3줄 × 한 줄 W칸, 안경과 같은 글자 크기 비율) · 위 = 지난 글의 끝 2줄 · 아래 = 다음 글의 첫 2줄
    (작고 흐리게, 누르면 그 묶음으로). [전체 글]: 빈 줄로 묶음을 나눈 글 전체(v695 편집 화면).
@@ -11996,9 +12043,9 @@ async function prAI(){
 var PM_GEO = { w: 600, line: 540, lh: 1.42, ctx: .64, gap: 14, padY: 22, max: 920 };
 var PM_LINES = 3, PM_CTX = 2, PM_FONT = '-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif';
 var PM_SEP = /\n[ \t　​]*\n/;
-var _pm = { key: '', comp: null, blocks: [''], cur: 0, auto: '', base: '', dirty: false, mode: 'page' };
+var _pm = { comp: null, blocks: [''], cur: 0, auto: '', base: '', mode: 'page' };
 try { if (localStorage.getItem('tsa.pmMode') === 'all') _pm.mode = 'all'; } catch (e) {}
-var _pmRef = 'ms', _pmSaveT = 0, _pmCal = null;
+var _pmRef = 'ms', _pmCal = null;
 function pmView(){ return document.querySelector('#editorPane .pmView'); }
 function pmTaPage(){ return document.querySelector('#editorPane .pmView .pmPage .pmTa'); }
 /* 편집 글(빈 줄 = 묶음 나눔) → 묶음 글 목록 */
@@ -12009,33 +12056,39 @@ function pmSplit(t){
   return b.length ? b : [''];
 }
 function pmJoin(){ return _pm.blocks.map(function(b){ return String(b == null ? '' : b).replace(/^\n+|\n+$/g, ''); }).filter(function(b){ return b.trim(); }).join('\n\n'); }
-function pmSavedObj(){ try { var s = JSON.parse(localStorage.getItem(_pm.key) || 'null'); return (s && typeof s.text === 'string') ? s : null; } catch (e) { return null; } }
-/* 고친 글 저장 — 고친 적 없는 자동 원고와 똑같으면 저장하지 않는다(카드원고가 바뀌면 그대로 따라가도록, v694 와 같은 규칙) */
-function pmSaveNow(){
-  clearTimeout(_pmSaveT);
-  if (!_pm.dirty || !_pm.key) return;
-  _pm.dirty = false;
-  var txt = pmJoin(), sv = pmSavedObj();
-  if (!sv && txt === _pm.auto) return;
-  try { localStorage.setItem(_pm.key, JSON.stringify({ base: (sv && sv.base) || _pm.base, text: txt, at: Date.now() })); }
-  catch (e) { toast('프롬프터 원고를 이 기기에 저장하지 못했습니다 — ' + ((e && e.message) || e)); }
+/* 고친 글을 작성 버퍼에 — 고친 적 없는(또는 되돌린) 자동 원고와 같으면 그대로 둔다(카드원고가 바뀌면 따라가게, v694 와 같은 규칙) */
+function pmCommit(){
+  var c = _pm.comp; if (!c || c !== state.compose) return;
+  var txt = pmJoin();
+  if (!c.prompter && txt === _pm.auto) return;
+  if (!c.prompter) c.prompterBase = _pm.base;
+  c.prompter = txt;
+  try { saveComposeDraftSoon(); } catch (e) {}
 }
-function pmDirty(){ _pm.dirty = true; clearTimeout(_pmSaveT); _pmSaveT = setTimeout(pmSaveNow, 300); }
-/* 지금 설교의 프롬프터 글을 읽는다(앞 설교의 고친 글은 먼저 저장) */
+/* v694~v697 은 고친 글을 이 기기 localStorage(tsa.prEdit.<ID>)에만 두었다 — 시트에 없으면 처음 볼 때 버퍼로 옮긴다([저장]하면 시트로).
+   m:1 = 시트 칸이 없던(모르던) 때 저장 뒤 남긴 사본(pmAfterSave) — 시트 칸이 있다고 확인됐으면 시트가 정본이라 쓰지 않는다. */
+function pmAdoptLocal(c){
+  if (!state.editing || c.prompter != null) return;
+  var sv = null; try { sv = JSON.parse(localStorage.getItem(prKey()) || 'null'); } catch (e) {}
+  if (!sv || typeof sv.text !== 'string' || !sv.text.trim() || (sv.m && pmColKnown())) return;
+  c.prompter = sv.text; c.prompterBase = sv.base || null;
+  try { saveComposeDraftSoon(); } catch (e) {}
+  toast('이 기기에만 있던 고친 프롬프터 원고를 불러왔습니다 — [저장]하면 시트에도 저장되어 다른 기기·안경 앱에서 보입니다.');
+  return true;
+}
+var _pmAdoptSeen = typeof WeakSet === 'function' ? new WeakSet() : null;
+/* 지금 작성 버퍼의 프롬프터 글을 읽는다(같은 버퍼면 보던 묶음 그대로) */
 function pmLoad(){
-  var k = prKey();
-  pmSaveNow();
-  if (_pm.key && _pm.key !== k && _pm.comp === state.compose && /\._new$/.test(_pm.key) && state.editing) {
-    /* 새 설교가 첫 저장으로 ID 를 받았다(같은 작성 버퍼) — 「_new」 에 고친 글을 그 ID 로 옮긴다 */
-    try { var o = localStorage.getItem(_pm.key); if (o && !localStorage.getItem(k)) { localStorage.setItem(k, o); localStorage.removeItem(_pm.key); } } catch (e) {}
+  var c = state.compose, same = _pm.comp === c;
+  /* 옛 저장분은 작성창을 다 연 뒤(저장 서명을 잡은 뒤) 옮긴다 — 그래야 「저장 전」으로 보여 [저장]을 잊지 않는다 */
+  if (c.prompter == null && _pmAdoptSeen && !_pmAdoptSeen.has(c)) {
+    _pmAdoptSeen.add(c);
+    setTimeout(function(){ if (state.compose === c && pmAdoptLocal(c) && pmView()) { pmLoad(); pmPaint(); } }, 0);
   }
-  var same = _pm.key === k;
-  _pm.key = k; _pm.comp = state.compose;
+  _pm.comp = c;
   _pm.auto = prToEdit(prAuto().blocks); _pm.base = prHash(_pm.auto);
-  var sv = pmSavedObj();
-  _pm.blocks = pmSplit(sv ? sv.text : _pm.auto);
+  _pm.blocks = pmSplit(c.prompter ? c.prompter : _pm.auto);
   _pm.cur = same ? Math.max(0, Math.min(_pm.cur, _pm.blocks.length - 1)) : 0;
-  _pm.dirty = false;
 }
 /* 기기 글꼴 실측 — 한글 한 글자·띄어쓰기의 폭(글자 크기 대비) */
 function pmCalib(){
@@ -12121,14 +12174,17 @@ function pmAllBkPaint(){
 }
 function pmSum(){
   var v = pmView(); if (!v) return;
-  var cols = prOpt().width, n = 0, over = 0, sv = pmSavedObj(), edited = !!sv || _pm.dirty;
+  var cols = prOpt().width, n = 0, over = 0, sv = prSaved(), edited = !!sv, dirty = false;
+  try { dirty = composeDirty(); } catch (e) {}
   _pm.blocks.forEach(function(b){ if (!String(b || '').trim()) return; n++; if (pmOver(b, cols)) over++; });
   v.querySelector('.pmSum').innerHTML = '<b>' + n + '묶음</b> · 한 줄 ' + cols + '칸 · 3줄씩'
     + (over ? ' · <span class="pmOverTx">넘침 ' + over + '묶음</span>' : '')
-    + ' · ' + (edited ? '고친 원고(이 기기에 저장)' : (prCards().some(function(t){ return String(t || '').trim(); }) ? '카드원고에서 자동' : '카드원고 없음'));
-  var w = v.querySelector('.pmWarn'), stale = !!(sv && sv.base !== _pm.base);
-  w.hidden = !stale;
-  if (stale) w.textContent = '고친 뒤에 카드원고나 설정이 바뀌었습니다 — 새 카드원고를 반영하려면 [카드원고에서 다시 만들기]를 누르세요(고친 내용은 사라집니다).';
+    + ' · ' + (edited ? '고친 원고' : (prCards().some(function(t){ return String(t || '').trim(); }) ? '카드원고에서 자동' : '카드원고 없음'))
+    + (dirty ? ' · <span class="pmUnsaved">저장 전</span>' : '');
+  var w = v.querySelector('.pmWarn'), msg = [];
+  if (sv && sv.base && sv.base !== _pm.base) msg.push('고친 뒤에 카드원고나 설정이 바뀌었습니다 — 새 카드원고를 반영하려면 [카드원고에서 다시 만들기]를 누르세요(고친 내용은 사라집니다).');
+  if (edited && state._pmCol === false) msg.push('시트에 「프롬프터원고」 칸이 아직 없습니다 — Apps Script(Code.gs)를 새 버전으로 반영해야 다른 기기·사역 안경 앱에서 보입니다(그 전에는 [저장]해도 이 기기에만 남습니다).');
+  w.hidden = !msg.length; w.innerHTML = msg.map(esc).join('<br>');
   v.querySelector('[data-pm="reset"]').hidden = !edited;
 }
 var pmSumSoon = debounce(pmSum, 200);
@@ -12145,7 +12201,7 @@ function pmPaint(caret){
     var at = v.querySelector('.pmAll .pmTa'), t = pmJoin();
     if (at.value !== t) { var s0 = at.selectionStart, s1 = at.selectionEnd; at.value = t; try { at.setSelectionRange(Math.min(s0, t.length), Math.min(s1, t.length)); } catch (e) {} }
     at.placeholder = empty ? '카드원고가 아직 없습니다 — [카드원고]를 먼저 만들면 여기에 자동으로 채워집니다. 직접 써도 됩니다(빈 줄 = 묶음 나눔).' : '';
-    pmAllBkPaint(); pmSum(); return;
+    pmAllBkPaint(); pmSum(); pmSumSoon(); return;
   }
   _pm.cur = Math.max(0, Math.min(n - 1, _pm.cur));
   var prev = [], next = [], i, j;
@@ -12166,12 +12222,12 @@ function pmPaint(caret){
     var p = caret === 'end' ? ta.value.length : caret === 'start' ? 0 : Math.max(0, Math.min(+caret || 0, ta.value.length));
     try { ta.focus({ preventScroll: true }); ta.setSelectionRange(p, p); } catch (e) {}
   }
-  pmSum();
+  pmSum(); pmSumSoon();   /* 작성창을 다시 그린 직후엔 저장 서명이 아직 옛것일 수 있다 — 한 번 더 */
 }
 function pmGo(i, caret){
   var n = _pm.blocks.length; i = Math.max(0, Math.min(n - 1, i));
   if (i === _pm.cur) { if (caret != null) pmPaint(caret); return; }
-  if (n > 1 && !String(_pm.blocks[_pm.cur] || '').trim()) { _pm.blocks.splice(_pm.cur, 1); if (i > _pm.cur) i--; pmDirty(); }   /* 빈 묶음을 떠나면 지운다 */
+  if (n > 1 && !String(_pm.blocks[_pm.cur] || '').trim()) { _pm.blocks.splice(_pm.cur, 1); if (i > _pm.cur) i--; pmCommit(); }   /* 빈 묶음을 떠나면 지운다 */
   _pm.cur = i; pmPaint(caret);
 }
 async function pmOp(op){
@@ -12181,30 +12237,30 @@ async function pmOp(op){
   if (op === 'next') { pmGo(i + 1, foc ? 'start' : null); return; }
   if (op === 'split') {
     if (!foc) { toast('나눌 자리에 커서를 둔 뒤 누르세요 (⌘↩ 로도 나눕니다).'); return; }
-    B.splice(i, 1, v.slice(0, a).replace(/\s+$/, ''), v.slice(a).replace(/^\s+/, '')); _pm.cur = i + 1; pmDirty(); pmPaint(0); return;
+    B.splice(i, 1, v.slice(0, a).replace(/\s+$/, ''), v.slice(a).replace(/^\s+/, '')); _pm.cur = i + 1; pmCommit(); pmPaint(0); return;
   }
   if (op === 'merge') {
     if (i < 1) return;
     var p = String(B[i - 1] || '').replace(/\s+$/, ''), cur = v.replace(/^\s+/, ''), glue = p && cur ? '\n' : '';
-    B.splice(i - 1, 2, p + glue + cur); _pm.cur = i - 1; pmDirty(); pmPaint(p.length + glue.length); return;
+    B.splice(i - 1, 2, p + glue + cur); _pm.cur = i - 1; pmCommit(); pmPaint(p.length + glue.length); return;
   }
-  if (op === 'add') { B.splice(i + 1, 0, ''); _pm.cur = i + 1; pmDirty(); pmPaint(0); return; }
+  if (op === 'add') { B.splice(i + 1, 0, ''); _pm.cur = i + 1; pmCommit(); pmPaint(0); return; }
   if (op === 'del') {
     if (v.trim() && !await uiConfirm('이 묶음(' + (i + 1) + ')을 지울까요?')) return;
-    B.splice(i, 1); if (!B.length) B.push(''); _pm.cur = Math.min(i, B.length - 1); pmDirty(); pmPaint(foc ? 0 : null); return;
+    B.splice(i, 1); if (!B.length) B.push(''); _pm.cur = Math.min(i, B.length - 1); pmCommit(); pmPaint(foc ? 0 : null); return;
   }
   if (op === 'fit') {
     if (!pmOver(v, cols)) { toast('이 묶음은 안경 한 화면(한 줄 ' + cols + '칸 · 3줄)에 들어갑니다.'); return; }
     var parts = prFromEdit(v, cols).blocks.map(function(b){ return b.filter(function(l){ return l !== PR_SPACER; }).join('\n'); });
     if (!parts.length) return;
-    B.splice.apply(B, [i, 1].concat(parts)); pmDirty(); pmPaint(foc ? 0 : null);
+    B.splice.apply(B, [i, 1].concat(parts)); pmCommit(); pmPaint(foc ? 0 : null);
     toast(parts.length > 1 ? '넘친 줄을 나눠 ' + parts.length + '묶음이 됐습니다.' : '긴 줄을 안경 폭에 맞춰 나눴습니다.'); return;
   }
   if (op === 'fitall') {
     var r = prFromEdit(pmJoin(), cols);
     if (!r.wrapped && !r.split) { toast('넘치는 줄이 없습니다.'); return; }
     _pm.blocks = r.blocks.map(function(b){ return b.filter(function(l){ return l !== PR_SPACER; }).join('\n'); });
-    _pm.cur = Math.min(_pm.cur, _pm.blocks.length - 1); pmDirty(); pmPaint();
+    _pm.cur = Math.min(_pm.cur, _pm.blocks.length - 1); pmCommit(); pmPaint();
     toast('긴 줄 ' + r.wrapped + '개 · 3줄 넘는 묶음 ' + r.split + '개를 안경 화면에 맞춰 나눴습니다.'); return;
   }
 }
@@ -12219,11 +12275,10 @@ function pmSplitTyped(ta){
     if (k === ci) { co = Math.max(0, co - lead); ncur = nb.length; nb.push(p); return; }
     if (p.trim()) nb.push(p);
   });
-  _pm.blocks.splice.apply(_pm.blocks, [_pm.cur, 1].concat(nb)); _pm.cur += ncur; pmDirty(); pmPaint(co);
+  _pm.blocks.splice.apply(_pm.blocks, [_pm.cur, 1].concat(nb)); _pm.cur += ncur; pmCommit(); pmPaint(co);
 }
 function pmSetMode(m){
   var v = pmView(); if (!v || m === _pm.mode) return;
-  pmSaveNow();
   if (m === 'page') {
     var at = v.querySelector('.pmAll .pmTa'), val = at.value, a = at.selectionStart || 0;
     _pm.blocks = pmSplit(val); _pm.cur = Math.max(0, Math.min(pmSplit(val.slice(0, a) + 'x').length - 1, _pm.blocks.length - 1));
@@ -12299,7 +12354,7 @@ function pmEditorHtml(){
         '· <span class="pmOverTx">빨간 글자</span> = 안경 한 화면 밖(한 줄 칸 수를 넘어 꺾이거나 4번째 줄부터) — [넘친 줄 정리]로 나누거나, 고치지 않으면 [본문 복사] 때 자동으로 나눕니다.<br>' +
         '· 첫·끝 줄에서 <b>↑↓</b> · <b>⌥↑⌥↓</b> · PageUp/PageDown = 묶음 이동 · <b>⌘↩</b>(Ctrl+Enter) = 커서에서 나누기 · 맨 앞 <b>⌫</b> = 앞 묶음과 합치기 · 3줄이 찬 묶음 끝에서 <b>↩</b> 또는 빈 줄(↩ 두 번) = 새 묶음 · <b>⇧↩</b> = 묶음 안 줄바꿈.<br>' +
         '· [전체 글] = 빈 줄로 묶음을 나눈 글 전체를 한 번에 고칩니다(붙여넣기·많이 고칠 때).<br>' +
-        '· 고친 글은 이 기기에 설교별로 자동 저장됩니다(시트에는 저장되지 않습니다). 고치지 않았으면 카드원고가 바뀔 때 따라 바뀝니다.<br>' +
+        '· 고친 글은 원고처럼 <b>[저장]</b>하면 시트(「프롬프터원고」 칸)에 함께 저장되어 다른 기기와 사역 안경 앱에서도 읽습니다. 고치지 않았으면 카드원고가 바뀔 때 따라 바뀝니다.<br>' +
         '· 실제 안경의 기본 프롬프터는 글자 크기를 한 가지로만 그립니다 — 위아래 줄이 작게 보이는 것은 이 작성창에서만입니다.' +
       '</div></details>' +
   '</div>';
@@ -12310,6 +12365,7 @@ async function pmEnter(){
   var c = state.compose;
   if (c.style !== '카드원고' && c.style !== '프롬프터') c.baseStyle = composeBaseStyle(c);
   c.style = '프롬프터';
+  if (state._pmCol === false && !window._pmColWarned) { window._pmColWarned = 1; toast('시트에 「프롬프터원고」 칸이 아직 없습니다 — Apps Script(Code.gs)를 새 버전으로 반영해야 프롬프터 원고가 시트에 저장됩니다.'); }
   setStyleChips(); renderEditor();
   try { saveComposeDraftSoon(); } catch (e) {}
 }
@@ -12317,17 +12373,17 @@ async function pmAct(op, b){
   if (op === 'page' || op === 'all') { pmSetMode(op); return; }
   if (op === 'ai') { await withBusy(b, ' 쓰는 중…', prAI)(); return; }
   if (op === 'copy') {
-    pmSaveNow();
     var r = prResult();
     if (!r.blocks.length) { toast('프롬프터 원고가 비어 있습니다.'); return; }
     xferCopy(r.text, '복사했습니다(' + r.blocks.length + '묶음) — MemoMind 앱 › 프롬프터 › 원고 추가에서 붙여넣으세요.'); return;
   }
   if (op === 'title') { if (!String(cardMetaNow()['제목'] || '').trim()) { toast('제목이 비어 있습니다.'); return; } xferCopy(cardTitleNow(), '제목을 복사했습니다.'); return; }
   if (op === 'reset') {
-    if (!await uiConfirm('고친 프롬프터 원고를 버리고 지금 카드원고에서 다시 만들까요?')) return;
-    clearTimeout(_pmSaveT); _pm.dirty = false;
-    try { localStorage.removeItem(_pm.key); } catch (e) {}
-    pmLoad(); _pm.cur = 0; pmPaint(); toast('카드원고에서 다시 만들었습니다.'); return;
+    if (!await uiConfirm('고친 프롬프터 원고를 버리고 지금 카드원고에서 다시 만들까요?\n[저장]하면 시트에 있던 고친 원고도 지워집니다.')) return;
+    var c = state.compose; c.prompter = ''; c.prompterBase = null;   /* '' = 되돌림 — 저장할 때 시트 칸을 비운다 */
+    try { localStorage.removeItem(prKey()); } catch (e) {}
+    pmLoad(); _pm.cur = 0; pmPaint(); try { saveComposeDraftSoon(); } catch (e) {}
+    toast('카드원고에서 다시 만들었습니다 — [저장]하면 시트에도 반영됩니다.'); return;
   }
   pmOp(op);
 }
@@ -12342,12 +12398,10 @@ async function pmAct(op, b){
   });
   pane.addEventListener('input', function(e){
     var t = e.target; if (!t.closest || !t.closest('.pmView')) return;
-    e.stopPropagation();   /* 작성 버퍼는 그대로라 작성초안 저장(#page-compose)을 깨우지 않는다 */
-    if (t.classList.contains('pmRange')) { pmGo(+t.value - 1); return; }
-    if (!t.classList.contains('pmTa')) return;
-    if (t.closest('.pmAll')) { _pm.blocks = t.value.split(PM_SEP); pmDirty(); pmAllBkPaint(); pmSumSoon(); return; }
+    if (!t.classList.contains('pmTa')) { e.stopPropagation(); if (t.classList.contains('pmRange')) pmGo(+t.value - 1); return; }   /* 이동·설정 칸은 원고가 아니다 — 작성초안 저장을 깨우지 않는다 */
+    if (t.closest('.pmAll')) { _pm.blocks = t.value.split(PM_SEP); pmCommit(); pmAllBkPaint(); pmSumSoon(); return; }
     if (!e.isComposing && PM_SEP.test(t.value)) { pmSplitTyped(t); return; }
-    _pm.blocks[_pm.cur] = t.value; pmDirty(); pmBoxPaint(); pmSumSoon();
+    _pm.blocks[_pm.cur] = t.value; pmCommit(); pmBoxPaint(); pmSumSoon();
   });
   pane.addEventListener('change', function(e){
     var t = e.target; if (!t.name || !/^pr(W|Merge|Marks)$/.test(t.name) || !t.closest('.pmView')) return;
@@ -12381,8 +12435,6 @@ async function pmAct(op, b){
     }).observe(pane);
   }
   try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ _pmCal = null; if (state.compose && state.compose.style === '프롬프터') pmLayout(); }); } catch (e) {}
-  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') pmSaveNow(); });
-  window.addEventListener('pagehide', pmSaveNow);
 })();
 
 /* ── 측정(실제 쪽과 같은 글꼴·크기 비율) ── */
@@ -13833,7 +13885,6 @@ $$('#c_style .chip').forEach(function(ch){
     if (from === to) { setStyleChips(); return; }
     var c = state.compose;
     /* v635: 카드원고는 원고와 다른 문서 — 원고를 바꾸지 않고 보기만 바뀐다(처음이면 AI 초안) */
-    if (from === '프롬프터') pmSaveNow();
     if (to === '카드원고') { await cardEnter(); return; }
     if (to === '프롬프터') { await pmEnter(); return; }   /* v697 — 원고를 바꾸지 않는 보기(안경 화면 작성창) */
     var viewFrom = '';   /* v697: 아래 자동 저장에서 멈추면 보던 화면(카드원고·프롬프터)으로 되돌린다 */
@@ -14849,6 +14900,7 @@ function collectCompose(){
   data['원고텍스트'] = assembleText();
   data['원고유형'] = composeBaseStyle();   /* v635: 카드원고는 원고 형식이 아니다 — 원고는 기본/자유 */
   if (Array.isArray(state.compose.cards)) data['카드원고'] = cardsJoin(state.compose.cards);   /* 카드원고 문서(별도 칸). 없으면 칸을 건드리지 않는다 */
+  var _pc = prCellOf(state.compose); if (_pc != null) data['프롬프터원고'] = _pc;   /* v698 프롬프터 원고(별도 칸). 고친 적 없으면 건드리지 않고, 되돌렸으면 비운다 */
   return data;
 }
 /* 시트 저장본과 비교용 서명 — 토글 등에서 미저장 변경 감지 */
@@ -14871,7 +14923,7 @@ function structSig(){
     return JSON.stringify([c.intro || '', c.concIntro || '', (c.concPtsEdited ? (c.concPoints || '') : ''), c.concBody || '', pts]);
   } catch (e) { return ''; }
 }
-function composeHasAnyContent(){ var c = state.compose; return !!((c.free || '').trim()) || structHasContent(c) || (Array.isArray(c.cards) && c.cards.some(function(t){ return String(t || '').trim(); })); }
+function composeHasAnyContent(){ var c = state.compose; return !!((c.free || '').trim()) || structHasContent(c) || (Array.isArray(c.cards) && c.cards.some(function(t){ return String(t || '').trim(); })) || !!String(c.prompter || '').trim(); }
 /* 작성 버퍼를 비우거나 다른 항목으로 교체하기 전, 미저장 변경이 있으면 확인.
    true=진행 가능, false=사용자가 취소. 빈 작성칸이거나 저장된 상태 그대로면 조용히 통과. */
 function confirmDiscardCompose(msg){
@@ -14949,6 +15001,7 @@ function editSermonFill(id, noNav){
   if (c.style === '카드원고') c.style = '기본원고';   /* 옛 원고유형 '카드원고' — 이제 카드원고는 별도 문서 */
   c.baseStyle = c.style;
   c.cards = String(s['카드원고'] || '').trim() ? cardsSplit(s['카드원고']) : null;   /* v635 카드원고 문서 */
+  var _pj = prCellParse(s['프롬프터원고']); c.prompter = _pj ? _pj.text : null; c.prompterBase = _pj ? (_pj.base || null) : null;   /* v698 프롬프터 원고(별도 칸) */
   if (_keepCard && c.cards) c.style = '카드원고';
   if (_keepPm) c.style = '프롬프터';
   /* 구상 단계(서론 미작성)면 주제근거를 서론의 바탕으로 채운다 */
@@ -15009,6 +15062,7 @@ function composeSameAsRow(row){
     if (!row) return false;
     if (rtNorm(stripTrailMsg(row['원고텍스트'] || '', row['핵심메시지'])) !== rtNorm(assembleText())) return false;   /* v613: 열 때 뗀 옛 자동 핵심메시지 줄은 차이로 보지 않는다 */
     if (row['카드원고'] !== undefined && cardsJoin(cardsSplit(row['카드원고'] || '')) !== cardsJoin(state.compose.cards || [])) return false;   /* v635 */
+    if (row['프롬프터원고'] !== undefined) { var _pj = prCellParse(row['프롬프터원고']); if ((_pj ? _pj.text : '') !== String(state.compose.prompter || '')) return false; }   /* v698 */
     return Object.keys(C_META).every(function(k){ var el = $('#' + C_META[k]), rv = k === '시리즈' ? seriesShown(row[k]) : row[k]; return String(rv == null ? '' : rv).trim() === String(el ? el.value : '').trim(); });   /* v653: 열 때 비운 「상황설교」는 차이로 보지 않는다 */
   } catch (e) { return false; }
 }
@@ -15163,7 +15217,8 @@ function restoreComposeDraft(){
        — 예: 본문연구 [새 대지로 보내기]로 주해근거만 채운 초안 — 을 통째로 버렸다. */
     var has = !!((c.free || '').trim()) || structHasContent(c)
       || (c.points || []).some(function(p){ return p && ((p.apply || '').trim() || (p.body || '').trim()); })
-      || (Array.isArray(c.cards) && c.cards.some(function(t){ return String(t || '').trim(); }));   /* v635 카드원고만 쓴 초안도 */
+      || (Array.isArray(c.cards) && c.cards.some(function(t){ return String(t || '').trim(); }))   /* v635 카드원고만 쓴 초안도 */
+      || !!String(c.prompter || '').trim();   /* v698 프롬프터 원고만 고친 초안도 */
     if (!has) return false;
     state.editing = d.editing || null;
     state.versionOf = d.versionOf || null;
@@ -15565,9 +15620,10 @@ function histCapture(reason){
   var comp = null; try { comp = JSON.parse(JSON.stringify(state.compose)); } catch (e) {}
   var text = ''; try { text = assembleText(); } catch (e) {}
   var cards = (state.compose && Array.isArray(state.compose.cards)) ? cardsJoin(state.compose.cards) : null;
-  return { at: Date.now(), reason: reason || '', meta: meta, style: state.compose ? composeBaseStyle(state.compose) : '', text: text, cards: cards, compose: comp };
+  var prompter = (state.compose && state.compose.prompter) || null;   /* v698 */
+  return { at: Date.now(), reason: reason || '', meta: meta, style: state.compose ? composeBaseStyle(state.compose) : '', text: text, cards: cards, prompter: prompter, compose: comp };
 }
-function histSig(e){ try { return JSON.stringify([e.meta, e.style, e.text, e.cards || null]); } catch (x) { return ''; } }
+function histSig(e){ try { return JSON.stringify(e.prompter ? [e.meta, e.style, e.text, e.cards || null, e.prompter] : [e.meta, e.style, e.text, e.cards || null]); } catch (x) { return ''; } }
 function histPush(key, cap){
   if (!cap || !cap.compose) return Promise.resolve(false);
   return idbGet(key).then(function(list){
@@ -15601,6 +15657,7 @@ function histAfterSave(cap, id, wasNew){
   try {
     if (!cap || !id || typeof id !== 'string') return;
     introTitlePersist(id, cap.compose ? cap.compose.introTitle : (state.compose && state.compose.introTitle));   /* v580 서론 제목 → 파일맵 */
+    pmAfterSave(cap, id);   /* v698 */
     (wasNew ? histAdoptNew(id) : Promise.resolve()).then(function(){ return histPush(histKey(id), cap); }).catch(function(){});
   } catch (e) {}
 }
@@ -23741,7 +23798,7 @@ window.addEventListener('pagehide', lbtSaveNow);
 window.tsbFlush = function(){
   var P = [];
   function add(f){ try { var r = f(); if (r && typeof r.then === 'function') P.push(r.catch(function(){})); } catch (e) {} }
-  add(saveComposeDraft); add(pushComposeDraftRemote); add(occSaveNow); add(zoneSaveNow); add(lbtSaveNow); add(pmSaveNow);
+  add(saveComposeDraft); add(pushComposeDraftRemote); add(occSaveNow); add(zoneSaveNow); add(lbtSaveNow);
   return Promise.all(P).then(function(){ return P.length; });
 };
 
@@ -34058,7 +34115,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v697';
+var APP_VER = 'v698';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
