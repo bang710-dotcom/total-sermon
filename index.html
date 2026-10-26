@@ -170,6 +170,10 @@ label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 5px}
 .toolrow.spDevoRow > #spDevoConfirm{flex:1 1 100%}
 .toolrow.spDevoRow > .btn:not(#spDevoConfirm),.toolrow.spDevoRow > .cmMenuWrap > .btn{flex:0 0 auto;width:auto}
 .toolrow.spDevoRow .cmMenu{min-width:180px}
+/* v720 회차 머리줄의 [이 회차 재생성]·[확정 →] — 예전엔 6px 붙어 있고 폰에서 28px. 확정은 시트에 바로 쓰므로 잘못 누르지 않게 떼어 놓는다 */
+.spWkActs{margin-left:auto;flex:0 0 auto;display:flex;gap:14px;align-items:center}
+.spWkBtn.btn{width:auto;flex:0 0 auto;font-size:var(--fs-sm);padding:5px 10px}
+@media (max-width: 899px), (hover: none){ .spWkActs{gap:18px} .spWkBtn.btn{min-height:44px;padding:8px 12px} }
 .tlarrow{color:var(--dim);font-size:var(--fs-sm)}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:var(--r-pill);padding:7px 14px;font-size:var(--fs-md);cursor:pointer;user-select:none}
@@ -27598,9 +27602,26 @@ async function spDawnRedo(){
 $('#sp_back').addEventListener('click', function(){
   state.seriesMode = 'list'; renderSeriesPage();
 });
-$('#sp_resync').addEventListener('click', function(){
+/* v720 시트에서 다시 짜면 사라지는 이 기기의 작업 — 등록 안 한 묵상 일정 초안, 확정 안 한 선택(·다듬기), 확정 뒤 바꾼 주 */
+function spUnsavedWork(S){
+  var out = [];
+  try {
+    if (!S) return out;
+    if (S.devo && !S.devoDone) out.push('등록하지 않은 묵상 일정 초안');
+    var weeks = (S.sermon && S.sermon.weeks) || [];
+    var pick = weeks.filter(function(w){ return !w.skip && !w.done && w.sel >= 0; }).length;
+    var chg = weeks.filter(function(w){ return w.done && w.sig && w.sig !== weekSig(w); }).length;
+    if (pick) out.push('고르기만 하고 확정하지 않은 ' + pick + '개 회차(다듬은 내용 포함)');
+    if (chg) out.push('확정한 뒤 바꾼 ' + chg + '개 회차');
+  } catch (e) {}
+  return out;
+}
+$('#sp_resync').addEventListener('click', async function(){
   var S = state.series, name = S && S.meta && S.meta['시리즈명'];
   if (!name) { toast('시리즈명이 없습니다.'); return; }
+  /* v720: 예전엔 묻지 않고 시트 기준으로 다시 짜서, 확정하지 않은 선택·다듬기가 한 번에 사라졌다 */
+  var lost = spUnsavedWork(S);
+  if (lost.length && !await uiConfirm('시트에서 다시 불러오면 이 기기에서 아직 시트에 올리지 않은 작업이 사라집니다.\n\n· ' + lost.join('\n· ') + '\n\n그래도 시트 기준으로 다시 불러올까요?', { okText: '다시 불러오기', cancelText: '그대로 두기', danger: true })) return;
   var btn = this; btn.textContent = '동기화 중…'; btn.disabled = true;
   function resetBtn(){ btn.textContent = '↻ 시트에서 재동기화'; btn.disabled = false; }
   sync().then(function(){
@@ -27916,8 +27937,8 @@ function spStatus(){
     }
   }
   $('#sp_status').innerHTML =
-    '① 묵상일정: ' + spStageHtml('시리즈묵상', !!S.devo, S.devoDone, S.devo ? ' (' + S.devo.rows.length + '일)' : '') + '<br>' +
-    '② 설교계획: ' + spStageHtml('시리즈설교', !!S.sermon, S.sermonDone, S.sermon ? ' (' + S.sermon.weeks.length + '주)' : '') +
+    '① 묵상 일정: ' + spStageHtml('시리즈묵상', !!S.devo, S.devoDone, S.devo ? ' (' + S.devo.rows.length + '일)' : '') + '<br>' +
+    '② 설교 계획: ' + spStageHtml('시리즈설교', !!S.sermon, S.sermonDone, S.sermon ? ' (' + S.sermon.weeks.length + '주)' : '') +
     archiveBanner;
   $('#sp_reqSermon').disabled = !S.devoDone;
   /* v713: 지금 해야 할 단계만 채움 — 일정이 없으면 ①, 일정이 있으면 ②, 선택지가 나오면 오른쪽 [선택 항목 전체 확정] */
@@ -28440,9 +28461,9 @@ function spSermonHtml(){
       (_tp ? '<b style="font-size:var(--fs-body)">' + esc(w['회차명'] || (wSeq(w, wi) + '회')) + '</b>'
            : '<b style="font-size:var(--fs-body)">' + wSeq(w, wi) + '주차</b><span class="cnt">' + esc(w['주일']) + ' (주일)</span>') +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:var(--fs-md);font-weight:600">' + sumTitle + '</span>' + (sumRef ? '<span style="color:var(--dim);font-size:var(--fs-sm);font-weight:500;flex-shrink:0">' + sumRef + '</span>' : '') + badge +
-      (!confirmed && !w.skip ? '<span style="margin-left:auto;flex:0 0 auto;display:flex;gap:6px;align-items:center">' +
-        '<button class="btn sub" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation();weekRegenBtn(' + wi + ',this)" style="width:auto;font-size:var(--fs-sm);padding:5px 10px" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
-        '<button class="btn sub" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="flex:0 0 auto;width:auto;font-size:var(--fs-sm);padding:5px 10px">확정 →</button>' +
+      (!confirmed && !w.skip ? '<span class="spWkActs">' +
+        '<button class="btn sub spWkBtn" type="button" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation();weekRegenBtn(' + wi + ',this)" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
+        '<button class="btn sub spWkBtn spWkOk" type="button" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)">확정 →</button>' +
         '</span>' : '') +
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
@@ -29341,9 +29362,9 @@ function spDawnHtml(){
       '<b style="font-size:var(--fs-body)">' + dayLabel + '</b>' +
       (isSun ? '<span class="badge b-idea">주일</span>' : '') +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:var(--fs-md);font-weight:600">' + sumTitle + '</span>' + (sumRef ? '<span style="color:var(--dim);font-size:var(--fs-sm);font-weight:500;flex-shrink:0">' + sumRef + '</span>' : '') + badge +
-      (!confirmed && !w.skip ? '<span style="margin-left:auto;flex:0 0 auto;display:flex;gap:6px;align-items:center">' +
-        '<button class="btn sub" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation();weekRegenBtn(' + wi + ',this)" style="width:auto;font-size:var(--fs-sm);padding:5px 10px" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
-        '<button class="btn sub" data-act="weekConfirm" data-w="' + wi + '" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)" style="flex:0 0 auto;width:auto;font-size:var(--fs-sm);padding:5px 10px">확정 →</button>' +
+      (!confirmed && !w.skip ? '<span class="spWkActs">' +
+        '<button class="btn sub spWkBtn" type="button" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation();weekRegenBtn(' + wi + ',this)" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
+        '<button class="btn sub spWkBtn spWkOk" type="button" data-act="weekConfirm" data-w="' + wi + '" onclick="event.stopPropagation();weekConfirmBtn(' + wi + ',this)">확정 →</button>' +
         '</span>' : '') +
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
@@ -34896,7 +34917,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v719';
+var APP_VER = 'v720';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
