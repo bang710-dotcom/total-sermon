@@ -4837,7 +4837,9 @@ function openDetail(kind, id){
   }
 }
 window.openDetail = openDetail;
-window.closeDetail = function(){ $('#detailPane').classList.remove('open'); document.body.classList.remove('detailOpen'); };
+/* v706: 닫을 때 상세 칸을 처음 안내문으로 되돌린다 — 두 칸 화면에서 처음 화면 카드가 모두 비면 이 칸이 대신 보이는데, 예전 내용이 남아 있으면 닫힌 설교가 그대로 보였다 */
+var DETAIL_EMPTY_HTML = $('#detailPane').innerHTML;
+window.closeDetail = function(){ var p = $('#detailPane'); p.classList.remove('open'); p.innerHTML = DETAIL_EMPTY_HTML; document.body.classList.remove('detailOpen'); };
 
 window.deleteSermon = async function(id){
   var s = findSermon(id);
@@ -6470,6 +6472,14 @@ function renderPrepDash(){
     e.preventDefault();
     openDetail('sermon', b.getAttribute('data-id'));
   });
+})();
+/* v706: 처음 화면 카드(#searchHome)가 모두 숨어 있으면(앞으로 할 설교·회고·서랍 없음) 두 칸 화면 오른쪽에 상세 칸 빈 안내를 대신 보인다 */
+(function(){
+  var home = $('#searchHome'), pg = $('#page-search'); if (!home || !pg) return;
+  function sync(){ pg.classList.toggle('homeEmpty', !Array.prototype.some.call(home.children, function(c){ return c.style.display !== 'none'; })); }
+  var mo = new MutationObserver(sync);
+  Array.prototype.forEach.call(home.children, function(c){ mo.observe(c, { attributes: true, attributeFilter: ['style'] }); });
+  sync();
 })();
 function renderDailyIll(){
   var card = $('#dailyIllCard'); if (!card) return;
@@ -32842,7 +32852,7 @@ function showPage(name){
   if (pg) pg.classList.add('on');
   /* 페이지 전환 시 모바일 상세 인라인 상태 해제 (검색 목록 복원) */
   document.body.classList.remove('detailOpen');
-  var _dp = document.getElementById('detailPane'); if (_dp) _dp.classList.remove('open');
+  var _dp = document.getElementById('detailPane'); if (_dp && _dp.classList.contains('open')) { _dp.classList.remove('open'); if (typeof DETAIL_EMPTY_HTML === 'string') _dp.innerHTML = DETAIL_EMPTY_HTML; }
   $$('.tabbar button').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
   $$('.sidebar .nav').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
   /* 모바일에서 탭 전환만으로 가상 키보드가 튀어 화면이 출렁이는 것 방지 — 데스크탑에서만 자동 포커스 */
@@ -33883,6 +33893,8 @@ async function enhanceExistingIdeas(){
 (function(){ var b = $('#enhanceIdeasBtn'); if (b) b.addEventListener('click', enhanceExistingIdeas); })();
 
 $('#q').addEventListener('input', debounce(runSearch, 120));
+/* v706: 검색어를 손으로 다 지우면 열려 있던 상세를 닫는다 — 두 칸 화면에서는 오른쪽에 처음 화면 카드가 돌아온다(한 칸 화면은 상세가 열리면 검색창이 숨어 해당 없음) */
+$('#q').addEventListener('input', function(e){ if (e.isTrusted && !this.value.trim() && $('#detailPane').classList.contains('open') && window.closeDetail) closeDetail(); });
 /* 원고 전문(시트 서버측) 검색 — Enter로 실행, 메타 검색결과에 없는 매칭을 덧붙임 */
 function serverFullText(){
   var q = $('#q').value.trim(); if (!q) return;
@@ -34370,7 +34382,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v705';
+var APP_VER = 'v706';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
