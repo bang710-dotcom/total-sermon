@@ -1801,6 +1801,13 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .cmHeadL{display:flex;align-items:baseline;gap:10px;flex:1 1 220px;min-width:0}
 .cmHeadSub{font-size:var(--fs-sm);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .cmHeadWarn{flex:0 0 auto;font-size:var(--fs-xs);font-weight:700;color:var(--warn);border:1px solid currentColor;border-radius:var(--r-pill);padding:1px 8px}
+/* v718 저장 상태 — 저장 전(경고색) · 저장 중 · 저장됨 시각(초록 점) · 전송 대기(요청색). 점은 글자 옆 보조 표시일 뿐, 뜻은 글자가 말한다 */
+.cmHeadSave{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;align-self:center;font-size:var(--fs-sm);color:var(--dim);white-space:nowrap}
+.cmHeadSave::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.cmHeadSave[hidden]{display:none}
+.cmHeadSave[data-st="dirty"]{color:var(--warn);font-weight:600}
+.cmHeadSave[data-st="saved"]::before{background:var(--good)}
+.cmHeadSave[data-st="queued"]{color:var(--req)}
 .cmActs{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 #cmHead .btn{width:auto;padding:8px 14px;font-size:var(--fs-md);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 #cmHead .btn.cmIconBtn{padding:8px 10px}
@@ -2631,7 +2638,7 @@ body.focusMode #refInsBar{bottom:72px}
     <!-- ============ 작성 (데스크탑) ============ -->
     <section class="page" id="page-compose">
       <div id="cmHead">
-        <div class="cmHeadL"><h2>설교 작성</h2><div class="cmHeadSub" id="cmHeadSub">새 설교</div><span class="cmHeadWarn" id="cmHeadWarn" hidden title="다른 기기에서 수정된 설교 — [정보] 탭에서 확인"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> 다른 기기 수정</span></div>
+        <div class="cmHeadL"><h2>설교 작성</h2><div class="cmHeadSub" id="cmHeadSub">새 설교</div><span class="cmHeadSave" id="cmHeadSave" role="status" aria-live="polite" hidden></span><span class="cmHeadWarn" id="cmHeadWarn" hidden title="다른 기기에서 수정된 설교 — [정보] 탭에서 확인"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> 다른 기기 수정</span></div>
         <div class="cmActs">
           <button class="btn sub" id="c_preview"><svg class=ico aria-hidden=true><use href=#i-eye></use></svg><span class="cmBtnTx"> 미리보기</span></button>
           <button class="btn" id="c_save"><svg class=ico aria-hidden=true><use href=#i-save></use></svg> 저장</button>
@@ -15842,7 +15849,11 @@ function pushComposeDraftRemote(){
     var s = state.settings || {};
     if (!s.url || !s.token || !navigator.onLine) return;
     if (!composeHasAnyContent()) return;
+    /* v718: 고친 것이 없는(시트 저장본 그대로인) 작성창은 이어 쓸 것이 없다 — 예전엔 설교를 열어 보기만 해도 화면이 가려질 때 올라가,
+       다른 기기에 「다른 기기에서 작성 중이던 원고가 있습니다」가 거짓으로 떴다. 이 기기가 전에 올린 초안이 남아 있으면 그것만 지운다. */
+    if (!composeDirty()) { _cdraftDropOwn(); return; }
     var snap = composeDraftSnapshot();
+    snap.dirty = true;
     var sig = _cdraftSig(snap);
     if (!sig || sig === _cdraftLastSig) return;          /* 내용 변화 없음 → 시트 호출 안 함 */
     if (_cdraftInflight && _cdraftInflight.sig === sig) return _cdraftInflight.p;
@@ -15869,6 +15880,22 @@ function pushComposeDraftRemote(){
   } catch (e) {}
 }
 var pushComposeDraftRemoteSoon = debounce(pushComposeDraftRemote, 10000);
+/* v718: 이 기기가 올린 초안 행(내용 서명이 마지막으로 올린 것과 같을 때만)을 지운다 — 고친 글을 되돌렸거나 버리고 다른 설교를 연 경우.
+   그 사이 다른 기기가 같은 행을 덮어썼으면 서명이 달라 건드리지 않는다(그 기기의 미저장 원고를 지우지 않게). */
+function _cdraftDropOwn(){
+  try {
+    if (!_cdraftLastSig) return;
+    var row = findComposeDraftRow();
+    if (row && row['ID'] && row['메타JSON']) {
+      var sn = null; try { sn = JSON.parse(row['메타JSON']); } catch (e) {}
+      if (sn && _cdraftSig(sn) === _cdraftLastSig) {
+        apiPost({ action: 'delete', sheet: 'seriesdraft', data: { ID: row['ID'] } }).catch(function(){});
+        state.data.seriesdraft = (state.data.seriesdraft || []).filter(function(x){ return x !== row; });
+      }
+    }
+    _cdraftLastSig = '';
+  } catch (e) {}
+}
 function dropComposeDraftRemote(deep){
   try {
     _cdraftLastSig = '';
@@ -15929,6 +15956,7 @@ function maybeOfferRemoteComposeDraft(){
     var row = findComposeDraftRow(); if (!row || !row['메타JSON']) return;
     var snap; try { snap = JSON.parse(row['메타JSON']); } catch (e) { return; }
     if (!snap || !snap.compose || !snap.at) return;
+    if (snap.dirty === false) return;   /* v718: 고친 것 없이 올라간 초안(v718 이후 기기는 올리지 않는다) */
     if (String(localStorage.getItem('tsa.cdraftSeen') || '') === String(snap.at)) return;  /* 이미 안내함 */
     if (_cdraftSig(snap) === _cdraftLastSig) return;                                        /* 내가 올린 것 */
     /* ── (v539) 같은 설교 ID면 '그 ID의 최종 저장본'이 우선 ──
@@ -34352,6 +34380,7 @@ window.addEventListener('offline', function(){ try { renderSyncState(); } catch 
 function renderStats(){
   $('#dataStat').textContent = '기기 저장 데이터 — 설교 ' + state.data.sermons.length + '건 · 아이디어 ' + state.data.ideas.length + '건 · 앱 버전 ' + APP_VER;
   $('#queueStat').textContent = state.queue.length ? '전송 대기 중인 입력: ' + state.queue.length + '건' : '';
+  if (window.cmSaveStateSoon) cmSaveStateSoon();   /* v718 대기열·동기화가 바뀌면 작성 머리줄 저장 상태(전송 대기 → 저장됨 · 시각)도 */
   var _qvB = $('#queueViewBtn');
   if (_qvB){ _qvB.style.display = state.queue.length ? '' : 'none'; if (!state.queue.length){ var _qv = $('#queueView'); if (_qv){ _qv._open = false; _qv.innerHTML = ''; _qvB.textContent = '보기·관리'; } } }
   if (typeof renderQueueView === 'function') try { renderQueueView(); } catch (eQV){}
@@ -38210,8 +38239,44 @@ function cmHeadSync(){
   if (/^\d{4}-\d\d-\d\d$/.test(d)) parts.push(+d.slice(5, 7) + '/' + +d.slice(8, 10));
   sub.textContent = parts.join(' · ');
   var w = document.getElementById('cmHeadWarn'); if (w) w.hidden = !(state.editing && state.remoteConflict);
+  cmSaveStatePaint();
 }
 window.cmHeadSync = cmHeadSync;
+/* v718 머리줄 저장 상태 — 토스트가 사라진 뒤에도 「지금 시트에 저장돼 있나」가 화면에 남게.
+   저장 전(쓴 글이 시트와 다름 — 이 기기에는 임시 보관) / 저장 중 / 저장됨 · 시각(설교 행 수정일) / 전송 대기(오프라인 저장이 대기열에).
+   savedSig 를 바꾸는 곳이 열 군데가 넘어 하나하나 부르지 않고 state.savedSig 를 속성 접근자로 감싸 바뀔 때마다 다시 그린다. */
+function cmSaveStatePaint(){
+  var el = document.getElementById('cmHeadSave'); if (!el) return;
+  var st = '', tx = '', tip = '';
+  try {
+    if (document.querySelector('#c_save.saving')) { st = 'saving'; tx = '저장 중…'; }
+    else if (composeHasAnyContent() && composeDirty()) {
+      st = 'dirty'; tx = '저장 전';
+      tip = '시트에 아직 저장하지 않았습니다 — 이 기기에는 쓰는 대로 임시 보관됩니다. [저장] 또는 ⌘S';
+    } else if (state.editing) {
+      if (qHasPendingManuscript_(state.editing)) { st = 'queued'; tx = '전송 대기'; tip = '이 기기에 저장했습니다 — 인터넷이 연결되면 시트로 보냅니다'; }
+      else {
+        var r = findSermon(state.editing), t = r ? fmtSheetSaved(r['수정일']) : '';
+        st = 'saved'; tx = '저장됨' + (t ? ' · ' + t : ''); tip = '시트에 저장된 그대로입니다';
+      }
+    }
+  } catch (e) { st = ''; tx = ''; }
+  if (el.dataset.st === st && el.textContent === tx) return;
+  el.dataset.st = st; el.textContent = tx; el.title = tip; el.hidden = !st;
+}
+var cmSaveStateSoon = debounce(cmSaveStatePaint, 350);
+window.cmSaveStateSoon = cmSaveStateSoon;
+(function(){
+  try {
+    var v = state.savedSig;
+    Object.defineProperty(state, 'savedSig', { configurable: true, enumerable: true,
+      get: function(){ return v; }, set: function(x){ v = x; cmSaveStateSoon(); } });
+  } catch (e) {}
+  var pg = document.getElementById('page-compose');
+  if (pg) { pg.addEventListener('input', cmSaveStateSoon); pg.addEventListener('change', cmSaveStateSoon); }
+  var sv = document.getElementById('c_save');
+  if (sv && window.MutationObserver) new MutationObserver(cmSaveStatePaint).observe(sv, { attributes: true, attributeFilter: ['class'] });
+})();
 /* 설교 작성 왼쪽 열 탭 — 정보 · 구조 · 점검 · 산출물 */
 function cmSetTab(k, noSave){
   var meta = document.getElementById('composeMeta'); if (!meta) return;
