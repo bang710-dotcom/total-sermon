@@ -1243,7 +1243,21 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
 .studyText.embed .stVerBar{position:static;top:auto;margin:0 0 8px;padding:0 0 8px;max-width:none}
 .studyText.embed .snBar{top:0;max-width:none;background:var(--card);z-index:4}
 .studyText.embed .stCol{font-size:var(--fs-md)}
-#devoScript .devoScHd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+#devoScript .devoScHd{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+/* v723 묵상 본문 = 읽는 글: 명조(작성창 종이와 같은 기기 글꼴)·한 단계 큰 글자. 연구노트 종이(#snPage) 안은 그 종이의 글자 그대로(손글씨 자리가 어긋나지 않게).
+   [연구 도구]를 접으면(기본) 낱말 점선과 구조·노트·2분할 단추를 숨긴다 — 낱말을 누르면 원어를 여는 동작은 그대로, 구조·노트가 켜져 있으면 단추는 보인다 */
+#devoStudyPane .stCol{font-family:var(--edSerif);font-size:var(--fs-lg);line-height:1.85}
+#devoStudyPane #snPage .stCol{font-family:inherit;font-size:inherit;line-height:inherit}
+#devoScript:not(.devoTools) .swrd{border-bottom-color:transparent}
+#devoScript:not(.devoTools) .stVerBar:not(:has(.svzTBtn.on,.snTBtn.on)) :is(.svzTBtn,.snTBtn,.stSplitBtn){display:none}
+#devoScript .devoScHd .devoSer{color:var(--dim);font-size:var(--fs-sm)}
+#devoScript .devoScHd .devoToolsBtn{margin-left:auto;font-size:var(--fs-sm)}
+#devoScript .devoToolsBtn[aria-pressed="true"]{color:var(--accent)}
+.devoEmpty .qNoneActs{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:14px 0 4px}
+/* v723 공용 달력: 표시할 날(묵상이 있는 날 등)에 점 */
+.calgrid button{position:relative}
+.calgrid button.has::after{content:"";position:absolute;left:50%;bottom:4px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--accent)}
+.calgrid button.sel.has::after{background:var(--on-accent)}
 /* 연구노트를 켜면 본문 칸이 화면 전체 폭을 쓰도록 2단 배치를 잠시 해제 (노트 페이지는 넓어야 쓸 만하다) */
 #devoBody.noteWide{display:block}
 #devoBody.noteWide #devoScript{position:static;max-height:none;overflow:visible;margin-bottom:18px}
@@ -9222,6 +9236,7 @@ function studySetSide(collapsed){
   else stSplitRestore();
   var sb = $('#studySideBtn'); if (sb) sb.classList.toggle('on', !!collapsed);
   if (typeof snRefit === 'function') snRefit();
+  try { if (SNS.on) snBarRepaint(); } catch (e) {}   /* v723 [⇔ 자료창 접고 크게] 단추를 배율에 맞춰 다시 */
 }
 (function stSplitInit(){
   var h = $('#stDrag'); if (!h) return;
@@ -9261,6 +9276,16 @@ function studySetSide(collapsed){
   window.addEventListener('resize', function(){ stSplitApply(load(ST_SPLIT_LS) || ST_SPLIT_DEF); });
 })();
 function studySetTab(tab){
+  /* v723 다른 자료로 옮기면 맨 위부터 — 예전엔 앞 탭의 스크롤 위치(예: Holman 3,142px)를 물려받아 사전이 참고문헌 한가운데로 열렸다.
+     Holman 단락 이동·근거 찾기·[AI 정리로 돌아가기]는 그린 뒤 스스로 스크롤하므로 그대로 동작한다 */
+  if (STUDY.tab !== tab) { try {
+    var _sc = aiCiteScroller(), _pn = $('#stPane'), _dt = $('#studyDetail');
+    if (_sc === _pn) _sc.scrollTop = 0;
+    else if (_sc && _dt && _sc !== document.scrollingElement) {   /* 휴대폰: 창 전체가 스크롤 — 자료 칸 머리(탭 줄)가 위로 지나갔을 때만 거기로 */
+      var _d = _dt.getBoundingClientRect().top - _sc.getBoundingClientRect().top;
+      if (_d < 0) _sc.scrollTop += _d;
+    }
+  } catch (e) {} }
   STUDY.tab = tab;
   var tabs = $('#stTabs');
   if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-sttab') === tab); });
@@ -10304,7 +10329,17 @@ function snBarHtml(){
     + '<button type="button" data-snfs="-1" title="본문 글자 작게">－ 글자</button>'
     + '<button type="button" data-snfs="0" title="기본 글자 크기로">' + snR1(SNS.font) + 'px</button>'
     + '<button type="button" data-snfs="1" title="본문 글자 크게">＋ 글자</button>'
+    + snWideBtnHtml()
     + '<span class="snStatus" id="snStatus">' + snStatusText() + '</span></div>';
+}
+/* v723 노트 페이지 배율이 0.75 아래(예: 1024px 창에서 오른쪽 자료창을 편 채 0.46 → 본문 약 7px)면 자료창을 접는 단추를 보인다.
+   저절로 접지는 않는다 — ⇔ 단추와 [노트]는 서로 독립(snEnable 주석). 묵상 화면 임베드에는 자료창이 없다. */
+function snWideBtnHtml(){
+  try {
+    var bd = document.querySelector('.studyBody');
+    if (stEmbedded() || !bd || bd.classList.contains('noSide') || !(SNS.zoom < 0.75)) return '';
+    return '<span class="snSep"></span><button type="button" data-snwide="1" title="오른쪽 자료창을 접어 노트를 크게 — 머리줄 ⇔ 로 다시 펼친다">⇔ 자료창 접고 크게</button>';
+  } catch (e) { return ''; }
 }
 function snBarRepaint(){ var bar = document.querySelector('#studyText .snBar'); if (bar) bar.outerHTML = snBarHtml(); }
 /* ── 렌더 후처리: 마크 적용 + 메모 + 레이아웃 ── */
@@ -10880,6 +10915,8 @@ function snClick(e){
   if (wd){ SNS.penW = +wd.getAttribute('data-snw'); snBarRepaint(); e.stopPropagation(); return; }
   var zm = t.closest && t.closest('[data-snfs]');
   if (zm){ snFont(+zm.getAttribute('data-snfs')); e.stopPropagation(); return; }
+  var wz = t.closest && t.closest('[data-snwide]');   /* v723 [⇔ 자료창 접고 크게] */
+  if (wz){ studySetSide(true); snBarRepaint(); e.stopPropagation(); return; }
   /* ★·✂·⌃합치기(구조 뷰 편집)는 노트 모드의 어떤 도구에서도 그대로 눌린다 (v544).
      아래 도구별 처리가 e.stopPropagation() 으로 삼켜 버리면 본문연구 창의 위임 핸들러
      (svzSetTheme/svzCutAt/svzMergeAt)까지 클릭이 올라가지 못해 버튼이 죽은 것처럼 보였다.
@@ -19230,7 +19267,7 @@ function devoEmptyHtml(date){
   ds.forEach(function(d){ if (d < date) prev = d; else if (d > date && !next) next = d; });
   var sun = new Date(date + 'T12:00:00').getDay() === 0;
   function go(d, back){
-    var r = devoEntryFor(d), lab = devoDateLabel(d).replace(/^\d+월 /, function(m){ return m; });
+    var r = devoEntryFor(d), lab = devoDateLabel(d);
     return '<button class="btn sub devoGo" type="button" data-devogo="' + d + '">' + (back ? '‹ ' : '') + esc(lab) + (r && r['본문범위'] ? ' · ' + esc(r['본문범위']) : '') + (back ? '' : ' ›') + '</button>';
   }
   return '<div class="empty devoEmpty">' + (sun ? '주일에는 묵상이 없습니다.' : '이 날에는 묵상 일정이 없습니다.')
@@ -19268,6 +19305,8 @@ function shiftDevoDate(days){
 $('#devoPrev').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(-1); });
 $('#devoNext').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(1); });
 $('#devoToday').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; devoState.date = todayLocal_(); renderDevo(); });
+/* v723 달력에 묵상이 있는 날 점(공용 달력이 날짜 칸의 _calMarks 를 읽는다) */
+$('#devoDate')._calMarks = function(){ var m = {}; (state.data.devo || []).forEach(function(d){ if (d['날짜']) m[String(d['날짜'])] = true; }); return m; };
 $('#devoDate').addEventListener('change', function(){ if (!this.value) { this.value = devoState.date; return; }   /* v718(2차) 달력 [지우기]로 칸만 비고 화면은 그 날짜로 남던 것 */
   if (!confirmLeaveDevo()) { this.value = devoState.date; return; } devoState.date = this.value; renderDevo(); });
 
@@ -35511,6 +35550,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     var daysIn = new Date(viewY, viewM + 1, 0).getDate();
     var prevDays = new Date(viewY, viewM, 0).getDate();
     var sel = parse(target && target.value);
+    var marks = null; try { if (target && typeof target._calMarks === 'function') marks = target._calMarks(); } catch (e) {}   /* v723 표시할 날 { 'YYYY-MM-DD': true } */
     var t = new Date(), ty = t.getFullYear(), tm = t.getMonth(), td = t.getDate();
     var cells = [], i;
     for (i = 0; i < startDow; i++){
@@ -35528,6 +35568,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
       if (dow === 0) cls.push('sun');
       if (c.y === ty && c.m === tm && c.d === td) cls.push('today');
       if (sel && c.y === sel.y && c.m === sel.m && c.d === sel.d) cls.push('sel');
+      if (marks && marks[fmt(c.y, c.m, c.d)]) cls.push('has');
       html += '<button type="button" class="' + cls.join(' ') + '" data-y="' + c.y + '" data-m="' + c.m + '" data-d="' + c.d + '">' + c.d + '</button>';
     }
     grid.innerHTML = html;
