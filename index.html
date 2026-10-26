@@ -773,7 +773,7 @@ body.focusMode .arIndF{display:inline-flex}
 .stSegPt{font-size:var(--fs-md);line-height:1.55;color:var(--text)}
 /* ── 본문 구조 시각화(강해 구조 뷰): 단락 블록·주제절 강조·경계 편집·구간 진단 (v451) ── */
 .svzTBtn{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent);border-radius:var(--r-md);padding:5px 10px;font-family:inherit;font-size:var(--fs-sm);cursor:pointer}
-.svzTBtn.on{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:700}
+.svzTBtn.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
 #svzBanner{margin:0 0 10px}
 .svzBan{border:1px solid var(--line);border-radius:var(--r-md);padding:9px 11px;font-size:var(--fs-sm);line-height:1.62;color:var(--text);background:var(--card2)}
 .svzBan .svzTag{display:inline-block;font-size:var(--fs-xs);font-weight:700;border-radius:var(--r-pill);padding:1px 9px;margin-right:7px;vertical-align:1px;background:rgba(127,127,127,.15);color:var(--dim)}
@@ -791,7 +791,7 @@ body.focusMode .arIndF{display:inline-flex}
 .svzMerge{flex:0 0 auto;background:none;border:1px dashed var(--line);color:var(--dim);border-radius:var(--r-pill);padding:1px 8px;font-family:inherit;font-size:var(--fs-xs);cursor:pointer}
 .svzMerge:hover{color:var(--accent);border-color:var(--accent)}
 .studyText .svzBlk .sv{padding:4px 10px;margin:0 0 2px}
-.svzStar{background:none;border:none;cursor:pointer;color:var(--line);font-size:var(--fs-md);padding:0 5px 0 2px;font-family:inherit;vertical-align:1px}
+.svzStar{background:none;border:none;cursor:pointer;color:var(--dim);font-size:var(--fs-md);padding:0 5px 0 2px;font-family:inherit;vertical-align:1px}   /* v725 --line(다크 약 1.2:1, 거의 안 보임) → --dim */
 .svzStar.on{color:var(--c-star)}
 .sv.svzTheme{background:linear-gradient(90deg,color-mix(in srgb,var(--c-star) 18%,transparent),color-mix(in srgb,var(--c-star) 3%,transparent));border-left:3px solid var(--c-star)}
 .sv.svzTheme .svn{color:var(--c-star);font-weight:700}
@@ -801,8 +801,9 @@ body.focusMode .arIndF{display:inline-flex}
 .svzCut:hover i,.svzCut:active i{opacity:1;color:var(--accent)}
 .svzCut:hover i::before,.svzCut:hover i::after,.svzCut:active i::before,.svzCut:active i::after{border-top-color:var(--accent)}
 /* ── 연구노트(아날로그 필기) 모드: 여백 페이지·형광펜·박스/원·메모·연결선·펜 잉크 (v452) ── */
-.snTBtn{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent2);border-radius:var(--r-md);padding:5px 10px;font-family:inherit;font-size:var(--fs-sm);cursor:pointer}
-.snTBtn.on{background:var(--accent2);color:var(--bg);border-color:var(--accent2);font-weight:700}
+/* v725 [② 노트]는 금색(최종 산출 전용)에서 [① 구조]와 같은 강조색으로 */
+.snTBtn{flex:0 0 auto;background:var(--card2);border:1px solid var(--line);color:var(--accent);border-radius:var(--r-md);padding:5px 10px;font-family:inherit;font-size:var(--fs-sm);cursor:pointer}
+.snTBtn.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
 .snTBtn.dis{opacity:.45;cursor:not-allowed}            /* 구조 나누기 전 — 누르면 안내만 (v589) */
 .svzTBtn.lockNote{opacity:.5;cursor:not-allowed}       /* 노트를 켠 동안 구조 잠금 (v589) */
 .snBar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;position:sticky;top:34px;left:0;z-index:2;background:var(--card);padding:6px 0 8px;border-bottom:1px dashed var(--line);margin-bottom:10px;max-width:100vw}
@@ -3000,7 +3001,7 @@ body.focusMode #refInsBar{bottom:72px}
     <!-- ============ 이달의 묵상 ============ -->
     <section class="page" id="page-devo">
       <div class="pgHead" id="devoHead">
-        <div class="cmHeadL"><h2>이달의 묵상</h2><div class="cmHeadSub" id="devoTitle"></div></div>
+        <div class="cmHeadL"><h2>이달의 묵상</h2><div class="cmHeadSub" id="devoTitle" aria-live="polite"></div></div>
         <div class="cmActs"><button class="btn sub devoNav" type="button" id="devoPrev" aria-label="이전 날" title="이전 날"><svg class="ico devoL" aria-hidden=true><use href=#i-chevron></use></svg></button><input type="date" id="devoDate" aria-label="묵상 날짜"><button class="btn sub devoNav" type="button" id="devoNext" aria-label="다음 날" title="다음 날"><svg class="ico devoR" aria-hidden=true><use href=#i-chevron></use></svg></button><button class="btn sub" type="button" id="devoToday">오늘</button><button class="btn sub" type="button" id="devoShare" onclick="shareDevo()" aria-label="오늘 묵상 공유"><svg class=ico aria-hidden=true><use href=#i-send></use></svg><span class="devoBtnTx"> 공유</span></button></div>
       </div>
 
@@ -3593,8 +3594,8 @@ body.focusMode #refInsBar{bottom:72px}
   </div>
 </div>
 <div id="studyOv" aria-hidden="true">
-  <div class="studyBox" role="dialog" aria-modal="true" aria-label="본문 원어 연구">
-    <div class="brefHd"><span class="t" id="studyTitle"></span><button class="x stFsBtn" id="stFsDown" type="button" aria-label="오른쪽 창 글자 작게" title="오른쪽 창 글자 작게"><small>가</small>−</button><button class="x stFsBtn" id="stFsUp" type="button" aria-label="오른쪽 창 글자 크게" title="오른쪽 창 글자 크게">가+</button><button class="x" id="studySideBtn" type="button" aria-label="오른쪽 패널 접기/펴기" title="오른쪽 패널 접기/펴기">⇔</button><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
+  <div class="studyBox" role="dialog" aria-modal="true" aria-labelledby="studyTitle">
+    <div class="brefHd"><span class="t" id="studyTitle" role="heading" aria-level="2"></span><button class="x stFsBtn" id="stFsDown" type="button" aria-label="오른쪽 창 글자 작게" title="오른쪽 창 글자 작게"><small>가</small>−</button><button class="x stFsBtn" id="stFsUp" type="button" aria-label="오른쪽 창 글자 크게" title="오른쪽 창 글자 크게">가+</button><button class="x" id="studySideBtn" type="button" aria-label="오른쪽 패널 접기/펴기" title="오른쪽 패널 접기/펴기">⇔</button><button class="x" id="studyClose" type="button" aria-label="닫기">✕</button></div>
     <div id="stMss" style="padding:0 12px"></div>
     <div class="studyBody">
       <div id="studyText" class="studyText"></div>
@@ -4180,6 +4181,7 @@ function _pullData(opts){
     renderSyncState(); renderInbox(); renderStats(); runSearch(); refreshReqBtns(); cwRender();
     if ($('#page-archive') && $('#page-archive').classList.contains('on')) renderArchive();
     if ($('#page-library') && $('#page-library').classList.contains('on')) renderLibrary();
+    try { devoSyncRefresh(); } catch (e) {}   /* v725 묵상 화면에 새 일정·기록 */
     try { reconcileCleanDraftWithSheet(); } catch (e) {}   /* 동기화로 더 최신 저장본이 들어왔으면 깨끗한 초안을 자동 교체 */
     try { if (typeof lbtYearPull === 'function') lbtYearPull(); } catch (e) {}   /* v598 Why에서 Way로 연간 계획 — 모든 동기화(포커스·수동·부팅) 뒤 */
     try { if (typeof vaultSync === 'function') vaultSync(); } catch (e) {}   /* v676 연결 금고 — 다른 기기에서 바꾼 키·주소를 받고, 이 기기 변경은 올린다 */
@@ -7263,9 +7265,11 @@ function studyRenderText(){
   /* 순서 = 작업 순서(v589): ① 구조 나누기 → ② 손글씨 노트.
      노트의 잉크는 화면 좌표에 붙으므로, 노트를 먼저 그린 뒤 구조를 나누면 글씨 위치가 어긋난다. */
   bar += '<button class="svzTBtn' + (STUDY.structOn ? ' on' : '') + (SNS.on ? ' lockNote' : '') + '" type="button" style="margin-left:auto"'
+    + ' aria-pressed="' + (STUDY.structOn ? 'true' : 'false') + '"' + (SNS.on ? ' aria-disabled="true"' : '')   /* v725 흐린 상태를 투명도·title 로만 알리던 것 */
     + ' title="' + (SNS.on ? '노트를 켠 동안에는 구조를 바꿀 수 없습니다 — 노트를 먼저 꺼 주세요' : '본문을 읽으며 ✂ 나누기·★ 주제절로 단락을 잡습니다') + '">'
     + (STUDY.structOn ? '① ▦ 구조 켜짐' : '① ▦ 구조') + '</button>'
     + '<button class="snTBtn' + (SNS.on ? ' on' : '') + ((SNS.on || STUDY.structOn) ? '' : ' dis') + '" type="button" style="margin-left:0"'
+    + ' aria-pressed="' + (SNS.on ? 'true' : 'false') + '"' + ((SNS.on || STUDY.structOn) ? '' : ' aria-disabled="true"')
     + ' title="' + ((SNS.on || STUDY.structOn) ? '본문 위에 펜슬로 필기합니다' : '① 구조를 먼저 켜고 나누기를 마친 뒤에 켜세요') + '">'
     + (SNS.on ? '② ✎ 노트 켜짐' : '② ✎ 노트') + '</button>'
     + '<button class="stSplitBtn" type="button" style="margin-left:0">' + (STUDY.split ? '✕ 분할 해제' : '⊞ 2분할') + '</button></div>';
@@ -8221,6 +8225,13 @@ function mssWarnFor(bookIdx, c1, v1, c2, v2){
     return x.b === bookIdx && (x.c * 1000 + x.v1) <= hi && lo <= (x.c * 1000 + x.v2);
   });
 }
+/* v725 사본 경계 띠의 [NET 노트] — 본문연구 창 안이면 그 탭으로, 설교 작성 화면이면 본문칸 본문으로 창을 열고 그 탭으로 */
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('.mssNet'); if (!b) return;
+  var ov = $('#studyOv');
+  if (!(ov && ov.classList.contains('on') && ov.contains(b))) { var rf = $('#c_ref'); if (!rf || !openStudy(rf.value)) return; }
+  var t = document.querySelector('#stTabs [data-sttab="net"]'); if (t) t.click();
+});
 function mssWarnHtml(list){
   if (!list || !list.length) return '';
   var bk = function(x){ return (BOOK_FULL[x.b] || '') + ' ' + x.c + ':' + x.v1 + (x.v2 !== x.v1 ? '-' + x.v2 : ''); };
@@ -8228,7 +8239,7 @@ function mssWarnHtml(list){
     + list.map(function(x){
         return '<div class="mssRow"><span class="mssRef">' + esc(bk(x)) + '</span><b>' + esc(x.t) + '</b> — ' + esc(x.n) + '</div>';
       }).join('')
-    + '<div class="vfTip">본문 연구 창의 [NET 노트] 탭에 절별 근거가 있습니다. 이 구절 하나에 설교의 무게를 싣기 전에 확인해 주세요.</div></div>';
+    + '<div class="vfTip">본문연구 창의 <button type="button" class="linkbtn mssNet">NET 노트</button> 탭에 절별 근거가 있습니다. 이 구절 하나에 설교의 무게를 싣기 전에 확인해 주세요.</div></div>';   /* v725 눌리지 않던 [NET 노트] → 그 탭으로 */
 }
 
 /* ── 메시지 다양성 (5결) — 주제·개요 선택지를 만드는 프롬프트에 부착 ──
@@ -19119,14 +19130,18 @@ function devoEntryFor(date){
 function devoNoteFor(date){
   return state.data.devonotes ? state.data.devonotes.filter(function(d){ return d['날짜'] === date; })[0] : null;
 }
+/* v725 화면 읽기 프로그램용 칸 이름 — 위 <label> 은 칸과 이어져 있지 않았고, 「적용」 칸이 둘(적용 질문의 답·적용하기)이라 구별이 필요했다 */
+var DEVO_FIELD_NAME = { '본문개요': '본문 개요', '본문주제': '본문 주제', '관찰답': '관찰 질문의 답', '묵상답': '묵상 질문의 답', '적용답': '적용 질문의 답',
+  '묵상메시지': '오늘 주신 메시지', '적용': '적용하기 — 구체적인 실천', '기도': '오늘의 기도' };
 function dta(key, rows, ph, val){
-  return '<textarea class="edTa" rows="' + rows + '" placeholder="' + esc(ph) + '" data-devo="' + key + '">' + esc(val || '') + '</textarea>';
+  return '<textarea class="edTa" rows="' + rows + '" placeholder="' + esc(ph) + '" data-devo="' + key + '" aria-label="' + esc(DEVO_FIELD_NAME[key] || key) + '">' + esc(val || '') + '</textarea>';
 }
 function renderDevo(){
   var date = devoState.date;
   studyPaneReturn();                /* #devoBody를 다시 그리기 전에 빌려온 본문 패널을 돌려놓는다(삭제 방지) */
   devoState.bmNote = null;          /* 날짜가 바뀌면 성경앱 노트 캐시도 초기화 */
   $('#devoDate').value = date;
+  var _sh = $('#devoShare'); if (_sh) _sh.setAttribute('aria-label', (date === todayLocal_() ? '오늘' : devoDateLabel(date)) + ' 묵상 공유');   /* v725 */
   var e = devoEntryFor(date);
   devoState.entry = e;
   var note = devoNoteFor(date) || {};
@@ -19151,16 +19166,16 @@ function renderDevo(){
       + '<div id="devoStudyPane"></div></div>' +
     '<div>' +
     '<div id="devoFree"></div>' +
-    '<div class="card"><b>관찰하기</b>' +
+    '<div class="card"><b role="heading" aria-level="3">관찰하기</b>' +
     '<label>본문 개요</label>' + dta('본문개요', 4, '본문의 흐름을 요약해 보세요', note['본문개요']) +
     '<label>본문 주제</label>' + dta('본문주제', 2, '본문의 중심 주제', note['본문주제']) + '</div>' +
-    '<div class="card"><b>묵상을 돕는 질문</b>' +
+    '<div class="card"><b role="heading" aria-level="3">묵상을 돕는 질문</b>' +
     '<label>관찰 질문</label><div class="devoQ">' + esc(e['관찰질문']) + '</div>' + dta('관찰답', 3, '', note['관찰답']) +
     '<label>묵상 질문</label><div class="devoQ">' + esc(e['묵상질문']) + '</div>' + dta('묵상답', 3, '', note['묵상답']) +
     '<label>적용 질문</label><div class="devoQ">' + esc(e['적용질문']) + '</div>' + dta('적용답', 3, '', note['적용답']) + '</div>' +
-    '<div class="card"><b>묵상하기</b><label>오늘 주신 메시지</label>' + dta('묵상메시지', 4, '본문을 통해 들려주시는 메시지', note['묵상메시지']) + '</div>' +
-    '<div class="card"><b>적용하기</b>' + dta('적용', 3, '구체적인 실천', note['적용']) + '</div>' +
-    '<div class="card"><b>오늘의 기도</b>' + dta('기도', 3, '', note['기도']) + '</div>' +
+    '<div class="card"><b role="heading" aria-level="3">묵상하기</b><label>오늘 주신 메시지</label>' + dta('묵상메시지', 4, '본문을 통해 들려주시는 메시지', note['묵상메시지']) + '</div>' +
+    '<div class="card"><b role="heading" aria-level="3">적용하기</b>' + dta('적용', 3, '구체적인 실천', note['적용']) + '</div>' +
+    '<div class="card"><b role="heading" aria-level="3">오늘의 기도</b>' + dta('기도', 3, '', note['기도']) + '</div>' +
     '<div id="devoIllust"></div>' +
     '<div class="toolrow"><button class="btn sub" onclick="openDevoPreview()">미리보기</button>' +
     '<button class="btn" id="devoSave">묵상 저장</button></div>' +
@@ -19227,11 +19242,42 @@ function fillDevoIllust(refStr){
 /* 오늘의 묵상(본문·제목·3질문)을 회중에게 공유 — 카카오/메시지. */
 function shareDevo(){
   var e = devoState.entry; if (!e){ toast('공유할 묵상이 없습니다 (이 날짜에 묵상 일정이 없습니다).'); return; }
-  var L = ['[오늘의 묵상] ' + (e['날짜'] || ''), '본문: ' + (e['본문범위'] || '') + (e['제목'] ? ' — ' + e['제목'] : '')];
+  /* v725: 요일 · 책 이름 풀어 쓰기(「수」→「여호수아」) · 시리즈 이름 · 다른 날이면 「오늘의」를 빼고 그날 날짜.
+     예전엔 「[오늘의 묵상] 2026-10-26 / 본문: 수 11:1-9」 — 다른 날을 보고 있어도 「오늘의 묵상」이었다 */
+  var d = e['날짜'] || devoState.date, today = d === todayLocal_();
+  var head = today ? '오늘의 묵상' : '묵상', ref = devoRefFull(e['본문범위']);
+  var L = ['[' + head + '] ' + (devoDateLabel(d) || d) + (e['시리즈명'] ? ' · ' + e['시리즈명'] : ''),
+           '본문: ' + ref + (e['제목'] ? ' — ' + e['제목'] : '')];
   if (e['관찰질문']) L.push('\n[관찰] ' + e['관찰질문']);
   if (e['묵상질문']) L.push('[묵상] ' + e['묵상질문']);
   if (e['적용질문']) L.push('[적용] ' + e['적용질문']);
-  shareContent({ title: '오늘의 묵상 ' + (e['본문범위'] || ''), text: L.join('\n') });
+  shareContent({ title: head + ' ' + ref, text: L.join('\n') });
+}
+/* v725 동기화로 이 날의 묵상 일정·기록이 새로 들어오면 다시 그린다(예전엔 날짜를 옮겨야 보였다).
+   쓰는 중(저장 전·입력칸에 커서)·연구노트 필기 중이면 건드리지 않는다. 들어온 기록이 지금 칸과 같으면(내 저장의 메아리) 그대로 둔다. */
+function devoSyncRefresh(){
+  var pg = document.getElementById('page-devo'); if (!pg || !pg.classList.contains('on') || !devoState.date) return;
+  var hasIn = !!document.querySelector('[data-devo]');
+  if (hasIn && devoDirtyNow()) return;
+  var a = document.activeElement; if (a && a.closest && a.closest('#devoBody') && /^(TEXTAREA|INPUT|SELECT)$/.test(a.tagName)) return;
+  try { if (SNS.on && stEmbedded()) return; } catch (e0) {}
+  var e = devoEntryFor(devoState.date) || null;
+  var changed = JSON.stringify(e) !== JSON.stringify(devoState.entry || null);
+  if (!changed && e && hasIn) {
+    var n = devoNoteFor(devoState.date) || {}, was = devoState.note || {}, cur = devoCurInputs();
+    var same = function(x, y){ return DEVO_FIELDS.every(function(k){ return String(x[k] || '').trim() === String(y[k] || '').trim(); }); };
+    changed = !same(n, was) && !same(n, cur);
+  }
+  if (!changed) return;
+  var m = document.getElementById('main'), top = m ? m.scrollTop : 0;
+  renderDevo();
+  if (m) m.scrollTop = top;
+}
+/* 「수 11:1-9」 → 「여호수아 11:1-9」 — 책을 못 알아보면 그대로 */
+function devoRefFull(ref){
+  ref = String(ref || '').trim();
+  var r = parseRange(ref), idx = r ? devoBookIdxMap()[r.book] : null;
+  return (idx != null && BOOK_FULL[idx]) ? BOOK_FULL[idx] + ref.slice(r.book.length) : ref;
 }
 window.shareDevo = shareDevo;
 /* 성경앱에서 머리표 밖에 쓴 글(preamble) 편집칸 — 있을 때만 나타난다 */
@@ -35268,7 +35314,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v724';
+var APP_VER = 'v725';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
