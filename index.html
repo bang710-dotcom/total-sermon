@@ -1846,6 +1846,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   #cmHead .btn{padding:9px 12px;font-size:var(--fs-md);min-height:40px}
   .cmTabs{top:var(--cmHeadH,112px)}
 }
+/* v718(2차) 한 칸 화면(휴대폰·아이패드 세로·좁은 맥 창)의 [원고] 탭 — 고르면 패널을 모두 접어 원고가 탭 바로 아래에 온다.
+   다른 탭을 고르면 예전처럼 그 패널이 원고 위에 펼쳐진다(원고를 숨기지 않는다 — 숨기면 작성칸 크기 측정이 어긋난다). 두 칸 화면에는 없다. */
+.cmTabs .cmTabMs{display:none}
+@media (max-width: 899px), (hover: none){ .cmTabs .cmTabMs{display:block} }
 @media (max-width: 600px){
   .cmHeadL{flex-basis:100%}
   .cmActs{flex:1 1 auto}
@@ -1856,6 +1860,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   #page-compose.on{grid-template-rows:auto minmax(0,1fr)}
   #cmHead{grid-column:1 / -1;position:static;margin:0;padding:0 0 10px}
   .cmTabs{top:0}
+  .cmTabs .cmTabMs{display:none}   /* 두 칸이라 원고가 늘 옆에 있다 */
 }
 @media (max-width: 420px){ #cmHead .cmBtnTx{display:none} }
 body.focusMode #cmHead{display:none!important}
@@ -2678,7 +2683,8 @@ body.focusMode #refInsBar{bottom:72px}
         </div>
       </div>
       <div id="composeMeta">
-        <div class="cmTabs" role="tablist">
+        <div class="cmTabs" role="tablist" aria-label="설교 작성 왼쪽 열">
+          <button type="button" role="tab" data-cmtab="ms" class="cmTabMs" title="패널을 접고 원고만 — 좁은 화면 전용">원고</button>
           <button type="button" role="tab" data-cmtab="info">정보</button>
           <button type="button" role="tab" data-cmtab="struct">구조</button>
           <button type="button" role="tab" data-cmtab="check">점검</button>
@@ -2899,7 +2905,7 @@ body.focusMode #refInsBar{bottom:72px}
     <section class="page" id="page-devo">
       <div class="pgHead" id="devoHead">
         <div class="cmHeadL"><h2>이달의 묵상</h2><div class="cmHeadSub" id="devoTitle"></div></div>
-        <div class="cmActs"><button class="ptBtn" id="devoPrev" style="flex:0 0 34px;height:36px">◀</button> <input type="date" id="devoDate" style="width:auto;flex:0 1 170px"> <button class="ptBtn" id="devoNext" style="flex:0 0 34px;height:36px">▶</button> <button class="linkbtn" id="devoToday" style="font-size:var(--fs-md)">오늘</button> <button class="linkbtn" onclick="shareDevo()" style="font-size:var(--fs-md)">↗ 공유</button></div>
+        <div class="cmActs"><button class="btn sub devoNav" type="button" id="devoPrev" aria-label="이전 날" title="이전 날"><svg class="ico devoL" aria-hidden=true><use href=#i-chevron></use></svg></button><input type="date" id="devoDate" aria-label="묵상 날짜"><button class="btn sub devoNav" type="button" id="devoNext" aria-label="다음 날" title="다음 날"><svg class="ico devoR" aria-hidden=true><use href=#i-chevron></use></svg></button><button class="btn sub" type="button" id="devoToday">오늘</button><button class="btn sub" type="button" id="devoShare" onclick="shareDevo()" aria-label="오늘 묵상 공유"><svg class=ico aria-hidden=true><use href=#i-send></use></svg><span class="devoBtnTx"> 공유</span></button></div>
       </div>
 
       <div id="devoBody"></div>
@@ -15581,6 +15587,8 @@ function editSermonFill(id, noNav){
   clearAiPanels();   /* ★ 이전 설교의 강해 검증·대지 보강·실천 강화 결과를 남기지 않는다 */
   state.savedSig = composeSig();
   checkAssets(id).then(refreshReqBtns);
+  /* v718(2차) 한 칸 화면에서 설교를 열면(이어쓰기·검색 상세 [수정하기] 등) 원고부터 — 패널에 묻히지 않게 */
+  if (!noNav && window.cmOneCol && cmOneCol()) { try { cmSetTab('ms'); } catch (e) {} }
   if (!noNav) showPage('compose');   /* noNav=true면 현재 보고 있는 화면을 바꾸지 않음(자동 최신본 반영용) */
 }
 /* 원고텍스트는 목록에서 빠져 있으므로(슬림) 불러오기 전에 지연 로드 */
@@ -38334,14 +38342,29 @@ window.cmSaveStateSoon = cmSaveStateSoon;
   if (sv && window.MutationObserver) new MutationObserver(cmSaveStatePaint).observe(sv, { attributes: true, attributeFilter: ['class'] });
 })();
 /* 설교 작성 왼쪽 열 탭 — 정보 · 구조 · 점검 · 산출물 */
+/* v718(2차) 한 칸 화면인가 — 두 칸 = 맥(900px 이상·마우스)·아이패드 가로(1000px 이상). 나머지는 위아래로 쌓인다 */
+function cmOneCol(){
+  try { return !(matchMedia('(min-width: 900px) and (hover: hover)').matches || matchMedia('(hover: none) and (orientation: landscape) and (min-width: 1000px)').matches); }
+  catch (e) { return false; }
+}
+window.cmOneCol = cmOneCol;
 function cmSetTab(k, noSave){
   var meta = document.getElementById('composeMeta'); if (!meta) return;
-  var hit = false;
-  Array.prototype.forEach.call(meta.querySelectorAll('.cmPanel'), function(p){ var on = p.dataset.cmpanel === k; p.classList.toggle('on', on); if (on) hit = true; });
-  if (!hit) return;
+  var ms = k === 'ms';
+  if (ms && !cmOneCol()) { k = cmPanelLast(); ms = false; }   /* [원고] 탭은 한 칸 화면에만 — 두 칸이면 마지막 패널로 */
+  if (!ms && !meta.querySelector('.cmPanel[data-cmpanel="' + k + '"]')) return;
+  Array.prototype.forEach.call(meta.querySelectorAll('.cmPanel'), function(p){ p.classList.toggle('on', !ms && p.dataset.cmpanel === k); });
   Array.prototype.forEach.call(meta.querySelectorAll('.cmTabs [data-cmtab]'), function(b){
     var on = b.dataset.cmtab === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-  if (!noSave) { try { localStorage.setItem('tsa.cmTab', k); } catch (e) {} }
+  if (!noSave) { try {
+    if (!ms) localStorage.setItem('tsa.cmTab', k);        /* 두 칸 화면이 여는 패널 */
+    if (cmOneCol()) localStorage.setItem('tsa.cmTabM', k); /* 한 칸 화면이 여는 탭(기본 원고) */
+  } catch (e) {} }
+}
+function cmPanelLast(){ var v = ''; try { v = localStorage.getItem('tsa.cmTab') || ''; } catch (e) {} return v && v !== 'ms' ? v : 'info'; }
+function cmTabInit(){
+  var m = ''; try { m = localStorage.getItem('tsa.cmTabM') || ''; } catch (e) {}
+  cmSetTab(cmOneCol() ? (m || 'ms') : cmPanelLast(), true);
 }
 window.cmSetTab = cmSetTab;
 function cmReveal(el){
@@ -38357,8 +38380,10 @@ function cmReveal(el){
 })();
 (function(){
   var meta = document.getElementById('composeMeta'); if (!meta) return;
-  var saved = ''; try { saved = localStorage.getItem('tsa.cmTab') || ''; } catch (e) {}
-  cmSetTab(saved || 'info', true);
+  cmTabInit();
+  /* 창 크기·방향이 바뀌어 한 칸 ↔ 두 칸이 바뀌면 그 배치가 쓰던 탭으로 */
+  var _oc = cmOneCol();
+  window.addEventListener('resize', function(){ var oc = cmOneCol(); if (oc !== _oc) { _oc = oc; cmTabInit(); } });
   meta.addEventListener('click', function(e){ var b = e.target.closest('.cmTabs [data-cmtab]'); if (b) cmSetTab(b.dataset.cmtab); });
   ['c_title', 'c_ref', 'c_date'].forEach(function(id){ var el = document.getElementById(id); if (el){ el.addEventListener('input', cmHeadSync); el.addEventListener('change', cmHeadSync); } });
   cmHeadSync();
