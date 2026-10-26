@@ -1166,7 +1166,8 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   .sidebar .syncbtn{margin:0 8px}
   /* 좌하단 고정 [설교 대화] 버튼과 동기화 문구(.foot)가 겹치지 않게 문구를 버튼 위로 띄움 */
   .sidebar .foot{padding-bottom:72px}
-  #page-search.on{display:grid;grid-template-columns:minmax(330px,460px) minmax(0,1fr);grid-template-areas:"left right";gap:20px;align-items:start}
+  /* v706: 왼쪽(검색) 칸은 폭의 40%(300~460px) — 예전 고정 460px 은 1024px 창에서 오른쪽(상세·처음 화면)을 282px 로 눌렀다 */
+  #page-search.on{display:grid;grid-template-columns:clamp(300px,40%,460px) minmax(0,1fr);grid-template-areas:"left right";gap:20px;align-items:start}
   #searchLeft{grid-area:left;min-width:0}
   #searchHome,#detailPane{grid-area:right}
   #searchHome{margin-top:0;gap:14px}
