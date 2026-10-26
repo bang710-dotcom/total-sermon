@@ -19039,6 +19039,9 @@ function devoDraftRestore(date){
     var pe = document.querySelector('[data-devopre]');
     if (pe) pe.value = d.v._pre || ''; else if (d.v._pre) devoRenderPre(d.v._pre);
     devoDirtyPaint();
+    var once = date + '|' + d.at;
+    if (devoState._restoredMsg === once) return;   /* 같은 날짜를 다시 그려도 같은 초안 안내는 한 번만 */
+    devoState._restoredMsg = once;
     var t = new Date(+d.at || Date.now());
     function p2(n){ return ('0' + n).slice(-2); }
     toast('저장하지 않은 묵상 답을 되살렸습니다 (' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + p2(t.getHours()) + ':' + p2(t.getMinutes()) + ' 에 쓴 글) — [묵상 저장]을 눌러야 저장됩니다.');
