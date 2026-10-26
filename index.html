@@ -2013,6 +2013,7 @@ body.edPaper:not(.focusMode) #editorPane .edLabel{letter-spacing:.03em;margin-le
 }
 @media (max-width: 899px), (hover: none){
   #edStyleBar{top:var(--cmHeadH,112px);padding:8px 0 10px;margin:0 0 12px}
+  #edStyleBar::before{display:none}   /* v718(2차) 한 칸 화면은 줄이 머리줄 바로 아래(틈 없음)에 붙는다 — 가림막이 바로 위 탭 줄([원고] 탭일 때)을 덮었다 */
   #edStyleBar .edTitle{font-size:var(--fs-lg)}
   /* v677 머리 줄 다듬기: 제목·본문은 한 줄(긴 제목은 말줄임 — 전체 제목은 설교 작성 머리줄·정보 탭에 있다), 「원고 스타일」 이름표는 뺀다
      → 아이패드 가로에서 원고 스타일 칩이 둘째 줄로 내려가지 않는다 */
@@ -2113,7 +2114,7 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
 #devoHead .devoR{transform:rotate(-90deg)}
 #devoHead #devoDate{width:auto;flex:0 1 150px;min-height:0;padding-top:8px;padding-bottom:8px;text-align:center}
 @media (max-width: 899px), (hover: none){ #devoHead .btn,#devoHead #devoDate{min-height:44px} }   /* 손가락 기준 */
-@media (max-width: 600px){ #devoHead .cmActs{flex-wrap:nowrap} #devoHead #devoDate{flex:1 1 auto;min-width:0} }   /* 휴대폰: 날짜 이동을 한 줄로 — 머리줄이 위에 붙으므로 키가 커지지 않게 */
+@media (max-width: 600px){ #devoHead .cmActs{flex-wrap:nowrap;min-width:0;width:100%} #devoHead #devoDate{flex:1 1 0;width:0;min-width:0} #devoHead .btn{flex:0 0 auto} }   /* 휴대폰: 날짜 이동을 한 줄로 — 머리줄이 위에 붙으므로 키가 커지지 않게. 날짜 칸이 남는 폭만 쓴다(칸의 기본 폭 때문에 [공유]가 화면 밖으로 밀렸다) */
 @media (max-width: 420px){ #devoHead .devoBtnTx{display:none} #devoHead .btn{padding-left:10px;padding-right:10px} }
 @media (min-width: 900px) and (hover: hover){
   #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
