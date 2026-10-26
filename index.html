@@ -1868,7 +1868,8 @@ body.fmPhase1 #cmHead{opacity:0;pointer-events:none}
 /* ===== C안 원고 작성창 「종이」 (v626) — 설정 → 원고 작성창 ===== */
 /* 테마와 무관한 종이: #snPage 처럼 작성창 안에서만 토큰을 다시 정의한다(안쪽 컴포넌트가 저절로 따라온다). */
 :root{--edSerif:"함초롬바탕","HCR Batang","HCRBatang","AppleMyungjo","Apple Myungjo","Nanum Myeongjo","NanumMyeongjo","Batang","바탕",serif}   /* v636: 내보낸 한글 원고와 같은 함초롬바탕(설치된 기기만) → 없으면 명조 */
-body.edPaper:not(.focusMode) #editorPane{
+body.edPaper:not(.focusMode) #editorPane,
+body.edPaper #detailPane .dpPaper{   /* v709: 검색 상세의 원고도 같은 종이 */
   --bg:#fcfbf8; --card:#fffefb; --card2:#f5f2ea; --line:#e3ddd0; --line2:#cbc3b2;
   --text:#1f1f22; --dim:#6a665e; --accent:#3b52c4; --accent2:#87570f; --on-accent:#fff; --on-gold:#fff;   /* v633: 대비 4.5 이상 */
   --accent-soft:color-mix(in srgb,#3b52c4 12%,transparent); --gold-soft:color-mix(in srgb,#87570f 12%,transparent);
@@ -1882,6 +1883,24 @@ body.edPaper:not(.focusMode) #editorPane .edFree{font-family:var(--edSerif);font
 body.edPaper:not(.focusMode) #editorPane .edTa:focus,
 body.edPaper:not(.focusMode) #editorPane .edFree:focus{border-left-color:var(--line2);background:color-mix(in srgb,var(--accent) 3%,transparent)}
 body.edPaper:not(.focusMode) #editorPane ::placeholder{color:#b3aea4}
+/* v709 검색 상세: 머리 + [만들기 ▾] + 원고 종이 */
+.dpMeta{font-size:var(--fs-sm);color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.dpMeta .dpDel{margin-left:auto;color:var(--warn);padding:4px 0}
+.dpTitle{font-size:var(--fs-xl);margin:2px 0}
+.dpRef{color:var(--accent2);font-size:var(--fs-body);margin-bottom:12px}
+.dpActs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.dpActs .btn{width:auto;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;font-size:var(--fs-md)}
+.dpMakeMenu{min-width:250px}
+.dpMk .dpMkL{flex:1 1 auto}
+.dpMk .dpMkSt{font-size:var(--fs-sm);font-weight:600}
+.dpMk.done .dpMkSt,.dpMk.fin .dpMkSt{color:var(--good)}
+.dpMk.req .dpMkSt{color:var(--req)}
+.dpPaper{margin-top:14px}
+body.edPaper #detailPane .dpPaper .fulltext{font-family:var(--edSerif);font-size:17px;line-height:1.85}
+@media (max-width: 899px), (hover: none){
+  .dpActs .btn{min-height:44px;font-size:var(--fs-body)}
+  .dpMakeMenu > button{min-height:44px}
+}
 body.edPaper:not(.focusMode) #editorPane .edPoint{background:transparent;border:none;border-top:1px solid var(--line);border-radius:0;padding:20px 0 6px;margin:0 0 6px}
 body.edPaper:not(.focusMode) #editorPane .edTitle{font-family:var(--edSerif);font-size:var(--fs-2xl)}
 body.edPaper:not(.focusMode) #editorPane .edPointTitle{font-family:var(--edSerif);font-size:var(--fs-xl);font-weight:700}
@@ -4861,6 +4880,8 @@ $('#qResults').addEventListener('keydown', function(e){
 $('#detailPane').addEventListener('keydown', function(e){
   if (e.key !== 'Escape' || e.isComposing || !this.classList.contains('open')) return;
   if (typeof anyOverlayOpen === 'function' && anyOverlayOpen()) return;
+  var om = this.querySelector('#dpMakeMenu:not([hidden])');   /* v709: 열린 [만들기] 메뉴는 닫고 그 단추에 머문다 */
+  if (om) { e.preventDefault(); om.hidden = true; var ob = this.querySelector('#dpMakeBtn'); if (ob) { ob.setAttribute('aria-expanded', 'false'); ob.focus(); } return; }
   var back = qFindItem(state._qOpenKey);
   e.preventDefault();
   if (!back || back.offsetParent === null) { if (window.closeDetail) closeDetail(); back = qFindItem(state._qOpenKey); }   /* 한 칸 화면: 목록이 숨어 있으면 상세를 닫고 */
@@ -4890,69 +4911,77 @@ function openDetail(kind, id){
   if (kind === 'sermon') {
     var s = findSermon(id);
     if (!s) return;
-    html += '<div class="meta" style="font-size:var(--fs-sm);color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;align-items:center">' +
-      '<span class="badge b-sermon">' + esc(s['ID']) + '</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span><span class="badge b-state">' + esc(s['상태']) + '</span>' +
-      '<button class="linkbtn" style="margin-left:auto;color:var(--warn);padding:4px 0" onclick="deleteSermon(\'' + esc(s['ID']) + '\')">설교 삭제</button></div>' +
-      '<h2 style="font-size:var(--fs-xl);margin:2px 0 2px">' + hl(s['제목'], terms) + '</h2>' +
-      '<div style="color:var(--accent2);font-size:var(--fs-body);margin-bottom:10px">' + linkifyRefs(s['본문'] || '') + '</div>';
-    [['시리즈', s['시리즈'] + (s['시리즈순번'] ? ' (' + s['시리즈순번'] + '회)' : '')], ['핵심메시지', s['핵심메시지']], ['대지', s['대지']], ['예화', s['예화']], ['비고', s['비고']]].forEach(function(kv){
+    var sid = esc(s['ID']);
+    /* v709: 머리 = 날짜·예배구분·상태 + 제목·본문 + [수정하기] [미리보기] [만들기 ▾]. 설교 ID 는 마우스 설명으로(줄에 마우스를 올리면 보인다) */
+    html += '<div class="meta dpMeta" title="설교 ID ' + sid + '"><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span><span class="badge b-state">' + esc(s['상태']) + '</span>' +
+      '<button class="linkbtn dpDel" type="button" onclick="deleteSermon(\'' + sid + '\')">설교 삭제</button></div>' +
+      '<h2 class="dpTitle">' + hl(s['제목'], terms) + '</h2>' +
+      '<div class="dpRef">' + linkifyRefs(s['본문'] || '') + '</div>';
+    state.detailId = s['ID'];
+    /* 만들기 메뉴 한 줄 — 상태(완료·요청 중)는 글자로, 저장 위치는 마우스 설명으로 */
+    var mk = function(key, ico, label, onclick, opt){
+      opt = opt || {};
+      var st = opt.req ? reqBtnSt(s['ID'], opt.req) : '';
+      var path = opt.req ? (REQ_PATH[opt.req] || '') : (opt.path || '');
+      return '<button type="button" class="dpMk' + (st ? ' ' + st : '') + (opt.desk ? ' desktop-only' : '') + '" data-mk="' + key + '" onclick="' + onclick + '"' + (path ? ' title="저장 위치: ' + esc(path) + '"' : '') + '>'
+        + '<svg class=ico' + (opt.gold ? ' data-c=y' : '') + ' aria-hidden=true><use href=#i-' + ico + '></use></svg><span class="dpMkL">' + label + '</span>'
+        + (st === 'done' || st === 'fin' ? '<span class="dpMkSt">완료</span>' : st === 'req' ? '<span class="dpMkSt">요청 중</span>' : '') + '</button>';
+    };
+    var reqMk = function(t, ico, desk){ return mk(t, ico, esc(REQ_LABELS[t] || t), 'requestSermonOutput(\'' + sid + '\',\'' + t + '\')', { req: t, desk: desk }); };
+    var sep = '<div class="cmMenuSep" role="separator"></div>';
+    var menu = mk('export', 'file', fmtTag() + ' 원고 내보내기', 'exportSermonDocx(\'' + sid + '\')', { path: '01 Sermons / 연도 폴더', gold: true })
+      + sep + reqMk('이미지프롬프트', 'palette', true) + reqMk('이미지생성', 'image', true)   /* 요청함(Cowork) 경유 — 데스크탑 전용 */
+      + reqMk('카드원고', 'note') + reqMk('설교요약', 'spark')
+      + sep
+      /* 실제 설교 요약본 만드는 두 길 — 영상 전사(Gemini 키·프록시 필요) / 자막 붙여넣기(Claude 키만) */
+      + (state.settings && (state.settings.geminiKey || state.settings.vidProxyUrl || state.settings.proxyUrl)
+          ? mk('yt', 'film', '유튜브 링크로 요약', 'aiYouTubeSummarize(\'' + sid + '\')') : '')
+      + mk('cap', 'edit', '자막 붙여넣어 요약', 'aiCaptionSummarize(\'' + sid + '\')')
+      + (String(s['요약본'] || '').trim() && String(s['실제요약본'] || '').trim() ? mk('cmp', 'scale', '원고 ↔ 실제 설교 비교', 'cmpOpen(\'' + sid + '\')') : '')
+      + sep + mk('share', 'send', '공유 (카카오·메시지)', 'shareSermon(\'' + sid + '\')') + mk('cards', 'insta', '카드뉴스 공유 (5장)', 'shareSermonCards(\'' + sid + '\')')
+      + sep + reqMk('LTC교재', 'users') + reqMk('리더스앱업로드', 'upload');
+    html += '<div class="dpActs">'
+      + '<button class="btn sub" type="button" onclick="editSermon(\'' + sid + '\')"><svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 수정하기</button>'
+      + '<button class="btn sub" type="button" onclick="previewSermon(\'' + sid + '\')"><svg class=ico aria-hidden=true><use href=#i-eye></use></svg> 미리보기</button>'
+      + '<div class="cmMenuWrap"><button class="btn sub" type="button" id="dpMakeBtn" data-cmmenu="dpMakeMenu" aria-haspopup="true" aria-expanded="false">만들기 <svg class=ico aria-hidden=true><use href=#i-chevron></use></svg></button>'
+      + '<div class="cmMenu cmMenuR dpMakeMenu" id="dpMakeMenu" hidden>' + menu + '</div></div></div>';
+    /* 짧은 두 줄(시리즈·핵심메시지)만 바로 보이고, 요약본·나머지 정보는 접어서 — 원고 종이가 위로 온다.
+       검색어가 든 칸은 펼쳐 둔다(결과 목록에서 본 그 글을 바로 찾게). */
+    [['시리즈', s['시리즈'] + (s['시리즈순번'] ? ' (' + s['시리즈순번'] + '회)' : '')], ['핵심메시지', s['핵심메시지']]].forEach(function(kv){
       if (kv[1] && kv[1].trim && kv[1].trim()) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>';
     });
-    var kws = String(s['키워드'] || '').split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); }).filter(Boolean);
-    if (kws.length) html += '<div class="kv"><span class="k">주제어</span><span class="v">' +
-      kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>';
-    /* 요약본 두 종류 — 실제 설교(유튜브) 요약이 있으면 먼저·펼친 상태로, 원고 요약은 접어서 */
+    var hitIn = function(v){ var lv = nfcLow(v); return terms.some(function(t){ return t && lv.indexOf(t) >= 0; }); };
+    var txt = stripStructText(String(s['원고텍스트'] || ''));
+    var noTxt = !txt && !!s._txt;   /* 받아 왔는데 원고가 없다 → 요약본을 펼쳐 둔다 */
     var _sumReal = String(s['실제요약본'] || '').trim(), _sumMs = String(s['요약본'] || '').trim();
     if (_sumReal) {
-      html += '<details class="sumbox" open>' +
+      html += '<details class="sumbox"' + (noTxt || hitIn(_sumReal) ? ' open' : '') + '>' +
         '<summary>요약본 · 실제 설교 <span style="opacity:.6;font-weight:400">(유튜브 전사)</span></summary>' +
         '<div class="fulltext" style="margin-top:8px">' + mdSum(hl(_sumReal, terms)) + '</div></details>';
     }
     if (_sumMs) {
-      html += '<details class="sumbox"' + (_sumReal ? '' : ' open') + '>' +
+      html += '<details class="sumbox"' + ((noTxt && !_sumReal) || hitIn(_sumMs) ? ' open' : '') + '>' +
         '<summary>요약본' + (_sumReal ? ' · 원고' : '') + '</summary>' +
         '<div class="fulltext" style="margin-top:8px">' + mdSum(hl(_sumMs, terms)) + '</div></details>';
     }
-    if (s['원고링크']) html += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:var(--fs-md)" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
+    var info = '', infoLab = [], infoHay = '';
+    [['대지', s['대지']], ['예화', s['예화']], ['비고', s['비고']]].forEach(function(kv){
+      if (kv[1] && kv[1].trim && kv[1].trim()) { info += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>'; infoLab.push(kv[0]); infoHay += ' ' + kv[1]; }
+    });
+    var kws = String(s['키워드'] || '').split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); }).filter(Boolean);
+    if (kws.length) { info += '<div class="kv"><span class="k">주제어</span><span class="v">' +
+      kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>'; infoLab.push('주제어'); infoHay += ' ' + kws.join(' '); }
+    if (s['원고링크']) info += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:var(--fs-md)" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
     var done = doneTypes(s['ID']);
     var doneList = REQ_TYPES.filter(function(t){ return done[t]; });
-    if (doneList.length) html += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
-      doneList.map(function(t){ return esc(REQ_LABELS[t] || t) + ' ✓'; }).join(' · ') + '</span></div>';
-    html += '<div class="toolrow">' +
-      '<button class="btn sub" onclick="editSermon(\'' + esc(s['ID']) + '\')">수정하기</button>' +
-      '<button class="btn sub" onclick="previewSermon(\'' + esc(s['ID']) + '\')">미리보기</button>' +
-      '<button class="btn gold" onclick="exportSermonDocx(\'' + esc(s['ID']) + '\')">' + fmtTag() + '<br>내보내기<small class="bpath">01 Sermons / 연도 폴더</small></button></div>';
-    state.detailId = s['ID'];
-    function reqBtnRow(types, desktopOnly){
-      return '<div class="toolrow' + (desktopOnly ? ' desktop-only' : '') + '">' + types.map(function(t){
-        var st = reqBtnSt(s['ID'], t);
-        return '<button class="btn sub mini haspath' + (st ? ' ' + st : '') + '" onclick="requestSermonOutput(\'' + esc(s['ID']) + '\',\'' + t + '\')">' +
-          '<span class="blab"><span>' + REQ_BTN[t] + '</span>' + (st === 'done' || st === 'fin' ? '<span class="ck">●</span>' : st === 'req' ? '<span class="ck">▲</span>' : '') + '</span>' + bpathHtml(t) + '</button>';
-      }).join('') + '</div>';
-    }
-    html += reqBtnRow(['이미지프롬프트', '이미지생성'], true);   /* 요청함(Cowork) 경유 — 데스크탑 전용 */
-    html += reqBtnRow(['카드원고', '설교요약'], false);          /* API 직결 — 모바일도 노출 */
-    /* 실제 설교 요약본 만드는 두 길을 한 줄에 나란히 — 왼쪽 영상 전사(Gemini 키·프록시 필요),
-       오른쪽 자막 붙여넣기(Claude 키만 있으면 되고 영상이 길어도 잘리지 않는다, v538).
-       왼쪽이 숨으면 오른쪽이 flex로 한 줄을 채운다. */
-    html += '<div class="toolrow">' +
-      (state.settings && (state.settings.geminiKey || state.settings.vidProxyUrl || state.settings.proxyUrl)
-        ? '<button class="btn sub mini" onclick="aiYouTubeSummarize(\'' + esc(s['ID']) + '\')">▶ 유튜브 링크로 요약</button>' : '') +
-      '<button class="btn sub mini" onclick="aiCaptionSummarize(\'' + esc(s['ID']) + '\')"><svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 자막 붙여넣어 요약</button></div>';
-    /* 원고 요약본과 실제 설교 요약본이 둘 다 있을 때만 — 강단에서 원고를 어떻게 바꿔 선포했는지 비교 */
-    if (String(s['요약본'] || '').trim() && String(s['실제요약본'] || '').trim())
-      html += '<div class="toolrow"><button class="btn sub mini" onclick="cmpOpen(\'' + esc(s['ID']) + '\')"><svg class=ico aria-hidden=true><use href=#i-scale></use></svg> 원고 ↔ 실제 설교 비교</button></div>';
-    html += '<div class="toolrow"><button class="btn sub mini" onclick="shareSermon(\'' + esc(s['ID']) + '\')">↗ 공유 (카카오·메시지)</button>'
-      + '<button class="btn sub mini" onclick="shareSermonCards(\'' + esc(s['ID']) + '\')"><svg class=ico aria-hidden=true><use href=#i-image></use></svg> 카드뉴스 공유 (5장)</button></div>';
-    html += reqBtnRow(['LTC교재', '리더스앱업로드'], false);     /* API 직결 — 모바일도 노출 */
-    var txt = stripStructText(String(s['원고텍스트'] || ''));
-    var hasSum = !!sumText(s);
-    html += '<hr style="border:none;border-top:1px solid var(--line);margin:16px 0">';
-    if (!txt) html += s._txt
-      ? '<div class="empty">저장된 원고 텍스트가 없습니다.</div>'
-      : '<div class="libLoading" style="padding:30px 0"><span class="bigspin"></span><span class="ltxt">원고를 불러오는 중…</span></div>';
-    else if (!hasSum) html += '<details class="sumbox" open><summary>원고 전문</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
-    else html += '<details class="sumbox"><summary>원고 전문 펼쳐보기</summary><div class="fulltext" style="margin-top:8px">' + hl(txt, terms) + '</div></details>';
+    if (doneList.length) { info += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
+      doneList.map(function(t){ return esc(REQ_LABELS[t] || t) + ' ✓'; }).join(' · ') + '</span></div>'; infoLab.push('아웃풋'); }
+    if (info) html += '<details class="sumbox"' + (hitIn(infoHay) ? ' open' : '') + '><summary>설교 정보' + (infoLab.length ? ' <span style="opacity:.6;font-weight:400">' + infoLab.join('·') + '</span>' : '') + '</summary><div style="margin-top:6px">' + info + '</div></details>';
+    /* v709: 원고는 작성창과 같은 종이로 바로(설정 「원고 작성창」 — 종이/이전 방식을 따른다). 예전엔 단추 타일 10개 아래, 요약본이 있으면 접혀 있었다 */
+    html += '<section class="dpPaper" aria-label="원고 전문">' + (txt
+      ? '<div class="fulltext">' + hl(txt, terms) + '</div>'
+      : (s._txt ? '<div class="empty">저장된 원고 텍스트가 없습니다.</div>'
+        : '<div class="libLoading" style="padding:30px 0"><span class="bigspin"></span><span class="ltxt">원고를 불러오는 중…</span></div>')) + '</section>';
   } else {
     var d = findIdea(id);
     if (!d) return;
@@ -4972,9 +5001,13 @@ function openDetail(kind, id){
       }).join('') + '</div>';
   }
   /* v708: 상세는 산출물 확인·원고 지연 로드 뒤 다시 그려진다 — 키보드 포커스가 [← 목록으로]에 있었으면 다시 그린 뒤 그 단추로 돌려준다 */
-  var refocusClose = !!(document.activeElement && pane.contains(document.activeElement) && document.activeElement.classList.contains('detailClose'));
+  /* v709: [만들기 ▾] 메뉴가 열려 있었거나 그 안·머리 단추에 포커스가 있었으면 다시 그린 뒤 그대로 */
+  var ae = document.activeElement, refSel = null;
+  if (ae && pane.contains(ae)) refSel = ae.classList.contains('detailClose') ? '.detailClose' : (ae.id === 'dpMakeBtn' ? '#dpMakeBtn' : (ae.dataset && ae.dataset.mk ? '[data-mk="' + ae.dataset.mk + '"]' : null));
+  var mkOpen = !!(pane.querySelector('#dpMakeMenu') && !pane.querySelector('#dpMakeMenu').hidden && prevId === id);   /* 같은 설교를 다시 그릴 때만(다른 설교를 열면 닫힌 채로) */
   pane.innerHTML = html;
-  if (refocusClose) { var dcB = pane.querySelector('.detailClose'); if (dcB) { try { dcB.focus({ preventScroll: true }); } catch (eF){} } }
+  if (mkOpen) { var mm = pane.querySelector('#dpMakeMenu'), mb = pane.querySelector('#dpMakeBtn'); if (mm) mm.hidden = false; if (mb) mb.setAttribute('aria-expanded', 'true'); }
+  if (refSel) { var rf = pane.querySelector(refSel); if (rf) { try { rf.focus({ preventScroll: true }); } catch (eF){} } }
   if (keepOpen) Array.prototype.forEach.call(pane.querySelectorAll('details'), function(d){
     var sm = d.querySelector('summary'), k = sm ? sm.textContent.trim() : '';
     if (k && Object.prototype.hasOwnProperty.call(keepOpen, k)) d.open = keepOpen[k];
@@ -34564,7 +34597,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v708';
+var APP_VER = 'v709';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
