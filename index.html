@@ -2440,7 +2440,7 @@ body.focusMode #refInsBar{bottom:72px}
   font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;font-weight:400;letter-spacing:0}
 .pmCtx{box-sizing:border-box;width:var(--pmTxt,540px);max-width:calc(100% - 16px);margin:0 auto;font-size:var(--pmCfs,17px);line-height:var(--pmClh,24px);
   word-spacing:var(--pmCws,0);white-space:pre;overflow:hidden;color:color-mix(in srgb,var(--gl-ink) 40%,var(--gl-bg));cursor:pointer;user-select:none;-webkit-user-select:none}
-.pmCtx .ln{height:var(--pmClh,24px);overflow:hidden}
+.pmCtx .ln{height:var(--pmClh,24px);overflow:hidden;text-align:center}   /* v727 가운데 정렬(안경 앱과 같게) */
 .pmCtx .ln.end{font-size:.82em;color:color-mix(in srgb,var(--gl-ink) 24%,var(--gl-bg))}
 .pmCtx:hover{color:color-mix(in srgb,var(--gl-ink) 58%,var(--gl-bg))}
 .pmBox{position:relative;box-sizing:content-box;width:calc(var(--pmTxt,540px) + 2 * var(--pmPad,8px));max-width:calc(100% - 8px);margin:var(--pmGap,14px) auto;
@@ -2449,6 +2449,8 @@ body.focusMode #refInsBar{bottom:72px}
 .pmBox.over{border-color:var(--gl-red)}
 .pmBk,.pmTa{box-sizing:border-box;display:block;width:100%;margin:0;padding:var(--pmPad,8px);border:0;font:inherit;font-size:var(--pmFs,27px);line-height:var(--pmLh,38px);
   word-spacing:var(--pmWs,0);letter-spacing:0;text-indent:0;text-align:left;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere;tab-size:4}
+/* v727 한 장씩 보기의 상자 글은 가운데 정렬 — 뒤 글자층과 입력칸이 같은 정렬이어야 커서·빨간 표시가 맞는다([전체 글]은 왼쪽 그대로) */
+.pmPage .pmBk,.pmPage .pmTa{text-align:center}
 /* 뒤 글자층이 높이를 정하고(최소 3줄), 입력칸은 그 위에 겹친다(글자는 투명 — 커서·선택·한글 조합만) */
 .pmBk{position:relative;min-height:calc(var(--pmLh,38px) * 3 + 2 * var(--pmPad,8px));color:var(--gl-ink);pointer-events:none}
 .pmBk .ov{color:var(--gl-red);background:color-mix(in srgb,var(--gl-red) 20%,transparent);border-radius:2px}
@@ -2468,7 +2470,7 @@ body.focusMode #refInsBar{bottom:72px}
 .pmMini{box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;width:100%;height:var(--pmMh,93px);overflow:hidden;padding:var(--pmMpy,4px) 0;
   background:var(--gl-bg);color:var(--gl-ink);border:1px solid color-mix(in srgb,var(--text) 18%,transparent);border-radius:var(--r-sm);
   font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;font-weight:400;letter-spacing:0;opacity:.8;transition:opacity .15s,border-color .15s,box-shadow .15s}
-.pmMiniBox .ln{display:block;white-space:pre;overflow:hidden;text-align:left}
+.pmMiniBox .ln{display:block;white-space:pre;overflow:hidden;text-align:center}
 .pmMiniBox{display:block;box-sizing:content-box;width:var(--pmMtxt,100px);max-width:calc(100% - 4px);height:calc(var(--pmMlh,9px) * 3);margin:var(--pmMgap,3px) auto;padding:var(--pmMpad,2px);overflow:hidden;
   border:1px solid color-mix(in srgb,var(--gl-ink) 38%,var(--gl-bg));border-radius:calc(var(--pmMpad,2px) * .9);background:color-mix(in srgb,var(--gl-ink) 6%,var(--gl-bg))}
 .pmMiniBox .ln{height:var(--pmMlh,9px);font-size:var(--pmMfs,6px);line-height:var(--pmMlh,9px);word-spacing:var(--pmMws,0)}
@@ -12805,6 +12807,7 @@ async function prAI(opts){
    [한 장씩](기본): 가운데 상자 = 지금 읽는 묶음(3줄 × 한 줄 W칸, 안경과 같은 글자 크기 비율) · 위 = 지난 글의 끝 3줄 · 아래 = 다음 글의 첫 1줄
    (흐리게, 누르면 그 묶음으로). v702: 실제 안경이 보여 주는 대로 위 · 강조 3줄 · 아래 1줄, 모두 같은 글자 크기(예전엔 위아래 2줄씩 작게).
    v703: 위를 3줄로(목사님 요청) — 7줄이 600×350 안에 들게 여백·상자 안쪽 여백을 줄였다(PM_GEO.gap·padY·pad).
+   v727: 한 장씩 보기의 줄(위아래 문맥·상자·카드 띠)을 가운데 정렬 — 사역 안경 앱의 표시 방식과 같게(목사님 요청 2026-10-26). 아래 문맥은 1줄 그대로(안경 앱에서 2줄 불가).
    [전체 글]: 빈 줄로 묶음을 나눈 글 전체(v695 편집 화면).
    빨간 글자 = 안경 한 화면 밖(prOverSpans — 한 줄 W칸을 넘어 꺾일 부분 · 묶음의 4번째 화면 줄부터).
    입력칸 = 글자가 투명한 textarea + 같은 서식의 뒤 글자층(.pmBk — 높이를 정하고, 빨간 구간만 span). 글꼴은 기기 기본 글꼴이고,
@@ -13157,7 +13160,7 @@ function pmEditorHtml(){
         '<button class="btn sub mini" type="button" data-pm="fitall">넘친 줄 모두 정리</button></div>' +
       '<div class="cdHelpTx">' +
         '· 검은 화면 = MemoMind One 안경 화면(600×350)과 같은 비율입니다. 가운데 상자가 안경에서 한 번에 강조되는 <b>3줄</b>(한 줄 ' + o.width + '칸)이고, 글자 크기도 안경과 같은 비율입니다.<br>' +
-        '· 안경처럼 상자 위 <b>세 줄</b> = 바로 앞에 읽은 글의 끝, 아래 <b>한 줄</b> = 다음에 읽을 글의 시작(같은 글자 크기로 흐리게). 누르면 그 묶음으로 갑니다.<br>' +
+        '· 안경처럼 상자 위 <b>세 줄</b> = 바로 앞에 읽은 글의 끝, 아래 <b>한 줄</b> = 다음에 읽을 글의 시작(같은 글자 크기로 흐리게). 줄은 모두 가운데 정렬입니다. 누르면 그 묶음으로 갑니다.<br>' +
         '· <span class="pmOverTx">빨간 글자</span> = 안경 한 화면 밖(한 줄 칸 수를 넘어 꺾이거나 4번째 줄부터) — [넘친 줄 정리]로 나누거나, 고치지 않으면 [본문 복사] 때 자동으로 나눕니다.<br>' +
         '· 첫·끝 줄에서 <b>↑↓</b> · <b>⌥↑⌥↓</b> · PageUp/PageDown = 묶음 이동 · <b>⌘↩</b>(Ctrl+Enter) = 커서에서 나누기 · 맨 앞 <b>⌫</b> = 앞 묶음과 합치기 · 3줄이 찬 묶음 끝에서 <b>↩</b> 또는 빈 줄(↩ 두 번) = 새 묶음 · <b>⇧↩</b> = 묶음 안 줄바꿈.<br>' +
         '· 화면 아래 작은 카드 = 묶음마다 읽는 영역(3줄)을 위 화면과 같은 비율로 줄인 것입니다. 가운데가 지금 묶음, 왼쪽이 앞 묶음들, 오른쪽이 뒤 묶음들입니다(빨간 테두리 = 넘침). 옆으로 밀어 더 볼 수 있습니다.<br>' +
@@ -35356,7 +35359,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v726';
+var APP_VER = 'v727';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
