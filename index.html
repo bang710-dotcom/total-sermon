@@ -6396,8 +6396,9 @@ function renderIllLib(){
     if (ILLIB.src === 'arc'){
       var _fb0 = document.getElementById('illFilters'); if (_fb0) _fb0.innerHTML = '';
       var la = arc.filter(hitArc);
-      if (cnt) cnt.textContent = '내가 쓴 예화 ' + la.length + '건' + (la.length > 80 ? ' (상위 80건 표시)' : '') + (ILLARC.builtAt ? ' · 스냅샷 ' + ILLARC.builtAt : '');
-      box.innerHTML = la.length ? la.slice(0, 80).map(illCardArc).join('') : '<div class="empty">검색 결과가 없습니다.</div>';
+      if (cnt) cnt.textContent = '내가 쓴 예화 ' + la.length + '건' + (ILLARC.builtAt ? ' · 스냅샷 ' + ILLARC.builtAt : '');
+      illPageReset(); ILLIB._list = la; ILLIB._card = illCardArc;
+      box.innerHTML = la.length ? la.slice(0, ILLIB.limit).map(illCardArc).join('') + illMoreHtml(la.length, ILLIB.limit, '건') : illEmptyHtml();
       return;
     }
     var base = all.filter(function(it){
@@ -6455,11 +6456,49 @@ function renderIllLib(){
       if (lb.length) arcSec = '<div class="pastSec" style="margin:12px 2px 6px"><svg class=ico aria-hidden=true><use href=#i-folders></use></svg> 내가 쓴 예화 ' + lb.length + '건' + (lb.length > 20 ? ' — 상위 20건 (전부 보려면 [내가 쓴 예화] 칩)' : '') + '</div>'
         + lb.slice(0, 20).map(illCardArc).join('');
     }
-    if (cnt) cnt.textContent = (ILLIB.src === 'sleep' ? '잠자는 예화 ' + list.length + '편 — 아직 설교에 안 쓴 소장분' : '총 ' + list.length + '편') + (list.length > 80 ? ' (상위 80편 표시)' : '') + (arcN ? ' · 내가 쓴 예화 ' + arcN + '건' : '');
-    if (!list.length && !arcSec){ box.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
-    box.innerHTML = list.slice(0, 80).map(illCardU).join('') + arcSec;
+    if (cnt) cnt.textContent = (ILLIB.src === 'sleep' ? '잠자는 예화 ' + list.length + '편 — 아직 설교에 안 쓴 소장분' : '총 ' + list.length + '편') + (arcN ? ' · 내가 쓴 예화 ' + arcN + '건' : '');
+    if (!list.length && !arcSec){ box.innerHTML = illEmptyHtml(); return; }
+    /* v715: 80편씩 + [더 보기] — 예전엔 80편까지만 그리고 「상위 80편 표시」 글자만 있었다. 조건이 바뀌면 처음 80편부터 */
+    illPageReset(); ILLIB._list = list; ILLIB._card = illCardU;
+    box.innerHTML = list.slice(0, ILLIB.limit).map(illCardU).join('') + illMoreHtml(list.length, ILLIB.limit, '편') + arcSec;
   });
 }
+var ILL_PAGE = 80;
+function illPageReset(){
+  var key = [ILLIB.src, ILLIB.cat, ILLIB.theme, ILLIB.tone, ILLIB.layer, ILLIB.grade, ($('#illQ') && $('#illQ').value || '').trim()].join('|');
+  if (ILLIB._key !== key) { ILLIB._key = key; ILLIB.limit = ILL_PAGE; }
+}
+function illMoreHtml(total, shown, unit){
+  var rest = total - shown;
+  return rest > 0 ? '<button class="btn sub qMore" type="button" data-illact="more" data-unit="' + unit + '">' + Math.min(rest, ILL_PAGE) + unit + ' 더 보기 <span>' + shown + ' / ' + total + unit + ' 표시 중</span></button>' : '';
+}
+/* 0건: 다음 할 일을 단추로 — 거른 조건이 있으면 [필터 모두 풀기], 구분이 「전체」가 아니면 [구분을 「전체」로] */
+function illEmptyHtml(){
+  var filtered = !!(ILLIB.cat || ILLIB.theme || ILLIB.tone || ILLIB.layer || ILLIB.grade);
+  var acts = (filtered ? '<button class="btn sub" type="button" data-illact="reset">필터 모두 풀기</button>' : '') +
+    (ILLIB.src !== 'all' ? '<button class="btn sub" type="button" data-illact="all">구분을 「전체」로</button>' : '');
+  return '<div class="empty qNone">검색 결과가 없습니다.' + (acts ? '<div class="qNoneActs">' + acts + '</div>' : '') + '</div>';
+}
+(function(){
+  var box = $('#illResults'); if (!box) return;
+  box.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-illact]'); if (!b) return;
+    var a = b.getAttribute('data-illact');
+    if (a === 'more') {
+      var list = ILLIB._list || [], from = ILLIB.limit, unit = b.getAttribute('data-unit') || '편';
+      ILLIB.limit = Math.min(list.length, ILLIB.limit + ILL_PAGE);
+      b.insertAdjacentHTML('beforebegin', list.slice(from, ILLIB.limit).map(function(it){ return ILLIB._card(it); }).join(''));
+      var nb = illMoreHtml(list.length, ILLIB.limit, unit);
+      if (nb) b.outerHTML = nb; else b.remove();
+    } else if (a === 'reset') {
+      ILLIB.cat = ILLIB.theme = ILLIB.tone = ILLIB.layer = ILLIB.grade = '';
+      var sel = $('#illCat'); if (sel) sel.value = '';
+      renderIllLib();
+    } else if (a === 'all') {
+      var c = document.querySelector('#illSrc .chip[data-v="all"]'); if (c) c.click();
+    }
+  });
+})();
 (function(){
   var q = $('#illQ'); if (q) q.addEventListener('input', debounce(renderIllLib, 200));
   var sc = $('#illSrc'); if (sc) sc.addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (!c) return;
@@ -11943,12 +11982,13 @@ function illSaveToLibrary(k, btn){
 })();
 
 /* ===================== 인박스 ===================== */
+window.inboxShowAll = function(){ var c = document.querySelector('#inboxFilter .chip[data-v=""]'); if (c) c.click(); };   /* v715: 0건 안내의 [전체 보기] */
 function renderInbox(){
   var f = state.inboxFilter;
   var list = state.data.ideas.filter(function(d){ if (d['상태'] === '편입됨') return false; return !f || d['상태'] === f; });
   list.sort(function(a, b){ return b['ID'] < a['ID'] ? -1 : 1; });
   var box = $('#inboxList');
-  if (!list.length) { box.innerHTML = '<div class="empty">「' + esc(state.inboxFilter) + '」 상태의 항목이 없습니다.<br><span style="font-size:var(--fs-sm);color:var(--dim)">위의 상태 칩을 바꾸면 다른 항목을 볼 수 있습니다.</span><br><button class="emptyCta" type="button" onclick="showPage(\'input\')">빠른 입력으로 추가</button></div>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="empty">「' + esc(state.inboxFilter) + '」 상태의 항목이 없습니다.<br><span style="font-size:var(--fs-sm);color:var(--dim)">위의 상태 칩을 바꾸면 다른 항목을 볼 수 있습니다.</span><br>' + (state.inboxFilter ? '<button class="emptyCta" type="button" onclick="inboxShowAll()">전체 보기</button> ' : '') + '<button class="emptyCta" type="button" onclick="showPage(\'input\')">빠른 입력으로 추가</button></div>'; return; }
   box.innerHTML = list.map(function(d){
     var isIll = d['유형'] === '예화';
     var ttl = d['제목'] || String(d['내용'] || '').split(/[\n.]/)[0].slice(0, 42);
@@ -33343,11 +33383,14 @@ function renderLibRow(s){
   /* 파일맵에는 파일 경로 외에 내부 사이드카(ltcData·trans·transSig·cardArr·hymn·kakaoAt 등)도 들어 있다.
      여기서는 '연결된 파일' 목록만 보여준다 — 알려진 파일 키 + 문자열 값만 통과(내부 데이터 노출 방지). */
   var FMAP_LBL = { hwp: '원고(HWP)', docx: '원고', pdf: 'PDF', card: '카드원고', ltc: 'LTC' };
+  /* v715: 파일은 이름만, 저장 위치는 마우스 설명(검색 상세와 같은 규칙) */
   var paths = Object.keys(f.map).filter(function(k){
     return FMAP_LBL[k] && typeof f.map[k] === 'string' && f.map[k].trim();
   }).map(function(k){
-    return '<div class="cnt" style="word-break:break-all">' + FMAP_LBL[k] + ': ' + esc(f.map[k]) + '</div>';
-  }).join('');
+    return '<span class="libPath" title="저장 위치: ' + esc(f.map[k]) + '">' + FMAP_LBL[k] + '</span>';
+  }).join(' · ');
+  if (paths) paths = '<div class="cnt">연결된 파일: ' + paths + '</div>';
+  var lt = libTerms();   /* v715: 검색어 굵게 */
   var id = esc(s['ID'] || '');
   return '<details class="card libItem" style="margin-bottom:7px;position:relative"><summary>' +
     /* v711: 접힌 줄의 「삭제」는 뺐다 — 펼친 칸 아래 [삭제]가 같은 일을 한다(검색 결과와 같은 규칙: 지우기는 펼친 자리에서) */
@@ -33356,8 +33399,8 @@ function renderLibRow(s){
       (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
       (svcOf(s) ? '<span>' + esc(svcOf(s)) + '</span>' : '') +
       (series ? '<span>' + series + '</span>' : '') + '</div>' +
-    '<div class="title" style="font-size:var(--fs-lg);margin-top:2px">' + esc(s['제목'] || '(제목 없음)') +
-      (s['본문'] ? ' <span style="color:var(--accent2);font-weight:400;font-size:var(--fs-md)">' + esc(s['본문']) + '</span>' : '') + '</div>' +
+    '<div class="title" style="font-size:var(--fs-lg);margin-top:2px">' + (s['제목'] ? hl(s['제목'], lt) : '(제목 없음)') +
+      (s['본문'] ? ' <span style="color:var(--accent2);font-weight:400;font-size:var(--fs-md)">' + hl(s['본문'], lt) + '</span>' : '') + '</div>' +
     '<div class="lchips">' + chip(f.원고, '원고') + chip(f.pdf, 'PDF') + chip(f.card, '카드') + chip(f.요약, '요약') + chip(f.ltc, 'LTC') + '</div>' +
     '</summary>' +
     '<div class="libBody">' +
@@ -33365,9 +33408,11 @@ function renderLibRow(s){
       (sumText(s) ? '<details class="sumbox"><summary>요약본' + (sumIsReal(s) ? ' · 실제 설교' : '') + '</summary><div class="fulltext" style="margin-top:6px">' + mdSum(esc(sumText(s))) + '</div></details>' : '') +
       (String(s['대지'] || '').trim() ? '<div class="kv"><span class="k">대지</span><span class="v">' + esc(s['대지']).replace(/\n/g, '<br>') + '</span></div>' : '') +
       (paths ? '<div style="margin-top:6px">' + paths + '</div>' : '<div class="cnt" style="margin-top:6px">연결된 파일 정보 없음</div>') +
+      /* v715: 단추 순서는 검색 상세와 같게 [수정하기][미리보기], [상세에서 읽기 →] = 종이 원고·만들기 메뉴가 있는 검색 상세로 */
       '<div class="toolrow" style="margin-top:9px">' +
-        '<button class="btn sub" onclick="previewSermon(\'' + id + '\')">미리보기</button>' +
-        '<button class="btn sub" onclick="editSermon(\'' + id + '\')">수정하기</button>' +
+        '<button class="btn sub" type="button" onclick="editSermon(\'' + id + '\')">수정하기</button>' +
+        '<button class="btn sub" type="button" onclick="previewSermon(\'' + id + '\')">미리보기</button>' +
+        '<button class="btn sub" type="button" onclick="showPage(\'search\');openDetail(\'sermon\',\'' + id + '\')">상세에서 읽기 →</button>' +
         '<button class="btn gold desktop-only" onclick="exportSermonDocx(\'' + id + '\')">' + fmtTag() + ' 내보내기</button>' +
         '<button class="btn sub" style="margin-left:auto;color:var(--warn);border-color:var(--warn)" onclick="deleteSermon(\'' + id + '\')">삭제</button>' +
       '</div>' +
@@ -33491,8 +33536,48 @@ function renderLibrary(){
   if (L.flag) list = list.filter(function(s){ var f = libFiles(s); return L.flag === 'nopdf' ? !f.pdf : L.flag === 'nosum' ? !f.요약 : L.flag === 'nocard' ? !f.card : true; });
   list.sort(function(a, b){ return String(b['날짜'] || '').localeCompare(String(a['날짜'] || '')); });
   $('#libCnt').textContent = '설교 ' + list.length + '편' + (all.length !== list.length ? ' / 전체 ' + all.length : '');
-  box.innerHTML = list.length ? list.slice(0, 800).map(renderLibRow).join('') : '<div class="empty">조건에 맞는 설교가 없습니다.</div>';
+  /* v715: 100편씩 + [더 보기] — 예전엔 800편까지 한 번에 그리고 그 뒤는 말없이 빠졌다. 거른 조건이 바뀌면 처음 100편부터 */
+  var key = [L.year, L.svc, L.book, L.topic, L.flag, L.q].join('|');
+  if (L._key !== key) { L._key = key; L.limit = LIB_PAGE; }
+  L._list = list;
+  if (!list.length) {
+    var filtered = !!(L.year || L.svc || L.book || L.topic || L.flag);
+    box.innerHTML = '<div class="empty qNone">조건에 맞는 설교가 없습니다.' +
+      ((filtered || L.q) ? '<div class="qNoneActs">' +
+        (filtered ? '<button class="btn sub" type="button" data-libact="reset">필터 모두 풀기</button>' : '') +
+        (L.q ? '<button class="btn sub" type="button" data-libact="full">검색 탭에서 원고 전문까지 찾기</button>' : '') + '</div>' : '') + '</div>';
+    return;
+  }
+  box.innerHTML = list.slice(0, L.limit).map(renderLibRow).join('') + libMoreHtml(list.length, L.limit);
 }
+var LIB_PAGE = 100;
+function libTerms(){ return nfcLow(state.lib.q || '').split(/\s+/).filter(Boolean); }
+function libMoreHtml(total, shown){
+  var rest = total - shown;
+  return rest > 0 ? '<button class="btn sub qMore" type="button" data-libact="more">' + Math.min(rest, LIB_PAGE) + '편 더 보기 <span>' + shown + ' / ' + total + '편 표시 중</span></button>' : '';
+}
+/* 라이브러리 목록의 단추: 더 보기(펼친 칸은 그대로 두고 뒤에 덧붙인다) · 필터 모두 풀기 · 검색 탭에서 원고 전문까지 */
+(function(){
+  var box = $('#libResults'); if (!box) return;
+  box.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-libact]'); if (!b) return;
+    var a = b.getAttribute('data-libact'), L = state.lib;
+    if (a === 'more') {
+      var list = L._list || [], from = L.limit;
+      L.limit = Math.min(list.length, L.limit + LIB_PAGE);
+      b.insertAdjacentHTML('beforebegin', list.slice(from, L.limit).map(renderLibRow).join(''));
+      var nb = libMoreHtml(list.length, L.limit);
+      if (nb) b.outerHTML = nb; else b.remove();
+    } else if (a === 'reset') {
+      L.year = L.svc = L.book = L.topic = L.flag = '';
+      ['#libYear', '#libSvc', '#libBook', '#libTopic'].forEach(function(sel){ var el = $(sel); if (el) el.value = ''; });
+      $$('#page-library [data-libflag]').forEach(function(x){ x.classList.toggle('on', x.dataset.libflag === ''); });
+      renderLibrary();
+    } else if (a === 'full') {
+      var q = L.q; showPage('search'); $('#q').value = q; runSearch(); serverFullText();
+    }
+  });
+})();
 (function(){
   var q = $('#libQ'); if (q) q.addEventListener('input', debounce(function(){ state.lib.q = q.value.trim(); renderLibrary(); }, 150));
   var y = $('#libYear'); if (y) y.addEventListener('change', function(){ state.lib.year = y.value; renderLibrary(); });
@@ -34065,6 +34150,7 @@ function anDrill(list){
     if (t) { e.preventDefault(); window.anSelect(t.getAttribute('data-kind'), t.getAttribute('data-key')); }
   });
 })();
+window.archiveClearQ = function(){ var i = $('#aq'); if (i) { i.value = ''; i.focus(); } renderArchive(); };   /* v715: 0건 안내의 [검색어 지우기] */
 function renderArchive(){
   var box = $('#aResults'), cnt = $('#aCnt'), inp = $('#aq');
   if (!box) return;
@@ -34083,15 +34169,15 @@ function renderArchive(){
   });
   cnt.textContent = '보관 ' + list.length + '건' + (q ? ' · 검색 “' + q + '”' : '');
   if (!list.length) {
-    box.innerHTML = '<div class="empty">' + (q ? '검색 결과가 없습니다.' :
+    box.innerHTML = '<div class="empty qNone">' + (q ? '검색 결과가 없습니다.<div class="qNoneActs"><button class="btn sub" type="button" onclick="archiveClearQ()">검색어 지우기</button></div>' :   /* v715 */
       '보관된 미래설교가 없습니다. 시리즈 계획에서 설교 주제를 생성하면 모든 선택지가 자동으로 여기에 모입니다.') + '</div>';
     return;
   }
   box.innerHTML = list.map(function(s){
     return '<details class="card arItem" style="margin-bottom:8px">' +
       '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
-        '<b style="font-size:var(--fs-body)">' + esc(s['제목'] || '(제목 없음)') + '</b>' +
-        (s['본문'] ? '<span style="color:var(--accent2)">' + esc(s['본문']) + '</span>' : '') +
+        '<b style="font-size:var(--fs-body)">' + (s['제목'] ? hl(s['제목'], terms) : '(제목 없음)') + '</b>'   /* v715: 검색어 굵게 */ +
+        (s['본문'] ? '<span style="color:var(--accent2)">' + hl(s['본문'], terms) + '</span>' : '') +
         (s['날짜'] ? '<span class="cnt" style="margin-left:auto">' + esc(s['날짜']) + '</span>' : '') +
       '</summary>' +
       '<div style="margin-top:8px">' +
@@ -34675,7 +34761,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v714';
+var APP_VER = 'v715';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
