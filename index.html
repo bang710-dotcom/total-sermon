@@ -9131,7 +9131,7 @@ function studyCloseOv(){
    Tab 은 창 안에서만 돈다(aria-modal 인데 포커스가 뒤 화면으로 빠졌다). 다른 Esc 처리기보다 먼저 보도록 캡처 단계. */
 document.addEventListener('keydown', function(e){
   var ov = $('#studyOv'); if (!ov || !ov.classList.contains('on')) return;
-  if (document.body.classList.contains('uiDlgOpen') || document.querySelector('#brefOv.on, #featOv.on, #citeOv.on, #calOv.on')) return;
+  if (document.body.classList.contains('uiDlgOpen') || document.querySelector('#brefOv.on, #featOv.on, #citeOv.on, #calOv.on, #illViewOv.on, #illOv.on')) return;
   if (e.key === 'Escape') {
     if (e.isComposing || e.keyCode === 229) return;
     var om = document.querySelector('#stTabs .stGrpMenu:not([hidden])');
@@ -9141,8 +9141,8 @@ document.addEventListener('keydown', function(e){
   }
   if (e.key === 'Tab') {
     var box = ov.querySelector('.studyBox'); if (!box) return;
-    var f = Array.prototype.filter.call(box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'), function(el){
-      return !el.disabled && el.offsetParent !== null && !(el.closest && el.closest('[hidden]'));
+    var f = Array.prototype.filter.call(box.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'), function(el){
+      return el instanceof HTMLElement && !el.disabled && el.offsetParent !== null && !(el.closest && el.closest('[hidden]'));   /* 아이콘 SVG <use href> 는 빼고 */
     });
     if (!f.length) return;
     var a = document.activeElement, first = f[0], last = f[f.length - 1];
@@ -34995,7 +34995,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v720';
+var APP_VER = 'v721';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
