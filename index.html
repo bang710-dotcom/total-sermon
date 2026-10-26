@@ -155,8 +155,21 @@ label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 5px}
 .ogrp[open]>summary{color:var(--accent)}
 /* 시리즈 단계 타임라인 */
 .tl{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:12px}
-.tlnode{border:1px solid var(--line);background:var(--card);border-radius:var(--r-pill);padding:5px 13px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;color:var(--dim)}
+.tlnode{border:1px solid var(--line);background:var(--card);border-radius:var(--r-pill);padding:5px 13px;font-family:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;color:var(--dim)}
 .tlnode:hover{border-color:var(--line2)}
+/* v720 상태 = 점 색 + 낱말(글자는 본문색) — 완료·도착 --info, 요청 중 --req. 시리즈 진행 줄(.spStg)도 같은 방식, 확정은 --good */
+.tlnode[data-st]{color:var(--text);border-color:color-mix(in srgb,var(--info) 45%,var(--line))}
+.tlnode[data-st="req"]{border-color:color-mix(in srgb,var(--req) 55%,var(--line))}
+.tlnode[data-st]::before,.spStg[data-st]::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 6px 1px 0;background:var(--info);vertical-align:middle}
+.tlnode[data-st="req"]::before,.spStg[data-st="req"]::before{background:var(--req)}
+.spStg[data-st="done"]::before{background:var(--good)}
+.tlSt{font-weight:400;color:var(--dim)}
+.spStg{color:var(--text);font-weight:700}
+/* v720 묵상 단계 단추 줄 — 확정은 한 줄 전체, 나머지는 줄바꿈 */
+.toolrow.spDevoRow{flex-wrap:wrap}
+.toolrow.spDevoRow > #spDevoConfirm{flex:1 1 100%}
+.toolrow.spDevoRow > .btn:not(#spDevoConfirm),.toolrow.spDevoRow > .cmMenuWrap > .btn{flex:0 0 auto;width:auto}
+.toolrow.spDevoRow .cmMenu{min-width:180px}
 .tlarrow{color:var(--dim);font-size:var(--fs-sm)}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:var(--r-pill);padding:7px 14px;font-size:var(--fs-md);cursor:pointer;user-select:none}
@@ -1281,7 +1294,8 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #composeMeta [data-req="이미지생성"],
   #spDevoPdf,
   #spDevoTheme,
-  #spDevoPrint{display:none !important}
+  #spDevoPrint,
+  .spBookMenuWrap{display:none !important}
   .m-deskonly-note{display:block}
 
   /* 더보기 바텀시트 — 전 페이지 접근 */
@@ -27869,14 +27883,16 @@ function spBtnState(type, doneFlag){
 function spStageHtml(type, drafted, doneFlag, detail){
   var st = spBtnState(type, doneFlag);
   var stage = st === 'req' ? 1 : st === 'done' ? 2 : (st === 'fin' || drafted) ? 1 : 0;
+  /* v720: 상태 = 점 색 + 낱말(글자는 본문색). 예전엔 다크 테마 값(#8fe6b0·#ffc24d·#7fc4ff)이 박혀 라이트에서 대비 1.3~1.9:1 이었고,
+     --good·--req 토큰도 라이트·세피아 바탕 위 글자로는 4.5:1 미만이라 색은 점에만 쓴다. ✓ ▲ 기호 대신 낱말(v709 규칙) */
   var cur;
-  if (stage === 0) cur = { c: 'var(--dim)', suf: '' };
-  else if (stage === 2) cur = { c: '#8fe6b0', suf: ' ✓ 등록' + detail };
-  else if (st === 'req') cur = { c: '#ffc24d', suf: ' ▲ 처리 대기' };
-  else if (drafted) cur = { c: '#7fc4ff', suf: ' ✓ 검토 중' + detail };
-  else cur = { c: '#7fc4ff', suf: ' ✓ 도착 — [요청 결과]로 확인' };
+  if (stage === 0) cur = { st: '', suf: '' };
+  else if (stage === 2) cur = { st: 'done', suf: ' · 등록' + detail };
+  else if (st === 'req') cur = { st: 'req', suf: ' · 처리 대기' };
+  else if (drafted) cur = { st: 'draft', suf: ' · 검토 중' + detail };
+  else cur = { st: 'draft', suf: ' · 도착 — [요청 결과]로 확인' };
   return ['미요청', '초안', '확정'].map(function(n, i){
-    return i === stage ? '<b style="color:' + cur.c + '">' + n + cur.suf + '</b>'
+    return i === stage ? '<b class="spStg"' + (cur.st ? ' data-st="' + cur.st + '"' : '') + '>' + n + cur.suf + '</b>'
       : '<span style="color:var(--dim)">' + n + '</span>';
   }).join(' <span style="color:var(--dim)">→</span> ');
 }
@@ -28190,22 +28206,26 @@ async function spCheck(quiet){
 }
 
 /* ───── 오른쪽: 타임라인 + 검토 패널 ───── */
+/* v720 타임라인 마디(시리즈·새벽·주제별 공용) — 키보드로 누를 수 있는 단추, 상태는 점 색 + 낱말(완료·도착·요청 중).
+   예전엔 <span onclick> 이라 Tab 으로 닿지 않았고, 다크 테마 hex 색 + ●▲ 기호였다. */
+function spTlNode(label, st, on){
+  var w = st === 'done' ? '완료' : st === 'fin' ? '도착' : st === 'req' ? '요청 중' : '';
+  return '<button type="button" class="tlnode"' + (st ? ' data-st="' + st + '"' : '') + ' onclick="' + on + '">' + label
+    + (w ? '<span class="tlSt"> · ' + w + '</span>' : '') + '</button>';
+}
 function spTimelineHtml(){
   var S = state.series, sr = state.seriesReqs || {};
-  function node(label, st, on){
-    var c = (st === 'done' || st === 'fin') ? '#7fc4ff' : st === 'req' ? '#ffc24d' : '';
-    var mark = (st === 'done' || st === 'fin') ? ' ●' : st === 'req' ? ' ▲' : '';
-    return '<span class="tlnode" onclick="' + on + '"' + (c ? ' style="color:' + c + ';border-color:' + c + '"' : '') + '>' + label + mark + '</span>';
-  }
   var dSt = spReqBtnState('시리즈묵상');
   var sSt = spReqBtnState('시리즈설교');
   var p = sr['묵상집PDF'];
   var pSt = p === '완료' ? 'done' : (p === '대기' || p === '진행중') ? 'req' : '';
+  /* v720: 번호 ①② 는 왼쪽 요청 단추와 같은 뜻(① 묵상 일정 · ② 설교 계획)으로만 — 예전 타임라인은 ①계획 ②묵상 일정 ③PDF ④설교 계획이라
+     왼쪽 「① 묵상 일정 요청」과 번호가 엇갈렸다 */
   return '<div class="tl">' +
-    node('① 계획', S.meta ? 'done' : '', "toast('왼쪽 입력칸에서 계획을 수정할 수 있습니다. 수정 후 다시 요청하면 새 초안이 만들어집니다.')") + '<span class="tlarrow">→</span>' +
-    node('② 묵상 일정', dSt, "spView('devo')") + '<span class="tlarrow">→</span>' +
-    node('③ 묵상집 PDF', pSt, 'spPdfInfo()') + '<span class="tlarrow">→</span>' +
-    node('④ 설교 계획', sSt, "spView('sermon')") + '</div>';
+    spTlNode('계획', S.meta ? 'done' : '', "toast('왼쪽 입력칸에서 계획을 수정할 수 있습니다. 수정 후 다시 요청하면 새 초안이 만들어집니다.')") + '<span class="tlarrow" aria-hidden="true">→</span>' +
+    spTlNode('① 묵상 일정', dSt, "spView('devo')") + '<span class="tlarrow" aria-hidden="true">→</span>' +
+    spTlNode('묵상집 PDF', pSt, 'spPdfInfo()') + '<span class="tlarrow" aria-hidden="true">→</span>' +
+    spTlNode('② 설교 계획', sSt, "spView('sermon')") + '</div>';
 }
 /* A3(2026-07-12): 시리즈 계획 확정 주차에 로컬 서랍 후보 2편 선배정(무AI).
    핵심메시지+대지+본문으로 illPickCandidates 로컬 스코어 → 읽기전용 표시.
@@ -28338,13 +28358,18 @@ function spDevoHtml(){
   }).join('');
   var pSt = (state.seriesReqs || {})['묵상집PDF'];
   var pCls = (pSt === '대기' || pSt === '진행중') ? ' req' : pSt === '완료' ? ' fin' : '';
-  var pMark = pCls === ' fin' ? ' <span class="ck">●</span>' : pCls === ' req' ? ' <span class="ck">▲</span>' : '';
-  h += '<div class="toolrow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 등록' : '묵상 일정 확정 → 묵상집 등록') + '</button>' +
-    '<button class="btn sub" id="spDevoRedo" style="flex:0 0 auto;width:auto">재작업 요청</button>' +
-    '<button class="btn sub" onclick="openSeriesDevoPreview()" style="flex:0 0 auto;width:auto">미리보기</button>' +
-    '<button class="btn sub" id="spDevoTheme" style="flex:0 0 auto;width:auto">배경 테마' + (S.theme ? ' ✓' : '') + '</button>' +
-    '<button class="btn sub" id="spDevoPrint" style="flex:0 0 auto;width:auto">묵상집 인쇄</button>' +
-    '<button class="btn gold' + pCls + '" id="spDevoPdf" style="flex:0 0 auto;width:auto;display:flex;align-items:center;gap:8px">' +
+  var pMark = pCls === ' req' ? ' · 요청 중' : '';   /* v720: ●▲ 대신 낱말(완료면 [내려받기]가 붙는다) */
+  /* v720: 단추 6개가 한 줄(줄바꿈 없음)이라 1024~1133px 창에서 [묵상 일정 확정]이 한 글자씩 세로로 짓눌리고 금색 [묵상집 PDF 요청]이
+     화면 밖으로 밀렸다 — 확정 단추는 한 줄 전체, 나머지는 줄바꿈. 맥 전용 [배경 테마]·[묵상집 인쇄]는 「묵상집 ▾」 메뉴로(휴대폰·아이패드는 원래 숨김) */
+  h += '<div class="toolrow spDevoRow"><button class="btn" id="spDevoConfirm">' + (S.devoDone ? '수정분 등록' : '묵상 일정 확정 → 묵상집 등록') + '</button>' +
+    '<button class="btn sub" id="spDevoRedo">재작업 요청</button>' +
+    '<button class="btn sub" type="button" onclick="openSeriesDevoPreview()">미리보기</button>' +
+    '<div class="cmMenuWrap spBookMenuWrap"><button class="btn sub" type="button" data-cmmenu="spBookMenu" aria-haspopup="true" aria-expanded="false">묵상집 <svg class=ico aria-hidden=true><use href=#i-chevron></use></svg></button>' +
+      '<div class="cmMenu" id="spBookMenu" hidden>' +
+        '<button class="btn sub" type="button" id="spDevoTheme">배경 테마' + (S.theme ? ' ✓' : '') + '</button>' +
+        '<button class="btn sub" type="button" id="spDevoPrint"><svg class=ico aria-hidden=true><use href=#i-printer></use></svg> 묵상집 인쇄</button>' +
+      '</div></div>' +
+    '<button class="btn gold' + pCls + '" id="spDevoPdf" style="display:flex;align-items:center;gap:8px">' +
     '<span>묵상집 PDF 요청' + pMark + '</span>' + (pCls === ' fin' ? '<span class="inbtn">내려받기</span>' : '') + '</button></div>';
   return h;
 }
@@ -29282,27 +29307,17 @@ async function aiRegenWeek(wi, btn){
 /* ── 오른쪽 패널: 타임라인 + 검토(일별 선택지) ── */
 function spDawnTimeline(){
   var S = state.series;
-  function node(label, st, on){
-    var c = st === 'done' ? '#7fc4ff' : st === 'req' ? '#ffc24d' : '';
-    var mk = st === 'done' ? ' ●' : st === 'req' ? ' ▲' : '';
-    return '<span class="tlnode" onclick="' + on + '"' + (c ? ' style="color:' + c + ';border-color:' + c + '"' : '') + '>' + label + mk + '</span>';
-  }
   var n2 = S.sermon ? 'done' : ((state.seriesReqs || {})['새벽설교'] === '진행중' ? 'req' : '');
   return '<div class="tl">' +
-    node('① 주간 범위', S.meta ? 'done' : '', "toast('왼쪽에서 날짜를 바꾸면 통독 범위가 다시 계산됩니다.')") + '<span class="tlarrow">→</span>' +
-    node('② 설교 주제', n2, "renderSeriesPane()") + '</div>';
+    spTlNode('주간 범위', S.meta ? 'done' : '', "toast('왼쪽에서 날짜를 바꾸면 통독 범위가 다시 계산됩니다.')") + '<span class="tlarrow" aria-hidden="true">→</span>' +
+    spTlNode('설교 주제', n2, "renderSeriesPane()") + '</div>';
 }
 function spTopicTimeline(){
   var S = state.series;
-  function node(label, st, on){
-    var c = st === 'done' ? '#7fc4ff' : st === 'req' ? '#ffc24d' : '';
-    var mk = st === 'done' ? ' ●' : st === 'req' ? ' ▲' : '';
-    return '<span class="tlnode" onclick="' + on + '"' + (c ? ' style="color:' + c + ';border-color:' + c + '"' : '') + '>' + label + mk + '</span>';
-  }
   var n2 = S.sermon ? 'done' : ((state.seriesReqs || {})['주제설교'] === '진행중' ? 'req' : '');
   return '<div class="tl">' +
-    node('① 주제·회차', S.meta ? 'done' : '', "toast('왼쪽에서 주제·횟수·회차·배경을 입력하세요.')") + '<span class="tlarrow">→</span>' +
-    node('② 설교 주제', n2, "renderSeriesPane()") + '</div>';
+    spTlNode('주제·회차', S.meta ? 'done' : '', "toast('왼쪽에서 주제·횟수·회차·배경을 입력하세요.')") + '<span class="tlarrow" aria-hidden="true">→</span>' +
+    spTlNode('설교 주제', n2, "renderSeriesPane()") + '</div>';
 }
 function spDawnHtml(){
   var S = state.series, m = S.meta || {};
