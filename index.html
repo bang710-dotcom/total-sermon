@@ -38876,7 +38876,7 @@ function cmReveal(el){
       px.disabled = !el || !!el.disabled;
       px.classList.toggle('isDone', !!(el && el.classList.contains('casc-done')));
       /* v724 같은 줄의 「Total에 포함」 토글에 그 산출물 이름 — 예전엔 일곱 개가 모두 같은 이름으로 읽혔다 */
-      var sw = px.parentNode && px.parentNode.querySelector('.cmxSw'), nm = sp ? sp.textContent.trim() : '';
+      var row = px.closest('.cmxRow'), sw = row && row.querySelector('.cmxSw'), nm = sp ? sp.textContent.trim() : '';   /* v725: 같은 줄에서만 — 트리 밖 항목(설교 노트 등)의 부모는 메뉴 자체라 첫 토글(전환표)에 그 이름이 붙었다 */
       if (sw && nm) { sw.setAttribute('aria-label', nm + ' — Total에 포함'); sw.title = nm + ' — Total에 포함'; }
     });
     syncMirrors(m);
