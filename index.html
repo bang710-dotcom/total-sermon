@@ -2081,6 +2081,14 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
 #page-lbt:has(#lbtTopicMeta[hidden]) .pgMode[data-pgmode="topic"]{display:none}
 #page-series:has(#seriesMeta[style*="none"]) .pgWiz{display:none}
 .pgHelp{margin:12px 0 6px}
+/* v712: 머리줄을 11개 화면에(검색 첫 화면은 검색창이 머리 역할이라 뺐다). 긴 설명은 한 줄 설명 끝 ⓘ 로 접고, 머리줄 바로 다음 .hlpTx 가 열린다 */
+#libraryHead,#analyticsHead,#devoHead,#archiveHead,#inputHead,#importHead,#outputsHead,#inboxHead,#illlibHead,#settingsHead,#mindmapHead{margin-bottom:12px}
+.pgHead .cmHeadSub .hlpBtn{vertical-align:-3px;margin-left:2px}
+.pgHead + .hlpTx{margin:-4px 0 12px}
+#devoTitle:empty::before{content:'날짜별 묵상 본문과 노트'}   /* 이달의 묵상: 한 줄 설명 자리에 그날 본문(비면 이 설명) */
+#mindmapHead{flex:0 0 auto;padding:12px 16px}
+#devoHead .cmActs{gap:6px}
+@media (max-width: 600px){ #devoHead .cmActs{flex-wrap:nowrap} #devoHead #devoDate{flex:1 1 auto;min-width:0} }   /* 휴대폰: 날짜 이동을 한 줄로 — 머리줄이 위에 붙으므로 키가 커지지 않게 */
 @media (min-width: 900px) and (hover: hover){
   #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
   #occHead,#zoneHead,#lbtHead,#seriesHead{grid-column:1 / -1}
@@ -2094,6 +2102,8 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
   .pgHead{position:sticky;top:0;margin:-10px 0 12px;padding:10px 0}
   .pgHead h2{font-size:var(--fs-lg)}
   .pgHead .btn{padding:9px 12px;min-height:40px}
+  /* v712: 검색창이 위에 붙는 화면(라이브러리·통계·보관함)은 머리줄은 함께 올라가고 검색창만 붙는다 — 둘 다 top:0 이면 겹친다 */
+  .pgHead.pgFlow{position:static;margin-top:0}
 }
 @media (max-width: 600px){ .pgHead .cmHeadL{flex-basis:100%} .pgHead .cmActs{flex:1 1 auto} }
 
@@ -2572,6 +2582,10 @@ body.focusMode #refInsBar{bottom:72px}
 
     <!-- ============ 설교 라이브러리 ============ -->
     <section class="page" id="page-library">
+      <div class="pgHead pgFlow" id="libraryHead">
+        <div class="cmHeadL"><h2>설교 라이브러리</h2><div class="cmHeadSub">모든 설교를 연도·예배·파일 유무로 좁혀 봅니다 <button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div></div>
+      </div>
+      <div class="hlpTx" hidden>모든 설교를 한 곳에서 — 보유 파일(원고·PDF·카드·요약·LTC)을 칩으로 보고, 연도·예배·검색으로 좁혀 봅니다. 항목을 펼치면 요약·대지·파일 위치와 미리보기·수정·내보내기를 할 수 있습니다.</div>
       <div class="searchbox" style="margin-bottom:10px">
         <input type="text" id="libQ" aria-label="설교 라이브러리 검색" placeholder="설교 라이브러리 검색 — 제목·본문·원고·요약" autocomplete="off">
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center">
@@ -2585,7 +2599,6 @@ body.focusMode #refInsBar{bottom:72px}
           <button type="button" class="chip" data-libflag="nocard">카드 없음</button>
           <button type="button" class="chip" data-libtrash="1" style="margin-left:8px;color:var(--warn)"><svg class=ico aria-hidden=true><use href=#i-trash></use></svg> 휴지통</button>
         </div>
-        <div class="cnt" style="margin-top:6px">모든 설교를 한 곳에서 — 보유 파일(원고·PDF·카드·요약·LTC)을 칩으로 보고, 연도·예배·검색으로 좁혀 봅니다. 항목을 펼치면 요약·대지·파일 위치와 미리보기·수정·내보내기를 할 수 있습니다.</div>
       </div>
       <div class="cnt" id="libCnt"></div>
       <div id="libResults"><div class="libLoading"><span class="bigspin"></span><span class="ltxt">설교를 불러오는 중…</span></div></div>
@@ -2593,12 +2606,15 @@ body.focusMode #refInsBar{bottom:72px}
 
     <!-- ============ 설교 통계 분석 ============ -->
     <section class="page" id="page-analytics">
+      <div class="pgHead pgFlow" id="analyticsHead">
+        <div class="cmHeadL"><h2>설교 통계 분석</h2><div class="cmHeadSub">어떤 성경·주제를 많이 설교했는지 봅니다 <button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div></div>
+      </div>
+      <div class="hlpTx" hidden>내가 어떤 성경·어떤 주제의 설교를 많이 했는지 한눈에 봅니다. 보관(미래 설교)은 제외하고, 실제 전한 설교를 기준으로 집계합니다. 설교계획에 참고하세요.</div>
       <div class="searchbox" style="margin-bottom:10px">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="anYear" class="libsel"><option value="">전체 기간</option></select>
           <select id="anSvc" class="libsel"><option value="">예배 전체</option></select>
         </div>
-        <div class="cnt" style="margin-top:6px">내가 어떤 성경·어떤 주제의 설교를 많이 했는지 한눈에 봅니다. 보관(미래 설교)은 제외하고, 실제 전한 설교를 기준으로 집계합니다. 설교계획에 참고하세요.</div>
       </div>
       <div id="anResults"><div class="libLoading"><span class="bigspin"></span><span class="ltxt">집계하는 중…</span></div></div>
       <div class="card" id="topicHubCard" style="margin-top:14px">
@@ -2871,14 +2887,11 @@ body.focusMode #refInsBar{bottom:72px}
 
     <!-- ============ 이달의 묵상 ============ -->
     <section class="page" id="page-devo">
-      <div id="devoHead" class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <button class="ptBtn" id="devoPrev" style="flex:0 0 34px;height:36px">◀</button>
-        <input type="date" id="devoDate" style="width:auto;flex:0 1 170px">
-        <button class="ptBtn" id="devoNext" style="flex:0 0 34px;height:36px">▶</button>
-        <button class="linkbtn" id="devoToday" style="font-size:var(--fs-md)">오늘</button>
-        <button class="linkbtn" onclick="shareDevo()" style="font-size:var(--fs-md)">↗ 공유</button>
-        <div id="devoTitle" style="flex:1;min-width:200px;font-weight:700"></div>
+      <div class="pgHead" id="devoHead">
+        <div class="cmHeadL"><h2>이달의 묵상</h2><div class="cmHeadSub" id="devoTitle"></div></div>
+        <div class="cmActs"><button class="ptBtn" id="devoPrev" style="flex:0 0 34px;height:36px">◀</button> <input type="date" id="devoDate" style="width:auto;flex:0 1 170px"> <button class="ptBtn" id="devoNext" style="flex:0 0 34px;height:36px">▶</button> <button class="linkbtn" id="devoToday" style="font-size:var(--fs-md)">오늘</button> <button class="linkbtn" onclick="shareDevo()" style="font-size:var(--fs-md)">↗ 공유</button></div>
       </div>
+
       <div id="devoBody"></div>
     </section>
 
@@ -2948,9 +2961,12 @@ body.focusMode #refInsBar{bottom:72px}
 
     <!-- ============ 미래설교 보관함 ============ -->
     <section class="page" id="page-archive">
+      <div class="pgHead pgFlow" id="archiveHead">
+        <div class="cmHeadL"><h2>미래설교 보관함</h2><div class="cmHeadSub">시리즈 계획에서 고르지 않은 설교 개요가 모입니다 <button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div></div>
+      </div>
+      <div class="hlpTx" hidden>시리즈 설교 주제 중 아직 고르지 않은 개요들이 여기에 모입니다. 어느 기기에서나 검색·열람하고, 바로 [설교 작성]으로 잇거나 [구상/연구]으로 승격할 수 있습니다.</div>
       <div class="searchbox" style="margin-bottom:10px">
         <input type="text" id="aq" aria-label="미래설교 보관함 검색" placeholder="미래설교(보관) 통합 검색 — 제목·본문·메시지·대지·시리즈" autocomplete="off">
-        <div class="cnt" style="margin-top:6px">시리즈 설교 주제 중 아직 고르지 않은 개요들이 여기에 모입니다. 어느 기기에서나 검색·열람하고, 바로 [설교 작성]으로 잇거나 [구상/연구]으로 승격할 수 있습니다.</div>
       </div>
       <div class="cnt" id="aCnt"></div>
       <div id="aResults"><div class="empty">보관된 미래설교가 없습니다.</div></div>
@@ -2958,6 +2974,9 @@ body.focusMode #refInsBar{bottom:72px}
 
     <!-- ============ 입력 (모바일 빠른 입력) ============ -->
     <section class="page" id="page-input">
+      <div class="pgHead" id="inputHead">
+        <div class="cmHeadL"><h2>빠른 입력</h2><div class="cmHeadSub">아이디어·예화·설교를 바로 적어 둡니다</div></div>
+      </div>
       <div class="card">
         <div class="chips" id="ideaTypes">
           <button type="button" class="chip gold on" data-v="예화">예화</button>
@@ -3004,6 +3023,10 @@ body.focusMode #refInsBar{bottom:72px}
 
     <!-- ============ 가져오기 (데스크탑) ============ -->
     <section class="page" id="page-import">
+      <div class="pgHead" id="importHead">
+        <div class="cmHeadL"><h2>가져오기</h2><div class="cmHeadSub">원고 파일(한글·워드·PDF·텍스트)을 시트에 등록합니다</div></div>
+        <div class="cmActs" id="impActions" style="display:none"><button class="btn sub" id="impClear">비우기</button> <button class="btn" id="impRegister">선택한 원고 시트에 등록</button></div>
+      </div>
       <div class="dropzone" id="dropzone">
         설교 원고 파일을 앱 화면 아무 데나 끌어다 놓으세요<br>
         <b style="font-size:var(--fs-md)">한글(.hwpx) · 워드(.docx) · PDF · 텍스트(.txt · .md · .rtf)</b><br>
@@ -3015,24 +3038,26 @@ body.focusMode #refInsBar{bottom:72px}
         <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
       </div>
       <div id="impList" style="margin-top:14px"></div>
-      <div class="toolrow" id="impActions" style="display:none">
-        <button class="btn sub" id="impClear">비우기</button>
-        <button class="btn" id="impRegister">선택한 원고 시트에 등록</button>
-      </div>
     </section>
 
     <!-- ============ 아웃풋 (결과함 보기) ============ -->
     <section class="page" id="page-outputs">
-      <div class="row2" style="margin-bottom:12px;max-width:420px">
-        <button class="btn sub" id="outRefresh">새로고침</button>
-        <button class="btn sub" id="outCheck">요청함 상태 확인</button>
+      <div class="pgHead" id="outputsHead">
+        <div class="cmHeadL"><h2>아웃풋</h2><div class="cmHeadSub">클로드가 만든 결과 파일 <button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div></div>
+        <div class="cmActs"><button class="btn sub" id="outRefresh">새로고침</button> <button class="btn sub" id="outCheck">요청함 상태 확인</button></div>
       </div>
-      <div class="cnt">클로드가 만든 결과 파일(_claude_결과함)입니다. 파인더에서 바로 열려면 claude-exchange 폴더를 파인더 사이드바에 끌어다 두세요.</div>
+      <div class="hlpTx" hidden>클로드가 만든 결과 파일(_claude_결과함)입니다. 파인더에서 바로 열려면 claude-exchange 폴더를 파인더 사이드바에 끌어다 두세요.</div>
+
       <div id="outList"></div>
     </section>
 
     <!-- ============ 인박스 ============ -->
     <section class="page" id="page-inbox">
+      <div class="pgHead" id="inboxHead">
+        <div class="cmHeadL"><h2>인박스</h2><div class="cmHeadSub">강화 전 예화·아이디어를 검토합니다 <button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div></div>
+        <div class="cmActs"><button class="btn sub" id="enhanceIdeasBtn" type="button"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 강화 안 된 예화 일괄 강화</button></div>
+      </div>
+      <div class="hlpTx" hidden><svg class=ico aria-hidden=true><use href=#i-bulb></use></svg> <b>예화는 강화되는 순간 곧바로 예화 도서관으로 정리</b>됩니다. 이미지·OCR처럼 저장과 함께 자동 강화되는 예화는 인박스를 거치지 않고 바로 도서관으로 넘어갑니다. 손으로 빠르게 적어 둔 예화는 아직 강화 전이라 여기 인박스에 남아 있고, 위 「<b>강화 안 된 예화 일괄 강화</b>」를 누르면 강화되어 그때 도서관으로 넘어갑니다. 즉 인박스는 <b>강화 전 예화와 아이디어·통찰·주제를 검토하는 자리</b>이고, 강화가 끝난 예화는 도서관에 모입니다. (도서관에 보이는 것과 별개로, 예화모음 엑셀·번들에는 들어가지 않습니다.)</div>
       <div class="chips" id="inboxFilter" style="margin-bottom:12px">
         <button type="button" class="chip on" data-v="새것">새것</button>
         <button type="button" class="chip" data-v="검토">검토</button>
@@ -3040,13 +3065,17 @@ body.focusMode #refInsBar{bottom:72px}
         <button type="button" class="chip" data-v="보류">보류</button>
         <button type="button" class="chip" data-v="">전체</button>
       </div>
-      <div class="toolrow" style="margin-bottom:10px"><button class="btn sub mini" id="enhanceIdeasBtn" type="button" style="flex:0 0 auto"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 강화 안 된 예화 일괄 강화</button><span class="cnt" id="enhanceIdeasHint" style="margin-left:8px"></span></div>
-      <div class="cnt" style="margin-bottom:12px;line-height:1.65;background:var(--card,#0000000a);border-radius:8px;padding:9px 11px"><svg class=ico aria-hidden=true><use href=#i-bulb></use></svg> <b>예화는 강화되는 순간 곧바로 예화 도서관으로 정리</b>됩니다. 이미지·OCR처럼 저장과 함께 자동 강화되는 예화는 인박스를 거치지 않고 바로 도서관으로 넘어갑니다. 손으로 빠르게 적어 둔 예화는 아직 강화 전이라 여기 인박스에 남아 있고, 위 「<b>강화 안 된 예화 일괄 강화</b>」를 누르면 강화되어 그때 도서관으로 넘어갑니다. 즉 인박스는 <b>강화 전 예화와 아이디어·통찰·주제를 검토하는 자리</b>이고, 강화가 끝난 예화는 도서관에 모입니다. (도서관에 보이는 것과 별개로, 예화모음 엑셀·번들에는 들어가지 않습니다.)</div>
+      <div class="cnt" style="margin:0 2px 8px"><span class="cnt" id="enhanceIdeasHint"></span></div>
       <div id="inboxList"></div>
     </section>
 
     <!-- ============ 예화 도서관 (강화 DB + 인박스 + 내가 쓴 예화 아카이브 통합) ============ -->
     <section class="page" id="page-illlib">
+      <div class="pgHead" id="illlibHead">
+        <div class="cmHeadL"><h2>예화 도서관</h2><div class="cmHeadSub">예화를 주제·대상·출처로 찾습니다 <button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div></div>
+        <div class="cmActs"><div class="cmMenuWrap"><button class="btn sub" type="button" id="illMaintBtn" data-cmmenu="illMaintMenu" aria-haspopup="true" aria-expanded="false"><svg class=ico aria-hidden=true><use href=#i-more></use></svg> 관리</button><div class="cmMenu cmMenuR" id="illMaintMenu" hidden><button class="btn sub" id="foldInboxBtn" type="button"><svg class=ico aria-hidden=true><use href=#i-download></use></svg> 인박스 예화 라이브러리로 편입</button><button class="btn sub" id="illBackfillBtn" type="button" title="과거 설교의 예화 요약·원고에서 서랍 예화를 찾아 사용 기록을 채웁니다"><svg class=ico aria-hidden=true><use href=#i-search></use></svg> 예화 사용 이력 소급 스캔</button></div></div></div>
+      </div>
+      <div class="hlpTx" hidden>「<b>내 인박스</b>」=빠른 입력으로 넣어 아직 인박스에 남아 있는 예화 · 「<b>인박스 편입</b>」=검토 끝나 도서관에만 정리한 예화 · 「<b>강화 라이브러리</b>」=기본 제공 예화 · 「<b>내가 쓴 예화</b>」=과거 설교 원고 속 ex) 예화 블록 전체(2003~현재, 재사용 표시 포함 — 이 기기에서 저장한 새 원고도 자동 반영). 모두 검색·설교 삽입이 됩니다. [전체]에서 검색하면 내가 쓴 예화도 결과 아래에 함께 나옵니다.</div>
       <div class="card">
         <input type="text" id="illQ" aria-label="예화 검색" placeholder="예화 검색 — 제목·메시지·내용·키워드·본문·출처(인물·책)" autocomplete="off">
         <div class="illfbox">
@@ -3069,15 +3098,16 @@ body.focusMode #refInsBar{bottom:72px}
           </div>
           <div id="illFilters"></div>
         </div>
-        <div class="toolrow" style="margin-top:10px"><button class="btn sub mini" id="foldInboxBtn" type="button" style="flex:0 0 auto"><svg class=ico aria-hidden=true><use href=#i-download></use></svg> 인박스 예화 라이브러리로 편입</button><span class="cnt" id="foldInboxHint" style="margin-left:8px"></span></div>
-        <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" id="illBackfillBtn" type="button" style="flex:0 0 auto"><svg class=ico aria-hidden=true><use href=#i-search></use></svg> 예화 사용 이력 소급 스캔</button><span class="cnt" id="illBackfillHint" style="margin-left:8px">과거 설교의 예화 요약·원고에서 서랍 예화를 찾아 사용 기록을 채웁니다</span></div>
-        <div class="cnt" style="margin-top:8px;line-height:1.6">「<b>내 인박스</b>」=빠른 입력으로 넣어 아직 인박스에 남아 있는 예화 · 「<b>인박스 편입</b>」=검토 끝나 도서관에만 정리한 예화 · 「<b>강화 라이브러리</b>」=기본 제공 예화 · 「<b>내가 쓴 예화</b>」=과거 설교 원고 속 ex) 예화 블록 전체(2003~현재, 재사용 표시 포함 — 이 기기에서 저장한 새 원고도 자동 반영). 모두 검색·설교 삽입이 됩니다. [전체]에서 검색하면 내가 쓴 예화도 결과 아래에 함께 나옵니다.</div>
+        <div class="cnt illMaintHint"><span class="cnt" id="foldInboxHint"></span> <span id="illBackfillHint"></span></div>
       </div>
       <div id="illResults"></div>
     </section>
 
     <!-- ============ 설정 ============ -->
     <section class="page" id="page-settings">
+      <div class="pgHead" id="settingsHead">
+        <div class="cmHeadL"><h2>설정</h2><div class="cmHeadSub">연결·화면·산출물·이 기기·데이터</div></div>
+      </div>
       <!-- v676 설정 화면 재배치: 연결 상태 → 연결 → 화면 → 산출물 → 이 기기 → 데이터 → 고급(접힘). 칸·단추 id 는 예전 그대로 -->
       <div class="card" id="setStatusCard">
         <label style="margin-top:0"><svg class=ico aria-hidden=true><use href=#i-check></use></svg> 연결 상태</label>
@@ -3329,6 +3359,9 @@ body.focusMode #refInsBar{bottom:72px}
 
     <!-- ============ 마인드맵 (설교 아이디어 확장) ============ -->
     <section class="page" id="page-mindmap">
+      <div class="pgHead" id="mindmapHead">
+        <div class="cmHeadL"><h2>마인드맵</h2><div class="cmHeadSub">설교 구상을 가지로 펼쳐 봅니다</div></div>
+      </div>
       <div id="mmBar">
         <select id="mmMapSel" title="맵 선택"></select>
         <button class="mmBtn" id="mmNewMap" type="button" title="새 마인드맵">＋ 맵</button>
@@ -34635,7 +34668,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v711';
+var APP_VER = 'v712';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -38116,7 +38149,7 @@ function cmReveal(el){
   /* 도움말 ⓘ — 설명 문단은 접어 두고 필요할 때만 */
   document.addEventListener('click', function(e){
     var b = e.target.closest('.hlpBtn'); if (!b) return;
-    var sec = b.closest('.cmSec, .setHl'), t = sec && sec.nextElementSibling;   /* v676: 설정 화면 도움말 줄(.setHl)도 */
+    var sec = b.closest('.cmSec, .setHl, .pgHead'), t = sec && sec.nextElementSibling;   /* v712: 화면 머리줄의 ⓘ — 머리줄 바로 다음 .hlpTx */   /* v676: 설정 화면 도움말 줄(.setHl)도 */
     if (t && t.classList.contains('hlpTx')){ t.hidden = !t.hidden; b.setAttribute('aria-expanded', t.hidden ? 'false' : 'true'); }
   });
 })();
