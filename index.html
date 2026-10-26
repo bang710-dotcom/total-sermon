@@ -130,6 +130,7 @@ label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 5px}
   .btn,.chip,.linkbtn,.tabbar button,.sidebar button.nav,.inbtn{transition:filter .1s ease, opacity .1s ease}
   .btn:active:not(:disabled),.chip:active,.linkbtn:active,.tabbar button:active,.sidebar button.nav:active,.inbtn:active{transform:none}}
 .btn.mini{padding:9px 8px;font-size:var(--fs-sm);font-weight:600;flex:1 1 0;word-break:keep-all;line-height:1.35;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn.mini > span,.btn.mini .blab > span{text-wrap:balance}
 /* 통일된 요청버튼 상태색: 결과 존재(done/fin)=파랑●, 요청·처리중(req)=노랑▲, 없음=회색 */
 .btn.done{background:var(--info-bg);border-color:var(--info-line);color:var(--info)}
 .btn.req{background:var(--req-bg);border-color:var(--req-line);color:var(--req)}
@@ -1874,6 +1875,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .cmMenu .btn.sub.saveAsWarn{color:var(--warn)}
 .cmMenu .ico{color:var(--dim)}
 .cmMenuSep{height:1px;background:var(--line);margin:4px 6px}
+/* v725 메뉴 줄 한 줄 설명(새 시리즈 ▾) */
+.cmMenu .mnTx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cmMenu .mnTx small{font-size:var(--fs-xs);font-weight:400;color:var(--dim);white-space:normal;line-height:1.4}
 /* 왼쪽 열 탭 */
 .cmTabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:3px;margin-bottom:12px;position:sticky;top:0;z-index:5}
 .cmTabs button{flex:1 1 0;background:none;border:none;color:var(--dim);font-family:inherit;font-size:var(--fs-md);font-weight:600;padding:7px 0;border-radius:7px;cursor:pointer}
@@ -2244,6 +2248,7 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
   color:var(--accent);background:none;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:var(--r-pill);padding:2px 10px;cursor:pointer;white-space:nowrap}
 .edToCard:hover{background:var(--accent-soft)}
 .edToCard[disabled]{opacity:.7;cursor:progress}
+.edToCard[hidden]{display:none}
 body.focusMode .edToCard{display:none}
 /* ===== v635 카드원고 작성창 — 종이를 가로 카드로 잘라 놓은 모양. 카드 한 장 = 내보낸 카드원고의 한 쪽 ===== */
 body:is(.cardView,.prView) #editorPane{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important}
@@ -2782,7 +2787,7 @@ body.focusMode #refInsBar{bottom:72px}
         </div>
         <div class="cmPanel on" data-cmpanel="info" role="tabpanel">
           <button class="btn sub" id="c_new" type="button" style="width:100%;margin-bottom:12px"><svg class=ico aria-hidden=true><use href=#i-plus></use></svg> 새 설교 시작하기</button>
-          <div id="cwFind" style="margin-bottom:14px;padding:12px;background:var(--card2);border:1px solid var(--line);border-radius:12px">
+          <div id="cwFind" style="margin-bottom:14px;padding:12px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-lg)">
             <div style="font-size:var(--fs-lg);font-weight:700;color:var(--accent2);margin-bottom:9px"><svg class=ico aria-hidden=true><use href=#i-folder></use></svg> 진행중인 설교 이어쓰기</div>
             <div style="display:flex;gap:7px">
               <select id="cwCat" style="flex:0 0 auto;width:104px;font-size:var(--fs-body)">
@@ -2842,18 +2847,18 @@ body.focusMode #refInsBar{bottom:72px}
           <div id="ptSelfAudit"></div>
           <div class="cmSec"><span>회중 반응</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>회중 반응 검증 — 완성된 초고를 회중 8인이 듣습니다. 어디서 걸리고 어디서 붙잡히는지, 8인을 가로지르는 패턴까지 봅니다</div>
-          <div class="toolrow" style="margin-top:4px"><button class="btn sub mini" id="pnAdultBtn" type="button"><span>회중 반응<br>전체 회중</span></button><button class="btn sub mini" id="pnYouthBtn" type="button"><span>회중 반응<br>대학부</span></button></div>
+          <div class="toolrow" style="margin-top:4px"><button class="btn sub mini" id="pnAdultBtn" type="button"><span>회중 반응 전체 회중</span></button><button class="btn sub mini" id="pnYouthBtn" type="button"><span>회중 반응 대학부</span></button></div>
           <div id="ptPersona"></div>
         </div>
         <div class="cmPanel" data-cmpanel="out" role="tabpanel">
           <div class="cmSec"><span>AI 직접 생성</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>Claude API 직결 — 즉시 생성 (설정에 API 키를 넣었을 때). [스킬사용 원고요청]은 요청함을 거쳐 데스크탑 클로드가 처리합니다.</div>
           <div class="toolrow" style="margin-top:4px">
-            <button class="btn sub mini" data-req="설교요약"><span>요약본<br>주제어</span></button>
+            <button class="btn sub mini" data-req="설교요약"><span>요약본 주제어</span></button>
             <button class="btn sub mini" data-req="LTC교재"><span>LTC 교재</span></button>
-            <button class="btn sub mini" data-req="리더스앱업로드"><span>LTC 교재<br>리더스앱 업로드</span></button>
+            <button class="btn sub mini" data-req="리더스앱업로드"><span>LTC 교재 리더스앱 업로드</span></button>
           </div>
-          <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" data-req="원고작성"><span>스킬사용<br>원고요청</span></button></div>
+          <div class="toolrow" style="margin-top:6px"><button class="btn sub mini" data-req="원고작성"><span>스킬사용 원고요청</span></button></div>
           <div class="cmSec"><span>설교 산출물</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>설교 산출물 — 누르면 그 산출물을 생성(이전 단계 결과물은 있으면 재사용·없으면 생성). 이미 있는 걸 다시 누르면 그것만 새로. Total Sermon은 전체를 새로 생성<br><br>중간 결과물만 따로 만들 땐 버튼을 직접 누르세요. 각 버튼 오른쪽 <b>토글</b>을 켜 두면 [Total Sermon 내보내기]가 켜둔 산출물만 생성합니다(설교 원고 파일은 항상 포함). PDF·PPTX를 켜면 카드 원고가 자동으로 함께 켜집니다. 카드·이미지 가지와 Total은 데스크탑(claude-exchange 연결) 전용입니다.</div>
           <button class="btn sub" data-casc="docx" style="width:100%;margin-top:4px"><span class="blab"><span class="fmtLbl">HWPX</span> 원고 내보내기</span><small class="bpath">01 Sermons / 연도 폴더</small></button>
@@ -3047,7 +3052,7 @@ body.focusMode #refInsBar{bottom:72px}
           <div class="hlpTx" hidden>흐름: 날짜 입력 → 그 주 주일~금 6일의 통독 범위 자동 확정 → [주간 설교 주제 생성] → 날마다 3개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로, 주일 설교는 묵상집용 요약도 함께 저장됩니다.</div>
         </div>
         <div id="topicMeta" style="display:none">
-          <div class="cnt" style="margin-bottom:8px">주제별 시리즈 마법사 — 본문 범위 대신 <b>주제</b>로 묶는 시리즈입니다. 묵상 일정 없이 회차마다 설교 주제 선택지를 바로 생성합니다. (예: 수련회 4회 — 여는예배·집회1·집회2·닫는예배 / 국내선교 3회 / 주일 4주간 한 주제 등)</div>
+          <div class="cnt" style="margin-bottom:8px">주제별 시리즈 마법사 — 본문 범위 대신 <b>주제</b>로 묶어 회차마다 설교 주제 선택지를 만듭니다.</div>
           <label style="margin-top:0">주제 *</label><input type="text" id="tp_topic" placeholder="예: 복음, 삶, 교회 / 행함과 진실함으로 하자 / 기도">
           <label>시리즈명 (선택 — 비우면 주제로)</label><input type="text" id="tp_series" placeholder="예: 2026 여름수련회 / 국내선교 / 기도 시리즈">
           <div class="row2">
@@ -3061,7 +3066,7 @@ body.focusMode #refInsBar{bottom:72px}
           <div class="cnt" id="tp_preview" style="margin-top:8px"></div>
           <div class="toolrow"><button class="btn" id="tp_gen">주제별 설교 주제 생성</button></div>
           <div class="cmSec pgHelp"><span>진행 순서</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
-          <div class="hlpTx" hidden>흐름: 주제·횟수·회차·배경 입력 → [주제별 설교 주제 생성] → 회차마다 3~4개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로. 묵상 일정·묵상집은 만들지 않습니다.</div>
+          <div class="hlpTx" hidden>묵상 일정 없이 회차마다 설교 주제 선택지를 바로 만듭니다. 예: 수련회 4회(여는예배·집회1·집회2·닫는예배) / 국내선교 3회 / 주일 4주간 한 주제.<br>흐름: 주제·횟수·회차·배경 입력 → [주제별 설교 주제 생성] → 회차마다 3~4개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로. 묵상 일정·묵상집은 만들지 않습니다.</div>
         </div>
       </div>
       <div id="seriesPane"><div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.</div></div>
@@ -14916,7 +14921,7 @@ function renderEditor(){
   $('#editorPane').innerHTML = html;
   updateAutoBits();
   if (c.style === '카드원고') { _cdFill = []; cardEdLayout(); requestAnimationFrame(cardEdLayout); setTimeout(cardDupOffer, 500); }   /* v665 옛 초안의 인용 중복 */
-  if (c.style === '프롬프터') pmMount();
+  if (c.style === '프롬프터') { pmMount(); edSecMetaSync(); }
 }
 /* 자동 반영부만 갱신 (작성 중 포커스 유지) */
 function updateAutoBits(){
@@ -14952,7 +14957,42 @@ function updateAutoBits(){
   var pane0 = $('#editorPane');
   var cl = pane0 && pane0.querySelector('textarea[data-k="concPoints"]');
   if (cl && !c.concPtsEdited && document.activeElement !== cl) cl.value = concPointsDerived(c);   /* 사용자가 고치기 전에는 대지에서 자동 반영 */
+  edSecMetaSync();
 }
+/* v725: ① 작성칸 이름표 — 화면 읽기 프로그램에는 안내문(placeholder)만 읽혔다. 칸 위 이름표(.edLabel)와 대지 번호로 「대지 2 · 주해근거」
+   ② 글이 하나도 없는 서론·대지·결론에는 「…카드원고로 내보내기」 알약을 숨긴다(빈 새 설교에도 구역마다 붙어 있었다) */
+function edSecMetaSync(){
+  var pane = document.getElementById('editorPane'), c = state.compose; if (!pane || !c) return;
+  Array.prototype.forEach.call(pane.querySelectorAll('.edToCard'), function(b){
+    if (b.disabled) return;   /* 만드는 중 */
+    var box = b.closest('.edSec, .edPoint'), sec = b.dataset.sec || '', has = false;
+    if (box) has = Array.prototype.some.call(box.querySelectorAll(sec === 'C' ? 'textarea[data-k="concBody"]' : 'textarea.edTa'), function(t){ return !!String(t.value || '').trim(); });
+    if (!has && /^\d+$/.test(sec)) { var p = (c.points || [])[+sec - 1]; has = !!(p && String(p.text || '').trim()); }
+    if (b.hidden === has) b.hidden = !has;
+  });
+  Array.prototype.forEach.call(pane.querySelectorAll('textarea.edTa, textarea.pmTa'), function(t){
+    var k = t.dataset.k, name = '';
+    if (t.classList.contains('pmTa')) name = '프롬프터 원고';
+    else if (k === 'free') name = '자유원고';
+    else if (k === 'concIntro') name = '결론 · 정리 문구';
+    else if (k === 'concPoints') name = '결론 · 대지 요약';
+    else if (k === 'concBody') name = '결론 · 내용';
+    else {
+      var card = t.closest('.cdCard');
+      if (card) name = '카드 ' + (+card.dataset.ci + 1);
+      else {
+        var lab = t.parentNode && t.parentNode.previousElementSibling, lt = '';
+        if (lab && lab.classList.contains('edLabel'))
+          lt = Array.prototype.filter.call(lab.childNodes, function(n){ return n.nodeType === 3; }).map(function(n){ return n.textContent; }).join('').trim();
+        var pt = (t.dataset.pi != null && t.dataset.pi !== '') ? '대지 ' + (+t.dataset.pi + 1) : '';
+        name = (pt ? pt + ' · ' : '') + (lt || t.getAttribute('placeholder') || '작성칸');
+      }
+    }
+    if (t.getAttribute('aria-label') !== name) t.setAttribute('aria-label', name);
+  });
+}
+var edSecMetaSoon = debounce(edSecMetaSync, 400);
+$('#editorPane').addEventListener('input', edSecMetaSoon);
 $('#editorPane').addEventListener('input', function(e){
   var t = e.target;
   if (!t.classList.contains('edTa') || t.classList.contains('cdTa')) return;   /* 카드원고 칸은 카드 블록이 처리(v635) */
@@ -24532,6 +24572,8 @@ function spOptCardsRefresh(wi){
     c.classList.toggle('zvSelOn', w.sel === oi);
     c.innerHTML = spOptCardInner(w, wi, oi, c.dataset.dawn === '1', c.dataset.sun === '1');
   });
+  var sv = document.querySelector('#spw' + wi + ' [data-act="weekSave"]');   /* v725 고른 선택지가 없으면 [수정사항 저장]은 꺼 둔다 */
+  if (sv) { sv.disabled = w.sel < 0; sv.title = w.sel < 0 ? '선택지를 먼저 고르세요' : ''; }
 }
 /* 확정된 주: 고른 개요(다듬은 값) 카드 + 나머지는 흑백으로 접어 둔다 */
 function spConfirmedCardsHtml(w, src, dawn, sun){
@@ -26396,7 +26438,7 @@ $('#lbt_req').addEventListener('input', function(){ state.lbt.req = this.value; 
 /* ===================== 클로드 요청함 ===================== */
 var REQ_TYPES = ['이미지프롬프트', '이미지생성', '카드원고', '설교요약', 'LTC교재', '리더스앱업로드', '원고작성'];
 var REQ_LABELS = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본·주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 / 리더스앱 업로드', '원고작성': '스킬사용 원고요청' };
-var REQ_BTN = { '이미지프롬프트': '이미지<br>프롬프트', '이미지생성': '이미지<br>생성', '카드원고': '카드원고', '설교요약': '요약본<br>주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재<br>리더스앱 업로드', '원고작성': '스킬사용<br>원고요청' };
+var REQ_BTN = { '이미지프롬프트': '이미지 프롬프트', '이미지생성': '이미지 생성', '카드원고': '카드원고', '설교요약': '요약본 주제어', 'LTC교재': 'LTC 교재', '리더스앱업로드': 'LTC 교재 리더스앱 업로드', '원고작성': '스킬사용 원고요청' };   /* v725: <br> 로 줄을 강제로 나누던 것 → 칸 폭에 맞춰 고르게(.btn.mini text-wrap:balance) */
 /* 버튼별 산출물 최종 저장 위치(버튼 아래 캡션) */
 var REQ_PATH = { '원고작성': '작성창에 채움·초안 자동저장', '설교요약': '토탈 설교 시트', 'LTC교재': 'LTC 폴더 / 책 폴더', '리더스앱업로드': '리더스앱 통합시트', '카드원고': 'claude-exchange / 결과함', '이미지프롬프트': 'claude-exchange / 결과함', '이미지생성': 'claude-exchange / 결과함' };
 function bpathHtml(t){ return REQ_PATH[t] ? '<small class="bpath">' + REQ_PATH[t] + '</small>' : ''; }
@@ -28616,7 +28658,10 @@ function renderSeriesPane(){
   }
   var html = spTimelineHtml();
   if (!S.devo && !S.sermon) {
-    html += '<div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.<br>Cowork가 처리해 버튼이 파래지면 [요청 결과]를 눌러<br>여기에서 검토·수정 후 확정합니다.</div>';
+    /* v725: 키가 있으면 요청 단추가 바로 만든다 — 예전엔 늘 Cowork·「버튼이 파래지면」 안내였다 */
+    html += aiKey()
+      ? '<div class="empty">왼쪽에서 계획을 입력하고 [① 묵상 일정 요청]을 누르세요.<br>만들어진 묵상 일정을 여기에서 검토·수정한 뒤 확정합니다.</div>'
+      : '<div class="empty">왼쪽에서 계획을 입력하고 [① 묵상 일정 요청]을 누르세요.<br>설정에 Claude API 키가 없어 요청함으로 갑니다 — Cowork에서 처리한 뒤<br>단추의 [요청 결과]를 눌러 여기에서 검토·수정 후 확정합니다.</div>';
   } else {
     var view = S.view || (S.sermon ? 'sermon' : 'devo');
     html += (view === 'devo' && S.devo) ? spDevoHtml() : (S.sermon ? spSermonHtml() : spDevoHtml());
@@ -28755,7 +28800,7 @@ function spSermonHtml(){
       var confirmCard = spConfirmedCardsHtml(w, src, false, false, illPlanRow(src));   /* v620: 공용 카드 */
       var composeBtn =
         '<div style="margin:6px 0 2px">' +
-        '<button class="btn" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:var(--fs-md)">이 주제로 작성하기 →</button></div>';
+        '<button class="btn sub" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:var(--fs-md)">이 주제로 작성하기 →</button></div>';
       var bottomRow =
         '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
         '<button class="btn sub" data-w="' + wi + '" data-act="weekReselect" style="width:auto">설교주제 다시 선택</button>' +
@@ -28771,7 +28816,7 @@ function spSermonHtml(){
       '<label>핵심메시지</label><input type="text" class="spS" data-w="' + wi + '" data-f="핵심메시지" value="' + esc(ed['핵심메시지'] || '') + '">' +
       '<label>주제 근거</label><textarea class="spS edTa" rows="2" data-w="' + wi + '" data-f="주제근거">' + esc(ed['주제근거'] || '') + '</textarea>' +
       '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>';
-    var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn" data-w="' + wi + '" data-act="weekSave" style="width:auto">수정사항 저장 (보관함 반영)</button></div>';
+    var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn sub" data-w="' + wi + '" data-act="weekSave" style="width:auto"' + (w.sel < 0 ? ' disabled title="선택지를 먼저 고르세요"' : '') + '>수정사항 저장 (보관함 반영)</button></div>';
     return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + '<details class="zvEdit"><summary><svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 선택한 개요 다듬기 — 고친 내용은 위 카드에 바로 보입니다</summary>' + edit + wSave + '</details></details>';
   }).join('');
   h += '<div class="toolrow" style="flex-wrap:wrap">' +
@@ -29655,7 +29700,7 @@ function spDawnHtml(){
       var card = spConfirmedCardsHtml(w, src, true, isSun);   /* v620: 공용 카드(찬송·묵상집 요약 포함) */
       var nonSel = '';
       var bottom =
-        '<div style="margin:6px 0 2px"><button class="btn" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:var(--fs-md)">이 주제로 작성하기 →</button></div>' +
+        '<div style="margin:6px 0 2px"><button class="btn sub" data-w="' + wi + '" data-act="weekGotoCompose" style="width:auto;font-size:var(--fs-md)">이 주제로 작성하기 →</button></div>' +
         '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px">' +
         '<button class="btn sub" data-w="' + wi + '" data-act="weekReselect" style="width:auto">설교주제 다시 선택</button>' +
         '<button class="linkbtn" data-w="' + wi + '" data-act="weekCollapse" style="font-size:var(--fs-sm);color:var(--dim)">이 날 접기 ↑</button></div>';
@@ -29670,7 +29715,7 @@ function spDawnHtml(){
       '<label>주제 근거</label><textarea class="spS edTa" rows="2" data-w="' + wi + '" data-f="주제근거">' + esc(ed['주제근거'] || '') + '</textarea>' +
       '<label>대지 — 「1. 명제 / - 근거: / - 적용:」 줄 형식</label><textarea class="spS edTa" rows="8" data-w="' + wi + '" data-f="대지">' + esc(ed['대지'] || '') + '</textarea>' +
       (isSun ? '<label>묵상집 요약 (주일 — 묵상집 출력용)</label><textarea class="spS edTa" rows="3" data-w="' + wi + '" data-f="묵상요약">' + esc(ed['묵상요약'] || '') + '</textarea>' : '');
-    var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn" data-w="' + wi + '" data-act="weekSave" style="width:auto">수정사항 저장 (보관함 반영)</button></div>';
+    var wSave = '<div class="toolrow" style="margin-top:8px"><button class="btn sub" data-w="' + wi + '" data-act="weekSave" style="width:auto"' + (w.sel < 0 ? ' disabled title="선택지를 먼저 고르세요"' : '') + '>수정사항 저장 (보관함 반영)</button></div>';
     return '<details class="edPoint' + (w.skip ? ' spSkip' : '') + '" id="spw' + wi + '"' + (wi === openIdx ? ' open' : '') + '>' + summary + head + opts + '<details class="zvEdit"><summary><svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 선택한 개요 다듬기 — 고친 내용은 위 카드에 바로 보입니다</summary>' + edit + wSave + '</details></details>';
   }).join('');
   h += '<div class="toolrow" style="flex-wrap:wrap">' +
@@ -34912,7 +34957,8 @@ function pvFlowCss(g){
     'font-family:\'함초롬바탕\',\'나눔명조\',serif;color:#111;font-size:14pt;line-height:2;word-break:keep-all;text-align:justify;';
 }
 function openPreview(contentHtml, exportFn, pageMm){
-  closePrev();
+  var _op = (document.getElementById('prevOv') && window._pvOpener) || document.activeElement;   /* v725 닫으면 포커스를 돌려줄 곳 */
+  closePrev(true);
   var g = pvGeom(pageMm);
   var ov = document.createElement('div');
   ov.id = 'prevOv';
@@ -34921,12 +34967,14 @@ function openPreview(contentHtml, exportFn, pageMm){
     '<button onclick="closePrev()" style="background:#444;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">× 닫기</button>' +
     '<button onclick="window.print()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px"><svg class=ico aria-hidden=true><use href=#i-printer></use></svg> 인쇄</button>' +
     '<button id="pvFullBtn" onclick="togglePrevFull()" style="background:#555;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">⛶ 전체화면</button>';
-  if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">' + fmtTag() + ' 내보내기</button>';
+  if (exportFn) bar += '<button onclick="window._pvEx&&window._pvEx()" style="background:var(--accent,#4CAF50);color:var(--on-accent,#fff);border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">' + fmtTag() + ' 내보내기</button>';   /* v725 흰 글자 → --on-accent(다크 2.65:1 → 검정 글자) */
   bar += '</div>';
   ov.innerHTML = bar +
     '<div id="prevScroll" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px 0 calc(16px + env(safe-area-inset-bottom))">' +
     '<div id="pvScale" style="margin:0 auto;position:relative"></div></div>' +
     '<div id="pvPageNo" style="position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:12px;padding:4px 12px;border-radius:14px;z-index:3;display:none;pointer-events:none"></div>';
+  ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', '원고 미리보기'); ov.tabIndex = -1;
+  window._pvOpener = (_op && _op !== document.body && !(_op.closest && _op.closest('#prevOv'))) ? _op : null;
   document.body.appendChild(ov);
 
   /* 콘텐츠를 종이 페이지로 분할: 다단 오버플로 폭을 재서 페이지 수 산출 */
@@ -35008,7 +35056,27 @@ function openPreview(contentHtml, exportFn, pageMm){
   sc.addEventListener('scroll', function(){ if (window._pvFull) pvShowPageNo(); });
   window._pvZoom = 1;
   setPrevFull(localStorage.getItem('tsaPrevFull') === '1');   /* 지난번 보기 모드 유지 + 첫 스케일 계산 */
+  setTimeout(function(){   /* v725 포커스를 창 안으로 — [닫기]에서 시작(전체화면이라 도구줄이 숨었으면 창 자체) */
+    if (!document.body.contains(ov)) return;
+    var b0 = ov.querySelector('#prevBar button');
+    try { (b0 && b0.offsetParent !== null ? b0 : ov).focus({ preventScroll: true }); } catch (e) {}
+  }, 0);
 }
+/* v725 미리보기 창 키보드 — Esc = 닫기, Tab 은 창 안에서만 돈다(예전엔 Esc 가 듣지 않고 Tab 이 뒤 화면으로 빠졌다).
+   창(맨 위 9999)이 열려 있으면 다른 Esc 처리기(검색 상세 등)보다 먼저 받는다. 위에 확인창이 떠 있으면 그쪽에 맡긴다. */
+window.addEventListener('keydown', function(e){
+  var ov = document.getElementById('prevOv'); if (!ov || e.isComposing) return;
+  if (document.body.classList.contains('uiDlgOpen')) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePrev(); return; }
+  if (e.key !== 'Tab') return;
+  var bar = document.getElementById('prevBar');
+  if (bar && bar.style.display === 'none') bar.style.display = 'flex';   /* 전체화면에서 숨긴 도구줄을 키보드로 꺼낸다 */
+  var L = Array.prototype.filter.call(ov.querySelectorAll('button'), function(b){ return !b.disabled && b.offsetParent !== null; });
+  e.preventDefault();
+  if (!L.length) { ov.focus(); return; }
+  var i = L.indexOf(document.activeElement), n = L.length;
+  L[e.shiftKey ? (i <= 0 ? n - 1 : i - 1) : (i < 0 || i === n - 1 ? 0 : i + 1)].focus();
+}, true);
 /* 전체화면 가로 페이저: 한 페이지 폭(스냅 간격) */
 function pvStride(sc, pv){ return Math.max(1, sc.scrollWidth / pv.n); }
 function pvShowPageNo(){
@@ -35104,8 +35172,9 @@ function setPrevFull(on){
   }
 }
 window.togglePrevFull = function(){ setPrevFull(!window._pvFull); };
-function closePrev(){
+function closePrev(keepFocus){
   var ov = document.getElementById('prevOv');
+  var had = !!ov, op = window._pvOpener;
   if (ov) ov.remove();
   var ps = document.getElementById('pvPrintPage');
   if (ps) ps.remove();
@@ -35116,6 +35185,10 @@ function closePrev(){
   window._pvFull = false;
   window._pvZoom = 1;
   window._pv = null;
+  if (!keepFocus) {
+    window._pvOpener = null;
+    if (had && op && document.body.contains(op) && op.offsetParent !== null) try { op.focus({ preventScroll: true }); } catch (e) {}   /* v725 연 단추로 */
+  }
 }
 window.previewSermon = function(id){
   loadSermonThen(id, null, '원고를 불러오는 중…', function(s){ if (s) previewSermonNow(id); });
@@ -38774,10 +38847,31 @@ function cmReveal(el){
     var sw = e.target && e.target.closest && e.target.closest('.cmMenu .cmxSw');
     if (sw && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); flipMirror(sw); }
   });
+  /* v725 키보드: 열면 첫 항목으로, ↑↓·Home·End 로 옮기고, Esc 는 연 단추로 돌아간다(예전엔 포커스가 단추에 남았다) */
+  function items(m){
+    return Array.prototype.filter.call(m.querySelectorAll('button, .cmxSw'), function(b){ return !b.disabled && b.offsetParent !== null; });
+  }
+  document.addEventListener('keydown', function(e){
+    if (e.isComposing || ['ArrowDown', 'ArrowUp', 'Home', 'End'].indexOf(e.key) < 0) return;
+    var t = e.target && e.target.closest ? e.target : null; if (!t) return;
+    var m = t.closest('.cmMenu');
+    if (!m) {   /* 연 단추에서 ↓ = 첫 항목 */
+      var tg = t.closest('[data-cmmenu]'), mm = tg && document.getElementById(tg.dataset.cmmenu);
+      if (!mm || mm.hidden || e.key !== 'ArrowDown') return;
+      var f0 = items(mm)[0]; if (f0) { e.preventDefault(); f0.focus(); } return;
+    }
+    if (m.hidden) return;
+    var L = items(m); if (!L.length) return;
+    var i = L.indexOf(document.activeElement), n = L.length;
+    var j = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : e.key === 'ArrowDown' ? (i + 1) % n : (i - 1 + n) % n;
+    e.preventDefault(); L[j].focus();
+  });
   document.addEventListener('click', function(e){
     var t = e.target.closest('[data-cmmenu]');
     if (t){ var m = document.getElementById(t.dataset.cmmenu); if (!m) return;
-      var open = m.hidden; closeAll(m); m.hidden = !open; t.setAttribute('aria-expanded', open ? 'true' : 'false'); if (open) refresh(m); return; }
+      var open = m.hidden; closeAll(m); m.hidden = !open; t.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) { refresh(m); var f = items(m)[0]; if (f) try { f.focus({ preventScroll: true }); } catch (e2) {} }
+      return; }
     var msw = e.target.closest('.cmMenu .cmxSw');
     if (msw){ e.preventDefault(); flipMirror(msw); return; }
     var px = e.target.closest('.cmMenu [data-proxy]');
@@ -38787,7 +38881,13 @@ function cmReveal(el){
     if (e.target.closest('.cmMenu button')){ setTimeout(closeAll, 0); return; }
     if (!e.target.closest('.cmMenu')) closeAll();
   });
-  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeAll(); });
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') return;
+    var a = document.activeElement, m = a && a.closest && a.closest('.cmMenu:not([hidden])');
+    var back = m && document.querySelector('[data-cmmenu="' + m.id + '"]');
+    closeAll();
+    if (back && back.offsetParent !== null) back.focus();   /* v725 메뉴 안에서 Esc → 연 단추로 */
+  });
 })();
 /* 사이드바 접기(아이콘 줄) — 기기별 기억 */
 (function(){
