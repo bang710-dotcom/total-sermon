@@ -1807,7 +1807,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .saveSt[hidden]{display:none}
 .saveSt[data-st="dirty"]{color:var(--warn);font-weight:600}
 .saveSt[data-st="saved"]::before{background:var(--good)}
-.saveSt[data-st="queued"]{color:var(--req)}
+.saveSt[data-st="queued"]::before{background:var(--req)}   /* 글자는 흐린 색 그대로 — --req 글자는 라이트·세피아에서 4.5:1 미만 */
 .cmActs{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 #cmHead .btn{width:auto;padding:8px 14px;font-size:var(--fs-md);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 #cmHead .btn.cmIconBtn{padding:8px 10px}
