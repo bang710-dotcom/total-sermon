@@ -668,10 +668,18 @@ body.focusMode .arIndF{display:inline-flex}
 .aiProvNote,.aiProvShare{border:1px solid var(--line);border-radius:var(--r-pill);padding:1px 8px}
 .aiProvNote.on,.aiProvShare.on{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent)}
 .stSaved{margin:-2px 0 10px;padding:6px 9px;border-left:3px solid var(--accent);background:var(--card2);border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--dim)}
-.stTabs{display:flex;gap:4px;padding:10px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.stTabs::-webkit-scrollbar{display:none}
+.stTabs{display:flex;flex-wrap:wrap;gap:4px;padding:10px 12px 0;flex:0 0 auto;border-bottom:1px solid var(--line);position:relative;z-index:6}   /* v721 묶음 5개 — 줄바꿈(옆 스크롤 없음), 메뉴가 잘리지 않게 overflow 없음 */
 .stTabs button{flex:0 0 auto;white-space:nowrap;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:inherit;font-size:var(--fs-md);padding:6px 9px 8px;cursor:pointer}
 .stTabs button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+/* v721 묶음 단추(주석 ▾ · 참고 ▾) — 고른 자료 이름을 보여 주고, 누르면 아래로 목록 */
+.stGrp{position:relative;flex:0 0 auto;display:flex}
+.stGrpBtn .ico{width:13px;height:13px;margin-left:3px;vertical-align:-2px}
+.stGrpMenu{position:absolute;top:100%;left:0;z-index:30;min-width:184px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:0 14px 40px rgba(0,0,0,.35);padding:6px;display:flex;flex-direction:column;gap:2px}
+.stGrpMenu[hidden]{display:none}
+.stTabs .stGrpMenu button{border-bottom:none;border-radius:var(--r-sm);padding:9px 10px;text-align:left;color:var(--text);font-weight:600}
+.stTabs .stGrpMenu button:hover{background:var(--card2)}
+.stTabs .stGrpMenu button.on{background:var(--accent-soft);color:var(--accent)}
+@media (max-width: 899px), (hover: none){ .stTabs button{min-height:44px} .stTabs .stGrpMenu button{min-height:44px} }
 .stPane{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px}
 .studyHint{color:var(--dim);font-size:var(--fs-md);line-height:1.7}
 .mkU{border:1px solid var(--line);border-radius:var(--r-md);margin:0 0 10px;background:var(--card)}
@@ -3533,18 +3541,26 @@ body.focusMode #refInsBar{bottom:72px}
       <div id="studyText" class="studyText"></div>
       <div id="stDrag" class="stDrag" role="separator" aria-orientation="vertical" title="드래그해서 좌우 넓이 조절 · 더블클릭하면 기본 비율로"></div>
       <div id="studyDetail" class="studyDetail">
-        <div class="stTabs" id="stTabs">
+        <!-- v721: 탭 13개 한 줄(스크롤바 숨김 — 1024px 창에서 4개만 보이고 켜진 탭이 화면 밖) → 원어 | 주석 ▾ | 참고 ▾ | 내 메모 | AI 정리.
+             묶음 단추는 그 안에서 고른 자료 이름을 보여 준다(stGrpSync). 자료 단추의 data-sttab·처리기는 그대로 -->
+        <div class="stTabs" id="stTabs" aria-label="연구 자료">
           <button type="button" data-sttab="orig" class="on">원어</button>
-          <button type="button" data-sttab="net">NET 노트</button>
-          <button type="button" data-sttab="com">호크마 주석</button>
-          <button type="button" data-sttab="holman">Holman 핸드북</button>
-          <button type="button" data-sttab="calvin">칼뱅 주석(영문)</button>
-          <button type="button" data-sttab="esvsb">ESV 스터디</button>
-          <button type="button" data-sttab="muk">묵상과 설교</button>
-          <button type="button" data-sttab="wbc">WBC</button>
-          <button type="button" data-sttab="map"><svg class=ico aria-hidden=true><use href=#i-map></use></svg> 지도</button>
-          <button type="button" data-sttab="dict"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 성경사전</button>
-          <button type="button" data-sttab="hymn"><svg class=ico aria-hidden=true><use href=#i-music></use></svg> 찬송가</button>
+          <div class="stGrp" data-grp="com"><button type="button" class="stGrpBtn" aria-haspopup="true" aria-expanded="false" data-def="주석"><span class="stGrpLab">주석</span><svg class=ico aria-hidden=true><use href=#i-chevron></use></svg></button>
+            <div class="stGrpMenu" hidden>
+              <button type="button" data-sttab="net">NET 노트</button>
+              <button type="button" data-sttab="com">호크마 주석</button>
+              <button type="button" data-sttab="holman">Holman 핸드북</button>
+              <button type="button" data-sttab="calvin">칼뱅 주석(영문)</button>
+              <button type="button" data-sttab="esvsb">ESV 스터디</button>
+              <button type="button" data-sttab="muk">묵상과 설교</button>
+              <button type="button" data-sttab="wbc">WBC</button>
+            </div></div>
+          <div class="stGrp" data-grp="ref"><button type="button" class="stGrpBtn" aria-haspopup="true" aria-expanded="false" data-def="참고"><span class="stGrpLab">참고</span><svg class=ico aria-hidden=true><use href=#i-chevron></use></svg></button>
+            <div class="stGrpMenu" hidden>
+              <button type="button" data-sttab="map"><svg class=ico aria-hidden=true><use href=#i-map></use></svg> 지도</button>
+              <button type="button" data-sttab="dict"><svg class=ico aria-hidden=true><use href=#i-library></use></svg> 성경사전</button>
+              <button type="button" data-sttab="hymn"><svg class=ico aria-hidden=true><use href=#i-music></use></svg> 찬송가</button>
+            </div></div>
           <button type="button" data-sttab="memo"><svg class=ico aria-hidden=true><use href=#i-edit></use></svg> 내 메모</button>
           <button type="button" data-sttab="ai"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> AI 정리</button>
         </div>
@@ -9052,6 +9068,8 @@ function openStudy(ref){
   if (idx == null){ toast('성경 책을 인식하지 못했습니다: ' + r.book); return false; }
   var ov = $('#studyOv'); if (!ov) return false;
   studyPaneReturn();          /* 묵상 화면에 빌려준 상태면 먼저 제자리로 돌려놓는다 */
+  var _wasOn = ov.classList.contains('on');
+  if (!_wasOn) { var _ae = document.activeElement; STUDY._opener = (_ae && _ae !== document.body && !ov.contains(_ae)) ? _ae : null; }   /* v721 닫으면 포커스를 돌려줄 곳 */
   ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
   snReset();
   STUDY.range = { idx: idx, r: r }; STUDY.lastCodes = null;
@@ -9072,6 +9090,8 @@ function openStudy(ref){
   snProbe();
   svzProbe();
   saiProbe();      /* 저장해 둔 AI 정리 복원 + 다기기 동기화 */
+  /* v721 포커스를 창 안으로(예전엔 뒤 화면에 남아 Tab 세 번이면 사이드바에 닿았다) — 닫기 단추에서 시작 */
+  if (!_wasOn) setTimeout(function(){ var c = $('#studyClose'); if (c && ov.classList.contains('on')) try { c.focus({ preventScroll: true }); } catch (e) {} }, 0);
   return true;
 }
 /* ── 본문연구 본문 패널 '빌려오기' — 이달의 묵상 화면에 그대로 끼워 넣기 (v487) ────────
@@ -9099,10 +9119,38 @@ function studyPaneReturn(){
 function studyCloseOv(){
   var ov = $('#studyOv'); if (!ov) return;
   snFlush();
+  stGrpClose();
   ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true');
   AI_CITE_BACK = null; aiCiteBackPaint();
   devoStudyRemount();
+  /* v721 연 단추로 포커스를 돌려준다(보이는 곳에 있을 때만 — 숨은 탭 안 단추를 부르면 그 탭이 열리므로) */
+  var op = STUDY._opener; STUDY._opener = null;
+  if (op && op.isConnected && op.offsetParent !== null) try { op.focus({ preventScroll: true }); } catch (e) {}
 }
+/* v721 본문연구 창 키보드 — Esc = 닫기(위에 성구·별항·근거 창이나 확인창이 떠 있으면 그쪽이 먼저), 열린 「주석 ▾」 목록이 있으면 목록만.
+   Tab 은 창 안에서만 돈다(aria-modal 인데 포커스가 뒤 화면으로 빠졌다). 다른 Esc 처리기보다 먼저 보도록 캡처 단계. */
+document.addEventListener('keydown', function(e){
+  var ov = $('#studyOv'); if (!ov || !ov.classList.contains('on')) return;
+  if (document.body.classList.contains('uiDlgOpen') || document.querySelector('#brefOv.on, #featOv.on, #citeOv.on, #calOv.on')) return;
+  if (e.key === 'Escape') {
+    if (e.isComposing || e.keyCode === 229) return;
+    var om = document.querySelector('#stTabs .stGrpMenu:not([hidden])');
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (om) { stGrpClose(); var gb = om.parentNode && om.parentNode.querySelector('.stGrpBtn'); if (gb) try { gb.focus(); } catch (e2) {} return; }
+    studyCloseOv(); return;
+  }
+  if (e.key === 'Tab') {
+    var box = ov.querySelector('.studyBox'); if (!box) return;
+    var f = Array.prototype.filter.call(box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'), function(el){
+      return !el.disabled && el.offsetParent !== null && !(el.closest && el.closest('[hidden]'));
+    });
+    if (!f.length) return;
+    var a = document.activeElement, first = f[0], last = f[f.length - 1];
+    if (!box.contains(a)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
+    if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+  }
+}, true);
 function devoStudyRemount(){
   var pg = document.getElementById('page-devo');
   if (!pg || !pg.classList.contains('on')) return;
@@ -9189,9 +9237,36 @@ function studySetTab(tab){
   STUDY.tab = tab;
   var tabs = $('#stTabs');
   if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-sttab') === tab); });
+  stGrpSync(tab);
   studyRenderPane();
   aiCiteBackPaint();   /* v691: 근거 → 자료 탭으로 왔으면 [AI 정리로 돌아가기] */
 }
+/* v721 탭 묶음 — 묶음 단추에 지금 고른 자료 이름(없으면 「주석」·「참고」), 자료 단추에 눌림 상태 */
+function stGrpSync(tab){
+  var tabs = $('#stTabs'); if (!tabs) return;
+  Array.prototype.forEach.call(tabs.querySelectorAll('[data-sttab]'), function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-sttab') === tab ? 'true' : 'false'); });
+  Array.prototype.forEach.call(tabs.querySelectorAll('.stGrp'), function(g){
+    var hit = g.querySelector('[data-sttab="' + tab + '"]'), gb = g.querySelector('.stGrpBtn'), lab = gb && gb.querySelector('.stGrpLab');
+    if (!gb || !lab) return;
+    gb.classList.toggle('on', !!hit);
+    lab.textContent = hit ? hit.textContent.trim() : (gb.getAttribute('data-def') || '');
+  });
+  stGrpClose();
+}
+function stGrpClose(){
+  Array.prototype.forEach.call(document.querySelectorAll('#stTabs .stGrpMenu'), function(m){
+    if (m.hidden) return; m.hidden = true;
+    var b = m.parentNode && m.parentNode.querySelector('.stGrpBtn'); if (b) b.setAttribute('aria-expanded', 'false');
+  });
+}
+function stGrpToggle(gb){
+  var m = gb.parentNode && gb.parentNode.querySelector('.stGrpMenu'); if (!m) return;
+  var open = m.hidden; stGrpClose();
+  if (!open) return;
+  m.hidden = false; gb.setAttribute('aria-expanded', 'true');
+  var f = m.querySelector('.on') || m.querySelector('button'); if (f) try { f.focus({ preventScroll: true }); } catch (e) {}
+}
+document.addEventListener('click', function(e){ if (!(e.target.closest && e.target.closest('#stTabs .stGrp'))) stGrpClose(); });
 function studyRenderPane(){
   var pane = $('#stPane'); if (!pane) return;
   var R = STUDY.range; if (!R){ pane.innerHTML = STUDY_HINT; return; }
@@ -9459,7 +9534,8 @@ stFsApply(stFsGet());
     var zu = e.target.closest && e.target.closest('.svzUseSuggest'); if (zu){ openStudy(zu.getAttribute('data-ref')); return; }
     var sp = e.target.closest && e.target.closest('.stSplitBtn'); if (sp){ if (SNS.on){ toast('연구노트 모드에서는 2분할을 쓸 수 없습니다 — 노트를 먼저 꺼 주세요.'); return; } STUDY.split = !STUDY.split; if (STUDY.split && !STUDY.versions[1]) STUDY.versions[1] = (STUDY.versions[0] === 'RNKSV' ? 'NKRV' : 'RNKSV'); studyRenderText(); return; }
     var hf = e.target.closest && e.target.closest('.hbFeat'); if (hf){ openFeat(hf.getAttribute('data-feat')); return; }
-    var tb = e.target.closest && e.target.closest('#stTabs button'); if (tb){ STUDY._userTab = true; studySetTab(tb.getAttribute('data-sttab')); return; }
+    var tg = e.target.closest && e.target.closest('#stTabs .stGrpBtn'); if (tg){ stGrpToggle(tg); return; }   /* v721 주석 ▾ · 참고 ▾ */
+    var tb = e.target.closest && e.target.closest('#stTabs [data-sttab]'); if (tb){ STUDY._userTab = true; studySetTab(tb.getAttribute('data-sttab')); return; }
     var ag = e.target.closest && e.target.closest('#stAiGen'); if (ag){ studyAiSynth(); return; }
     var eg = e.target.closest && e.target.closest('#esvGet');
     if (eg){
@@ -18231,6 +18307,8 @@ document.addEventListener('click', function(e){
     return;
   }
   var b = e.target.closest && e.target.closest('[data-mukgate]'); if (!b) return;
+  /* v721: 본문연구 창(z-index 330)을 먼저 닫는다 — 예전엔 설정 화면이 창 뒤에서 열려 눌러도 아무 일이 없는 것처럼 보였다 */
+  if ($('#studyOv') && $('#studyOv').classList.contains('on')) studyCloseOv();
   showPage('settings');
   setTimeout(function(){ var g = document.getElementById('sgGate'); if (g){ g.open = true; try { g.scrollIntoView({ block: 'start' }); } catch (e2){} } }, 80);
 });
