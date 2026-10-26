@@ -1360,6 +1360,10 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #page-lbt.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
   #page-lbt.on #lbtMeta{min-height:0;overflow-y:auto;padding-right:4px}
   #page-lbt.on #lbtPane{min-height:0;overflow-y:auto}
+  /* v718(2차) 이달의 묵상: 맥처럼 본문 | 질문 두 칸 — 예전엔 맥 규칙(hover:hover)에만 있어 아이패드 가로에서도 본문 아래에 질문이 왔다.
+     본문 칸은 위에 붙는 머리줄(.pgHead) 바로 아래에 붙어, 질문에 답을 쓰는 동안 함께 보인다. 연구노트를 켜면(.noteWide) 예전처럼 한 칸. */
+  #devoBody.split:not(.noteWide){display:grid;grid-template-columns:minmax(340px,1fr) minmax(340px,1fr);gap:16px;align-items:start}
+  #devoBody.split:not(.noteWide) #devoScript{position:sticky;top:72px;max-height:calc(100dvh - 240px);overflow:auto;margin-bottom:0}
 
   /* 시리즈: 목록은 전체폭, 마법사는 좌(계획) + 우(결과) */
   #page-series.on{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;overflow:hidden;align-items:stretch}
@@ -2103,7 +2107,14 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
 #devoTitle:empty::before{content:'날짜별 묵상 본문과 노트'}   /* 이달의 묵상: 한 줄 설명 자리에 그날 본문(비면 이 설명) */
 #mindmapHead{flex:0 0 auto;padding:12px 16px}
 #devoHead .cmActs{gap:6px}
+/* v718(2차) 날짜 이동 = 다른 머리줄과 같은 선 단추(예전엔 리허설 타이머 줄 안에만 서식이 걸린 .ptBtn 이라 브라우저 기본 회색 단추) */
+#devoHead .btn.devoNav{padding:8px 10px}
+#devoHead .devoL{transform:rotate(90deg)}
+#devoHead .devoR{transform:rotate(-90deg)}
+#devoHead #devoDate{width:auto;flex:0 1 150px;min-height:0;padding-top:8px;padding-bottom:8px;text-align:center}
+@media (max-width: 899px), (hover: none){ #devoHead .btn,#devoHead #devoDate{min-height:44px} }   /* 손가락 기준 */
 @media (max-width: 600px){ #devoHead .cmActs{flex-wrap:nowrap} #devoHead #devoDate{flex:1 1 auto;min-width:0} }   /* 휴대폰: 날짜 이동을 한 줄로 — 머리줄이 위에 붙으므로 키가 커지지 않게 */
+@media (max-width: 420px){ #devoHead .devoBtnTx{display:none} #devoHead .btn{padding-left:10px;padding-right:10px} }
 @media (min-width: 900px) and (hover: hover){
   #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
   #occHead,#zoneHead,#lbtHead,#seriesHead{grid-column:1 / -1}
@@ -18852,13 +18863,13 @@ function renderDevo(){
   devoState.note = note;
   var body = $('#devoBody');
   if (!e) {
-    $('#devoTitle').textContent = '';
+    $('#devoTitle').textContent = devoDateLabel(date);
     var has = state.data.devo && state.data.devo.length;
     body.innerHTML = '<div class="empty">' + (has ? '이 날짜에는 묵상 일정이 없습니다 (주일은 쉽니다).' :
       '등록된 묵상 일정이 없습니다.<br>요청함 상태 확인을 누르거나 동기화해 주세요.') + '</div>';
     return;
   }
-  $('#devoTitle').innerHTML = '<span style="color:var(--accent2)">' + esc(e['본문범위']) + '</span> · ' + esc(e['제목']);
+  $('#devoTitle').innerHTML = esc(devoDateLabel(date)) + ' · <span style="color:var(--accent2)">' + esc(e['본문범위']) + '</span> · ' + esc(e['제목']);
   var saved = note['ID'] ? ' <span class="badge b-state">기록 있음</span>' : '';
   body.className = 'split';
   body.innerHTML =
@@ -19083,6 +19094,12 @@ function confirmLeaveDevo(){
   devoDraftDrop(devoState.date);   /* v718 버리기로 했으니 다음에 열 때 되살리지 않는다 */
   return true;
 }
+/* v718(2차) 「10월 26일 (월)」 — 날짜 칸은 YYYY-MM-DD(코드가 읽는 값) 그대로 두고, 요일은 머리줄 한 줄 설명에 */
+function devoDateLabel(date){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || '')); if (!m) return '';
+  var d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return (+m[2]) + '월 ' + (+m[3]) + '일 (' + '일월화수목금토'.charAt(d.getDay()) + ')';
+}
 function shiftDevoDate(days){
   var d = new Date(devoState.date + 'T12:00:00');
   d.setDate(d.getDate() + days);
@@ -19092,7 +19109,8 @@ function shiftDevoDate(days){
 $('#devoPrev').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(-1); });
 $('#devoNext').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; shiftDevoDate(1); });
 $('#devoToday').addEventListener('click', function(){ if (!confirmLeaveDevo()) return; devoState.date = todayLocal_(); renderDevo(); });
-$('#devoDate').addEventListener('change', function(){ if (!this.value) return; if (!confirmLeaveDevo()) { this.value = devoState.date; return; } devoState.date = this.value; renderDevo(); });
+$('#devoDate').addEventListener('change', function(){ if (!this.value) { this.value = devoState.date; return; }   /* v718(2차) 달력 [지우기]로 칸만 비고 화면은 그 날짜로 남던 것 */
+  if (!confirmLeaveDevo()) { this.value = devoState.date; return; } devoState.date = this.value; renderDevo(); });
 
 /* ===================== Claude API 직결 (Opus 5.5 · effort high) =====================
    키가 설정되면 요약본·원고작성·시리즈묵상·시리즈설교를 요청함 없이 즉시 생성.
@@ -34862,7 +34880,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v718';
+var APP_VER = 'v719';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -35344,8 +35362,10 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     viewY = p.y; viewM = p.m;
     render();
     ov.classList.add('on');
+    /* v718(2차) 키보드로도 — 고른 날(없으면 오늘)에 포커스, 닫으면 날짜 칸으로 */
+    try { var f = grid.querySelector('.sel') || grid.querySelector('.today') || grid.querySelector('button:not(.oth)'); if (f) f.focus(); } catch (e) {}
   }
-  function close(){ ov.classList.remove('on'); target = null; }
+  function close(){ var t = target; ov.classList.remove('on'); target = null; try { if (t && document.activeElement && ov.contains(document.activeElement)) t.focus(); } catch (e) {} }
   function commit(v){
     if (target){
       target.value = v;
@@ -35405,6 +35425,11 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     });
   }).observe(document.body, { childList: true, subtree: true });
   /* 클릭 위임(캡처): readonly 입력칸 탭 → 커스텀 달력 */
+  /* v718(2차) 날짜 칸에서 Enter·Space·↓ = 달력 열기(예전엔 마우스·손가락으로만 열렸다) */
+  document.addEventListener('keydown', function(e){
+    var inp = e.target && e.target.closest && e.target.closest('input[data-cal="1"]');
+    if (inp && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') && !e.isComposing){ e.preventDefault(); open(inp); }
+  });
   document.addEventListener('click', function(e){
     var inp = e.target.closest && e.target.closest('input[data-cal="1"]');
     if (inp){ e.preventDefault(); inp.blur(); open(inp); }
