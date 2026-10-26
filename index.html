@@ -18988,19 +18988,20 @@ function renderDevo(){
   var body = $('#devoBody');
   if (!e) {
     $('#devoTitle').textContent = devoDateLabel(date);
-    var has = state.data.devo && state.data.devo.length;
-    body.innerHTML = '<div class="empty">' + (has ? '이 날짜에는 묵상 일정이 없습니다 (주일은 쉽니다).' :
-      '등록된 묵상 일정이 없습니다.<br>요청함 상태 확인을 누르거나 동기화해 주세요.') + '</div>';
+    body.className = '';
+    body.innerHTML = devoEmptyHtml(date);
     return;
   }
   $('#devoTitle').innerHTML = esc(devoDateLabel(date)) + ' · <span style="color:var(--accent2)">' + esc(e['본문범위']) + '</span> · ' + esc(e['제목']);
   var saved = note['ID'] ? ' <span class="badge b-state">기록 있음</span>' : '';
   body.className = 'split';
   body.innerHTML =
-    '<div class="card" id="devoScript"><div class="cnt devoScHd"><span><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + esc(e['본문범위'] || '') + '</span>'
+    '<div class="card' + (devoToolsOn() ? ' devoTools' : '') + '" id="devoScript"><div class="cnt devoScHd"><span><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + esc(e['본문범위'] || '') + '</span>'
+      + (e['시리즈명'] ? '<span class="devoSer">' + esc(e['시리즈명']) + '</span>' : '')
       + '<span id="devoSavedBadge">' + saved + '</span>'
       + '<span class="saveSt" id="devoDirty" data-st="dirty" role="status" aria-live="polite" hidden title="아직 저장하지 않았습니다 — 이 기기에는 쓰는 대로 임시 보관됩니다">저장 전</span>'
-      + '<button class="linkbtn" id="devoOpenStudy" type="button" style="font-size:var(--fs-sm);margin-left:auto">본문연구 창으로 ↗</button></div>'
+      + '<button class="linkbtn devoToolsBtn" type="button" aria-pressed="' + (devoToolsOn() ? 'true' : 'false') + '" title="구조·노트·2분할 단추와 낱말 밑줄 보이기/숨기기">연구 도구</button>'
+      + '<button class="linkbtn" id="devoOpenStudy" type="button" style="font-size:var(--fs-sm)">본문연구 창으로 ↗</button></div>'
       + '<div id="devoStudyPane"></div></div>' +
     '<div>' +
     '<div id="devoFree"></div>' +
@@ -19218,6 +19219,40 @@ function confirmLeaveDevo(){
   devoDraftDrop(devoState.date);   /* v718 버리기로 했으니 다음에 열 때 되살리지 않는다 */
   return true;
 }
+/* v723 묵상이 없는 날 — 주일/일정 없음을 나눠 말하고, 가장 가까운 앞뒤 묵상 날로 가는 단추를 둔다.
+   예전엔 늘 「(주일은 쉽니다)」(수요일에도)였고, 일정이 아예 없으면 다른 화면(아웃풋)의 「요청함 상태 확인」을 가리켰다. */
+function devoEmptyHtml(date){
+  var rows = (state.data.devo || []).filter(function(d){ return d['날짜']; });
+  if (!rows.length) return '<div class="empty devoEmpty">아직 등록된 묵상 일정이 없습니다.<br>묵상 일정은 시리즈 계획에서 만들어 묵상집에 등록하면 여기에 날마다 나옵니다.'
+    + '<div class="qNoneActs"><button class="btn sub" type="button" onclick="showPage(\'series\')">시리즈 계획 열기</button></div></div>';
+  var ds = rows.map(function(d){ return String(d['날짜']); }).sort();
+  var prev = null, next = null;
+  ds.forEach(function(d){ if (d < date) prev = d; else if (d > date && !next) next = d; });
+  var sun = new Date(date + 'T12:00:00').getDay() === 0;
+  function go(d, back){
+    var r = devoEntryFor(d), lab = devoDateLabel(d).replace(/^\d+월 /, function(m){ return m; });
+    return '<button class="btn sub devoGo" type="button" data-devogo="' + d + '">' + (back ? '‹ ' : '') + esc(lab) + (r && r['본문범위'] ? ' · ' + esc(r['본문범위']) : '') + (back ? '' : ' ›') + '</button>';
+  }
+  return '<div class="empty devoEmpty">' + (sun ? '주일에는 묵상이 없습니다.' : '이 날에는 묵상 일정이 없습니다.')
+    + ((prev || next) ? '<div class="qNoneActs">' + (prev ? go(prev, true) : '') + (next ? go(next, false) : '') + '</div>' : '') + '</div>';
+}
+/* v723 묵상 본문 칸의 [연구 도구] — 접으면(기본) 구조·노트·2분할 단추와 낱말 점선을 숨겨 본문이 읽는 글로 보인다.
+   구조·노트가 켜져 있으면 접어도 단추는 보인다(끌 수 있게). 기기별 기억 tsa.devoTools */
+function devoToolsOn(){ try { return localStorage.getItem('tsa.devoTools') === '1'; } catch (e) { return false; } }
+(function(){
+  var b = document.getElementById('devoBody'); if (!b) return;
+  b.addEventListener('click', function(e){
+    var g = e.target.closest && e.target.closest('[data-devogo]');
+    if (g) { if (!confirmLeaveDevo()) return; devoState.date = g.getAttribute('data-devogo'); renderDevo(); return; }
+    var t = e.target.closest && e.target.closest('.devoToolsBtn');
+    if (t) {
+      var on = !devoToolsOn();
+      try { if (on) localStorage.setItem('tsa.devoTools', '1'); else localStorage.removeItem('tsa.devoTools'); } catch (e2) {}
+      var sc = document.getElementById('devoScript'); if (sc) sc.classList.toggle('devoTools', on);
+      t.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  });
+})();
 /* v718(2차) 「10월 26일 (월)」 — 날짜 칸은 YYYY-MM-DD(코드가 읽는 값) 그대로 두고, 요일은 머리줄 한 줄 설명에 */
 function devoDateLabel(date){
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || '')); if (!m) return '';
