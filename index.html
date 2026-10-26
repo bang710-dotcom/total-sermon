@@ -163,7 +163,7 @@ label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 5px}
 .chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
 button.chip{font-family:inherit;line-height:inherit}   /* v708: 검색 범위 칩 = 단추(키보드·화면 읽기 프로그램) */
 /* v708: 검색창 안내문 — 다크 테마에서 브라우저 기본 회색(#757575)이 어두운 칸 위 3.4:1 이었다 */
-.searchbox input::placeholder{color:var(--dim);opacity:1}
+.searchbox input::placeholder,#cwQ::placeholder,#illQ::placeholder,#topicHubQ::placeholder,#stHymnQ::placeholder,#stDictQ::placeholder{color:var(--dim);opacity:1}   /* v711: 모든 검색창 */
 /* v708: 키보드로 결과를 옮겨 다닐 때 위에 붙은 검색창(.searchbox)에 가리지 않게 */
 #qResults .item,#qResults .qMore,#qResults .qIllBar{scroll-margin-top:180px;scroll-margin-bottom:16px}
 /* 예화 도서관 필터 — 종류별 라벨 그룹 박스 */
@@ -2573,17 +2573,17 @@ body.focusMode #refInsBar{bottom:72px}
     <!-- ============ 설교 라이브러리 ============ -->
     <section class="page" id="page-library">
       <div class="searchbox" style="margin-bottom:10px">
-        <input type="text" id="libQ" placeholder="설교 라이브러리 검색 — 제목·본문·원고·요약" autocomplete="off">
+        <input type="text" id="libQ" aria-label="설교 라이브러리 검색" placeholder="설교 라이브러리 검색 — 제목·본문·원고·요약" autocomplete="off">
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center">
           <select id="libYear" class="libsel"><option value="">연도 전체</option></select>
           <select id="libSvc" class="libsel"><option value="">예배 전체</option></select>
           <select id="libBook" class="libsel"><option value="">성경 전체</option></select>
           <select id="libTopic" class="libsel"><option value="">주제 전체</option></select>
-          <span class="chip on" data-libflag="">전체</span>
-          <span class="chip" data-libflag="nopdf">PDF 없음</span>
-          <span class="chip" data-libflag="nosum">요약 없음</span>
-          <span class="chip" data-libflag="nocard">카드 없음</span>
-          <span class="chip" data-libtrash="1" style="margin-left:8px;color:var(--warn)"><svg class=ico aria-hidden=true><use href=#i-trash></use></svg> 휴지통</span>
+          <button type="button" class="chip on" data-libflag="">전체</button>
+          <button type="button" class="chip" data-libflag="nopdf">PDF 없음</button>
+          <button type="button" class="chip" data-libflag="nosum">요약 없음</button>
+          <button type="button" class="chip" data-libflag="nocard">카드 없음</button>
+          <button type="button" class="chip" data-libtrash="1" style="margin-left:8px;color:var(--warn)"><svg class=ico aria-hidden=true><use href=#i-trash></use></svg> 휴지통</button>
         </div>
         <div class="cnt" style="margin-top:6px">모든 설교를 한 곳에서 — 보유 파일(원고·PDF·카드·요약·LTC)을 칩으로 보고, 연도·예배·검색으로 좁혀 봅니다. 항목을 펼치면 요약·대지·파일 위치와 미리보기·수정·내보내기를 할 수 있습니다.</div>
       </div>
@@ -2604,7 +2604,7 @@ body.focusMode #refInsBar{bottom:72px}
       <div class="card" id="topicHubCard" style="margin-top:14px">
         <label><svg class=ico aria-hidden=true><use href=#i-tag></use></svg> 주제 통합 보기</label>
         <div class="cnt" style="margin-top:6px">설교 <b>키워드</b> · 예화 <b>주제</b> · 아이디어 <b>키워드</b> · 성경앱 노트 <b>태그</b>를 한 어휘로 모았습니다. 주제를 누르면 그 주제로 가진 자료가 모두 나옵니다. 표기가 갈린 주제는 <b>비슷한 주제</b>로 묶어 보여 줍니다.</div>
-        <input type="search" id="topicHubQ" placeholder="주제 찾기 (예: 은혜, 순종, 헌신)" style="width:100%;margin-top:10px">
+        <input type="search" id="topicHubQ" aria-label="주제 찾기" placeholder="주제 찾기 (예: 은혜, 순종, 헌신)" style="width:100%;margin-top:10px">
         <div id="topicHubBox" style="margin-top:10px"></div>
       </div>
     </section>
@@ -2668,7 +2668,7 @@ body.focusMode #refInsBar{bottom:72px}
                 <option value="구상/연구">구상/연구</option>
                 <option value="작성중">작성중</option>
               </select>
-              <input type="text" id="cwQ" placeholder="제목·본문·시리즈 검색" autocomplete="off" style="flex:1 1 auto;font-size:var(--fs-body)">
+              <input type="text" id="cwQ" aria-label="진행중 설교 찾기" placeholder="제목·본문·시리즈 검색" autocomplete="off" style="flex:1 1 auto;font-size:var(--fs-body)">
             </div>
             <div id="cwResults" style="margin-top:9px;max-height:320px;overflow:auto"></div>
           </div>
@@ -2704,7 +2704,7 @@ body.focusMode #refInsBar{bottom:72px}
           <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
           <div id="concBox" style="margin-top:8px"></div>
           <div class="toolrow" style="margin-top:6px;gap:6px;flex-wrap:wrap"><button class="btn sub mini" id="ptReframeBtn" type="button" style="flex:1 1 0"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 대지 보강 (재정의·대조)</button><button class="btn sub mini" id="ptApplyBtn" type="button" style="flex:1 1 0"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 실천 강화 (세대별)</button></div>
-          <div class="aiKnobs"><div class="aiKnob" title="실천 강화 · 블록별 [대지적용]·[대지실천] AI 생성에 쓰는 삶의 자리 — 고르지 않으면 AI가 정합니다"><b>삶의 자리</b><span class="chips" id="applyCtxChips"><span class="chip" data-v="가정">가정</span><span class="chip" data-v="직장">직장</span><span class="chip" data-v="학교">학교</span><span class="chip" data-v="교회">교회</span><span class="chip" data-v="공적 삶">공적 삶</span></span></div></div>
+          <div class="aiKnobs"><div class="aiKnob" title="실천 강화 · 블록별 [대지적용]·[대지실천] AI 생성에 쓰는 삶의 자리 — 고르지 않으면 AI가 정합니다"><b>삶의 자리</b><span class="chips" id="applyCtxChips"><button type="button" class="chip" data-v="가정">가정</button><button type="button" class="chip" data-v="직장">직장</button><button type="button" class="chip" data-v="학교">학교</button><button type="button" class="chip" data-v="교회">교회</button><button type="button" class="chip" data-v="공적 삶">공적 삶</button></span></div></div>
           <div id="ptReframe"></div>
           <div id="ptApply"></div>
         </div>
@@ -2771,10 +2771,10 @@ body.focusMode #refInsBar{bottom:72px}
           <div class="esbInfo"><div class="edTitle" id="edTitle"></div><div class="edRef" id="edRef"></div></div>
           <div class="esbStyle"><span class="esbLab">원고 스타일</span>
           <div class="chips" id="c_style">
-          <span class="chip" data-v="프롬프터" title="MemoMind 안경 프롬프터 원고 — 안경 화면(한 줄 20칸 · 3줄씩)과 같은 모양으로 고칩니다. 카드원고에서 자동으로 만들어지고, 고친 글은 [저장]하면 시트에 함께 저장됩니다(다른 기기·사역 안경 앱에서도 읽음)">프롬프터</span>
-          <span class="chip gold" data-v="카드원고" title="강단 화면용 카드원고 — 원고와 따로 저장됩니다(처음 열면 AI 초안)">카드원고</span>
-          <span class="chip on" data-v="기본원고">기본원고</span>
-          <span class="chip" data-v="자유원고">자유원고</span>
+          <button type="button" class="chip" data-v="프롬프터" title="MemoMind 안경 프롬프터 원고 — 안경 화면(한 줄 20칸 · 3줄씩)과 같은 모양으로 고칩니다. 카드원고에서 자동으로 만들어지고, 고친 글은 [저장]하면 시트에 함께 저장됩니다(다른 기기·사역 안경 앱에서도 읽음)">프롬프터</button>
+          <button type="button" class="chip gold" data-v="카드원고" title="강단 화면용 카드원고 — 원고와 따로 저장됩니다(처음 열면 AI 초안)">카드원고</button>
+          <button type="button" class="chip on" data-v="기본원고">기본원고</button>
+          <button type="button" class="chip" data-v="자유원고">자유원고</button>
           </div></div>
           <div class="esbKit" id="edKitBar" hidden></div>
         </div>
@@ -2793,8 +2793,8 @@ body.focusMode #refInsBar{bottom:72px}
         <label>설교 상황 — 대상, 시기, 목적 등</label>
         <textarea id="occ_sit" rows="8" placeholder="예) 여름 수련회 둘째 날 저녁 집회. 대학 새내기가 절반, 신앙의 첫 결단을 끌어내는 자리. 찬양 후 바로 설교."></textarea>
         <div class="aiKnobs" id="occKnobs">
-          <div class="aiKnob"><b>대지 수</b><span class="chips" data-ok="np"><span class="chip" data-v="">자동</span><span class="chip" data-v="2">2</span><span class="chip" data-v="3">3</span><span class="chip" data-v="4">4</span><span class="chip" data-v="5">5</span></span></div>
-          <div class="aiKnob"><b>청중</b><span class="chips" data-ok="aud"><span class="chip" data-v="">대학부(기본)</span><span class="chip" data-v="장년">장년</span><span class="chip" data-v="청소년">청소년</span><span class="chip" data-v="어린이">어린이</span><span class="chip" data-v="온 세대">온 세대</span></span></div>
+          <div class="aiKnob"><b>대지 수</b><span class="chips" data-ok="np"><button type="button" class="chip" data-v="">자동</button><button type="button" class="chip" data-v="2">2</button><button type="button" class="chip" data-v="3">3</button><button type="button" class="chip" data-v="4">4</button><button type="button" class="chip" data-v="5">5</button></span></div>
+          <div class="aiKnob"><b>청중</b><span class="chips" data-ok="aud"><button type="button" class="chip" data-v="">대학부(기본)</button><button type="button" class="chip" data-v="장년">장년</button><button type="button" class="chip" data-v="청소년">청소년</button><button type="button" class="chip" data-v="어린이">어린이</button><button type="button" class="chip" data-v="온 세대">온 세대</button></span></div>
         </div>
         <div class="cmSec pgHelp"><span>개요 생성 안내</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>Opus가 본문·주제(근거 포함)·대지 3개(근거·적용 포함) 선택지 3세트를 만듭니다. 세트를 그 자리에서 다듬은 뒤 [이 개요로 설교 작성]을 누르면 설교 작성으로 넘어갑니다.<br><br>[새로 시작]은 오른쪽에 생성된 선택지를 비웁니다. 설교일·상황 입력은 그대로 두므로, 상황만 고쳐 다시 [개요 생성]을 누르시면 됩니다.</div>
@@ -2949,7 +2949,7 @@ body.focusMode #refInsBar{bottom:72px}
     <!-- ============ 미래설교 보관함 ============ -->
     <section class="page" id="page-archive">
       <div class="searchbox" style="margin-bottom:10px">
-        <input type="text" id="aq" placeholder="미래설교(보관) 통합 검색 — 제목·본문·메시지·대지·시리즈" autocomplete="off">
+        <input type="text" id="aq" aria-label="미래설교 보관함 검색" placeholder="미래설교(보관) 통합 검색 — 제목·본문·메시지·대지·시리즈" autocomplete="off">
         <div class="cnt" style="margin-top:6px">시리즈 설교 주제 중 아직 고르지 않은 개요들이 여기에 모입니다. 어느 기기에서나 검색·열람하고, 바로 [설교 작성]으로 잇거나 [구상/연구]으로 승격할 수 있습니다.</div>
       </div>
       <div class="cnt" id="aCnt"></div>
@@ -2960,11 +2960,11 @@ body.focusMode #refInsBar{bottom:72px}
     <section class="page" id="page-input">
       <div class="card">
         <div class="chips" id="ideaTypes">
-          <span class="chip gold on" data-v="예화">예화</span>
-          <span class="chip" data-v="주제">주제</span>
-          <span class="chip" data-v="통찰">통찰</span>
-          <span class="chip" data-v="인용">인용</span>
-          <span class="chip" data-v="질문">질문</span>
+          <button type="button" class="chip gold on" data-v="예화">예화</button>
+          <button type="button" class="chip" data-v="주제">주제</button>
+          <button type="button" class="chip" data-v="통찰">통찰</button>
+          <button type="button" class="chip" data-v="인용">인용</button>
+          <button type="button" class="chip" data-v="질문">질문</button>
         </div>
         <label>내용 *</label>
         <textarea id="ideaContent" placeholder="떠오른 생각을 빠르게 적으세요&#10;(이미지를 끌어다 놓으면 클로드가 글로 정리해 등록합니다)"></textarea>
@@ -3034,11 +3034,11 @@ body.focusMode #refInsBar{bottom:72px}
     <!-- ============ 인박스 ============ -->
     <section class="page" id="page-inbox">
       <div class="chips" id="inboxFilter" style="margin-bottom:12px">
-        <span class="chip on" data-v="새것">새것</span>
-        <span class="chip" data-v="검토">검토</span>
-        <span class="chip" data-v="사용됨">사용됨</span>
-        <span class="chip" data-v="보류">보류</span>
-        <span class="chip" data-v="">전체</span>
+        <button type="button" class="chip on" data-v="새것">새것</button>
+        <button type="button" class="chip" data-v="검토">검토</button>
+        <button type="button" class="chip" data-v="사용됨">사용됨</button>
+        <button type="button" class="chip" data-v="보류">보류</button>
+        <button type="button" class="chip" data-v="">전체</button>
       </div>
       <div class="toolrow" style="margin-bottom:10px"><button class="btn sub mini" id="enhanceIdeasBtn" type="button" style="flex:0 0 auto"><svg class=ico aria-hidden=true><use href=#i-spark></use></svg> 강화 안 된 예화 일괄 강화</button><span class="cnt" id="enhanceIdeasHint" style="margin-left:8px"></span></div>
       <div class="cnt" style="margin-bottom:12px;line-height:1.65;background:var(--card,#0000000a);border-radius:8px;padding:9px 11px"><svg class=ico aria-hidden=true><use href=#i-bulb></use></svg> <b>예화는 강화되는 순간 곧바로 예화 도서관으로 정리</b>됩니다. 이미지·OCR처럼 저장과 함께 자동 강화되는 예화는 인박스를 거치지 않고 바로 도서관으로 넘어갑니다. 손으로 빠르게 적어 둔 예화는 아직 강화 전이라 여기 인박스에 남아 있고, 위 「<b>강화 안 된 예화 일괄 강화</b>」를 누르면 강화되어 그때 도서관으로 넘어갑니다. 즉 인박스는 <b>강화 전 예화와 아이디어·통찰·주제를 검토하는 자리</b>이고, 강화가 끝난 예화는 도서관에 모입니다. (도서관에 보이는 것과 별개로, 예화모음 엑셀·번들에는 들어가지 않습니다.)</div>
@@ -3048,16 +3048,16 @@ body.focusMode #refInsBar{bottom:72px}
     <!-- ============ 예화 도서관 (강화 DB + 인박스 + 내가 쓴 예화 아카이브 통합) ============ -->
     <section class="page" id="page-illlib">
       <div class="card">
-        <input type="text" id="illQ" placeholder="예화 검색 — 제목·메시지·내용·키워드·본문·출처(인물·책)" autocomplete="off">
+        <input type="text" id="illQ" aria-label="예화 검색" placeholder="예화 검색 — 제목·메시지·내용·키워드·본문·출처(인물·책)" autocomplete="off">
         <div class="illfbox">
           <div class="fgrp">
             <span class="fgrp-l">구분</span>
             <div class="chips" id="illSrc">
-              <span class="chip on" data-v="all">전체</span>
-              <span class="chip" data-v="lib">강화 라이브러리</span>
-              <span class="chip" data-v="inbox">내 인박스</span>
-              <span class="chip" data-v="arc">내가 쓴 예화</span>
-              <span class="chip" data-v="sleep"><svg class=ico aria-hidden=true><use href=#i-moon></use></svg> 잠자는 예화</span>
+              <button type="button" class="chip on" data-v="all">전체</button>
+              <button type="button" class="chip" data-v="lib">강화 라이브러리</button>
+              <button type="button" class="chip" data-v="inbox">내 인박스</button>
+              <button type="button" class="chip" data-v="arc">내가 쓴 예화</button>
+              <button type="button" class="chip" data-v="sleep"><svg class=ico aria-hidden=true><use href=#i-moon></use></svg> 잠자는 예화</button>
             </div>
           </div>
           <div class="fgrp">
@@ -3149,15 +3149,15 @@ body.focusMode #refInsBar{bottom:72px}
         <label style="margin-top:0"><svg class=ico aria-hidden=true><use href=#i-palette></use></svg> 화면</label>
         <label>테마</label>
         <div class="chips" id="themeChips">
-          <span class="chip" data-theme="dark">다크</span>
-          <span class="chip" data-theme="light">라이트</span>
-          <span class="chip" data-theme="sepia">세피아</span>
+          <button type="button" class="chip" data-theme="dark">다크</button>
+          <button type="button" class="chip" data-theme="light">라이트</button>
+          <button type="button" class="chip" data-theme="sepia">세피아</button>
         </div>
         <label style="margin-top:14px">화면 크기</label>
         <div class="chips" id="zoomChips">
-          <span class="chip" data-zoom="1">기본</span>
-          <span class="chip" data-zoom="1.08">크게</span>
-          <span class="chip" data-zoom="1.15">아주 크게</span>
+          <button type="button" class="chip" data-zoom="1">기본</button>
+          <button type="button" class="chip" data-zoom="1.08">크게</button>
+          <button type="button" class="chip" data-zoom="1.15">아주 크게</button>
         </div>
         <div class="cnt" style="margin-top:6px">이 기기에만 적용됩니다. 화면 크기는 앱 전체 글자·버튼을 키웁니다 — 배치가 어긋나 보이면 「기본」으로.</div>
       </div>
@@ -3167,8 +3167,8 @@ body.focusMode #refInsBar{bottom:72px}
         <div class="setHl"><label>파일 형식</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>원고·카드원고·LTC 교재·설교계획·이미지자료를 어떤 파일로 만들지 정합니다. HWPX 는 목사님 원본 서식(용지·여백·함초롬바탕·색·표)이 그대로 들어가 한글에서 바로 고칠 수 있습니다. 아이패드에 한컴오피스가 없으면 DOCX 로 두세요. 기기마다 따로 정하며, 이미 만든 파일은 형식을 바꿔도 그대로 읽습니다.</div>
         <div class="chips" id="fmtChips">
-          <span class="chip" data-fmt="hwpx">HWPX (한글)</span>
-          <span class="chip" data-fmt="docx">DOCX (워드)</span>
+          <button type="button" class="chip" data-fmt="hwpx">HWPX (한글)</button>
+          <button type="button" class="chip" data-fmt="docx">DOCX (워드)</button>
         </div>
         <div class="setHl" style="margin-top:14px"><label for="imgEngineSel">설교 이미지 AI</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>배경 컷을 만들 엔진입니다. Flux 는 분위기·질감 배경, Gemini(Nano Banana)는 더 사실적이고 디테일한 배경, Krea 2 Turbo 는 회화적인 질감에 강하고 장당 비용이 가장 낮습니다(약 $0.02). Gemini·Krea 는 fal.ai 를 거칩니다. 고르는 즉시 저장되고 다른 기기와 공유됩니다.</div>
@@ -3272,14 +3272,14 @@ body.focusMode #refInsBar{bottom:72px}
           <div class="setSec">원고 작성</div>
           <label style="margin-top:4px">원고 작성창</label>
           <div class="chips" id="edPaperChips">
-            <span class="chip" data-edpaper="1">종이 · 명조 (기본)</span>
-            <span class="chip" data-edpaper="0">이전 방식 · 테마 색 칸</span>
+            <button type="button" class="chip" data-edpaper="1">종이 · 명조 (기본)</button>
+            <button type="button" class="chip" data-edpaper="0">이전 방식 · 테마 색 칸</button>
           </div>
           <div class="cnt" style="margin-top:6px">「종이」는 오른쪽 작성창을 흰 종이·명조로 보여 줍니다(집중 모드 제외). 이 기기에만 저장됩니다.</div>
           <label>원고 저장 방식</label>
           <div class="chips" id="saveQuietChips">
-            <span class="chip" data-savequiet="0">저장이 끝날 때까지 기다림 (기본)</span>
-            <span class="chip" data-savequiet="1">저장하는 동안 계속 쓰기</span>
+            <button type="button" class="chip" data-savequiet="0">저장이 끝날 때까지 기다림 (기본)</button>
+            <button type="button" class="chip" data-savequiet="1">저장하는 동안 계속 쓰기</button>
           </div>
           <div class="cnt" style="margin-top:6px">「계속 쓰기」는 이미 있는 설교를 저장할 때 화면을 가리지 않고 뒤에서 보냅니다. 다른 기기 저장과 겹치면 보낸 내용을 검토본으로 남깁니다. 이 기기에만 저장됩니다.</div>
 
@@ -3421,8 +3421,8 @@ body.focusMode #refInsBar{bottom:72px}
       <div class="cnt" style="margin-bottom:8px">이 자리에 어떤 예화가 필요한지 자유롭게 설명해 주세요. 설명하신 내용을 최우선 기준으로 삼아, 소장 서랍 예화를 우선 고르고 부족분만 창작해 추천합니다.</div>
       <textarea id="illReqText" rows="6" placeholder="예) 용서가 얼마나 어려운지, 그러나 용서할 때 오히려 내가 자유로워진다는 것을 보여 주는 실화. 가족 사이의 갈등을 소재로 하면 좋겠습니다."></textarea>
       <div class="aiKnobs" id="illKnobs">
-        <div class="aiKnob"><b>유형</b><span class="chips" data-ilk="type"><span class="chip" data-v="">자동</span><span class="chip" data-v="personal">내 경험</span><span class="chip" data-v="historical">역사</span><span class="chip" data-v="hypothetical">가상</span><span class="chip" data-v="biblical">성경</span></span></div>
-        <div class="aiKnob"><b>어조</b><span class="chips" data-ilk="tone"><span class="chip" data-v="">자동</span><span class="chip" data-v="serious">진지</span><span class="chip" data-v="emotive">감동</span><span class="chip" data-v="light">가벼움</span></span></div>
+        <div class="aiKnob"><b>유형</b><span class="chips" data-ilk="type"><button type="button" class="chip" data-v="">자동</button><button type="button" class="chip" data-v="personal">내 경험</button><button type="button" class="chip" data-v="historical">역사</button><button type="button" class="chip" data-v="hypothetical">가상</button><button type="button" class="chip" data-v="biblical">성경</button></span></div>
+        <div class="aiKnob"><b>어조</b><span class="chips" data-ilk="tone"><button type="button" class="chip" data-v="">자동</button><button type="button" class="chip" data-v="serious">진지</button><button type="button" class="chip" data-v="emotive">감동</button><button type="button" class="chip" data-v="light">가벼움</button></span></div>
       </div>
       <div class="illOvFoot"><button class="btn" id="illReqGen" type="button">예화 추천</button></div>
     </div>
@@ -4892,6 +4892,39 @@ $('#detailPane').addEventListener('keydown', function(e){
   if (!back || back.offsetParent === null) { if (window.closeDetail) closeDetail(); back = qFindItem(state._qOpenKey); }   /* 한 칸 화면: 목록이 숨어 있으면 상세를 닫고 */
   if (back) qFocusTo(back);
 });
+/* v711: 키보드로 여는 목록 카드 — role="button" tabindex="0" 인 카드(진행중 목록·시리즈 목록·인박스 등)는 Enter·Space 로 누른다.
+   진짜 단추·펼침 머리(summary)는 브라우저가 알아서 하므로 뺀다. 검색 결과처럼 자기 처리기가 먼저 처리했으면(defaultPrevented) 두지 않는다. */
+document.addEventListener('keydown', function(e){
+  if (e.defaultPrevented || e.isComposing || (e.key !== 'Enter' && e.key !== ' ')) return;
+  var t = e.target;
+  if (!t || !t.getAttribute || t.getAttribute('role') !== 'button' || !t.hasAttribute('tabindex')) return;
+  if (/^(BUTTON|SUMMARY|A|INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  e.preventDefault(); t.click();
+});
+/* v711: 칩 = 단추. 고르는 칩 묶음(그 묶음에 .on 이 있는 것)은 aria-pressed 로 눌림 상태를 알린다 — 화면 읽기 프로그램이 「선택됨」으로 읽는다.
+   칩마다 처리기를 고치지 않고, class 가 바뀌거나 칩이 새로 그려질 때 그 묶음을 한 번에 맞춘다. 고르지 않는 칩(동작 칩)에는 붙이지 않는다. */
+(function(){
+  function syncGroup(par){
+    if (!par || !par.querySelectorAll) return;
+    var chips = Array.prototype.filter.call(par.children, function(c){ return c.tagName === 'BUTTON' && c.classList.contains('chip'); });
+    if (!chips.length || !chips.some(function(c){ return c.classList.contains('on'); })) return;
+    chips.forEach(function(c){ var v = c.classList.contains('on') ? 'true' : 'false'; if (c.getAttribute('aria-pressed') !== v) c.setAttribute('aria-pressed', v); });
+  }
+  function syncIn(root){
+    if (!root || root.nodeType !== 1) return;
+    if (root.matches('button.chip')) { syncGroup(root.parentNode); return; }
+    var seen = [];
+    Array.prototype.forEach.call(root.querySelectorAll('button.chip'), function(c){ if (seen.indexOf(c.parentNode) < 0) { seen.push(c.parentNode); syncGroup(c.parentNode); } });
+  }
+  syncIn(document.body);
+  if (!window.MutationObserver) return;
+  new MutationObserver(function(recs){
+    recs.forEach(function(r){
+      if (r.type === 'attributes') { if (r.target.matches && r.target.matches('button.chip')) syncGroup(r.target.parentNode); }
+      else Array.prototype.forEach.call(r.addedNodes, function(n){ if (n.nodeType === 1 && (n.matches('button.chip') || n.querySelector('button.chip'))) syncIn(n); });
+    });
+  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+})();
 
 function openDetail(kind, id){
   /* 첫 시트 로딩 중에는 검색 상세 열람 잠금(미완성 데이터 노출·삭제/수정 진입 방지) */
@@ -6316,11 +6349,11 @@ function renderIllLib(){
       var sel = $('#illCat'); if (sel){ cats.forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); }); }
       ILLIB.catsInit = true;
     }
-    var q = ($('#illQ') && $('#illQ').value || '').trim().toLowerCase();
+    var q = nfcLow(($('#illQ') && $('#illQ').value || '').trim());   /* v711: 한글 정규화 */
     var terms = q.split(/\s+/).filter(Boolean);
     function hitArc(it){
       if (terms.length){
-        var hay = (it.title + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ')).toLowerCase();
+        var hay = nfcLow(it.title + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' '));
         if (!terms.every(function(t){ return illSynSet(t).some(function(w){ return hay.indexOf(w) >= 0; }); })) return false;
       }
       return true;
@@ -6341,9 +6374,9 @@ function renderIllLib(){
       if (ILLIB.cat && it.category !== ILLIB.cat) return false;
       if (terms.length){
         /* 출처·출처메모까지 검색 대상 — 인물·저자·책·연도로도 찾을 수 있게 (v500) */
-        var hay = (it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ')
+        var hay = nfcLow(it.title + ' ' + it.message + ' ' + it.story + ' ' + it.keywords + ' ' + it.category + ' ' + it.refs.join(' ')
           + ' ' + (it.source || '') + ' ' + (it.sourceNote || '')
-          + illSeedHay(it) + ' ' + illTopicList(it.key).join(' ')).toLowerCase();
+          + illSeedHay(it) + ' ' + illTopicList(it.key).join(' '));
         if (!terms.every(function(t){ return illSynSet(t).some(function(w){ return hay.indexOf(w) >= 0; }); })) return false;
       }
       return true;
@@ -6360,14 +6393,14 @@ function renderIllLib(){
       var grades = ['확정', '전언', '미상'].filter(function(g){ return grC[g]; });
       var GR_LABEL = { '확정': '<svg class=ico data-c=g aria-hidden=true><use href=#i-check></use></svg> 확정', '전언': '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 전언', '미상': '<svg class=ico data-c=d aria-hidden=true><use href=#i-help></use></svg> 미상' };
       var fh = '';
-      if (themes.length) fh += '<div class="fgrp"><span class="fgrp-l">주제</span><div class="chips"><span class="chip' + (ILLIB.theme ? '' : ' on') + '" data-fk="theme" data-v="">전체 ' + base.length + '</span>'
-        + themes.map(function(t){ return '<span class="chip' + (ILLIB.theme === t ? ' on' : '') + '" data-fk="theme" data-v="' + esc(t) + '">' + esc(t) + ' ' + thC[t] + '</span>'; }).join('') + '</div></div>';
-      if (tones.length) fh += '<div class="fgrp"><span class="fgrp-l">대상</span><div class="chips"><span class="chip' + (ILLIB.tone ? '' : ' on') + '" data-fk="tone" data-v="">전체</span>'
-        + tones.map(function(t){ return '<span class="chip' + (ILLIB.tone === t ? ' on' : '') + '" data-fk="tone" data-v="' + esc(t) + '">' + esc(t) + ' ' + toC[t] + '</span>'; }).join('') + '</div></div>';
-      if (layers.length) fh += '<div class="fgrp"><span class="fgrp-l">층위</span><div class="chips"><span class="chip' + (ILLIB.layer ? '' : ' on') + '" data-fk="layer" data-v="">전체</span>'
-        + layers.map(function(t){ return '<span class="chip' + (ILLIB.layer === t ? ' on' : '') + '" data-fk="layer" data-v="' + esc(t) + '">' + esc(t) + ' ' + lyC[t] + '</span>'; }).join('') + '</div></div>';
-      if (grades.length) fh += '<div class="fgrp"><span class="fgrp-l">출처</span><div class="chips"><span class="chip' + (ILLIB.grade ? '' : ' on') + '" data-fk="grade" data-v="">전체</span>'
-        + grades.map(function(g){ return '<span class="chip' + (ILLIB.grade === g ? ' on' : '') + '" data-fk="grade" data-v="' + esc(g) + '">' + GR_LABEL[g] + ' ' + grC[g] + '</span>'; }).join('') + '</div></div>';
+      if (themes.length) fh += '<div class="fgrp"><span class="fgrp-l">주제</span><div class="chips"><button type="button" class="chip' + (ILLIB.theme ? '' : ' on') + '" data-fk="theme" data-v="">전체 ' + base.length + '</button>'
+        + themes.map(function(t){ return '<button type="button" class="chip' + (ILLIB.theme === t ? ' on' : '') + '" data-fk="theme" data-v="' + esc(t) + '">' + esc(t) + ' ' + thC[t] + '</button>'; }).join('') + '</div></div>';
+      if (tones.length) fh += '<div class="fgrp"><span class="fgrp-l">대상</span><div class="chips"><button type="button" class="chip' + (ILLIB.tone ? '' : ' on') + '" data-fk="tone" data-v="">전체</button>'
+        + tones.map(function(t){ return '<button type="button" class="chip' + (ILLIB.tone === t ? ' on' : '') + '" data-fk="tone" data-v="' + esc(t) + '">' + esc(t) + ' ' + toC[t] + '</button>'; }).join('') + '</div></div>';
+      if (layers.length) fh += '<div class="fgrp"><span class="fgrp-l">층위</span><div class="chips"><button type="button" class="chip' + (ILLIB.layer ? '' : ' on') + '" data-fk="layer" data-v="">전체</button>'
+        + layers.map(function(t){ return '<button type="button" class="chip' + (ILLIB.layer === t ? ' on' : '') + '" data-fk="layer" data-v="' + esc(t) + '">' + esc(t) + ' ' + lyC[t] + '</button>'; }).join('') + '</div></div>';
+      if (grades.length) fh += '<div class="fgrp"><span class="fgrp-l">출처</span><div class="chips"><button type="button" class="chip' + (ILLIB.grade ? '' : ' on') + '" data-fk="grade" data-v="">전체</button>'
+        + grades.map(function(g){ return '<button type="button" class="chip' + (ILLIB.grade === g ? ' on' : '') + '" data-fk="grade" data-v="' + esc(g) + '">' + GR_LABEL[g] + ' ' + grC[g] + '</button>'; }).join('') + '</div></div>';
       fb.innerHTML = fh;
     }
     var list = base.filter(function(it){
@@ -7185,7 +7218,7 @@ function studyDictCard(e){
 function studyDictSearch(q){
   var box = document.getElementById('stDictOut'); if (!box) return;
   var d = STUDY.dict; if (!d) return;
-  q = String(q || '').trim();
+  q = nfc(String(q || '').trim());   /* v711: 한글 정규화 */
   if (!q){ box.innerHTML = studyDictDefault(); return; }
   var hits = d.entries.filter(function(e){ return String(e.h || '').indexOf(q) >= 0; }).slice(0, 40);
   if (!hits.length) hits = d.entries.filter(function(e){ return String(e.b || '').indexOf(q) >= 0; }).slice(0, 20);
@@ -7196,7 +7229,7 @@ function studyDictSearch(q){
 function studyHymnSearch(q){
   var box = document.getElementById('stHymnOut'); if (!box) return;
   var items = STUDY.hymnList || [];
-  q = String(q || '').trim();
+  q = nfc(String(q || '').trim());   /* v711: 한글 정규화 */
   var hits;
   if (!q) hits = items.slice(0, 24);
   else if (/^\d+$/.test(q)) hits = items.filter(function(h){ return String(h.no) === q || String(h.no).indexOf(q) === 0; }).slice(0, 24);
@@ -9107,7 +9140,7 @@ function studyRenderPane(){
     studyLoadHymns().then(function(items){
       if (STUDY.tab !== 'hymn') return;
       pane.innerHTML = '<div class="cnt" style="margin-bottom:8px">찬송가 ' + items.length + '장 (성경앱 자료). 번호나 제목으로 찾으세요 — 결단 찬양·새벽설교 찬송 고를 때 씁니다.</div>'
-        + '<input type="search" id="stHymnQ" placeholder="예) 310  또는  아 하나님의 은혜로" style="width:100%;margin-bottom:8px">'
+        + '<input type="search" id="stHymnQ" aria-label="찬송 찾기" placeholder="예) 310  또는  아 하나님의 은혜로" style="width:100%;margin-bottom:8px">'
         + '<div id="stHymnOut"></div>';
       studyHymnSearch('');
     }).catch(function(e){
@@ -9118,7 +9151,7 @@ function studyRenderPane(){
   if (STUDY.tab === 'dict'){
     if (STUDY.dict){
       pane.innerHTML = '<div class="cnt" style="margin-bottom:8px">' + esc(STUDY.dict.name) + ' — 표제어 ' + STUDY.dict.entries.length + '항목 (성경앱 자료)</div>'
-        + '<input type="search" id="stDictQ" placeholder="낱말로 찾기 (예: 나실인, 유월절, 회당)" style="width:100%;margin-bottom:8px">'
+        + '<input type="search" id="stDictQ" aria-label="사전 낱말 찾기" placeholder="낱말로 찾기 (예: 나실인, 유월절, 회당)" style="width:100%;margin-bottom:8px">'
         + '<div id="stDictOut">' + studyDictDefault() + '</div>';
       return;
     }
@@ -11886,7 +11919,7 @@ function renderInbox(){
   box.innerHTML = list.map(function(d){
     var isIll = d['유형'] === '예화';
     var ttl = d['제목'] || String(d['내용'] || '').split(/[\n.]/)[0].slice(0, 42);
-    return '<div class="item idItem" data-open="' + d['ID'] + '" style="cursor:pointer"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
+    return '<div class="item idItem" tabindex="0" role="button" aria-expanded="false" data-open="' + d['ID'] + '" style="cursor:pointer"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
       (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
       (isIll && (d['제목'] || d['강조메시지']) ? '<div class="snippet" style="color:var(--text);font-weight:700">' + esc(ttl) + '</div>' : '') +
       (d['강조메시지'] ? '<div class="snippet" style="color:var(--accent);font-weight:600">▶ ' + esc(d['강조메시지']) + '</div>' : '') +
@@ -12724,7 +12757,7 @@ function pmNavRender(){
   if (_pmRef === 'card') h = prCards().map(function(t, i){ return '<div class="prRefCd">카드 ' + (i + 1) + '</div>' + prRefHtml(String(t || '').trim()); }).join('') || '<span class="prRefEmpty">카드원고가 아직 없습니다.</span>';
   else { var t = ''; try { t = assembleText(); } catch (e) {} h = String(t || '').trim() ? prRefHtml(t.trim()) : '<span class="prRefEmpty">원고 전문이 비어 있습니다 — [카드원고]를 보세요.</span>'; }
   box.innerHTML = '<div class="cmSec"><span>참고 원고</span></div>'
-    + '<div class="chips prRefMode"><span class="chip' + (_pmRef === 'ms' ? ' on' : '') + '" data-prref="ms">원고 전문</span><span class="chip' + (_pmRef === 'card' ? ' on' : '') + '" data-prref="card">카드원고</span></div>'
+    + '<div class="chips prRefMode"><button type="button" class="chip' + (_pmRef === 'ms' ? ' on' : '') + '" data-prref="ms">원고 전문</button><button type="button" class="chip' + (_pmRef === 'card' ? ' on' : '') + '" data-prref="card">카드원고</button></div>'
     + '<div class="prRefBody">' + h + '</div>';
 }
 function pmEditorHtml(){
@@ -12732,7 +12765,7 @@ function pmEditorHtml(){
   var o = prOpt();
   return '<div class="pmView">' +
     '<div class="cdBar pmBar"><span class="cdSum pmSum"></span>' +
-      '<span class="chips pmModes"><span class="chip" data-pm="page">한 장씩</span><span class="chip" data-pm="all">전체 글</span></span>' +
+      '<span class="chips pmModes"><button type="button" class="chip" data-pm="page">한 장씩</button><button type="button" class="chip" data-pm="all">전체 글</button></span>' +
       '<span class="cdBarActs">' +
         '<button class="btn sub mini" type="button" data-pm="ai" title="문체 지침으로 카드원고(+원고 전문)를 프롬프터 원고로 다시 씁니다 — AI">' + uiIco('spark') + ' AI로 다시 쓰기</button>' +
         '<button class="btn sub mini" type="button" data-pm="copy" title="안경 줄 폭·3줄 묶음에 맞춰 정리해 복사합니다 → MemoMind 앱 › 프롬프터 › 원고 추가에 붙여넣기">' + uiIco('clipboard') + ' 본문 복사</button>' +
@@ -15583,13 +15616,13 @@ window.resumeSermon = function(id, el){
 function cwRender(){
   var box = $('#cwResults'); if (!box) return;
   var cat = ($('#cwCat') && $('#cwCat').value) || '';
-  var q = ($('#cwQ') ? $('#cwQ').value : '').trim().toLowerCase();
+  var q = nfcLow(($('#cwQ') ? $('#cwQ').value : '').trim());   /* v711: 한글 정규화 */
   var ts = q ? q.split(/\s+/).filter(Boolean) : [];
   var list = (state.data.sermons || []).filter(function(s){
     return cat ? s['상태'] === cat : CW_INPROGRESS[s['상태']];
   });
   if (ts.length) list = list.filter(function(s){
-    var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
+    var hay = nfcLow(['제목','본문','시리즈','핵심메시지','예배구분','키워드'].map(function(f){ return String(s[f] || ''); }).join(' '));
     return ts.every(function(t){ return hay.indexOf(t) >= 0; });
   });
   list.sort(function(a, b){ var x = String(a['수정일'] || a['날짜'] || ''), y = String(b['수정일'] || b['날짜'] || ''); return x < y ? 1 : x > y ? -1 : 0; });
@@ -15601,12 +15634,13 @@ function cwRender(){
   box.innerHTML = '<div class="cnt" style="margin:0 2px 7px;color:var(--dim);font-size:var(--fs-sm)">' + list.length + '개</div>' +
     list.slice(0, 60).map(function(s){
     var saved = fmtSheetSaved(s['수정일']);
-    return '<div class="item" style="position:relative;cursor:pointer;padding:10px 46px 10px 12px;margin-bottom:6px" onclick="resumeSermon(\'' + esc(s['ID']) + '\', this)">' +
-      '<button class="linkbtn" style="position:absolute;top:8px;right:10px;color:var(--warn);padding:2px 4px;font-size:var(--fs-sm);z-index:2" title="이 설교 삭제" onclick="event.stopPropagation();deleteSermon(\'' + esc(s['ID']) + '\')">삭제</button>' +
+    /* v711: 카드 = 키보드로 여는 단추, 「삭제」는 모서리에 떠 있지 않고 머리 줄 끝에(시리즈 목록의 「목록에서 삭제」와 같은 자리) */
+    return '<div class="item" tabindex="0" role="button" style="cursor:pointer;padding:10px 12px;margin-bottom:6px" onclick="resumeSermon(\'' + esc(s['ID']) + '\', this)">' +
       '<div class="meta"><span class="badge b-state">' + esc(s['상태']) + '</span>' +
       (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
       (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') +
-      (saved ? '<span style="color:var(--dim)" title="시트 최종 저장 시각"><svg class=ico aria-hidden=true><use href=#i-save></use></svg> ' + esc(saved) + '</span>' : '') + '</div>' +
+      (saved ? '<span style="color:var(--dim)" title="시트 최종 저장 시각"><svg class=ico aria-hidden=true><use href=#i-save></use></svg> ' + esc(saved) + '</span>' : '') +
+      '<button class="linkbtn" type="button" style="margin-left:auto;color:var(--warn);padding:0 2px;font-size:var(--fs-sm)" title="이 설교 삭제" onclick="event.stopPropagation();deleteSermon(\'' + esc(s['ID']) + '\')">삭제</button></div>' +
       '<div class="title" style="font-size:var(--fs-lg);margin-top:2px">' + esc(s['제목'] || '(제목 없음)') +
       (s['본문'] ? ' <span style="color:var(--dim);font-weight:400;font-size:var(--fs-md)">' + esc(s['본문']) + '</span>' : '') + '</div></div>';
   }).join('');
@@ -27173,7 +27207,7 @@ function renderSeriesList(){
   });
   Object.keys(sheet).forEach(function(n){
     var ds = sheet[n].sort();
-    html += '<div class="item" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
+    html += '<div class="item" tabindex="0" role="button" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
       '<span class="badge b-idea">시트 기록</span><span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span><span>묵상 ' + ds.length + '일</span></div>' +
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
@@ -27188,7 +27222,7 @@ function renderSeriesList(){
   });
   Object.keys(dawnSheet).forEach(function(n){
     var ds = Object.keys(dawnSheet[n]).filter(Boolean).sort();
-    html += '<div class="item" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
+    html += '<div class="item" tabindex="0" role="button" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
       '<span class="badge b-idea">' + DAWN_ICON + ' 새벽 · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span><span>설교 ' + ds.length + '일</span>' : '') + '</div>' +
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 새벽 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
@@ -27209,7 +27243,7 @@ function renderSeriesList(){
   Object.keys(topicSheet).forEach(function(n){
     var t = topicSheet[n], ds = t.dates.filter(Boolean).sort(), cnt = Object.keys(t.keys).length;
     if (!t.tp && cnt <= 1) return;   /* 시리즈가 아니라 단발 설교(상황설교 등) — 목록에서 제외 */
-    html += '<div class="item" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
+    html += '<div class="item" tabindex="0" role="button" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
       '<span class="badge b-sermon">' + (t.tp ? '주제별' : '시리즈') + ' · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span>' : '') + '<span>설교 ' + cnt + '회</span></div>' +
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
@@ -33276,7 +33310,7 @@ function renderLibRow(s){
   }).join('');
   var id = esc(s['ID'] || '');
   return '<details class="card libItem" style="margin-bottom:7px;position:relative"><summary>' +
-    '<button class="linkbtn" style="position:absolute;top:8px;right:10px;color:var(--warn);padding:2px 4px;font-size:var(--fs-sm);z-index:2" title="이 설교 삭제" onclick="event.stopPropagation();event.preventDefault();deleteSermon(\'' + id + '\')">삭제</button>' +
+    /* v711: 접힌 줄의 「삭제」는 뺐다 — 펼친 칸 아래 [삭제]가 같은 일을 한다(검색 결과와 같은 규칙: 지우기는 펼친 자리에서) */
     '<div class="meta">' +
       '<span class="badge b-state">' + esc(s['상태'] || '') + '</span>' +
       (s['날짜'] ? '<span>' + esc(s['날짜']) + '</span>' : '') +
@@ -33412,8 +33446,8 @@ function renderLibrary(){
   if (L.svc) list = list.filter(function(s){ return svcOf(s) === L.svc; });
   if (L.book) list = list.filter(function(s){ var b = bibleBookOf(s); return b && b.name === L.book; });
   if (L.topic) list = list.filter(function(s){ return topicsOf(s).indexOf(L.topic) >= 0; });
-  if (L.q) { var ts = L.q.toLowerCase().split(/\s+/).filter(Boolean);
-    list = list.filter(function(s){ var hay = ['제목','본문','시리즈','핵심메시지','예배구분','키워드','요약본','실제요약본','원고텍스트','대지'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase(); return ts.every(function(t){ return hay.indexOf(t) >= 0; }); }); }
+  if (L.q) { var ts = nfcLow(L.q).split(/\s+/).filter(Boolean);   /* v711: 한글 정규화 */
+    list = list.filter(function(s){ var hay = nfcLow(['제목','본문','시리즈','핵심메시지','예배구분','키워드','요약본','실제요약본','원고텍스트','대지'].map(function(f){ return String(s[f] || ''); }).join(' ')); return ts.every(function(t){ return hay.indexOf(t) >= 0; }); }); }
   if (L.flag) list = list.filter(function(s){ var f = libFiles(s); return L.flag === 'nopdf' ? !f.pdf : L.flag === 'nosum' ? !f.요약 : L.flag === 'nocard' ? !f.card : true; });
   list.sort(function(a, b){ return String(b['날짜'] || '').localeCompare(String(a['날짜'] || '')); });
   $('#libCnt').textContent = '설교 ' + list.length + '편' + (all.length !== list.length ? ' / 전체 ' + all.length : '');
@@ -33631,7 +33665,7 @@ document.addEventListener('click', function(e){
    한 색인으로 모은다. 어휘를 자동으로 바꿔치기하지 않고(데이터 보존), 표기가 갈린 것은
    '비슷한 주제'로 묶어 보여 준다. */
 var TOPIC_HUB = { idx: null, sel: null, memoAt: 0 };
-function topicNorm(t){ return String(t || '').trim().replace(/\s+/g, ' '); }
+function topicNorm(t){ return nfc(String(t || '')).trim().replace(/\s+/g, ' '); }   /* v711: 한글 정규화 — 맥 파일명에서 온 NFD 키워드도 같은 주제로 */
 function topicIndexBuild(){
   var idx = {};
   function add(term, kind, label, meta){
@@ -33994,12 +34028,12 @@ function anDrill(list){
 function renderArchive(){
   var box = $('#aResults'), cnt = $('#aCnt'), inp = $('#aq');
   if (!box) return;
-  var q = (inp && inp.value || '').trim().toLowerCase();
+  var q = nfcLow((inp && inp.value || '').trim());   /* v711: 한글 정규화 */
   var terms = q.split(/\s+/).filter(Boolean);
   var list = (state.data.sermons || []).filter(function(s){ return s['상태'] === '보관'; });
   if (terms.length) {
     list = list.filter(function(s){
-      var hay = ['제목','본문','시리즈','핵심메시지','대지','비고','키워드'].map(function(f){ return String(s[f] || ''); }).join(' ').toLowerCase();
+      var hay = nfcLow(['제목','본문','시리즈','핵심메시지','대지','비고','키워드'].map(function(f){ return String(s[f] || ''); }).join(' '));
       return terms.every(function(t){ return hay.indexOf(t) >= 0; });
     });
   }
@@ -34065,6 +34099,7 @@ $$('#inboxFilter .chip').forEach(function(c){
   var det = it.querySelector('.idDetail'); if (!det) return;
   var open = det.style.display !== 'none';
   det.style.display = open ? 'none' : 'block';
+  it.setAttribute('aria-expanded', open ? 'false' : 'true');   /* v711 */
   var hint = it.querySelector('.idHint'); if (hint) hint.textContent = open ? '… 클릭하면 강화 스토리를 봅니다' : '▲ 접으려면 클릭';
 }); })();
 
@@ -34600,7 +34635,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v710';
+var APP_VER = 'v711';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -35308,7 +35343,7 @@ function aiUsagePaint(){
     var F = M[k]; ['n', 'i', 'o', 'cr', 'cw', 'usd'].forEach(function(z){ tot[z] += +F[z] || 0; }); tot.unk += F.unk || 0;
     return '<tr><td>' + esc(lab(k)) + '</td><td>' + F.n + '</td><td>' + aiTokFmt(F.i + F.cw) + ' <small>+캐시 ' + aiTokFmt(F.cr) + '</small></td><td>' + aiTokFmt(F.o) + '</td><td><b>' + aiUsdFmt(F.usd) + (F.unk ? '+' : '') + '</b></td></tr>';
   }).join('');
-  box.innerHTML = '<div class="auHd"><span class="chips"><span class="chip' + (_aiUsageMonth === 0 ? ' on' : '') + '" data-aum="0">이번 달</span><span class="chip' + (_aiUsageMonth === 1 ? ' on' : '') + '" data-aum="1">지난 달</span></span>'
+  box.innerHTML = '<div class="auHd"><span class="chips"><button type="button" class="chip' + (_aiUsageMonth === 0 ? ' on' : '') + '" data-aum="0">이번 달</button><button type="button" class="chip' + (_aiUsageMonth === 1 ? ' on' : '') + '" data-aum="1">지난 달</button></span>'
     + '<span class="auTot">' + (keys.length ? '합계 약 <b>' + aiUsdFmt(tot.usd) + (tot.unk ? '+' : '') + '</b> · ' + tot.n + '회' : '') + '</span></div>'
     + (keys.length
       ? '<div class="tblWrap"><table class="auTbl"><thead><tr><th>기능</th><th>호출</th><th>입력</th><th>출력</th><th>추정 비용</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
@@ -35525,7 +35560,7 @@ function noteRender(){
   var N = noteGet(), S = noteSource(), share = N.mode === 'share', inc = N.inc;
   var ck = function(k, label){ return '<label class="ntCk"><input type="checkbox" data-ntinc="' + k + '"' + (inc[k] ? ' checked' : '') + '> ' + label + '</label>'; };
   var hasId = !!state.editing;
-  var h = '<div class="chips ntMode"><span class="chip' + (share ? '' : ' on') + '" data-ntmode="note">설교 노트 (빈칸)</span><span class="chip' + (share ? ' on' : '') + '" data-ntmode="share">나눔지 (질문 중심)</span></div>';
+  var h = '<div class="chips ntMode"><button type="button" class="chip' + (share ? '' : ' on') + '" data-ntmode="note">설교 노트 (빈칸)</button><button type="button" class="chip' + (share ? ' on' : '') + '" data-ntmode="share">나눔지 (질문 중심)</button></div>';
   h += '<div class="ntSec">넣을 것</div><div class="ntCks">' + ck('passage', '본문 말씀 전문') + ck('msg', '핵심메시지') + ck('verse', '대지마다 핵심 성구') + ck('prac', '대지마다 실천 한 줄') + ck('qs', '나눔 질문') + ck('memo', '메모 칸') + '</div>';
   if (!share){
     h += '<div class="ntSec">빈칸 — 낱말을 누르면 빈칸이 됩니다 <small>(조사는 칸 밖에 남습니다)</small></div>';
@@ -35534,7 +35569,7 @@ function noteRender(){
     if (!S.pts.length) h += '<div class="cnt">대지 명제가 없습니다 — 기본원고의 대지를 쓰거나 자유원고에 「(대지)」·「1.」을 넣어 주세요.</div>';
   }
   h += '<div class="ntSec">나눔 질문 <small>— 한 줄에 하나, 「[유형] 질문」</small></div>'
-    + '<div class="chips ntQt">' + NOTE_QT.map(function(t){ return '<span class="chip' + ((N.qt || []).indexOf(t) >= 0 ? ' on' : '') + '" data-ntqt="' + esc(t) + '">' + esc(t) + '</span>'; }).join('')
+    + '<div class="chips ntQt">' + NOTE_QT.map(function(t){ return '<button type="button" class="chip' + ((N.qt || []).indexOf(t) >= 0 ? ' on' : '') + '" data-ntqt="' + esc(t) + '">' + esc(t) + '</button>'; }).join('')
     + '<select data-ntqn aria-label="유형마다 질문 수">' + [1, 2, 3].map(function(n){ return '<option value="' + n + '"' + ((+N.qn || 2) === n ? ' selected' : '') + '>유형마다 ' + n + '개</option>'; }).join('') + '</select></div>'
     + '<div class="ntQBtns"><button class="btn sub mini" type="button" data-nt="qgen">' + uiIco('spark') + ' 원고에서 만들기</button><button class="btn sub mini" type="button" data-nt="qmore">더 만들기</button></div>'
     + '<textarea class="ntQs" rows="6" data-ntqs placeholder="[이해] 오늘 본문에서 …&#10;[삶 적용] 이번 주에 …">' + esc(N.qs || '') + '</textarea>';
@@ -35550,7 +35585,7 @@ function notePreview(){
   var N = noteGet(), seq = ++_notePrevSeq, pv = ov.querySelector('.ntPrev');
   noteBlocks(N, _noteAns).then(function(bl){
     if (seq !== _notePrevSeq) return;
-    pv.innerHTML = (N.mode === 'share' ? '' : '<div class="chips ntAns"><span class="chip' + (_noteAns ? '' : ' on') + '" data-ntans="0">빈칸 판</span><span class="chip' + (_noteAns ? ' on' : '') + '" data-ntans="1">답 넣은 판</span></div>')
+    pv.innerHTML = (N.mode === 'share' ? '' : '<div class="chips ntAns"><button type="button" class="chip' + (_noteAns ? '' : ' on') + '" data-ntans="0">빈칸 판</button><button type="button" class="chip' + (_noteAns ? ' on' : '') + '" data-ntans="1">답 넣은 판</button></div>')
       + notePreviewHtml(N, bl);
   });
 }
