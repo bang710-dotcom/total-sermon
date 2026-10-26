@@ -2280,6 +2280,17 @@ body #editorPane .cdPage .edHl:focus-within > .edHlBk{background:transparent!imp
 /* 왼쪽 [구조] 탭 — 카드원고 보는 동안은 카드 목록만 */
 body.cardView #composeMeta [data-cmpanel="struct"] > :not(#cardNav){display:none!important}
 body.prView #composeMeta [data-cmpanel="struct"] > :not(#prNav){display:none!important}   /* v697 프롬프터 보기 — 참고 원고만 */
+/* v723 자유원고 — 빈 구조 칸 대신 원고에서 찾은 대지(#freeNav). 대지 보강·실천 강화·삶의 자리는 그대로 */
+body.freeView #composeMeta [data-cmpanel="struct"] > :is(#introBox,#pointList,#addPoint,#concBox){display:none!important}
+#freeNav .frNote{font-size:var(--fs-sm);color:var(--dim);line-height:1.6;margin:2px 0 8px}
+#freeNav .frPts{list-style:none;margin:0 0 4px;padding:0;display:flex;flex-direction:column;gap:2px}
+#freeNav .frPt{display:flex;gap:8px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:var(--r-sm);padding:7px 8px;color:var(--text);font-family:inherit;font-size:var(--fs-md);cursor:pointer}
+#freeNav .frPt:hover{background:var(--card2);border-color:var(--line)}
+#freeNav .frPt .n{flex:0 0 auto;color:var(--dim);font-variant-numeric:tabular-nums}
+#freeNav .frPt .t{flex:1 1 auto;min-width:0}
+#freeNav .frNone{font-size:var(--fs-sm);color:var(--dim);line-height:1.6;padding:8px 0}
+#freeNav .frToStruct{width:100%;margin-top:8px}
+@media (max-width: 899px), (hover: none){ #freeNav .frPt{min-height:44px;align-items:center} }
 .cdNav{display:flex;flex-direction:column;gap:1px;margin:4px 0 8px}
 .cdNavSec{font-size:var(--fs-xs);font-weight:700;color:var(--dim);margin:10px 0 3px;letter-spacing:.02em}
 .cdNavIt{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:var(--r-sm);padding:5px 6px;color:var(--text);font-size:var(--fs-sm);cursor:pointer}
@@ -2783,6 +2794,7 @@ body.focusMode #refInsBar{bottom:72px}
         <div class="hlpTx" hidden>회색 ↑↓=대지 이동 · 파란 ↑↓=내부 순서 · ＋예화 추가</div>
           <div id="cardNav" hidden></div>
           <div id="prNav" hidden></div>
+          <div id="freeNav" hidden></div>
           <div id="introBox"></div>
           <div id="pointList"></div>
           <button class="linkbtn" id="addPoint">＋ 대지 추가</button>
@@ -2976,6 +2988,7 @@ body.focusMode #refInsBar{bottom:72px}
         <div id="slItems"></div>
       </div>
       <div id="seriesMeta">
+        <div class="spSum" id="spSum" hidden></div>
         <div id="regMeta">
         <div class="cnt" style="margin-bottom:8px">시리즈 설교 계획 마법사</div>
         <label style="margin-top:0">성경 (책 또는 범위) *</label><input type="text" id="sp_book" placeholder="예: 로마서 / 요한복음 13-21장">
@@ -14089,8 +14102,37 @@ function setStyleChips(){
   $$('#c_style .chip').forEach(function(c){ c.classList.toggle('on', c.dataset.v === state.compose.style); });
   document.body.classList.toggle('cardView', state.compose.style === '카드원고');   /* v635 카드원고 보기 */
   document.body.classList.toggle('prView', state.compose.style === '프롬프터');   /* v697 프롬프터 보기 */
-  cardNavRender(); pmNavRender();
+  document.body.classList.toggle('freeView', state.compose.style === '자유원고');   /* v723 자유원고 — [구조] 탭은 원고에서 찾은 대지 */
+  cardNavRender(); pmNavRender(); freeNavRender();
 }
+/* v723 자유원고일 때 [구조] 탭 — 예전엔 원고와 무관한 빈 뼈대(「대지 명제」「오른쪽에서 작성」)만 보여 「대지가 사라졌나」 싶었다.
+   안내 한 줄 + 원고에서 찾은 대지(composeFreePoints — 작성 버퍼는 건드리지 않는 임시 파싱, 누르면 원고 그 자리로) + [기본원고로 나누기](원고 스타일 칩과 같은 동작). */
+function freeNavRender(){
+  var box = $('#freeNav'); if (!box) return;
+  var on = !!(state.compose && state.compose.style === '자유원고');
+  box.hidden = !on;
+  if (!on) { box.innerHTML = ''; box._pts = null; return; }
+  var pts = (composeFreePoints() || []).filter(function(p){ return p && String(p.text || '').trim(); });
+  box._pts = pts;
+  box.innerHTML = '<div class="frNote">지금은 <b>자유원고</b>로 쓰고 있어, 서론·대지·결론 칸 대신 원고에서 찾은 대지를 보여 줍니다. 칸으로 나눠 고치려면 [기본원고로 나누기]를 누르세요.</div>'
+    + (pts.length
+      ? '<ol class="frPts">' + pts.map(function(p, i){
+          return '<li><button type="button" class="frPt" data-frjump="' + i + '" title="원고에서 이 대지로"><span class="n">' + (i + 1) + '.</span><span class="t">' + esc(String(p.text).trim()) + '</span></button></li>';
+        }).join('') + '</ol>'
+      : '<div class="frNone">원고에서 대지를 아직 찾지 못했습니다 — 빈 줄 뒤에 「1. …」처럼 번호를 붙이거나 「(대지)」로 시작하면 여기에 나옵니다.</div>')
+    + '<button class="btn sub frToStruct" type="button" data-frstruct="1">기본원고로 나누기</button>';
+}
+var freeNavRenderSoon = debounce(freeNavRender, 700);
+(function(){
+  var box = document.getElementById('freeNav');
+  if (box) box.addEventListener('click', function(e){
+    var j = e.target.closest && e.target.closest('[data-frjump]');
+    if (j) { var p = (box._pts || [])[+j.getAttribute('data-frjump')]; if (p) saJumpTo(String(p.text).trim(), 0); return; }
+    if (e.target.closest && e.target.closest('[data-frstruct]')) { var ch = document.querySelector('#c_style .chip[data-v="기본원고"]'); if (ch) ch.click(); }
+  });
+  var ed = document.getElementById('editorPane');
+  if (ed) ed.addEventListener('input', function(){ if (document.body.classList.contains('freeView')) freeNavRenderSoon(); });
+})();
 
 /* ----- 왼쪽: 대지·예화 동적 목록 ----- */
 function renderPoints(){
@@ -27483,7 +27525,7 @@ function renderSeriesPage(){
   $('#seriesListView').style.display = list ? 'block' : 'none';
   $('#seriesMeta').style.display = list ? 'none' : 'block';
   $('#seriesPane').style.display = list ? 'none' : 'block';
-  if (list) renderSeriesList();
+  if (list) { renderSeriesList(); spCompactSync(); }
   else if (isDawn(state.series)) {
     $('#regMeta').style.display = 'none'; $('#dawnMeta').style.display = 'block'; $('#topicMeta').style.display = 'none';
     dwFillInputs(state.series.meta); dwPreview(); renderSeriesPane();
@@ -27496,6 +27538,35 @@ function renderSeriesPage(){
     spPreview(); spStatus(); renderSeriesPane();
   }
 }
+/* v723 진행 중인 시리즈 — 계획 입력 칸을 요약 한 줄(#spSum)로 접고 선택지 카드에 넓이를 준다.
+   예전엔 묵상 일정·선택지가 나온 뒤에도 폼이 왼쪽 360px를 차지해 1024px 창에서 카드가 382px(카드 하나 약 800px 높이), 폰에서는 끝난 폼 732px 아래였다.
+   접힘 = 결과가 있을 때(주일 시리즈 S.devo / 새벽·주제별 S.sermon). [계획 수정]으로 펼치면 이 시리즈를 보는 동안 펼친 채(기기 메모리만). */
+var SP_PLAN_OPEN = '';
+function spCompactSync(){
+  var pg = document.getElementById('page-series'), sum = document.getElementById('spSum'); if (!pg || !sum) return;
+  var S = state.series, wiz = !!(S && state.seriesMode !== 'list');
+  var has = !!(wiz && ((isDawn(S) || isTopic(S)) ? S.sermon : S.devo));
+  var m = (S && S.meta) || {}, name = String(m['시리즈명'] || '');
+  var open = has && SP_PLAN_OPEN === name;
+  pg.classList.toggle('spCompact', has && !open);
+  sum.hidden = !has;
+  if (!has) { sum.innerHTML = ''; return; }
+  var bits = [];
+  if (m['성경범위'] && m['성경범위'] !== m['시리즈명']) bits.push(m['성경범위']);
+  if (m['시작일']) bits.push(m['시작일'] + (m['종료일'] && m['종료일'] !== m['시작일'] ? ' ~ ' + m['종료일'] : ''));
+  if (m['예배구분']) bits.push(m['예배구분']);
+  sum.innerHTML = '<div class="spSumL"><b>' + esc(name || '(이름 없는 시리즈)') + '</b>' + (bits.length ? '<span>' + esc(bits.join(' · ')) + '</span>' : '') + '</div>'
+    + '<button class="btn sub" type="button" data-spplan="1" aria-expanded="' + (open ? 'true' : 'false') + '">' + (open ? '계획 접기' : '계획 수정') + '</button>';
+}
+(function(){
+  var sum = document.getElementById('spSum');
+  if (sum) sum.addEventListener('click', function(e){
+    if (!(e.target.closest && e.target.closest('[data-spplan]'))) return;
+    var S = state.series, name = String((S && S.meta && S.meta['시리즈명']) || '');
+    SP_PLAN_OPEN = SP_PLAN_OPEN === name ? '' : name;
+    spCompactSync();
+  });
+})();
 function spStageLabel(S){
   if (S.sermon) {
     var use = (S.sermon.weeks || []).filter(function(w){ return !w.skip; });
@@ -28504,6 +28575,7 @@ function renderSeriesPane(){
   }
   /* v713: 새벽·주제별 — 선택지가 나오면(S.sermon) 왼쪽 생성 단추는 선 단추, 오른쪽 [선택 항목 전체 확정]이 채움 */
   ['#dw_gen', '#tp_gen'].forEach(function(sel){ var b = $(sel); if (b) b.classList.toggle('sub', !!(S && S.sermon)); });
+  spCompactSync();
   if (!S) { pane.innerHTML = ''; return; }
   if (isDawn(S)) {
     pane.innerHTML = spDawnTimeline() + (S.sermon ? spDawnHtml()
