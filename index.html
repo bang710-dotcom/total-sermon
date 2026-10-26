@@ -161,6 +161,11 @@ label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 5px}
 .chips{display:flex;gap:7px;flex-wrap:wrap}
 .chip{background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:var(--r-pill);padding:7px 14px;font-size:var(--fs-md);cursor:pointer;user-select:none}
 .chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+button.chip{font-family:inherit;line-height:inherit}   /* v708: 검색 범위 칩 = 단추(키보드·화면 읽기 프로그램) */
+/* v708: 검색창 안내문 — 다크 테마에서 브라우저 기본 회색(#757575)이 어두운 칸 위 3.4:1 이었다 */
+.searchbox input::placeholder{color:var(--dim);opacity:1}
+/* v708: 키보드로 결과를 옮겨 다닐 때 위에 붙은 검색창(.searchbox)에 가리지 않게 */
+#qResults .item,#qResults .qMore,#qResults .qIllBar{scroll-margin-top:180px;scroll-margin-bottom:16px}
 /* 예화 도서관 필터 — 종류별 라벨 그룹 박스 */
 .illfbox{margin-top:10px;border:1px solid var(--line);border-radius:var(--r-lg);padding:2px 12px}
 .fgrp{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px dashed var(--line)}
@@ -2508,23 +2513,23 @@ body.focusMode #refInsBar{bottom:72px}
     <div class="syncState" id="syncState">—</div>
   </header>
 
-  <div id="main">
+  <div id="main" role="main">
 
     <!-- ============ 검색 ============ -->
     <section class="page" id="page-search">
       <div id="searchLeft">
-        <div class="searchbox">
-          <input type="text" id="q" placeholder="제목·본문·예화·원고 통합 검색 (의미 확장: 불안→염려·걱정·두려움)" autocomplete="off">
-          <div class="chips" style="margin-top:9px">
-            <span class="chip on" data-scope="all">전체</span>
-            <span class="chip" data-scope="sermons">설교</span>
-            <span class="chip" data-scope="ideas">아이디어</span>
-            <span class="chip gold" data-scope="illust">예화만</span>
-            <span class="chip" data-scope="topics">주제어</span>
-            <span class="chip" data-scope="devon">묵상노트</span>
+        <div class="searchbox" role="search">
+          <input type="text" id="q" aria-label="설교·예화 통합 검색" placeholder="제목·본문·예화·원고 통합 검색 (의미 확장: 불안→염려·걱정·두려움)" autocomplete="off">
+          <div class="chips" role="group" aria-label="검색 범위" style="margin-top:9px">
+            <button type="button" class="chip on" data-scope="all" aria-pressed="true">전체</button>
+            <button type="button" class="chip" data-scope="sermons" aria-pressed="false">설교</button>
+            <button type="button" class="chip" data-scope="ideas" aria-pressed="false">아이디어</button>
+            <button type="button" class="chip gold" data-scope="illust" aria-pressed="false">예화만</button>
+            <button type="button" class="chip" data-scope="topics" aria-pressed="false">주제어</button>
+            <button type="button" class="chip" data-scope="devon" aria-pressed="false">묵상노트</button>
           </div>
         </div>
-        <div class="cnt" id="qCnt"></div>
+        <div class="cnt" id="qCnt" role="status" aria-live="polite"></div>
         <div id="qResults"><div class="empty">검색어를 입력하시면 즉시 결과가 표시됩니다.<br>비슷한 뜻의 말도 함께 찾습니다(예: <b>불안</b> → 염려·걱정·두려움).<br>데이터는 기기에 저장되어 오프라인에서도 검색됩니다.</div></div>
       </div>
       <div id="searchHome">
@@ -4612,7 +4617,9 @@ function expandTerm(t){
 function uniqArr(a){ var seen = {}, out = []; a.forEach(function(x){ if (!seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
 function termHit(hayAll, t){ return expandTerm(t).some(function(x){ return hayAll.indexOf(x) >= 0; }); }
 
-function runSearch(){
+/* v708: 다시 그려도 키보드 포커스를 같은 결과에 되돌린다(동기화 뒤 runSearch 등) */
+function runSearch(){ var fk = qFocusKey(); try { return runSearch_(); } finally { qFocusRestore(fk); } }
+function runSearch_(){
   var q = nfc($('#q').value.trim());
   var box = $('#qResults'), cnt = $('#qCnt');
   var _pgS = document.getElementById('page-search'); if (_pgS) _pgS.classList.toggle('hasQuery', !!q);   /* v706: 검색어가 있으면 한 칸 화면에서 처음 화면 카드를 숨긴다 */
@@ -4713,8 +4720,7 @@ function qItemHtml(r, terms){
       if (v && terms.some(function(t){ return nfcLow(v).indexOf(t) >= 0; }))
         body += '<div class="snippet"><b style="color:var(--dim)">' + f + '</b> ' + hl(v, terms, 90) + '</div>';
     });
-    return '<div class="item" data-kind="sermon" data-id="' + esc(s['ID']) + '" style="position:relative;padding-right:46px">' +
-      '<button class="linkbtn" style="position:absolute;top:8px;right:10px;color:var(--warn);padding:2px 4px;font-size:var(--fs-sm);z-index:2" title="이 설교 삭제" onclick="event.stopPropagation();deleteSermon(\'' + esc(s['ID']) + '\')">삭제</button>' +
+    return '<div class="item" tabindex="0" role="button" data-kind="sermon" data-id="' + esc(s['ID']) + '">' +   /* v708: 삭제는 상세 창에서만(결과 카드의 「삭제」가 키보드로 닿는 유일한 단추였다) */
       '<div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
       (s['시리즈'] ? '<span>' + esc(s['시리즈']) + (s['시리즈순번'] ? ' ' + esc(s['시리즈순번']) + '회' : '') + '</span>' : '') +
       '<span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
@@ -4730,11 +4736,11 @@ function qItemHtml(r, terms){
       }
       return false;
     });
-    return '<div class="item" data-kind="devonote" data-id="' + esc(n['날짜']) + '"><div class="meta"><span class="badge b-state">묵상</span><span>' + esc(n['날짜']) + '</span></div>' +
+    return '<div class="item" tabindex="0" role="button" data-kind="devonote" data-id="' + esc(n['날짜']) + '"><div class="meta"><span class="badge b-state">묵상</span><span>' + esc(n['날짜']) + '</span></div>' +
       '<div class="title">' + esc(n['본문범위'] || '') + '</div>' + nb + '</div>';
   } else {
     var d = r.d;
-    return '<div class="item" data-kind="idea" data-id="' + esc(d['ID']) + '"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
+    return '<div class="item" tabindex="0" role="button" data-kind="idea" data-id="' + esc(d['ID']) + '"><div class="meta"><span class="badge b-idea">' + esc(d['유형']) + '</span><span>' + esc(d['등록일']) + '</span><span class="badge b-state">' + esc(d['상태']) + '</span>' +
       (d['사용설교ID'] ? '<span>→ ' + esc(d['사용설교ID']) + '</span>' : '') + '</div>' +
       '<div class="snippet" style="color:var(--text)">' + hl(d['내용'], terms, 200) + '</div>' +
       (d['관련본문'] ? '<div class="snippet">' + hl(d['관련본문'], terms) + '</div>' : '') + '</div>';
@@ -4781,7 +4787,7 @@ function qIllItemHtml(it, terms){
   var msg = String(it.message || ''), st = String(it.story || '');
   var hit = function(v){ var lv = nfcLow(v); return terms.some(function(t){ return lv.indexOf(t) >= 0; }); };
   var snip = (msg && hit(msg)) ? msg : ((st && hit(st)) ? st : (msg || st));
-  return '<div class="item" data-kind="ill" data-key="' + esc(it.key) + '"><div class="meta"><span class="badge b-idea">예화 도서관</span>' + (it.category ? '<span>' + esc(it.category) + '</span>' : '') + '</div>'
+  return '<div class="item" tabindex="0" role="button" data-kind="ill" data-key="' + esc(it.key) + '"><div class="meta"><span class="badge b-idea">예화 도서관</span>' + (it.category ? '<span>' + esc(it.category) + '</span>' : '') + '</div>'
     + '<div class="title">' + hl(it.title, terms) + '</div>'
     + (snip ? '<div class="snippet">' + hl(snip, terms, 110) + '</div>' : '') + '</div>';
 }
@@ -4800,12 +4806,65 @@ $('#page-search').addEventListener('click', function(e){
 /* 결과 클릭 → 상세 */
 $('#qResults').addEventListener('click', function(e){
   var item = e.target.closest('.item');
-  if (item && item.dataset.kind === 'ill') { illViewOpen(item.dataset.key); return; }   /* v707: 예화 도서관 결과 → 원본 창 */
+  if (item && item.dataset.kind === 'ill') {   /* v707: 예화 도서관 결과 → 원본 창 */
+    illViewOpen(item.dataset.key);
+    var ov = $('#illViewOv'), back = item;   /* v708: 창을 닫으면 그 결과로 포커스를 돌려준다 */
+    if (ov && window.MutationObserver) { var mo = new MutationObserver(function(){ if (!ov.classList.contains('on')) { mo.disconnect(); if (back.isConnected) qFocusTo(back); } }); mo.observe(ov, { attributes: true, attributeFilter: ['class'] }); }
+    return;
+  }
   if (!item || !item.dataset.id) return;
   if (item.dataset.kind === 'devonote') { devoState.date = item.dataset.id; showPage('devo'); return; }
   $$('#qResults .item').forEach(function(x){ x.classList.remove('sel'); });
   item.classList.add('sel');
+  state._qOpenKey = qItemKey(item);
   openDetail(item.dataset.kind, item.dataset.id);
+  /* v708: 한 칸 화면은 상세가 목록을 가리므로 포커스를 상세의 [← 목록으로]로 옮긴다 */
+  if ($('#searchLeft').offsetParent === null) { var dc = $('#detailPane .detailClose'); if (dc) { try { dc.focus({ preventScroll: true }); } catch (eF){} } }
+});
+/* v708: 검색 결과 키보드 길 — 검색창에서 ↓ = 첫 결과, 결과에서 ↑↓ = 이동(맨 위에서 ↑ = 검색창), Enter·Space = 열기,
+   → = 열린 상세로(두 칸 화면), Esc = 검색창. 상세에서 Esc = 고른 결과로 돌아옴(한 칸 화면은 상세를 닫고). */
+function qFocusables(){
+  return $$('#qResults .item, #qResults .qIllBar, #qResults .qMore, #qResults .qNoneActs button').filter(function(el){ return el.offsetParent !== null; });
+}
+function qFocusTo(el){ if (!el) return; try { el.focus({ preventScroll: true }); } catch (e){ el.focus(); } try { el.scrollIntoView({ block: 'nearest' }); } catch (e2){} }
+function qItemKey(it){ return it ? it.dataset.kind + ':' + (it.dataset.id || it.dataset.key || '') : ''; }
+function qFindItem(key){ if (!key) return null; var hit = null; $$('#qResults .item').some(function(x){ if (qItemKey(x) === key) { hit = x; return true; } return false; }); return hit; }
+/* 동기화 뒤 결과를 다시 그려도 키보드 위치를 잃지 않게 — 그리기 전 포커스를 기억했다가 같은 결과에 되돌린다 */
+function qFocusKey(){
+  var a = document.activeElement; if (!a || !a.closest || !a.closest('#qResults')) return null;
+  var it = a.closest('.item'); if (it) return qItemKey(it);
+  return a.classList.contains('qMore') ? 'more' : null;
+}
+function qFocusRestore(k){
+  if (!k) return;
+  var el = k === 'more' ? $('#qResults .qMore') : qFindItem(k);
+  if (el && el.offsetParent !== null) { try { el.focus({ preventScroll: true }); } catch (e){} }
+}
+$('#qResults').addEventListener('keydown', function(e){
+  if (e.isComposing) return;
+  var t = e.target, item = t.closest && t.closest('.item');
+  if ((e.key === 'Enter' || e.key === ' ') && item && t === item) { e.preventDefault(); item.click(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    var list = qFocusables(), i = list.indexOf(t); if (i < 0) return;
+    e.preventDefault();
+    if (e.key === 'ArrowUp' && i === 0) { $('#q').focus(); return; }
+    qFocusTo(list[i + (e.key === 'ArrowDown' ? 1 : -1)]);
+    return;
+  }
+  if (e.key === 'ArrowRight' && item && item.classList.contains('sel')) {
+    var pane = $('#detailPane'), close = pane.querySelector('.detailClose');
+    if (pane.classList.contains('open') && close && close.offsetParent !== null) { e.preventDefault(); close.focus(); }
+    return;
+  }
+  if (e.key === 'Escape') { e.preventDefault(); $('#q').focus(); }
+});
+$('#detailPane').addEventListener('keydown', function(e){
+  if (e.key !== 'Escape' || e.isComposing || !this.classList.contains('open')) return;
+  if (typeof anyOverlayOpen === 'function' && anyOverlayOpen()) return;
+  var back = qFindItem(state._qOpenKey);
+  e.preventDefault();
+  if (!back || back.offsetParent === null) { if (window.closeDetail) closeDetail(); back = qFindItem(state._qOpenKey); }   /* 한 칸 화면: 목록이 숨어 있으면 상세를 닫고 */
+  if (back) qFocusTo(back);
 });
 
 function openDetail(kind, id){
@@ -4947,7 +5006,11 @@ function openDetail(kind, id){
 window.openDetail = openDetail;
 /* v706: 닫을 때 상세 칸을 처음 안내문으로 되돌린다 — 두 칸 화면에서 처음 화면 카드가 모두 비면 이 칸이 대신 보이는데, 예전 내용이 남아 있으면 닫힌 설교가 그대로 보였다 */
 var DETAIL_EMPTY_HTML = $('#detailPane').innerHTML;
-window.closeDetail = function(){ var p = $('#detailPane'); p.classList.remove('open'); p.innerHTML = DETAIL_EMPTY_HTML; document.body.classList.remove('detailOpen'); };
+window.closeDetail = function(){
+  var p = $('#detailPane'), had = document.activeElement && document.activeElement.closest && document.activeElement.closest('#detailPane');
+  p.classList.remove('open'); p.innerHTML = DETAIL_EMPTY_HTML; document.body.classList.remove('detailOpen');
+  if (had) { var back = qFindItem(state._qOpenKey); if (back && back.offsetParent !== null) qFocusTo(back); }   /* v708: 키보드로 닫으면 연 결과로 돌아간다 */
+};
 
 window.deleteSermon = async function(id){
   var s = findSermon(id);
@@ -33043,10 +33106,10 @@ $$('.tabbar button, .sidebar .nav').forEach(function(b){
     apply();
   } catch (e) {}
 })();
-$$('#page-search .chip').forEach(function(c){
+$$('#page-search [data-scope]').forEach(function(c){
   c.addEventListener('click', function(){
-    $$('#page-search .chip').forEach(function(x){ x.classList.remove('on'); });
-    c.classList.add('on'); state.scope = c.dataset.scope; runSearch();
+    $$('#page-search [data-scope]').forEach(function(x){ var on = x === c; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });   /* v708: 범위 단추 = 눌림 상태 */
+    state.scope = c.dataset.scope; runSearch();
   });
 });
 
@@ -34000,7 +34063,10 @@ async function enhanceExistingIdeas(){
 }
 (function(){ var b = $('#enhanceIdeasBtn'); if (b) b.addEventListener('click', enhanceExistingIdeas); })();
 
-$('#q').addEventListener('input', debounce(runSearch, 120));
+var qSearchSoon = debounce(runSearch, 120);
+$('#q').addEventListener('input', qSearchSoon);
+/* v708: 검색창에서 ↓ = 첫 결과로(한글 조합 중이면 두지 않음). 입력 직후라 결과가 아직 안 그려졌으면 먼저 그린다 */
+$('#q').addEventListener('keydown', function(e){ if (e.key !== 'ArrowDown' || e.isComposing) return; qSearchSoon.cancel(); runSearch(); var f = qFocusables()[0]; if (f) { e.preventDefault(); qFocusTo(f); } });
 /* v706: 검색어를 손으로 다 지우면 열려 있던 상세를 닫는다 — 두 칸 화면에서는 오른쪽에 처음 화면 카드가 돌아온다(한 칸 화면은 상세가 열리면 검색창이 숨어 해당 없음) */
 $('#q').addEventListener('input', function(e){ if (e.isTrusted && !this.value.trim() && $('#detailPane').classList.contains('open') && window.closeDetail) closeDetail(); });
 /* 원고 전문(시트 서버측) 검색 — Enter로 실행, 메타 검색결과에 없는 매칭을 덧붙임 */
@@ -34020,7 +34086,7 @@ function serverFullText(){
     if (!add.length) { toast('원고 전문에서 추가로 찾은 결과가 없습니다.'); return; }
     var html = '<div class="cnt" style="margin:12px 2px 6px;color:var(--accent2)"><svg class=ico aria-hidden=true><use href=#i-file></use></svg> 원고 전문 일치 ' + add.length + '건 (클릭하면 원고를 불러옵니다)</div>' +
       add.map(function(s){
-        return '<div class="item" data-kind="sermon" data-id="' + esc(s['ID']) + '"><div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
+        return '<div class="item" tabindex="0" role="button" data-kind="sermon" data-id="' + esc(s['ID']) + '"><div class="meta"><span class="badge b-sermon">설교</span><span>' + esc(s['날짜']) + '</span><span>' + esc(s['예배구분']) + '</span>' +
           (s['시리즈'] ? '<span>' + esc(s['시리즈']) + '</span>' : '') + '<span class="badge b-state">' + esc(s['상태']) + '</span></div>' +
           '<div class="title">' + hl(s['제목'], terms) + ' <span style="color:var(--dim);font-weight:400;font-size:var(--fs-md)">' + hl(s['본문'], terms) + '</span></div></div>';
       }).join('');
@@ -34495,7 +34561,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v707';
+var APP_VER = 'v708';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
