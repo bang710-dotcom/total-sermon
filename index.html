@@ -1178,8 +1178,9 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   .sidebar button.nav.on{background:var(--card);color:var(--text);font-weight:600}
   .sidebar button.nav svg{width:18px;height:18px;flex:0 0 18px}
   .sidebar .syncbtn{margin:0 8px}
-  /* 좌하단 고정 [설교 대화] 버튼과 동기화 문구(.foot)가 겹치지 않게 문구를 버튼 위로 띄움 */
-  .sidebar .foot{padding-bottom:72px}
+  /* v710: 좌하단 고정 [설교 대화] 단추가 보일 때는 사이드바를 그 단추 위에서 끝낸다 — 예전엔 .foot 아래 여백만 두어,
+     사이드바가 화면보다 길면(스크롤) 아래쪽 메뉴(가져오기·인박스)와 동기화 시각이 단추에 가렸다. 단추가 숨으면 원래 높이 */
+  body:not(.tsbHost):not(.aiChatOpen):has(#aiFab.show) .sidebar{height:calc(100vh - 100px)}
   /* v706: 왼쪽(검색) 칸은 폭의 40%(300~460px) — 예전 고정 460px 은 1024px 창에서 오른쪽(상세·처음 화면)을 282px 로 눌렀다 */
   #page-search.on{display:grid;grid-template-columns:clamp(300px,40%,460px) minmax(0,1fr);grid-template-areas:"left right";gap:20px;align-items:start}
   #searchLeft{grid-area:left;min-width:0}
@@ -1250,7 +1251,11 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   /* 하단 탭바: 5칸, 큰 터치 타깃, 안전영역 */
   .tabbar button{min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:var(--fs-xs);padding:7px 0 5px}
   .tabbar button .ic{width:23px;height:23px;margin:0}
-  .tabbar #tabAi{color:var(--accent)}
+  /* v710: 탭바 강조는 지금 있는 곳 하나만 — [대화]는 대화창이 열렸을 때만 강조색(예전엔 늘 강조색이라 부팅 직후 세 칸이 빛났다) */
+  body.aiChatOpen .tabbar #tabAi{color:var(--accent)}
+  /* v710: 휴대폰·아이패드(탭바가 보이는 모든 화면)는 탭바 [대화]를 쓴다 — 떠 있는 [설교 대화] 단추는 760px 이하에서만 숨어,
+     아이패드(세로 768·가로 1133)에서는 대화 단추가 두 개였다 */
+  #aiFab{display:none !important}
 
   /* 터치 타깃·가독성 확대 */
   .btn{padding:14px 18px;font-size:var(--fs-lg)}
@@ -2495,7 +2500,7 @@ body.focusMode #refInsBar{bottom:72px}
     <button class="nav" data-page="input" title="빠른 입력">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="navLbl">빠른 입력</span></button>
     <div class="navGrp">자료 · 검색</div>
-    <button class="nav on" data-page="search" title="검색">
+    <button class="nav on" data-page="search" title="검색" aria-current="page">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span class="navLbl">검색</span></button>
     <button class="nav" data-page="library" title="설교 라이브러리">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span class="navLbl">설교 라이브러리</span></button>
@@ -3356,7 +3361,7 @@ body.focusMode #refInsBar{bottom:72px}
   <nav class="tabbar">
   <button id="tabAi" type="button" aria-label="AI 설교 대화">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>대화</button>
-  <button data-page="search" class="on">
+  <button data-page="search" class="on" aria-current="page">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>검색</button>
   <button data-page="compose">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>작성</button>
@@ -33058,8 +33063,8 @@ function showPage(name){
   /* 페이지 전환 시 모바일 상세 인라인 상태 해제 (검색 목록 복원) */
   document.body.classList.remove('detailOpen');
   var _dp = document.getElementById('detailPane'); if (_dp && _dp.classList.contains('open')) { _dp.classList.remove('open'); if (typeof DETAIL_EMPTY_HTML === 'string') _dp.innerHTML = DETAIL_EMPTY_HTML; }
-  $$('.tabbar button').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
-  $$('.sidebar .nav').forEach(function(x){ x.classList.toggle('on', x.dataset.page === name); });
+  /* v710: 지금 화면 = aria-current="page"(화면 읽기 프로그램이 「현재 페이지」로 읽는다) */
+  $$('.tabbar button, .sidebar .nav').forEach(function(x){ var cur = x.dataset.page === name; x.classList.toggle('on', cur); if (cur) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current'); });
   /* 모바일에서 탭 전환만으로 가상 키보드가 튀어 화면이 출렁이는 것 방지 — 데스크탑에서만 자동 포커스 */
   if (isDesktop()) {
     if (name === 'search') $('#q').focus();
@@ -33097,7 +33102,7 @@ $$('.tabbar button, .sidebar .nav').forEach(function(b){
   function syncNav(){
     var cur = ((document.querySelector('.page.on') || {}).id || '').replace('page-', '');
     if (sheet) sheet.querySelectorAll('.msItem').forEach(function(b){ b.classList.toggle('on', b.dataset.page === cur); });
-    if (moreBtn) moreBtn.classList.toggle('on', PRIMARY.indexOf(cur) < 0); /* 1차 탭이 아니면 더보기 강조 */
+    if (moreBtn) moreBtn.classList.toggle('on', !!cur && PRIMARY.indexOf(cur) < 0); /* 1차 탭이 아니면 더보기 강조 — v710: 부팅 때(아직 켜진 화면 없음)는 켜지 않는다 */
   }
   function openSheet(){ if (sheet) { syncNav(); var v = document.getElementById('msVer'); if (v) v.textContent = '앱 버전 ' + APP_VER; sheet.classList.add('open'); sheet.setAttribute('aria-hidden', 'false'); } }
   if (moreBtn) moreBtn.addEventListener('click', function(e){ e.preventDefault(); openSheet(); });
@@ -34595,7 +34600,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v709';
+var APP_VER = 'v710';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
