@@ -3926,18 +3926,6 @@ function _maybeFlagConflict(incomingRow, baseRow){
     var base = baseRow || (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(incomingRow['ID']); })[0];
     if (!base) return;
     var _im = String(incomingRow['수정일'] || ''), _bm = String(base['수정일'] || '');
-    /* v722 대기열로 늦게 보낸 이 기기 저장의 에코 — 충돌이 아니라 기준 시점(서버 수정일)을 받는다 */
-    if (qOwnEchoMatch_(incomingRow)) {
-      if (_im && state.editing && String(state.editing) === String(incomingRow['ID'])) {
-        if (state._draftBaseMod) state._draftBaseMod = _im; else state._bufMod = _im;
-      }
-      if (state.remoteConflict && String(state.remoteConflict['ID']) === String(incomingRow['ID']) &&
-          _rowContentSig(state.remoteConflict) === _rowContentSig(incomingRow)) {
-        state.remoteConflict = null;   /* 같은 에코로 앞서 잘못 켜진 표시가 있으면 끈다 */
-        try { updateComposeBadge(); } catch (e) {}
-      }
-      return;
-    }
     var _sigEq = _rowContentSig(incomingRow) === _rowContentSig(base);
     /* 복원된 초안으로 편집 중일 때: 목록 필드가 모두 같아도(=원고 본문만 변경) 초안 기준 시점(_draftBaseMod)보다
        새 저장이 들어오면 충돌로 표시 — 본문만 고친 다른 기기 변경도 놓치지 않는다.
@@ -4319,28 +4307,29 @@ function _queuePermErr_(item, e){
 function qIsManuscriptUpdate_(it){
   return !!(it && it.action === 'update' && it.sheet === 'sermons' && it.data && it.data.ID && it.data['원고텍스트'] != null);
 }
-/* v722 대기열로 늦게 보낸(또는 이미 반영돼 있던) 이 기기 원고 저장의 「에코」 표시.
+/* v722 대기열로 늦게 보낸(또는 이미 반영돼 있던) 이 기기 원고 저장을 기준본으로 받기.
    대기열 전송은 cas 를 쓰지 않아 서버가 ID 만 돌려준다 → 이 기기는 그 저장의 서버 수정일을 모른다. 그사이 계속 써서 작성창이
-   미저장이면, 다음 동기화로 들어온 내 행(수정일 = 전송 시각)이 기준(_bufMod = 대기열에 넣던 때의 이 기기 시각)보다 새로워
-   _maybeFlagConflict 가 「다른 기기 수정」으로 표시했고 [저장] 때 충돌 확인창이 떴다. 보낸 목록 칸 값을 기억해 두고,
-   들어온 행의 그 칸들이 모두 같으면 내 저장으로 보고 기준만 그 수정일로 옮긴다(30분 지나면 잊는다 — 다른 기기 저장은 그대로 잡힌다). */
-var _ownEcho = {};
-function qOwnEchoNote_(data){
+   미저장이면, 다음 동기화로 들어온 내 행(수정일 = 전송 시각)이 기준(_bufMod = 대기열에 넣던 때의 이 기기 시각)과 로컬 기준본(옛 목록 칸)보다
+   새로워 _maybeFlagConflict 가 「다른 기기 수정」으로 표시했고 [저장] 때 충돌 확인창이 떴다.
+   이제 보낸 직후 그 행을 open 으로 한 번 읽어, **원고 본문이 보낸 글과 같을 때만** 그 행을 로컬 기준본으로 받고 서버 수정일을 기준으로 삼는다.
+   본문이 다르면(그 몇 초 사이 다른 기기가 저장) 받지 않는다 — 충돌 표시는 예전대로 켜진다. 옛 Code.gs(open 없음)는 예전 그대로. */
+function qOwnEchoAdopt_(data){
   try {
-    if (!data || !data.ID) return;
-    var fields = _CONFLICT_FIELDS.filter(function(f){ return Object.prototype.hasOwnProperty.call(data, f); }), vals = {};
-    fields.forEach(function(f){ vals[f] = String(data[f] == null ? '' : data[f]); });
-    if (fields.length) _ownEcho[String(data.ID)] = { at: Date.now(), fields: fields, vals: vals };
-  } catch (e) {}
-}
-function qOwnEchoMatch_(row){
-  try {
-    var id = String((row && row['ID']) || ''), o = _ownEcho[id]; if (!o) return false;
-    if (Date.now() - o.at > 30 * 60000) { delete _ownEcho[id]; return false; }
-    var same = o.fields.every(function(f){ return String(row[f] == null ? '' : row[f]) === o.vals[f]; });
-    if (same) delete _ownEcho[id];
-    return same;
-  } catch (e) { return false; }
+    if (!data || !data.ID || !srvCap('open')) return Promise.resolve();
+    var id = String(data.ID);
+    return api({ action: 'open', id: id }).then(function(row){
+      if (!row || String(row['ID'] || '') !== id || !row['수정일']) return;
+      if (rtNorm(String(row['원고텍스트'] || '')) !== rtNorm(String(data['원고텍스트'] || ''))) return;   /* 남의 저장이 끼었다 — 받지 않는다 */
+      var prev = findSermon(id), mod = String(row['수정일']);
+      var rec = Object.assign({}, prev || {}, row); rec._txt = true; rec._txtAt = mod;
+      upsertById(state.data.sermons, [rec]); saveData();
+      if (state.editing && String(state.editing) === id) {
+        if (state._draftBaseMod) state._draftBaseMod = mod; else state._bufMod = mod;
+        /* 같은 저장의 에코로 앞서 잘못 켜진 「다른 기기 수정」 표시가 있으면 끈다(그 표시가 이 행보다 새로우면 그대로) */
+        if (state.remoteConflict && String(state.remoteConflict['수정일'] || '') <= mod) { state.remoteConflict = null; try { updateComposeBadge(); } catch (e) {} }
+      }
+    }).catch(function(){});
+  } catch (e) { return Promise.resolve(); }
 }
 function qHasPendingManuscript_(id){
   try { return (state.queue || []).some(function(q){ return qIsManuscriptUpdate_(q) && String(q.data.ID) === String(id); }); } catch (e) { return false; }
@@ -4389,9 +4378,8 @@ function flushQueue(){
       if (!send) {   /* 이미 시트에 같은 내용이 있다 — 조용히 대기열에서 뺀다 */
         var i0 = state.queue.indexOf(item);
         if (i0 >= 0) { state.queue.splice(i0, 1); save(LS.queue, state.queue); }
-        qOwnEchoNote_(item.data);   /* v722 시트의 그 행은 이 기기 저장이다 */
         toast('대기 중이던 저장은 이미 시트에 반영돼 있어 건너뛰었습니다.');
-        return;
+        return qOwnEchoAdopt_(item.data);   /* v722 시트의 그 행은 이 기기 저장이다 — 기준본으로 받는다 */
       }
       delete send._cas;   /* v637: 대기열 항목은 cas 를 쓰지 않는다(자체 확인 qGuardBody_) */
       return apiPost(send).then(function(id){
@@ -4399,9 +4387,11 @@ function flushQueue(){
         var i = state.queue.indexOf(item);
         if (i >= 0) state.queue.splice(i, 1);
         save(LS.queue, state.queue);
-        if (qIsManuscriptUpdate_(send)) qOwnEchoNote_(send.data);   /* v722 곧 들어올 이 행은 이 기기 저장 — 충돌로 보지 않게(검토본으로 돌린 add 는 해당 없음) */
         _linkFlushedAdd_(send, id);
         if (send._wasConflict) toast('대기 중이던 저장이 다른 기기의 더 새 저장과 겹쳐, 덮어쓰지 않고 「검토본」으로 올렸습니다 — 검색에서 비교해 주세요.');
+        /* v722 방금 보낸 이 기기 원고 저장을 기준본으로(다음 동기화가 「다른 기기 수정」으로 보지 않게) — 검토본으로 돌린 add 는 해당 없음.
+           기다린 뒤 다음 항목·동기화로 넘어간다(이어지는 목록 읽기보다 먼저 기준을 잡아야 해서) */
+        if (qIsManuscriptUpdate_(send)) return qOwnEchoAdopt_(send.data);
       }, function(e){
         if (_isTransientNetErr(e)) { stopped = true; kept++; return; }   /* 통신 오류 — 이번 라운드 중단, 다음 동기화 때 이어서 */
         var r = _queuePermErr_(item, e);
@@ -35032,7 +35022,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v721';
+var APP_VER = 'v722';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
