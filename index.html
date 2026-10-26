@@ -476,6 +476,8 @@ body.focusMode .arIndF{display:inline-flex}
 #searchHome{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 #searchHome > *{flex-shrink:0}
 #page-search.hasQuery #searchHome,body.detailOpen #searchHome{display:none}
+/* 한 칸 화면: 처음 화면 카드가 있으면 결과 칸의 「검색어를 입력하시면…」 안내는 숨긴다(검색창 안내문과 같은 말 — 검색창과 카드 사이 빈 칸만 커졌다). 두 칸 화면은 아래에서 다시 보인다 */
+#page-search:not(.hasQuery):not(.homeEmpty) #qResults > .empty{display:none}
 .dropzone{border:2px dashed var(--line);border-radius:var(--radius);padding:40px 16px;text-align:center;color:var(--dim);font-size:var(--fs-body);transition:.15s}
 .dropzone.over{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 /* 전체 화면 이미지 드롭 오버레이 */
@@ -1168,6 +1170,7 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #searchLeft{grid-area:left;min-width:0}
   #searchHome,#detailPane{grid-area:right}
   #searchHome{margin-top:0;gap:14px}
+  #page-search.on:not(.hasQuery):not(.homeEmpty) #qResults > .empty{display:block}
   #page-search.on.hasQuery #searchHome{display:flex}
   body.detailOpen #page-search.on #searchHome{display:none}
   #page-search.on:not(.homeEmpty) #detailPane:not(.open){display:none}
@@ -1310,6 +1313,7 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   /* v706: 두 칸에서는 상세를 열어도 목록을 남긴다 — 예전엔 목록이 숨고 상세가 왼쪽 좁은 칸(380px)으로 밀려 오른쪽이 비었다 */
   body.detailOpen #page-search.on #searchLeft{display:block !important}
   #page-search.on #searchHome{grid-area:right;margin-top:0;gap:14px;min-height:0;overflow-y:auto}
+  #page-search.on:not(.hasQuery):not(.homeEmpty) #qResults > .empty{display:block}
   #page-search.on.hasQuery #searchHome{display:flex}
   body.detailOpen #page-search.on #searchHome{display:none}
   #page-search.on:not(.homeEmpty) #detailPane:not(.open){display:none}
