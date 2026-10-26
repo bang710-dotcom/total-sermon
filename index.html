@@ -1802,12 +1802,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .cmHeadSub{font-size:var(--fs-sm);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .cmHeadWarn{flex:0 0 auto;font-size:var(--fs-xs);font-weight:700;color:var(--warn);border:1px solid currentColor;border-radius:var(--r-pill);padding:1px 8px}
 /* v718 저장 상태 — 저장 전(경고색) · 저장 중 · 저장됨 시각(초록 점) · 전송 대기(요청색). 점은 글자 옆 보조 표시일 뿐, 뜻은 글자가 말한다 */
-.cmHeadSave{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;align-self:center;font-size:var(--fs-sm);color:var(--dim);white-space:nowrap}
-.cmHeadSave::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
-.cmHeadSave[hidden]{display:none}
-.cmHeadSave[data-st="dirty"]{color:var(--warn);font-weight:600}
-.cmHeadSave[data-st="saved"]::before{background:var(--good)}
-.cmHeadSave[data-st="queued"]{color:var(--req)}
+.saveSt{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;align-self:center;font-size:var(--fs-sm);color:var(--dim);white-space:nowrap}
+.saveSt::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.saveSt[hidden]{display:none}
+.saveSt[data-st="dirty"]{color:var(--warn);font-weight:600}
+.saveSt[data-st="saved"]::before{background:var(--good)}
+.saveSt[data-st="queued"]{color:var(--req)}
 .cmActs{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 #cmHead .btn{width:auto;padding:8px 14px;font-size:var(--fs-md);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 #cmHead .btn.cmIconBtn{padding:8px 10px}
@@ -2638,7 +2638,7 @@ body.focusMode #refInsBar{bottom:72px}
     <!-- ============ 작성 (데스크탑) ============ -->
     <section class="page" id="page-compose">
       <div id="cmHead">
-        <div class="cmHeadL"><h2>설교 작성</h2><div class="cmHeadSub" id="cmHeadSub">새 설교</div><span class="cmHeadSave" id="cmHeadSave" role="status" aria-live="polite" hidden></span><span class="cmHeadWarn" id="cmHeadWarn" hidden title="다른 기기에서 수정된 설교 — [정보] 탭에서 확인"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> 다른 기기 수정</span></div>
+        <div class="cmHeadL"><h2>설교 작성</h2><div class="cmHeadSub" id="cmHeadSub">새 설교</div><span class="saveSt" id="cmHeadSave" role="status" aria-live="polite" hidden></span><span class="cmHeadWarn" id="cmHeadWarn" hidden title="다른 기기에서 수정된 설교 — [정보] 탭에서 확인"><svg class=ico aria-hidden=true><use href=#i-alert></use></svg> 다른 기기 수정</span></div>
         <div class="cmActs">
           <button class="btn sub" id="c_preview"><svg class=ico aria-hidden=true><use href=#i-eye></use></svg><span class="cmBtnTx"> 미리보기</span></button>
           <button class="btn" id="c_save"><svg class=ico aria-hidden=true><use href=#i-save></use></svg> 저장</button>
@@ -18856,6 +18856,7 @@ function renderDevo(){
   body.innerHTML =
     '<div class="card" id="devoScript"><div class="cnt devoScHd"><span><svg class=ico aria-hidden=true><use href=#i-book></use></svg> ' + esc(e['본문범위'] || '') + '</span>'
       + '<span id="devoSavedBadge">' + saved + '</span>'
+      + '<span class="saveSt" id="devoDirty" data-st="dirty" role="status" aria-live="polite" hidden title="아직 저장하지 않았습니다 — 이 기기에는 쓰는 대로 임시 보관됩니다">저장 전</span>'
       + '<button class="linkbtn" id="devoOpenStudy" type="button" style="font-size:var(--fs-sm);margin-left:auto">본문연구 창으로 ↗</button></div>'
       + '<div id="devoStudyPane"></div></div>' +
     '<div>' +
@@ -18877,7 +18878,9 @@ function renderDevo(){
   $('#devoSave').addEventListener('click', saveDevoNote);
   var _os = $('#devoOpenStudy');
   if (_os) _os.addEventListener('click', function(){ openStudy(e['본문범위']); });
+  devoState.base = devoCurInputs(); /* v718 「저장 전」 판정 기준 = 지금 칸에 채운 저장본 */
   devoBibleFill(date);              /* 성경앱 노트(정본)가 있으면 그 내용으로 덮어 채운다 */
+  devoDraftRestore(date);           /* v718 이 기기에 남은 저장 안 한 답이 있으면 되살린다(성경앱 노트보다 나중에 쓴 글) */
   fillDevoIllust(e['본문범위']);
   devoStudyMount(e['본문범위']);     /* 왼쪽 본문칸 = 본문연구 본문 패널(역본·구조·연구노트 그대로) */
 }
@@ -18969,6 +18972,7 @@ function devoBibleFill(date){
     });
     devoRenderPre(p._pre);
     devoState.note = Object.assign({}, devoState.note || {}, p);
+    devoState.base = devoCurInputs(); devoDirtyPaint();   /* v718 정본으로 채웠으니 그것이 저장본 */
     var b = document.getElementById('devoSavedBadge');
     if (b) b.innerHTML = ' <span class="badge b-state">성경앱 노트 연동</span>';
   }).catch(function(){});
@@ -18998,8 +19002,54 @@ function saveDevoNote(){
   var body;
   if (existing) { mirror.ID = existing['ID']; body = { action: 'update', sheet: 'devonotes', data: mirror }; }
   else body = { action: 'add', sheet: 'devonotes', data: mirror };
-  submit(body, '묵상 저장 완료');
+  var sentVals = devoCurInputs();
+  submit(body, '묵상 저장 완료', function(okv){
+    if (!okv) return;   /* 진짜 실패 — 이 기기 임시 보관은 그대로 둔다 */
+    if (devoState.date === date) { devoState.base = sentVals; devoDirtyPaint(); }
+    /* v718 저장했으니 이 날짜의 임시 보관을 지운다 — 저장하는 사이 더 쓴 글이 있으면 그 글로 다시 보관 */
+    if (devoState.date === date && !devoSameVals(devoCurInputs(), sentVals)) devoDraftSave(); else devoDraftDrop(date);
+  });
 }
+/* ===== v718 묵상 답 임시 보관 =====
+   예전엔 [묵상 저장]을 누르기 전에 앱이 꺼지면(폰은 흔하다) 쓴 답이 사라졌다. 날짜마다 이 기기 IndexedDB 에
+   devoDraft:<날짜> = { at, v:{8칸 + _pre} } 를 남기고(입력 0.6초 뒤 · 화면이 가려질 때 · 맥 앱이 닫을 때 tsbFlush),
+   그 날짜를 다시 열면 되살린다. 저장본과 같아지거나 저장·버리기를 하면 지운다. 시트로는 보내지 않는다. */
+function devoSameVals(a, b){
+  if (!a || !b) return false;
+  return DEVO_FIELDS.every(function(k){ return String(a[k] || '') === String(b[k] || ''); }) && String(a._pre || '') === String(b._pre || '');
+}
+function devoDirtyNow(){ return !!document.querySelector('[data-devo]') && !devoSameVals(devoCurInputs(), devoState.base || {}); }
+function devoDirtyPaint(){ var el = document.getElementById('devoDirty'); if (el) el.hidden = !devoDirtyNow(); }
+function devoDraftDrop(date){ try { idbSet('devoDraft:' + date, null).catch(function(){}); } catch (e) {} }
+function devoDraftSave(){
+  try {
+    if (!document.querySelector('[data-devo]') || !devoState.entry) return Promise.resolve();
+    var date = devoState.date, cur = devoCurInputs();
+    devoDirtyPaint();
+    if (devoSameVals(cur, devoState.base || {})) return idbSet('devoDraft:' + date, null).catch(function(){});
+    return idbSet('devoDraft:' + date, { at: Date.now(), v: cur }).catch(function(){});
+  } catch (e) { return Promise.resolve(); }
+}
+var devoDraftSaveSoon = debounce(devoDraftSave, 600);
+function devoDraftRestore(date){
+  return idbGet('devoDraft:' + date).then(function(d){
+    if (!d || !d.v || devoState.date !== date || !document.querySelector('[data-devo]')) return;
+    if (devoSameVals(d.v, devoCurInputs())) { devoDraftDrop(date); return; }   /* 이미 화면(저장본)과 같다 */
+    DEVO_FIELDS.forEach(function(k){ var el = document.querySelector('[data-devo="' + k + '"]'); if (el) el.value = d.v[k] || ''; });
+    var pe = document.querySelector('[data-devopre]');
+    if (pe) pe.value = d.v._pre || ''; else if (d.v._pre) devoRenderPre(d.v._pre);
+    devoDirtyPaint();
+    var t = new Date(+d.at || Date.now());
+    function p2(n){ return ('0' + n).slice(-2); }
+    toast('저장하지 않은 묵상 답을 되살렸습니다 (' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + p2(t.getHours()) + ':' + p2(t.getMinutes()) + ' 에 쓴 글) — [묵상 저장]을 눌러야 저장됩니다.');
+  }).catch(function(){});
+}
+(function(){
+  var b = document.getElementById('devoBody');
+  if (b) b.addEventListener('input', function(e){ if (e.target && e.target.matches && e.target.matches('[data-devo],[data-devopre]')) devoDraftSaveSoon(); });
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) devoDraftSave(); });
+  window.addEventListener('pagehide', function(){ devoDraftSave(); });
+})();
 /* 현재 묵상 화면 입력칸의 값(트림) */
 function devoCurInputs(){
   var o = {};
@@ -19013,11 +19063,14 @@ function confirmLeaveDevo(){
   if (!document.querySelector('[data-devo]')) return true;
   var cur = devoCurInputs();
   if (!DEVO_FIELDS.some(function(k){ return cur[k]; }) && !cur._pre) return true; /* 모두 비어있으면 통과 */
+  if (devoSameVals(cur, devoState.base || {})) return true;   /* v718 방금 저장한 그대로(시트 행이 아직 안 들어와도) */
   var saved = devoState.bmNote ? bmParseText(devoState.bmNote.memo) : (devoNoteFor(devoState.date) || {});
   var dirty = DEVO_FIELDS.some(function(k){ return cur[k] !== String(saved[k] || '').trim(); })
     || (cur._pre !== String(saved._pre || '').trim());
   if (!dirty) return true;
-  return confirm('묵상 답안이 저장되지 않았습니다. 버리고 이동할까요?');
+  if (!confirm('묵상 답안이 저장되지 않았습니다. 버리고 이동할까요?')) return false;
+  devoDraftDrop(devoState.date);   /* v718 버리기로 했으니 다음에 열 때 되살리지 않는다 */
+  return true;
 }
 function shiftDevoDate(days){
   var d = new Date(devoState.date + 'T12:00:00');
@@ -24412,7 +24465,7 @@ window.addEventListener('pagehide', lbtSaveNow);
 window.tsbFlush = function(){
   var P = [];
   function add(f){ try { var r = f(); if (r && typeof r.then === 'function') P.push(r.catch(function(){})); } catch (e) {} }
-  add(saveComposeDraft); add(pushComposeDraftRemote); add(occSaveNow); add(zoneSaveNow); add(lbtSaveNow);
+  add(saveComposeDraft); add(pushComposeDraftRemote); add(occSaveNow); add(zoneSaveNow); add(lbtSaveNow); add(devoDraftSave);   /* v718 묵상 답 */
   return Promise.all(P).then(function(){ return P.length; });
 };
 
@@ -34798,7 +34851,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v717';
+var APP_VER = 'v718';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
