@@ -3926,6 +3926,18 @@ function _maybeFlagConflict(incomingRow, baseRow){
     var base = baseRow || (state.data.sermons || []).filter(function(r){ return String(r['ID']) === String(incomingRow['ID']); })[0];
     if (!base) return;
     var _im = String(incomingRow['수정일'] || ''), _bm = String(base['수정일'] || '');
+    /* v722 대기열로 늦게 보낸 이 기기 저장의 에코 — 충돌이 아니라 기준 시점(서버 수정일)을 받는다 */
+    if (qOwnEchoMatch_(incomingRow)) {
+      if (_im && state.editing && String(state.editing) === String(incomingRow['ID'])) {
+        if (state._draftBaseMod) state._draftBaseMod = _im; else state._bufMod = _im;
+      }
+      if (state.remoteConflict && String(state.remoteConflict['ID']) === String(incomingRow['ID']) &&
+          _rowContentSig(state.remoteConflict) === _rowContentSig(incomingRow)) {
+        state.remoteConflict = null;   /* 같은 에코로 앞서 잘못 켜진 표시가 있으면 끈다 */
+        try { updateComposeBadge(); } catch (e) {}
+      }
+      return;
+    }
     var _sigEq = _rowContentSig(incomingRow) === _rowContentSig(base);
     /* 복원된 초안으로 편집 중일 때: 목록 필드가 모두 같아도(=원고 본문만 변경) 초안 기준 시점(_draftBaseMod)보다
        새 저장이 들어오면 충돌로 표시 — 본문만 고친 다른 기기 변경도 놓치지 않는다.
@@ -4307,6 +4319,29 @@ function _queuePermErr_(item, e){
 function qIsManuscriptUpdate_(it){
   return !!(it && it.action === 'update' && it.sheet === 'sermons' && it.data && it.data.ID && it.data['원고텍스트'] != null);
 }
+/* v722 대기열로 늦게 보낸(또는 이미 반영돼 있던) 이 기기 원고 저장의 「에코」 표시.
+   대기열 전송은 cas 를 쓰지 않아 서버가 ID 만 돌려준다 → 이 기기는 그 저장의 서버 수정일을 모른다. 그사이 계속 써서 작성창이
+   미저장이면, 다음 동기화로 들어온 내 행(수정일 = 전송 시각)이 기준(_bufMod = 대기열에 넣던 때의 이 기기 시각)보다 새로워
+   _maybeFlagConflict 가 「다른 기기 수정」으로 표시했고 [저장] 때 충돌 확인창이 떴다. 보낸 목록 칸 값을 기억해 두고,
+   들어온 행의 그 칸들이 모두 같으면 내 저장으로 보고 기준만 그 수정일로 옮긴다(30분 지나면 잊는다 — 다른 기기 저장은 그대로 잡힌다). */
+var _ownEcho = {};
+function qOwnEchoNote_(data){
+  try {
+    if (!data || !data.ID) return;
+    var fields = _CONFLICT_FIELDS.filter(function(f){ return Object.prototype.hasOwnProperty.call(data, f); }), vals = {};
+    fields.forEach(function(f){ vals[f] = String(data[f] == null ? '' : data[f]); });
+    if (fields.length) _ownEcho[String(data.ID)] = { at: Date.now(), fields: fields, vals: vals };
+  } catch (e) {}
+}
+function qOwnEchoMatch_(row){
+  try {
+    var id = String((row && row['ID']) || ''), o = _ownEcho[id]; if (!o) return false;
+    if (Date.now() - o.at > 30 * 60000) { delete _ownEcho[id]; return false; }
+    var same = o.fields.every(function(f){ return String(row[f] == null ? '' : row[f]) === o.vals[f]; });
+    if (same) delete _ownEcho[id];
+    return same;
+  } catch (e) { return false; }
+}
 function qHasPendingManuscript_(id){
   try { return (state.queue || []).some(function(q){ return qIsManuscriptUpdate_(q) && String(q.data.ID) === String(id); }); } catch (e) { return false; }
 }
@@ -4354,6 +4389,7 @@ function flushQueue(){
       if (!send) {   /* 이미 시트에 같은 내용이 있다 — 조용히 대기열에서 뺀다 */
         var i0 = state.queue.indexOf(item);
         if (i0 >= 0) { state.queue.splice(i0, 1); save(LS.queue, state.queue); }
+        qOwnEchoNote_(item.data);   /* v722 시트의 그 행은 이 기기 저장이다 */
         toast('대기 중이던 저장은 이미 시트에 반영돼 있어 건너뛰었습니다.');
         return;
       }
@@ -4363,6 +4399,7 @@ function flushQueue(){
         var i = state.queue.indexOf(item);
         if (i >= 0) state.queue.splice(i, 1);
         save(LS.queue, state.queue);
+        if (qIsManuscriptUpdate_(send)) qOwnEchoNote_(send.data);   /* v722 곧 들어올 이 행은 이 기기 저장 — 충돌로 보지 않게(검토본으로 돌린 add 는 해당 없음) */
         _linkFlushedAdd_(send, id);
         if (send._wasConflict) toast('대기 중이던 저장이 다른 기기의 더 새 저장과 겹쳐, 덮어쓰지 않고 「검토본」으로 올렸습니다 — 검색에서 비교해 주세요.');
       }, function(e){
