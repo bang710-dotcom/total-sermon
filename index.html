@@ -4971,7 +4971,10 @@ function openDetail(kind, id){
         return '<button class="linkbtn" onclick="setIdeaState(\'' + d['ID'] + '\',\'' + st + '\').then(function(){openDetail(\'idea\',\'' + d['ID'] + '\')})">' + ro(st) + '</button>';
       }).join('') + '</div>';
   }
+  /* v708: 상세는 산출물 확인·원고 지연 로드 뒤 다시 그려진다 — 키보드 포커스가 [← 목록으로]에 있었으면 다시 그린 뒤 그 단추로 돌려준다 */
+  var refocusClose = !!(document.activeElement && pane.contains(document.activeElement) && document.activeElement.classList.contains('detailClose'));
   pane.innerHTML = html;
+  if (refocusClose) { var dcB = pane.querySelector('.detailClose'); if (dcB) { try { dcB.focus({ preventScroll: true }); } catch (eF){} } }
   if (keepOpen) Array.prototype.forEach.call(pane.querySelectorAll('details'), function(d){
     var sm = d.querySelector('summary'), k = sm ? sm.textContent.trim() : '';
     if (k && Object.prototype.hasOwnProperty.call(keepOpen, k)) d.open = keepOpen[k];
