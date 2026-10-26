@@ -4945,38 +4945,36 @@ function openDetail(kind, id){
       + '<button class="btn sub" type="button" onclick="previewSermon(\'' + sid + '\')"><svg class=ico aria-hidden=true><use href=#i-eye></use></svg> 미리보기</button>'
       + '<div class="cmMenuWrap"><button class="btn sub" type="button" id="dpMakeBtn" data-cmmenu="dpMakeMenu" aria-haspopup="true" aria-expanded="false">만들기 <svg class=ico aria-hidden=true><use href=#i-chevron></use></svg></button>'
       + '<div class="cmMenu cmMenuR dpMakeMenu" id="dpMakeMenu" hidden>' + menu + '</div></div></div>';
-    /* 짧은 두 줄(시리즈·핵심메시지)만 바로 보이고, 요약본·나머지 정보는 접어서 — 원고 종이가 위로 온다.
-       검색어가 든 칸은 펼쳐 둔다(결과 목록에서 본 그 글을 바로 찾게). */
+    /* 짧은 두 줄(시리즈·핵심메시지)만 바로 보이고, 요약본·나머지 정보는 접어서 — 원고 종이가 위로 온다(원고가 없을 때만 요약본을 펼친다) */
     [['시리즈', s['시리즈'] + (s['시리즈순번'] ? ' (' + s['시리즈순번'] + '회)' : '')], ['핵심메시지', s['핵심메시지']]].forEach(function(kv){
       if (kv[1] && kv[1].trim && kv[1].trim()) html += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>';
     });
-    var hitIn = function(v){ var lv = nfcLow(v); return terms.some(function(t){ return t && lv.indexOf(t) >= 0; }); };
     var txt = stripStructText(String(s['원고텍스트'] || ''));
     var noTxt = !txt && !!s._txt;   /* 받아 왔는데 원고가 없다 → 요약본을 펼쳐 둔다 */
     var _sumReal = String(s['실제요약본'] || '').trim(), _sumMs = String(s['요약본'] || '').trim();
     if (_sumReal) {
-      html += '<details class="sumbox"' + (noTxt || hitIn(_sumReal) ? ' open' : '') + '>' +
+      html += '<details class="sumbox"' + (noTxt ? ' open' : '') + '>' +
         '<summary>요약본 · 실제 설교 <span style="opacity:.6;font-weight:400">(유튜브 전사)</span></summary>' +
         '<div class="fulltext" style="margin-top:8px">' + mdSum(hl(_sumReal, terms)) + '</div></details>';
     }
     if (_sumMs) {
-      html += '<details class="sumbox"' + ((noTxt && !_sumReal) || hitIn(_sumMs) ? ' open' : '') + '>' +
+      html += '<details class="sumbox"' + (noTxt && !_sumReal ? ' open' : '') + '>' +
         '<summary>요약본' + (_sumReal ? ' · 원고' : '') + '</summary>' +
         '<div class="fulltext" style="margin-top:8px">' + mdSum(hl(_sumMs, terms)) + '</div></details>';
     }
-    var info = '', infoLab = [], infoHay = '';
+    var info = '', infoLab = [];
     [['대지', s['대지']], ['예화', s['예화']], ['비고', s['비고']]].forEach(function(kv){
-      if (kv[1] && kv[1].trim && kv[1].trim()) { info += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>'; infoLab.push(kv[0]); infoHay += ' ' + kv[1]; }
+      if (kv[1] && kv[1].trim && kv[1].trim()) { info += '<div class="kv"><span class="k">' + kv[0] + '</span><span class="v">' + hl(kv[1], terms) + '</span></div>'; infoLab.push(kv[0]); }
     });
     var kws = String(s['키워드'] || '').split(/[,;]/).map(function(t){ return t.trim().replace(/^#/, ''); }).filter(Boolean);
     if (kws.length) { info += '<div class="kv"><span class="k">주제어</span><span class="v">' +
-      kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>'; infoLab.push('주제어'); infoHay += ' ' + kws.join(' '); }
+      kws.map(function(t){ return '<button class="kwchip" onclick="searchTag(\'' + esc(t).replace(/'/g, "\\'") + '\')">#' + esc(t) + '</button>'; }).join('') + '</span></div>'; infoLab.push('주제어'); }
     if (s['원고링크']) info += '<div class="kv"><span class="k">원고링크</span><a class="linkbtn" style="font-size:var(--fs-md)" href="' + esc(s['원고링크']) + '" target="_blank">열기 ↗</a></div>';
     var done = doneTypes(s['ID']);
     var doneList = REQ_TYPES.filter(function(t){ return done[t]; });
     if (doneList.length) { info += '<div class="kv"><span class="k">아웃풋</span><span class="v">' +
       doneList.map(function(t){ return esc(REQ_LABELS[t] || t) + ' ✓'; }).join(' · ') + '</span></div>'; infoLab.push('아웃풋'); }
-    if (info) html += '<details class="sumbox"' + (hitIn(infoHay) ? ' open' : '') + '><summary>설교 정보' + (infoLab.length ? ' <span style="opacity:.6;font-weight:400">' + infoLab.join('·') + '</span>' : '') + '</summary><div style="margin-top:6px">' + info + '</div></details>';
+    if (info) html += '<details class="sumbox"><summary>설교 정보' + (infoLab.length ? ' <span style="opacity:.6;font-weight:400">' + infoLab.join('·') + '</span>' : '') + '</summary><div style="margin-top:6px">' + info + '</div></details>';
     /* v709: 원고는 작성창과 같은 종이로 바로(설정 「원고 작성창」 — 종이/이전 방식을 따른다). 예전엔 단추 타일 10개 아래, 요약본이 있으면 접혀 있었다 */
     html += '<section class="dpPaper" aria-label="원고 전문">' + (txt
       ? '<div class="fulltext">' + hl(txt, terms) + '</div>'
