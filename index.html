@@ -146,6 +146,13 @@ label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 5px}
 .btn .blab{display:flex;align-items:center;justify-content:center;gap:6px}
 #seriesMeta .toolrow .btn{display:flex;align-items:center;justify-content:center;gap:7px}
 #seriesMeta .btn .ck{font-size:var(--fs-xs)}
+/* v723 진행 중인 시리즈 — 계획 입력 칸을 요약 한 줄로(JS spCompactSync 가 #page-series.spCompact) */
+.spSum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md)}
+.spSum[hidden]{display:none}
+.spSumL{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.spSumL span{font-size:var(--fs-sm);color:var(--dim)}
+#seriesMeta .spSum .btn{width:auto;flex:0 0 auto}
+#page-series.spCompact :is(#regMeta,#dawnMeta,#topicMeta) > :is(label,input,textarea,select,.row2,#sp_preview,#dw_preview,#tp_preview,#tp_sessions,.cnt:first-child,.cmSec.pgHelp,.hlpTx){display:none}
 .btn .inbtn{flex:0 0 auto;margin-left:auto;background:rgba(0,0,0,.28);border:1px solid currentColor;border-radius:var(--r-md);padding:3px 10px;font-size:var(--fs-sm);font-weight:700;cursor:pointer}
 .btn .inbtn:hover{background:rgba(0,0,0,.45)}
 /* 아웃풋 날짜 그룹 */
@@ -2160,10 +2167,22 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
   #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
   #occHead,#zoneHead,#lbtHead,#seriesHead{grid-column:1 / -1}
   #occMeta,#zoneMeta,#lbtMeta{top:18px}
+  /* v723 진행 중인 시리즈: 한 칸 — 요약·진행 상태·요청 단추가 위, 선택지 카드가 전체 폭. 요청 단추는 한 줄에 나란히 */
+  #page-series.on.spCompact{grid-template-columns:minmax(0,1fr)}
+  #page-series.spCompact #seriesMeta{position:static;max-height:none;overflow:visible;padding-right:0}
+  #page-series.spCompact #regMeta > .toolrow{display:inline-flex;margin:8px 8px 0 0;vertical-align:top}
+  #page-series.spCompact #regMeta > .toolrow .btn{flex:0 0 auto}
+  /* 펼친 회차의 머리줄([이 회차 재생성]·[확정 →])은 긴 선택지를 내려 읽는 동안 위에 붙는다 */
+  #seriesPane details.edPoint[open] > summary{position:sticky;top:0;z-index:3;background:var(--card);box-shadow:0 1px 0 var(--line);padding-top:8px!important;padding-bottom:8px!important}
 }
 @media (hover: none) and (orientation: landscape) and (min-width: 1000px){
   #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
   #occHead,#zoneHead,#lbtHead,#seriesHead{grid-column:1 / -1}
+  #page-series.on.spCompact{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+  #page-series.spCompact #seriesMeta{overflow:visible}
+  #page-series.spCompact #regMeta > .toolrow{display:inline-flex;margin:8px 8px 0 0;vertical-align:top}
+  #page-series.spCompact #regMeta > .toolrow .btn{flex:0 0 auto}
+  #seriesPane details.edPoint[open] > summary{position:sticky;top:0;z-index:3;background:var(--card);box-shadow:0 1px 0 var(--line);padding-top:8px!important;padding-bottom:8px!important}
 }
 @media (max-width: 899px), (hover: none){
   .pgHead{position:sticky;top:0;margin:-10px 0 12px;padding:10px 0}
@@ -35168,7 +35187,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v722';
+var APP_VER = 'v723';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
