@@ -2178,8 +2178,11 @@ body.focusMode #editorPane .edGrip,#editorPane .cdPage .edGrip{display:none!impo
 @media (hover: none) and (orientation: landscape) and (min-width: 1000px){
   #page-occ.on,#page-zone.on,#page-lbt.on{grid-template-rows:auto minmax(0,1fr)}
   #occHead,#zoneHead,#lbtHead,#seriesHead{grid-column:1 / -1}
-  #page-series.on.spCompact{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
-  #page-series.spCompact #seriesMeta{overflow:visible}
+  /* 진행 중인 시리즈: 칸마다 따로 스크롤하지 않고 화면 전체가 함께 — 요약·진행 줄이 위로 지나가 카드가 화면 높이를 다 쓴다
+     (칸 스크롤로 두면 선택지 칸이 333px 남짓). 머리줄도 같이 올라가 회차 머리줄이 맨 위에 붙는다 */
+  #page-series.on.spCompact{display:block}
+  #page-series.spCompact #seriesMeta,#page-series.spCompact #seriesPane{overflow:visible;min-height:auto}
+  #page-series.spCompact #seriesHead{position:static}
   #page-series.spCompact #regMeta > .toolrow{display:inline-flex;margin:8px 8px 0 0;vertical-align:top}
   #page-series.spCompact #regMeta > .toolrow .btn{flex:0 0 auto}
   #seriesPane details.edPoint[open] > summary{position:sticky;top:0;z-index:3;background:var(--card);box-shadow:0 1px 0 var(--line);padding-top:8px!important;padding-bottom:8px!important}
