@@ -12791,11 +12791,30 @@ async function prAI(opts){
   if (t.split('\n').filter(function(l){ return l.trim(); }).length < 6) { toast('AI 응답이 비어 있거나 너무 짧습니다 — 다시 시도해 주세요.'); return false; }
   if (state.compose !== c0) { toast('AI 초안이 왔지만 다른 설교로 옮겨 가 넣지 않았습니다.'); return false; }
   if (opts.auto && c0.prompter != null && !await uiConfirm('AI 프롬프터 초안이 왔습니다. 그 사이 고친 글을 AI 초안으로 바꿀까요?')) return false;
+  var stop0 = callClaude.lastStop;
   c0.prompter = t; c0.prompterBase = hash;
+  /* v730 이미지 전환표가 있으면 ▶N 표시를 맞춘다 — 원고 기준이면 원고에는 전환 표시가 없어 AI 글에 표시가 없고,
+     카드원고 기준이어도 옮겨 적는 사이 빠지거나 옛 표의 번호일 수 있다. 카드원고 표시가 지금 표와 같은 세대면 옮긴 표시를 두고 빠진 번호만 */
   try { saveComposeDraftSoon(); } catch (e) {}
   if (pmView()) { pmLoad(); _pm.cur = 0; pmPaint(); }
-  toast(callClaude.lastStop === 'max_tokens' ? 'AI 응답이 길어 끝부분이 잘렸을 수 있습니다 — 마지막 묶음을 확인해 주세요.'
-    : (base === 'C' ? '카드원고' : '원고') + '를 기준으로 AI 초안을 만들었습니다 — 빨간 글자를 확인하며 다듬은 뒤 [저장]하세요.');
+  var mkMsg = '';
+  try {
+    var id0 = state.editing || '', rows0 = (id0 && prOpt().marks !== false) ? cardTransRows(collectCompose(), id0) : null;
+    if (rows0 && rows0.length) {
+      var gen0 = transGenOf(id0), rm = await prMarksPlace(t, rows0, !(base === 'C' && marksGenOf(id0, 'C') === gen0));
+      if (state.compose === c0 && String(c0.prompter || '') === t) {   /* 표시 자리를 찾는 사이 손으로 고쳤으면 그 글을 둔다 */
+        if (rm.text !== t) {
+          c0.prompter = rm.text;
+          try { saveComposeDraftSoon(); } catch (e) {}
+          if (pmView()) { pmLoad(); pmPaint(); }
+        }
+        marksGenSet(id0, { P: gen0 });
+        if (rm.placed + rm.guessed) mkMsg = ' 이미지 전환 ' + (rm.placed + rm.guessed) + '곳도 표시했습니다' + (rm.guessed ? '(자리를 못 찾은 ' + rm.guessed + '곳은 앞 전환과 같은 묶음 — 확인해 주세요)' : '') + '.';
+      }
+    }
+  } catch (e) { mkMsg = ' 이미지 전환 표시는 넣지 못했습니다(' + ((e && e.message) || e) + ') — [전환 시점 넣기]로 다시 넣어 주세요.'; }
+  toast((stop0 === 'max_tokens' ? 'AI 응답이 길어 끝부분이 잘렸을 수 있습니다 — 마지막 묶음을 확인해 주세요.'
+    : (base === 'C' ? '카드원고' : '원고') + '를 기준으로 AI 초안을 만들었습니다 — 빨간 글자를 확인하며 다듬은 뒤 [저장]하세요.') + mkMsg);
   return true;
 }
 /* ── v697 원고 스타일 [프롬프터] — MemoMind One 안경 화면을 흉내 낸 작성창 (목사님 요청 2026-10-23) ──
@@ -13627,6 +13646,7 @@ async function cardMarksAuto(cards, meta, id, all){
   if (!rows || !Array.isArray(cards) || !cards.length) return cards;
   try {
     var r = await cardMarksPlace(cards, rows, all);
+    if (all && id) marksGenSet(id, { C: transGenOf(id) });   /* v730 지금 전환표 세대에 맞춘 표시 */
     if (r.placed + r.guessed) toast('이미지 전환 ' + (r.placed + r.guessed) + '곳을 카드원고 왼쪽 여백에 표시했습니다' + (r.guessed ? ' (자리를 못 찾은 ' + r.guessed + '곳은 앞 전환 옆에 — 아이콘을 눌러 옮기세요)' : '') + '.');
     return r.cards;
   } catch (e) { toast('이미지 전환 표시를 넣지 못했습니다: ' + (e.message || e) + ' — 카드원고의 [전환 시점 넣기]로 다시 시도하세요.'); return cards; }
@@ -13982,6 +14002,7 @@ async function cardMarksBtn(btn){
   try {
     await withBusy(btn, ' 찾는 중…', async function(){
       var r = await cardMarksPlace(cards, rows, all);
+      if (id) marksGenSet(id, { C: transGenOf(id) });   /* v730 손으로 맞춘 것도 지금 세대로 — 다음 자동 맞추기가 모두 다시 하지 않게 */
       if (!(r.placed + r.guessed)) { toast('빠진 전환 번호가 없습니다.'); return; }
       try { await histSnap('카드원고 전환 시점 넣기 전'); } catch (e) {}
       c.cards = r.cards;
@@ -13990,6 +14011,276 @@ async function cardMarksBtn(btn){
       toast('이미지 전환 ' + (r.placed + r.guessed) + '곳을 왼쪽 여백에 표시했습니다' + (r.guessed ? ' — 자리를 못 찾은 ' + r.guessed + '곳은 앞 전환 옆에 두었습니다(아이콘을 눌러 옮기세요)' : '') + '. [저장]하면 카드원고와 함께 저장됩니다.');
     })();
   } catch (e) { toast('전환 시점 넣기 실패: ' + (e.message || e)); }
+}
+/* ── v730 프롬프터 원고의 이미지 전환 표시 · 전환표가 생기거나 바뀌면 카드원고·프롬프터에 저절로 (목사님 요청 2026-10-29) ──
+   예전엔 이미지를 만들 때 전환 시점을 완성 원고(전환표)에만 잡았다. 카드원고 표시는 카드원고를 처음 만들 때만 들어갔고,
+   고친 프롬프터 원고(c.prompter)는 그때 카드원고의 표시를 옮겨 적은 글이라, 원고 → 프롬프터 → 이미지 순서면 표시가 아예 없었다.
+   · 자리 찾기 = AI(P_PRMARKS — 카드원고 P_CARDMARKS 와 같은 규칙, 단위는 빈 줄로 나눈 묶음). 글은 바꾸지 않고 묶음 첫 줄 앞에 「▶N 」.
+     번호마다 한 번 · 순서(큰 번호가 앞 묶음에 오지 않게) · 표에 없는 번호는 지움 — 코드가 지킨다.
+   · 모두 다시 / 빠진 번호만 = 전환표 세대(파일맵 transGen — 표를 새로 만들거나 되읽으면 바뀜)와 그 문서에 표시를 맞춘 세대(파일맵 marksGen.C·P)가
+     다르면 모두 다시, 같으면(재정렬·원고 수정 반영·그대로) 빠진 번호만. v729 이전 자료는 둘 다 비어 같은 것으로 본다(손으로 옮긴 표시를 지우지 않게).
+   · 이 설교가 작성창에 열려 있으면 작성창 글만 고친다(「저장 전」 — [저장]해야 시트·안경 앱). 열려 있지 않으면 시트 칸을 고친다. */
+var P_PRMARKS = [
+'당신은 설교 프롬프터 원고 편집 비서다. 설교 원고에는 배경 이미지가 바뀌는 자리(전환 #번호)가 정해져 있고, 프롬프터 원고는 그 원고를 말하듯 줄여 쓴 강단용 글이다. 빈 줄로 나눈 묶음이 안경에 한 번에 하나씩 뜬다.',
+'입력: 「전환」 = [{n, 종류, 원고 문장}] — 원고에서 그 이미지로 바뀌는 문장. 「프롬프터」 = [{묶음, 글}] — 묶음 번호와 그 글(줄은 「 / 」로 이었다). 「이미 있음」 = [{n, 묶음}] — 이미 놓인 전환 표시(순서 참고만).',
+'할 일: 전환마다, 프롬프터에서 그 원고 문장의 내용이 시작되는 묶음을 찾는다. 그 묶음이 안경에 뜨는 순간 이미지가 바뀐다.',
+'규칙: ① 원고 순서를 지킨다 — 번호가 큰 전환이 작은 전환보다 앞 묶음에 오지 않는다(같은 묶음은 된다). ② 종류가 「본문」이면 그 성경 인용이 시작되는 묶음(「수 13:1,」처럼 성구로 시작하는 묶음). ③ 원고 문장이 예화를 시작하면 「ex) …」 묶음, 대지 머리면 「N. …」 묶음. ④ 프롬프터는 원고를 줄여 말하듯 고친 글이라 같은 문장이 없을 수 있다 — 같은 내용을 다른 말로 쓴 묶음을 찾고, 그 내용이 아예 빠졌으면 바로 뒤 내용이 시작되는 묶음. ⑤ 입력의 전환마다 정확히 한 번. 글은 바꾸지 않는다.',
+'출력은 JSON 만: {"marks":[{"n":2,"g":5}, …]} — g 는 입력의 묶음 번호 그대로.'
+].join('\n');
+var PR_MARK_LEAD = /^((?:▶본?\d+[ \t]*)+)/;
+function prMarkTok(m){ return '▶' + (m.scr ? '본' : '') + m.n; }
+function prLineBlank(l){ return !String(l == null ? '' : l).replace(/[ \t　​]/g, ''); }   /* PM_SEP 과 같은 빈 줄 */
+/* 프롬프터 글 → 줄마다 {raw, blank, g(묶음 번호), first(묶음 첫 줄), body(앞 표시를 뺀 글), marks:[{n, scr}]} */
+function prMarksParse(text){
+  var out = [], g = -1, prevBlank = true;
+  String(text == null ? '' : text).replace(/\r/g, '').split('\n').forEach(function(l){
+    if (prLineBlank(l)) { out.push({ raw: l, blank: true, g: -1 }); prevBlank = true; return; }
+    var first = prevBlank; if (first) g++;
+    prevBlank = false;
+    var m = l.match(PR_MARK_LEAD), marks = [];
+    if (m) m[1].replace(/▶(본?)(\d+)/g, function(x, b, d){ marks.push({ n: +d, scr: !!b }); return x; });
+    out.push({ raw: l, blank: false, g: g, first: first, body: m ? l.slice(m[0].length) : l, marks: marks });
+  });
+  return { lines: out, groups: g + 1 };
+}
+function prMarksBuild(P){
+  return P.lines.map(function(L){
+    if (L.blank) return L.raw;
+    if (!L.marks.length) return L.body;
+    return L.marks.map(prMarkTok).join(' ') + (L.body ? ' ' + L.body : '');
+  }).join('\n');
+}
+/* 전환표 행(cardTransRows) → 프롬프터 글에 표시. all = 있던 표시를 지우고 모두 다시, 아니면 빠진 번호만.
+   돌려주는 값 { text, placed(AI가 자리를 준 것), guessed(못 받아 앞 전환 자리에 둔 것), removed(표에 없는 번호), over(표시 때문에 한 줄 폭을 넘은 줄) } */
+async function prMarksPlace(text, rows, all){
+  var P = prMarksParse(text), byN = {}, pos = {}, removed = 0, firstLi = [];
+  (rows || []).forEach(function(r){ byN[r.n] = r; });
+  P.lines.forEach(function(L, li){
+    if (L.blank) return;
+    if (L.first) firstLi[L.g] = li;
+    L.marks = L.marks.filter(function(m){
+      if (!byN[m.n] || pos[m.n]) { removed++; return false; }   /* 표에 없는 번호(지운 이미지 등)·같은 번호 두 번째 */
+      if (all) return false;
+      pos[m.n] = { g: L.g };
+      return true;
+    });
+  });
+  var res = { text: text, placed: 0, guessed: 0, removed: removed, over: 0 };
+  var need = (rows || []).filter(function(r){ return !pos[r.n]; });
+  if (need.length && P.groups) {
+    var groups = [];
+    for (var g = 0; g < P.groups; g++) groups.push({ '묶음': g + 1, '글': '' });
+    P.lines.forEach(function(L){ if (!L.blank) groups[L.g]['글'] += (groups[L.g]['글'] ? ' / ' : '') + L.body; });
+    var inp = {
+      '전환': need.map(function(r){ return { n: r.n, '종류': r.scr ? '본문(성경 인용)' : '일반', '원고 문장': r.text }; }),
+      '프롬프터': groups,
+      '이미 있음': Object.keys(pos).map(function(n){ return { n: +n, '묶음': pos[n].g + 1 }; })
+    };
+    var out = await callClaude(P_PRMARKS, JSON.stringify(inp), 8000, aiTick('프롬프터 전환 시점'), 'cardtrans');
+    var j = aiJson(out), arr = j && (Array.isArray(j) ? j : j.marks);
+    if (!Array.isArray(arr)) throw new Error('AI 응답 형식 오류');
+    var got = {};
+    arr.forEach(function(x){
+      var n = +(x && x.n), g2 = +(x && (x.g != null ? x.g : x['묶음'])) - 1;
+      if (byN[n] && !pos[n] && got[n] == null && g2 >= 0 && g2 < P.groups) got[n] = g2;
+    });
+    var prev = 0, cols = prOpt().width, touched = {};
+    rows.slice().sort(function(a, b){ return a.n - b.n; }).forEach(function(r){
+      if (pos[r.n]) { prev = Math.max(prev, pos[r.n].g); return; }
+      var g3 = got[r.n];
+      if (g3 == null || g3 < prev) { g3 = prev; res.guessed++; } else res.placed++;   /* 자리를 못 받았거나 순서를 어기면 앞 전환과 같은 묶음 */
+      prev = g3;
+      P.lines[firstLi[g3]].marks.push({ n: r.n, scr: !!r.scr });
+      touched[firstLi[g3]] = 1;
+    });
+    Object.keys(touched).forEach(function(li){
+      var L = P.lines[li];
+      L.marks.sort(function(a, b){ return a.n - b.n; });
+      if (prWidth(prMarksBuild({ lines: [L] })) > cols && prWidth(L.body) <= cols) res.over++;
+    });
+  }
+  if (need.length || removed || all) res.text = prMarksBuild(P);
+  return res;
+}
+/* 카드원고에서 표에 없는 번호·같은 번호 두 번째 표시를 뺀다 */
+function cardMarksPrune(cards, rows){
+  var byN = {}, seen = {}, removed = 0;
+  (rows || []).forEach(function(r){ byN[r.n] = 1; });
+  var out = (cards || []).map(function(t){
+    return String(t == null ? '' : t).split('\n').filter(function(l){
+      if (!cardIsBar(l)) return true;
+      var n = cardMarkInfo(l).n;
+      if (!byN[n] || seen[n]) { removed++; return false; }
+      seen[n] = 1; return true;
+    }).join('\n');
+  });
+  return { cards: out, removed: removed };
+}
+/* 전환표 세대 — 새 표를 만들거나 되읽을 때만 바뀐다(재정렬·원고 수정 반영·이미지 삭제는 그대로) */
+function transGenNew(){ return Date.now().toString(36); }
+function tmsFm(id){ var s = id ? findSermon(id) : null; try { return (s && JSON.parse(s['파일맵'] || '{}')) || {}; } catch (e) { return {}; } }
+function transGenOf(id){ return String(tmsFm(id).transGen || ''); }
+function marksGenOf(id, d){ var mg = tmsFm(id).marksGen; return String((mg && mg[d]) || ''); }
+function marksGenSet(id, obj){
+  if (!id || !findSermon(id)) return;
+  var mg = Object.assign({}, tmsFm(id).marksGen || {}), ch = false;
+  Object.keys(obj).forEach(function(k){ if (String(mg[k] || '') !== String(obj[k] || '')) { mg[k] = obj[k]; ch = true; } });
+  if (ch) setSermonFileMapMulti(id, { marksGen: mg });
+}
+function tmsCount(r){ var a = []; if (r.placed + r.guessed) a.push((r.placed + r.guessed) + '곳'); if (r.removed) a.push('없는 번호 ' + r.removed + '곳 지움'); return a.join(' · '); }
+var _tmsBusy = {};
+/* 전환표가 생기거나 바뀐 뒤 — 이 설교의 카드원고·고친 프롬프터 원고에 전환 표시를 맞춘다.
+   meta = 그 원고(원고텍스트로 전환 문장을 찾는다). 카드원고를 고쳤으면 meta['카드원고'] 도 바꿔 같은 실행의 카드 내보내기가 새 표시를 쓰게 한다.
+   opts.silent = 알림을 띄우지 않고 글만 돌려준다(캐스케이드가 끝 알림에 붙인다). 돌려주는 값 { done:[문서], msg:전체 알림, ok:실패를 뺀 알림, fail } */
+async function transMarksSync(id, meta, opts){
+  opts = opts || {}; meta = meta || {};
+  var R = { done: [], msg: '', ok: '', fail: '' };
+  if (!id || _tmsBusy[id]) return R;
+  var rows = cardTransRows(meta, id);
+  if (!rows || !rows.length) return R;
+  _tmsBusy[id] = 1;
+  var notes = [], fails = [];
+  try {
+    var gen = transGenOf(id), c = state.compose;
+    var mine = !!c && String(state.editing || '') === String(id);
+    var s = findSermon(id);
+    if (!mine && s) { try { s = (await ensureText(id)) || findSermon(id) || s; } catch (e) {} }
+    var cards0 = null, cardsNew = null, pText0 = '', pNew = null, rc = null, rp = null, pj = null;
+    /* ① 카드원고 */
+    if (mine) cards0 = Array.isArray(c.cards) ? c.cards.slice() : null;
+    else if (s && String(s['카드원고'] || '').trim()) cards0 = cardsSplit(s['카드원고']);
+    if (cards0 && cards0.some(function(t){ return cardMarksSplit(t).text.trim(); })) {
+      try {
+        var pr = cardMarksPrune(cards0, rows);
+        rc = await cardMarksPlace(pr.cards, rows, marksGenOf(id, 'C') !== gen);
+        rc.removed = pr.removed;
+        if (cardsJoin(rc.cards) !== cardsJoin(cards0)) cardsNew = rc.cards;
+      } catch (e) { fails.push('카드원고(' + ((e && e.message) || e) + ')'); cards0 = null; }
+    } else cards0 = null;
+    /* ② 고친 프롬프터 원고 — 고친 적 없으면(카드원고에서 자동) 카드원고 표시를 따라가므로 건너뛴다. 이 기기에서 전환 표시를 꺼 두었으면 넣지 않는다 */
+    if (prOpt().marks !== false) {
+      if (mine) pText0 = c.prompter ? String(c.prompter) : '';
+      else if (s) { pj = prCellParse(s['프롬프터원고']); pText0 = pj ? pj.text : ''; }
+      if (pText0.trim()) {
+        try {
+          rp = await prMarksPlace(pText0, rows, marksGenOf(id, 'P') !== gen);
+          if (rp.text !== pText0) pNew = rp.text;
+        } catch (e) { fails.push('프롬프터 원고(' + ((e && e.message) || e) + ')'); pText0 = ''; }
+      } else pText0 = '';
+    }
+    /* ③ 반영 */
+    if (mine) {
+      var moved = state.compose !== c || (cardsNew && cardsJoin(c.cards || []) !== cardsJoin(cards0)) || (pNew != null && String(c.prompter || '') !== pText0);
+      if (moved) { notes.push('표시 자리를 찾는 사이 작성창 글이 바뀌어 넣지 않았습니다 — 카드원고·프롬프터 보기의 [전환 시점 넣기]로 다시 넣어 주세요'); cards0 = null; pText0 = ''; }
+      else if (cardsNew || pNew != null) {
+        try { histSnap('이미지 전환 표시 넣기 전'); } catch (e) {}
+        if (cardsNew) { c.cards = cardsNew; R.done.push('카드원고'); }
+        if (pNew != null) { c.prompter = pNew; R.done.push('프롬프터 원고'); }
+        try { saveComposeDraftSoon(); } catch (e) {}
+        try {
+          if (c.style === '카드원고') renderEditor();
+          else if (c.style === '프롬프터' && pmView()) { pmLoad(); pmPaint(); }
+          else cardNavRender();
+        } catch (e) {}
+      }
+    } else if (s && (cardsNew || pNew != null)) {
+      var up = { ID: id };
+      if (cardsNew) { up['카드원고'] = cardsJoin(cardsNew); s['카드원고'] = up['카드원고']; R.done.push('카드원고'); }
+      if (pNew != null) {
+        var cell = JSON.stringify({ v: 1, text: pNew, base: (pj && pj.base) || '', width: (pj && pj.width) || prOpt().width });
+        if (cell.length <= PR_CELL_MAX) { up['프롬프터원고'] = cell; s['프롬프터원고'] = cell; R.done.push('프롬프터 원고'); }
+        else { notes.push('프롬프터 원고가 너무 길어(' + cell.length + '자) 시트에 넣지 않았습니다'); pText0 = ''; }
+      }
+      if (Object.keys(up).length > 1) { saveData(); apiPostOrQueue({ action: 'update', sheet: 'sermons', data: up }).catch(function(){}); }
+    }
+    if (R.done.indexOf('카드원고') >= 0) meta['카드원고'] = cardsJoin(cardsNew);
+    /* ④ 세대 기록 — 맞춘 문서만(실패·건너뜀은 다음에 다시) */
+    var mg = {};
+    if (cards0) mg.C = gen;
+    if (pText0) mg.P = gen;
+    if (Object.keys(mg).length) marksGenSet(id, mg);
+    /* ⑤ 알림 글 */
+    var parts = [], guessed = 0, over = 0;
+    if (R.done.indexOf('카드원고') >= 0) { parts.push('카드원고 ' + tmsCount(rc)); guessed += rc.guessed; }
+    if (R.done.indexOf('프롬프터 원고') >= 0) { parts.push('프롬프터 원고 ' + tmsCount(rp)); guessed += rp.guessed; over = rp.over; }
+    var msg = [];
+    if (parts.length) msg.push('이미지 전환 표시 — ' + parts.join(' · ')
+      + (guessed ? ' (자리를 못 찾은 ' + guessed + '곳은 앞 전환과 같은 자리 — 확인해 주세요)' : '')
+      + (over ? ' · 표시 때문에 한 줄 폭을 넘은 줄 ' + over + '개는 프롬프터 보기에서 [넘친 줄 정리]' : '')
+      + (mine ? ' · [저장]해야 시트·사역 안경 앱에 반영됩니다' : ' · 시트에 저장했습니다'));
+    R.ok = msg.concat(notes).join(' / ');
+    if (fails.length) R.fail = fails.join(' · ');
+    if (fails.length) msg.push('전환 표시를 넣지 못함: ' + R.fail + ' — 카드원고·프롬프터 보기의 [전환 시점 넣기]로 다시 시도하세요');
+    msg = msg.concat(notes);
+    R.msg = msg.join(' / ');
+    if (R.msg && !opts.silent) toast(R.msg);
+  } finally { delete _tmsBusy[id]; }
+  return R;
+}
+/* 프롬프터 보기 [전환 시점 넣기] — 카드원고 도구줄의 [전환 시점 넣기](cardMarksBtn)와 같은 방식 */
+async function pmMarksBtn(){
+  var c = state.compose, id = state.editing || '';
+  var meta = collectCompose(), rows = cardTransRows(meta, id);
+  if (!rows) { toast('이 설교에는 아직 이미지 전환표가 없습니다 — [산출물] 탭의 [이미지 전환표 생성/수정]에서 먼저 만들어 주세요.'); return; }
+  if (!c.prompter || !String(c.prompter).trim()) { toast('지금 프롬프터 원고는 카드원고에서 자동으로 만든 글이라 카드원고의 전환 표시를 그대로 따라갑니다 — 카드원고 보기의 [전환 시점 넣기]를 쓰세요.'); return; }
+  var t0 = String(c.prompter), has = 0, all = true;
+  prMarksParse(t0).lines.forEach(function(L){ if (!L.blank) has += L.marks.length; });
+  if (has) {
+    var k = await uiChoose('프롬프터 원고에 이미 전환 표시가 ' + has + '개 있습니다(전환표 ' + rows.length + '개).',
+      { okText: '모두 다시 찾기', extraText: '빠진 번호만 넣기', cancelText: '취소' });
+    if (k === 'extra') all = false; else if (k !== 'ok') return;
+  }
+  var r;
+  try { r = await prMarksPlace(t0, rows, all); }
+  catch (e) { toast('전환 시점 넣기 실패: ' + ((e && e.message) || e)); return; }
+  if (state.compose !== c || String(c.prompter || '') !== t0) { toast('표시 자리를 찾는 사이 글이 바뀌어 넣지 않았습니다 — 다시 눌러 주세요.'); return; }
+  if (id) marksGenSet(id, { P: transGenOf(id) });
+  if (r.text === t0) { toast('빠진 전환 번호가 없습니다.'); return; }
+  try { await histSnap('프롬프터 전환 시점 넣기 전'); } catch (e) {}
+  c.prompter = r.text;
+  try { saveComposeDraftSoon(); } catch (e) {}
+  if (pmView()) { pmLoad(); pmPaint(); }
+  toast('이미지 전환 ' + tmsCount(r) + '을 묶음 첫 줄 앞에 표시했습니다'
+    + (r.guessed ? ' — 자리를 못 찾은 ' + r.guessed + '곳은 앞 전환과 같은 묶음에 두었습니다' : '')
+    + (r.over ? ' · 한 줄 폭을 넘은 줄 ' + r.over + '개는 [넘친 줄 정리]' : '') + '. [저장]하면 시트·사역 안경 앱에도 반영됩니다.');
+}
+/* 이미지 #N 을 지우면 — 프롬프터 원고의 ▶N 표시를 빼고 뒤 번호를 당긴다(카드원고 imgCardShift 와 같은 방식 — 작성창·시트 칸을 따로) */
+function prBarShift(text, N){
+  var P = prMarksParse(text), changed = false;
+  P.lines.forEach(function(L){
+    if (L.blank || !L.marks.length) return;
+    L.marks = L.marks.filter(function(m){ if (m.n === N) { changed = true; return false; } return true; });
+    L.marks.forEach(function(m){ if (m.n > N) { m.n--; changed = true; } });
+  });
+  return { text: changed ? prMarksBuild(P) : String(text == null ? '' : text), changed: changed };
+}
+function imgPrShift(id, N){
+  var changed = false, c = state.compose;
+  var mine = !!c && (id ? String(state.editing || '') === String(id) : !state.editing);
+  if (mine && c.prompter && String(c.prompter).trim()) {
+    var r = prBarShift(c.prompter, N);
+    if (r.changed) {
+      var wasClean = !composeDirty();
+      try { histSnap('이미지 #' + N + ' 삭제 전'); } catch (e) {}
+      c.prompter = r.text;
+      if (wasClean && id) state.savedSig = composeSig();   /* 시트 칸도 아래에서 같은 글로 고친다 — 미저장으로 보이지 않게 */
+      try { if (pmView()) { pmLoad(); pmPaint(); } } catch (e) {}
+      changed = true;
+    }
+  }
+  var s = id ? findSermon(id) : null, pj = s ? prCellParse(s['프롬프터원고']) : null;
+  if (pj && String(pj.text || '').trim()) {
+    var r2 = prBarShift(pj.text, N);
+    if (r2.changed) {
+      var cell = JSON.stringify({ v: 1, text: r2.text, base: pj.base || '', width: pj.width || prOpt().width });
+      if (cell.length <= PR_CELL_MAX) {
+        s['프롬프터원고'] = cell; saveData();
+        apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '프롬프터원고': cell } }).catch(function(){});
+        changed = true;
+      }
+    }
+  }
+  return changed;
 }
 /* 왼쪽 [구조] 탭 — 카드원고를 보는 동안은 카드 목록 */
 function cardNavRender(){
@@ -26708,7 +26999,7 @@ function extractTransTable(arr){
 /* 먼저 만들어진 표가 없을 때만 저장(기준표 보존) */
 function storeTransIfEmpty(id, table){
   if (!id || !table || !table.length || sermonTrans(id)) return;
-  setSermonFileMap(id, 'trans', normalizeTransTable(table));
+  setSermonFileMapMulti(id, { trans: normalizeTransTable(table), transGen: transGenNew() });   /* v730 새 표 = 새 세대 */
 }
 /* ★ 번호 결정론화: 표지(#1) 제외, 전환표는 배열 순서대로 #2,#3,#4… 고유·연속 번호를 강제한다.
    본문 컷이 "직전 일반 이미지의 변형"이라 LLM이 같은 번호를 재사용하는 버그를 코드에서 차단한다
@@ -26961,6 +27252,7 @@ async function applyRetrans(id, meta){
     hideGenOverlay(); renderSyncState();
     toast('원고 수정 반영 완료 — 전환 ' + m.rows.length + '개 유지'
       + (m.weak.length ? ' · #' + m.weak.join(', #') + ' 위치는 확인해 보세요' : '') + pdfMsg);
+    if (id) { try { await transMarksSync(id, meta); } catch (e) {} }   /* v730 번호는 그대로 — 카드원고·프롬프터에 빠진 번호만 채운다 */
   } catch (e) { hideGenOverlay(); toast('원고 수정 반영 실패: ' + ((e && e.message) || e)); }
 }
 window.requestRetrans = function(){
@@ -27071,6 +27363,7 @@ async function transTableRegen(){
     if (body) body.innerHTML = transTableHtml(t, meta);
     toast(t && t.length ? ('전환표를 새로 잡았습니다 — 총 ' + (t.length + 1) + '장') : '전환표 생성 실패');
     try { renderSyncState(); } catch (e){}
+    if (t && t.length) transMarksSync(id, meta).catch(function(){});   /* v730 새 표 — 카드원고·프롬프터 전환 표시도 새로 */
   } catch (e) {
     if (body) body.innerHTML = '<div class="empty">전환표 생성 실패: ' + esc(e.message || String(e)) + '</div>';
   } finally { window._cascForce = false; window._cascTableFresh = false; }
@@ -27138,7 +27431,7 @@ async function transTableRestore(){
     var rows = mm.rows.map(function(r){ return { n: r.n, t: r.t, a: r.a, role: r.role }; });
     var sig = manuscriptSig(meta);
     if (id){
-      setSermonFileMapMulti(id, { trans: rows, transSig: sig });
+      setSermonFileMapMulti(id, { trans: rows, transSig: sig, transGen: transGenNew() });   /* v730 되읽은 표 = 새 세대 */
       try { await saveBlobToResults(new Blob([JSON.stringify({ ref: meta['본문'] || '', sig: sig, trans: rows }, null, 1)], { type: 'application/json' }), sermonFileBase(meta, '전환표') + '.json'); } catch (e) {}
     }
     if (body) body.innerHTML = transTableHtml(rows, meta);
@@ -27146,6 +27439,7 @@ async function transTableRestore(){
       + (mm.weak.length ? ' · #' + mm.weak.join(', #') + ' 위치는 확인해 보세요' : '')
       + ' · 이제 [♻ 원고 수정 반영]으로 문서를 다시 만드세요');
     try { renderSyncState(); } catch (e) {}
+    if (id && rows.length) transMarksSync(id, meta).catch(function(){});   /* v730 되읽은 표 — 카드원고·프롬프터 전환 표시도 새로 */
   } catch (e) {
     if (body) body.innerHTML = transTableHtml(id ? sermonTrans(id) : null, meta);
     toast('전환표 되읽기 실패: ' + ((e && e.message) || e));
@@ -27204,7 +27498,7 @@ async function ensureTransTable(id, meta){
   table = normalizeTransTable(table);   /* ★ 번호 결정론화: #2부터 연속·고유(본문컷 번호 중복 차단) */
   window._cascTableFresh = true;   /* 이번 실행에서 표를 새로 만듦 — 같은 실행의 카드·컷은 이 표를 재사용 */
   if (table.length && id) {
-    setSermonFileMap(id, 'trans', table); setSermonFileMap(id, 'transSig', sig);
+    setSermonFileMapMulti(id, { trans: table, transSig: sig, transGen: transGenNew() });   /* v730 새 표 = 새 세대(카드원고·프롬프터 전환 표시를 모두 다시 맞춘다) */
     /* 기본원고에 묶인 전환표 JSON 동봉(투명성·백업) */
     try { await saveBlobToResults(new Blob([JSON.stringify({ ref: meta['본문'] || '', sig: sig, trans: table }, null, 1)], { type: 'application/json' }), sermonFileBase(meta, '전환표') + '.json'); } catch (e) {}
   }
@@ -30416,6 +30710,8 @@ function cascStep(i, detail){
   var cc = $('#cascCnt'); if (cc) cc.textContent = '';   /* 새 단계 시작 시 글자수 초기화 */
   var cn = $('#cascNow'); if (cn && detail !== undefined) cn.innerHTML = esc(String(detail).replace(/[.…]+$/, '')) + ' <span class="dots"><i>.</i><i>.</i><i>.</i></span>';
 }
+/* 단계 번호는 그대로 두고 지금 하는 일만 바꿔 보인다(v730) */
+function cascNote(detail){ var cn = $('#cascNow'); if (cn) cn.innerHTML = esc(String(detail).replace(/[.…]+$/, '')) + ' <span class="dots"><i>.</i><i>.</i><i>.</i></span>'; }
 function cascHide(){ window._cascOn = false; try { stageStop(); } catch (e) {}   /* 진행 줄 경과 타이머도 함께 정지 (v562) */
   var ov = $('#cascOverlay'); if (ov) ov.classList.remove('on'); }
 /* 카세이드 버튼 ● 표시 / "만든 적 있음" 판단 — 시트의 산출물 기록(doneTypes) 기준.
@@ -30535,6 +30831,9 @@ async function runCascade(target, id, meta){
   try {
     /* 1) 단일 소스 전환표 — 독립 단계. 이미지 가지는 필수, 카드 가지는 토글을 따른다(v553). */
     if (wantTrans) { ck(); cascStep(k++, '이미지 전환표 확인 중…'); try { await ensureTransTable(id, meta); } catch (e) { rec('전환표', e); } }
+    /* v730 전환표가 생기거나 바뀌면 카드원고·고친 프롬프터 원고에도 전환 표시를 맞춘다(그 뒤 카드 가지는 새 표시로 내보낸다) */
+    var tmsMsg = '';
+    if (wantTrans && id) { ck(); cascNote('카드원고·프롬프터 원고에 이미지 전환 표시 맞추는 중…'); try { var tms = await transMarksSync(id, meta, { silent: true }); tmsMsg = tms.ok; if (tms.fail) fails.push('전환 표시(' + tms.fail + ')'); } catch (e) { rec('전환 표시', e); } }
 
     /* 2) 기본원고(HWPX/DOCX — 설정의 산출물 형식) — docx·Total에서만(다른 산출물의 이전 단계가 아니다).
        ★ 안내 문구는 fmtTag()로 뽑아 실제 만들어지는 형식과 항상 일치시킨다(v502). */
@@ -30582,7 +30881,7 @@ async function runCascade(target, id, meta){
       if (doTransPdf) { ck(); cascStep(k++, '전환 표시 PDF(이미지 삽입) 조판 중…'); try { await saveTransPdf(id, meta, cuts, (typeof body === 'string' ? body : '')); } catch (e) { rec('전환 표시 PDF', e); } }
     }
     ck();
-    toast(fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인');
+    toast((fails.length ? ('일부 실패: ' + fails.join(' · ') + ' — 나머지는 생성됨') : '완료 — [아웃풋]에서 확인') + (tmsMsg ? ' / ' + tmsMsg : ''));
     if (fails.length) {   /* 실패 단계를 화면에 남겨 둠(토스트는 금방 사라지므로) */
       var cnf = $('#cascNow'); if (cnf) cnf.innerHTML = '<svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg> 실패: ' + esc(fails.join(' · '));
       var ccf = $('#cascCnt'); if (ccf) ccf.textContent = '문제가 생긴 단계입니다 — 콘솔(F12)에 상세 오류가 찍힙니다. 잠시 후 닫힘.';
@@ -33715,6 +34014,7 @@ async function generateSermonImageSet(id, meta, opts){
     if (!cuts || !cuts.length) throw new Error('컷 생성 실패');
     if (!opts.auto && !await uiConfirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) { hideGenOverlay(); return; }   /* 취소 시 전체화면 오버레이 닫기(앱 잠김 방지) */
     await generateImageSetFromCuts(id, meta, cuts);
+    if (id) { try { await transMarksSync(id, meta); } catch (e) {} }   /* v730 카드원고·고친 프롬프터 원고에도 전환 표시 */
   } catch (e) { hideGenOverlay(); toast('이미지 세트 생성 실패: ' + (e.message || e)); }
 }
 
