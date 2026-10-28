@@ -35359,7 +35359,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v727';
+var APP_VER = 'v728';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -35945,30 +35945,92 @@ function refInsAt(ta){
   var ref = m[3] + ' ' + m[4] + ':' + m[5] + (m[7] ? '-' + (m[6] ? m[6] + ':' : '') + m[7] : '');
   return { start: start, end: pos, raw: m[2], ref: ref, lineStart: !v.slice(ls, start).trim() };
 }
+/* 성구의 개역개정 절 글 배열 — 못 찾거나(안내) 20절 넘는데 취소하면 null */
+async function refInsVerses(ref){
+  var sa = null;
+  try { sa = await scriptureArr(ref); } catch (e){ sa = null; }
+  var vs = (sa && sa.arr) ? sa.arr.map(function(x){ return _stripStrong(x.t); }).filter(Boolean) : [];
+  if (!vs.length){ toast('개역개정에서 찾지 못했습니다: ' + ref); return null; }
+  if (vs.length > 20 && !(await uiConfirm(ref + ' — ' + vs.length + '절입니다. 모두 넣을까요?', { okText: '넣기', cancelText: '취소' }))) return null;
+  return vs;
+}
+/* 입력칸의 start~end 를 txt 로 — execCommand 라 되돌리기(⌘Z)가 된다 */
+function refInsPut(ta, start, end, txt){
+  ta.focus();
+  ta.setSelectionRange(start, end);
+  var ok = false;
+  try { ok = document.execCommand('insertText', false, txt); } catch (e){ ok = false; }
+  if (!ok || ta.value.slice(start, start + txt.length) !== txt){
+    ta.value = ta.value.slice(0, start) + txt + ta.value.slice(end);
+    var p = start + txt.length; ta.setSelectionRange(p, p);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
 async function refInsDo(ta, mode){
   var hit = refInsAt(ta); if (!hit) return false;
   if (mode === 'block' && !hit.lineStart) return false;
-  var sa = null;
-  try { sa = await scriptureArr(hit.ref); } catch (e){ sa = null; }
-  var vs = (sa && sa.arr) ? sa.arr.map(function(x){ return _stripStrong(x.t); }).filter(Boolean) : [];
-  if (!vs.length){ toast('개역개정에서 찾지 못했습니다: ' + hit.ref); return true; }
-  if (vs.length > 20 && !(await uiConfirm(hit.ref + ' — ' + vs.length + '절입니다. 모두 넣을까요?', { okText: '넣기', cancelText: '취소' }))) return true;
+  var vs = await refInsVerses(hit.ref); if (!vs) return true;
   if (!document.body.contains(ta) || ta.value.slice(hit.start, hit.end) !== hit.raw) return true;   /* 기다리는 사이 글이 바뀜 */
   var txt = (mode === 'block' && vs.length > 1)
     ? [hit.ref + ', “' + vs[0]].concat(vs.slice(1, -1), [vs[vs.length - 1] + '”']).join('\n')
     : hit.ref + ', “' + vs.join(' / ') + '”';
-  ta.focus();
-  ta.setSelectionRange(hit.start, hit.end);
-  var ok = false;
-  try { ok = document.execCommand('insertText', false, txt); } catch (e){ ok = false; }   /* 되돌리기(⌘Z)가 되게 */
-  if (!ok || ta.value.slice(hit.start, hit.start + txt.length) !== txt){
-    ta.value = ta.value.slice(0, hit.start) + txt + ta.value.slice(hit.end);
-    var p = hit.start + txt.length; ta.setSelectionRange(p, p);
-    ta.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+  refInsPut(ta, hit.start, hit.end, txt);
   refInsBarSync();
   return true;
 }
+/* v728 — 따옴표까지 치면 본문이 저절로: 「요 3:16, "」처럼 성구 · 쉼표 · 여는 따옴표를 치는 순간
+   개역개정 본문과 닫는 따옴표를 그 뒤에 붙이고 커서는 닫는 따옴표 뒤로(한 줄, 절이 여럿이면 「 / 」 — Tab 과 같은 모양).
+   닫는 따옴표는 친 것에 맞춘다("→" · “→”). 원하지 않으면 ⌘Z(되돌리기) — 친 「, "」까지만 남는다.
+   붙이지 않는 경우: 「6:18a」처럼 a·b 를 단 부분 인용 · 쉼표 없는 「요 3:16 "」 · 그 줄 커서 뒤에 글이 붙어 있거나 따옴표가 이미 있음
+   (있던 인용의 따옴표를 다시 친 것) · 본문을 받는 사이 더 친 글이 있음 · 붙여넣기·되돌리기. */
+var _refAutoRe = null;
+function refAutoRe(){
+  if (!_refAutoRe) _refAutoRe = new RegExp(refInsRe().source.replace(/\$$/, '') + '\\s*,\\s*(["“”])$');
+  return _refAutoRe;
+}
+function refAutoAt(ta){
+  if (!ta || ta.tagName !== 'TEXTAREA' || ta.selectionStart !== ta.selectionEnd) return null;
+  var v = ta.value, pos = ta.selectionStart, ls = v.lastIndexOf('\n', pos - 1) + 1, from = Math.max(ls, pos - 70);
+  var m = v.slice(from, pos).match(refAutoRe()); if (!m) return null;
+  if (!m[1] && from > ls && /[0-9A-Za-z가-힣]/.test(v.charAt(from - 1))) return null;
+  var le = v.indexOf('\n', pos), rest = v.slice(pos, le < 0 ? v.length : le);
+  if (rest && (!/^\s/.test(rest) || /["“”]/.test(rest))) return null;
+  var ref = m[3] + ' ' + m[4] + ':' + m[5] + (m[7] ? '-' + (m[6] ? m[6] + ':' : '') + m[7] : '');
+  return { pos: pos, start: pos - (m[0].length - m[1].length), raw: m[0].slice(m[1].length), ref: ref, close: m[8] === '"' ? '"' : '”' };
+}
+var _refAutoOn = false, _refAutoWait = null;
+async function refAutoDo(ta){
+  var hit = refAutoAt(ta); if (!hit) return;
+  if (_refAutoWait && _refAutoWait.ta === ta && _refAutoWait.pos === hit.pos) return;   /* input·compositionend 가 함께 온 경우 */
+  var w = _refAutoWait = { ta: ta, pos: hit.pos }, vs;
+  try { vs = await refInsVerses(hit.ref); } finally { if (_refAutoWait === w) _refAutoWait = null; }
+  if (!vs) return;
+  if (!document.body.contains(ta) || ta.value.slice(hit.start, hit.pos) !== hit.raw
+      || ta.selectionStart !== hit.pos || ta.selectionEnd !== hit.pos) return;   /* 기다리는 사이 글·커서가 바뀜 */
+  /* 커서를 한 번 옮겼다 돌아온다 — 친 글과 한 덩어리로 묶이지 않고 이것만 따로 되돌려지게 */
+  ta.setSelectionRange(hit.pos - 1, hit.pos - 1); ta.setSelectionRange(hit.pos, hit.pos);
+  _refAutoOn = true;
+  try { refInsPut(ta, hit.pos, hit.pos, vs.join(' / ') + hit.close); } finally { _refAutoOn = false; }
+  try {
+    if (!localStorage.getItem('tsa.refAutoTip')){
+      localStorage.setItem('tsa.refAutoTip', '1');
+      toast('개역개정 본문을 붙였습니다 — 원하지 않으면 ⌘Z(되돌리기)');
+    }
+  } catch (e){}
+}
+document.addEventListener('input', function(e){
+  var ta = e.target;
+  if (_refAutoOn || !e.isTrusted || e.isComposing) return;
+  if (!ta || ta.tagName !== 'TEXTAREA' || !ta.closest || !ta.closest('#editorPane')) return;
+  if (!/^insert(Text|ReplacementText|CompositionText)$/.test(e.inputType || '')) return;
+  if (!/["“”]/.test(ta.value.charAt(ta.selectionStart - 1))) return;
+  refAutoDo(ta);
+}, true);
+document.addEventListener('compositionend', function(e){   /* 따옴표가 한글 입력 조합에 섞여 들어온 경우(아이패드 등) */
+  var ta = e.target;
+  if (!ta || ta.tagName !== 'TEXTAREA' || !ta.closest || !ta.closest('#editorPane')) return;
+  setTimeout(function(){ if (/["“”]/.test(ta.value.charAt(ta.selectionStart - 1))) refAutoDo(ta); }, 0);
+}, true);
 var REFINS_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘⏎' : 'Ctrl+⏎';
 var _riTa = null, _riRaf = 0, _riPress = false;
 function refInsBar(){
