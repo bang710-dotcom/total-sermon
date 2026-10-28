@@ -13013,6 +13013,7 @@ function pmSum(){
   if (edited && state._pmCol === false) msg.push('시트에 「프롬프터원고」 칸이 아직 없습니다 — Apps Script(Code.gs)를 새 버전으로 반영해야 다른 기기·사역 안경 앱에서 보입니다(그 전에는 [저장]해도 이 기기에만 남습니다).');
   w.hidden = !msg.length; w.innerHTML = msg.map(esc).join('<br>');
   v.querySelector('[data-pm="reset"]').hidden = !edited;
+  var mkb = v.querySelector('[data-pm="marks"]'); if (mkb) mkb.hidden = !edited;   /* v730 고친 원고만 — 자동 원고는 카드원고 표시를 따라간다 */
 }
 var pmSumSoon = debounce(pmSum, 200);
 /* 다시 그리기 — caret 을 주면 입력칸에 커서를 둔다('start'·'end'·숫자) */
@@ -13148,6 +13149,7 @@ function pmEditorHtml(){
       '<span class="chips pmModes"><button type="button" class="chip" data-pm="page">한 장씩</button><button type="button" class="chip" data-pm="all">전체 글</button></span>' +
       '<span class="cdBarActs">' +
         '<button class="btn sub mini" type="button" data-pm="ai" title="문체 지침으로 카드원고(+원고 전문)를 프롬프터 원고로 다시 씁니다 — AI">' + uiIco('spark') + ' AI로 다시 쓰기</button>' +
+        '<button class="btn sub mini" type="button" data-pm="marks" hidden title="이미지 전환표의 전환 자리를 프롬프터 묶음에서 찾아 묶음 첫 줄 앞에 ▶N 으로 표시합니다 — AI, 글은 바꾸지 않습니다">' + uiIco('image') + ' 전환 시점 넣기</button>' +
         '<button class="btn sub mini" type="button" data-pm="copy" title="안경 줄 폭·3줄 묶음에 맞춰 정리해 복사합니다 → MemoMind 앱 › 프롬프터 › 원고 추가에 붙여넣기">' + uiIco('clipboard') + ' 본문 복사</button>' +
         '<button class="btn sub mini" type="button" data-pm="title" title="원고 제목 줄을 복사합니다">' + uiIco('clipboard') + ' 제목 복사</button>' +
         '<button class="btn sub mini" type="button" data-pm="reset" hidden title="고친 내용을 버리고 지금 카드원고에서 다시 만듭니다">' + uiIco('refresh') + ' 카드원고에서 다시 만들기</button>' +
@@ -13204,6 +13206,7 @@ async function pmEnter(){
 async function pmAct(op, b){
   if (op === 'page' || op === 'all') { pmSetMode(op); return; }
   if (op === 'ai') { await withBusy(b, ' 쓰는 중…', prAI)(); return; }
+  if (op === 'marks') { await pmMarksBtn(b); return; }
   if (op === 'copy') {
     var r = prResult();
     if (!r.blocks.length) { toast('프롬프터 원고가 비어 있습니다.'); return; }
@@ -14218,7 +14221,7 @@ async function transMarksSync(id, meta, opts){
   return R;
 }
 /* 프롬프터 보기 [전환 시점 넣기] — 카드원고 도구줄의 [전환 시점 넣기](cardMarksBtn)와 같은 방식 */
-async function pmMarksBtn(){
+async function pmMarksBtn(btn){
   var c = state.compose, id = state.editing || '';
   var meta = collectCompose(), rows = cardTransRows(meta, id);
   if (!rows) { toast('이 설교에는 아직 이미지 전환표가 없습니다 — [산출물] 탭의 [이미지 전환표 생성/수정]에서 먼저 만들어 주세요.'); return; }
@@ -14230,9 +14233,10 @@ async function pmMarksBtn(){
       { okText: '모두 다시 찾기', extraText: '빠진 번호만 넣기', cancelText: '취소' });
     if (k === 'extra') all = false; else if (k !== 'ok') return;
   }
-  var r;
-  try { r = await prMarksPlace(t0, rows, all); }
+  var r = null;
+  try { await withBusy(btn, ' 찾는 중…', async function(){ r = await prMarksPlace(t0, rows, all); })(); }
   catch (e) { toast('전환 시점 넣기 실패: ' + ((e && e.message) || e)); return; }
+  if (!r) return;
   if (state.compose !== c || String(c.prompter || '') !== t0) { toast('표시 자리를 찾는 사이 글이 바뀌어 넣지 않았습니다 — 다시 눌러 주세요.'); return; }
   if (id) marksGenSet(id, { P: transGenOf(id) });
   if (r.text === t0) { toast('빠진 전환 번호가 없습니다.'); return; }
@@ -19827,7 +19831,7 @@ var AI_FEATURES = [
   { k: 'transdoc', label: '전환표시본',       def: 'auto:sonnet',      effort: 'high', desc: '원고에 이미지 전환 바 끼워 넣기(원고 전문을 그대로 옮겨 씀)' },
   { k: 'devoplan', label: '묵상 본문 배분',   def: 'auto:sonnet',      effort: 'high', desc: '시리즈 묵상집의 날짜별 본문 나누기' },
   { k: 'ocr',      label: '원고·교재 읽기',   def: 'auto:sonnet',      effort: 'high', desc: '구역권찰 — 설교·교재 이미지와 스캔 PDF 옮겨 적기' },
-  { k: 'cardtrans', label: '카드원고 전환 시점', def: 'auto:sonnet', effort: 'medium', desc: '카드원고에 이미지 전환 아이콘 자리 찾기(전환표의 원고 문장 ↔ 카드원고 줄, 글은 바꾸지 않음)' },
+  { k: 'cardtrans', label: '카드원고·프롬프터 전환 시점', def: 'auto:sonnet', effort: 'medium', desc: '카드원고·프롬프터 원고에 이미지 전환 표시 자리 찾기(전환표의 원고 문장 ↔ 카드원고 줄·프롬프터 묶음, 글은 바꾸지 않음)' },
   { k: 'prompter', label: '프롬프터 원고', def: 'auto:opus', effort: 'high', desc: 'MemoMind 안경 프롬프터 — 카드원고를 목사님 문체(3줄 묶음·말하듯)로 다시 쓰기 [AI로 다시 쓰기]' },
   { k: 'imgprompt', label: '이미지 프롬프트 다시 쓰기', def: 'auto:sonnet', effort: '', desc: '이미지 낱장 재생성 창 — 한국어 설명을 반영해 영문 장면 프롬프트를 다시 쓰기' },
   { k: 'illocr',   label: '예화 이미지 인식', def: 'auto:haiku',       effort: '',     desc: '예화 사진·캡처 글 옮겨 적기(인식 뒤 다듬기는 「기본 생성」 모델)' }
@@ -33888,7 +33892,7 @@ async function imgCutDelete(n){
   L.push(n < maxN ? '· 뒤 번호가 하나씩 당겨집니다: ' + rng(n + 1, maxN) + ' → ' + rng(n, maxN - 1) : '· 마지막 번호라 다른 번호는 그대로입니다.');
   if (follow.length) L.push('· 뒤에 딸린 본문 이미지(지금 #' + follow.join(', #') + ')는 앞 일반 이미지 #' + cuts[p].n + ' 에서 다시 만듭니다(AI 없음).');
   if (dirty.length) L.push('· 저장하지 않은 프롬프트 수정(#' + dirty.join(', #') + ')은 먼저 저장합니다.');
-  L.push('· 함께 고치는 것: 컷 목록(프롬프트) · 이미지 전환표 · 이미지 zip · 이미 만든 전환표시본·전환 표시 PDF·이미지자료 문서 · 카드원고의 전환 표시');
+  L.push('· 함께 고치는 것: 컷 목록(프롬프트) · 이미지 전환표 · 이미지 zip · 이미 만든 전환표시본·전환 표시 PDF·이미지자료 문서 · 카드원고·프롬프터 원고의 전환 표시');
   L.push('', '지운 그림은 되돌릴 수 없습니다 — 다시 필요하면 새로 만들어야 합니다.');
   if (!await uiConfirm(L.join('\n'), { okText: '삭제', cancelText: '취소', danger: true })) return;
   for (var d = 0; d < dirty.length; d++) if (!await irSave(dirty[d], true)) return;
@@ -33955,6 +33959,8 @@ async function imgCutDelete(n){
     step = '카드원고';
     var card = imgCardShift(id, n);
     if (card.changed) { done.push('카드원고 전환 표시'); if (card.text) meta['카드원고'] = card.text; }
+    step = '프롬프터 원고';   /* v730 고친 프롬프터 원고의 ▶N 도 같은 규칙으로 */
+    if (imgPrShift(id, n)) done.push('프롬프터 원고 전환 표시');
     /* ⑥ 이미 만든 문서 — 새 번호·새 zip 으로 다시 만든다 */
     step = '전환표시본';
     if (hits.trans || hits.transPdf){
@@ -35665,7 +35671,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v729';
+var APP_VER = 'v730';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
