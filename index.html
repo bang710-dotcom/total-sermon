@@ -15085,7 +15085,13 @@ $('#editorPane').addEventListener('click', function(e){
 document.addEventListener('mouseup', function(){
   var pane = document.getElementById('editorPane'); if (!pane) return;
   var els = pane.querySelectorAll('.edTa:not(.cdTa)');
-  for (var i = 0; i < els.length; i++) { if (els[i].style.height) saveTaHeight(els[i]); }
+  for (var i = 0; i < els.length; i++) {
+    var t = els[i], h = t.style.height;
+    if (!h || h === t._hAuto) continue;   /* v729: 자유원고 칸이 글을 따라 늘어난 높이는 저장하지 않는다(edFreeFit) */
+    var was = t.classList.contains('edFree') ? taSavedHeight('free') : null;
+    saveTaHeight(t);
+    if (was !== null && was !== h) edFreeFit(t);   /* 끌어서 바꿨으면 그 높이를 최소로 다시 맞춘다 */
+  }
 });
 /* v638 아이패드·휴대폰 크기 조절 손잡이(.edGrip, ta() 가 만든다) — iOS·iPadOS Safari 는 textarea 기본 손잡이를 그리지 않는다.
    터치가 주 입력인 기기(또는 iPad·iPhone)에서만 body.touchResize 를 켠다 — 데스크탑은 기본 손잡이 그대로.
@@ -15112,7 +15118,7 @@ document.addEventListener('mouseup', function(){
     function up(){
       g.classList.remove('drag');
       g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
-      if (t.style.height) saveTaHeight(t);
+      if (t.style.height) { saveTaHeight(t); edFreeFit(t); }
     }
     g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
   });
@@ -35359,7 +35365,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v728';
+var APP_VER = 'v729';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -39252,10 +39258,40 @@ function edHlSetup(ta){
   ta._edHl = true;
   ta.addEventListener('scroll', function(){ var bk = ta.parentNode && ta.parentNode.firstChild; if (bk) bk.scrollTop = ta.scrollTop; });
   if (_edHlRO) _edHlRO.observe(ta);
+  if (_edFitRO && ta.classList.contains('edFree')) _edFitRO.observe(ta);
   edHlSync(ta); edHlRender(ta);
 }
 function edHlNew(){ Array.prototype.forEach.call(document.querySelectorAll('#editorPane .edHl > textarea'), function(ta){ if (!ta._edHl) edHlSetup(ta); }); }
-function edHlAll(){ Array.prototype.forEach.call(document.querySelectorAll('#editorPane .edHl > textarea'), function(ta){ if (!ta._edHl) edHlSetup(ta); else { edHlSync(ta); edHlRender(ta); } }); }
+function edHlAll(){ Array.prototype.forEach.call(document.querySelectorAll('#editorPane .edHl > textarea'), function(ta){ if (!ta._edHl) edHlSetup(ta); else { edHlSync(ta); edHlRender(ta); edFreeFit(ta); } }); }
+/* ── v729 높이를 정해 둔 자유원고 칸은 그 높이가 최소 — 글이 칸보다 길어지면 칸이 따라 늘어난다 ──
+   자유원고 칸은 원래 화면 높이 칸 안에서 스크롤하지만, 칸을 끌어 늘였거나 집중 모드 높이가 저장된 설교는 원고 전체를 페이지로 내려 읽는다.
+   그 저장 높이는 저장할 때의 폭에 맞춘 것이라, 폭이 좁아지면(맥 앱에서 Ask 패널을 열 때 등) 글이 칸보다 길어져 칸 안에 스크롤이 생기고
+   스크롤할 때 칸 오른쪽에 긴 세로 막대(칸의 스크롤바)가 떴다(2026-10-29 제보 — S1154 저장 높이 11149px).
+   늘린 높이(_hAuto)는 저장하지 않는다 — 폭이 돌아오면 저장 높이로 돌아간다. 높이를 정하지 않은 칸·집중 모드(fmAutosize)는 그대로.
+   grow = 입력 때(늘리기만 — 지울 때 줄이지는 않는다). 아니면 저장 높이로 되돌려 재고 다시 맞춘다(폭·글꼴이 바뀔 때). */
+function edFreeFit(ta, grow){
+  if (!ta || !ta.isConnected || !ta.classList.contains('edFree') || !ta.style.height || document.body.classList.contains('focusMode')) return;
+  var base = parseFloat(taSavedHeight('free')) || 0; if (!base) return;
+  if (grow && ta.scrollHeight <= ta.clientHeight) return;
+  var cs = getComputedStyle(ta), bd = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+  var sc = scrollParentOf(ta) || document.scrollingElement, top = sc ? sc.scrollTop : 0, inner = ta.scrollTop;
+  if (!grow) ta.style.height = base + 'px';
+  var h = Math.max(base, Math.ceil(ta.scrollHeight + bd));
+  ta.style.height = h + 'px';
+  ta._hAuto = h > base ? ta.style.height : '';
+  /* 칸 안에서 내려가 있던 만큼 페이지를 내려 보던 글이 제자리에 있게 */
+  if (sc) sc.scrollTop = top + (inner && !ta.scrollTop ? inner : 0);
+  var bk = ta.parentNode && ta.parentNode.firstChild;
+  if (bk && bk.classList && bk.classList.contains('edHlBk')) bk.scrollTop = ta.scrollTop;
+}
+var _edFitRO = window.ResizeObserver ? new ResizeObserver(function(es){
+  es.forEach(function(e){
+    var t = e.target, w = Math.round(e.contentRect.width);
+    if (t._fitW === w) return;   /* 높이만 바뀐 것(늘린 것 포함)은 무시 */
+    t._fitW = w;
+    requestAnimationFrame(function(){ edFreeFit(t); });
+  });
+}) : null;
 function edQuoteMarkAll(){ edHlAll(); }   /* 옛 이름 호환 */
 (function(){
   var d = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
@@ -39279,7 +39315,7 @@ function edQuoteMarkAll(){ edHlAll(); }   /* 옛 이름 호환 */
   if (box) box.addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (c) apply(c.dataset.edpaper === '1'); });
   if (!pane) return;
   /* 타이핑마다 바로(지연 없이) 다시 그린다 — 입력칸 글자가 투명이라 늦으면 친 글자가 늦게 보인다 */
-  pane.addEventListener('input', function(e){ var ta = e.target; if (ta && ta._edHl) edHlRender(ta); });
+  pane.addEventListener('input', function(e){ var ta = e.target; if (ta && ta._edHl) { edHlRender(ta); edFreeFit(ta, true); } });
   /* 작성창을 다시 그리면(설교 열기·구조 바꾸기) 새 칸을 준비 */
   var t2 = 0;
   if (window.MutationObserver) {
