@@ -2422,6 +2422,13 @@ body.focusMode #refInsBar{bottom:72px}
 .auTbl th,.auTbl td{text-align:left;padding:5px 7px;border-top:1px solid var(--line);vertical-align:top}
 .auTbl th{color:var(--dim);font-weight:600;border-top:none}
 .auTbl small{color:var(--dim)}
+/* v734 최근 AI 생성 기록(설정 · 고급) */
+#aiLogBox{margin-top:8px;font-size:var(--fs-sm)}
+#aiLogBox .alRow{padding:6px 0;border-top:1px solid var(--line);line-height:1.5}
+#aiLogBox .alRow:first-child{border-top:none}
+#aiLogBox .alRow b{font-weight:600}
+#aiLogBox .alBad{color:var(--warn)}
+#aiLogBox .alSub{color:var(--dim)}
 .agLenNote{margin-top:6px;font-size:var(--fs-sm);color:var(--dim);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .agLenNote button{background:none;border:1px solid var(--line2);color:var(--accent);border-radius:var(--r-pill);padding:2px 10px;font:inherit;font-size:var(--fs-sm);cursor:pointer}
 /* 설교 대화 성경 인용 대조 */
@@ -3419,6 +3426,9 @@ body.focusMode #refInsBar{bottom:72px}
           <div class="setSec">AI 사용량 <span class="sgSub">이 기기</span></div>
           <div id="aiUsageBox"></div>
           <div class="cnt" style="margin-top:6px">이 기기에서 API 키로 부른 것만 셉니다(브라우저 에이전트·맥 앱의 Claude 처리는 구독이라 빠짐). 비용은 2026-10 가격표로 계산한 추정값이고, 캐시 읽기는 「입력」 옆 「+캐시」로 따로 보입니다. 정확한 청구액은 Anthropic 콘솔에서 확인하세요.</div>
+
+          <div class="setSec">최근 AI 생성 기록 <span class="sgSub">이 기기 · 최근 30건</span></div>
+          <div id="aiLogBox"></div>
 
           <div class="setSec">원고 작성</div>
           <label style="margin-top:4px">원고 작성창</label>
@@ -12798,7 +12808,7 @@ async function prAI(opts){
   var hash = prHash(prToEdit(prAuto().blocks));
   var input = { '제목': cardTitleNow(), '기준': base === 'C' ? '카드원고' : '원고전문', '카드원고': cardsJoin(prCards()), '원고전문': ms };
   var out;
-  try { out = await callClaude(P_PROMPTER, JSON.stringify(input), 16000, aiTick('프롬프터 원고'), 'prompter'); }
+  try { out = await callClaude(P_PROMPTER, JSON.stringify(input), 32000, aiTick('프롬프터 원고'), 'prompter'); }   /* v734 16000 → 32000 */
   catch (e) {
     if (opts.auto && state.compose === c0 && await aiFailAsk('프롬프터 원고 초안을 받지 못했습니다.', e, '그대로 두기')) return prAI(opts);   /* v733 비어 있던 프롬프터를 열 때 — 알림만 띄우고 빈 칸을 남기지 않게 */
     toast('AI 초안을 만들지 못했습니다 — ' + ((e && e.message) || e)); return false;
@@ -13581,8 +13591,12 @@ function cardDupOffer(){
   });
 }
 async function cardDraftAI(meta, S, text, scope, firstIsDocStart){
-  var out = await callClaude(P_CARDDRAFT, JSON.stringify(cardDraftInput(meta, S, text, scope)), scope === 'all' ? 32000 : 16000, aiTick('카드원고'));
-  var j = aiJson(out), arr = j && (Array.isArray(j) ? j : j.cards);
+  /* v734 한도 32000·16000 → 64000·32000: 생각 토큰도 한도에 든다. 높여도 쓴 만큼만 과금·속도 제한에도 영향 없음(문서 확인) */
+  var out = await callClaude(P_CARDDRAFT, JSON.stringify(cardDraftInput(meta, S, text, scope)), scope === 'all' ? 64000 : 32000, aiTick('카드원고'));
+  var j;
+  try { j = aiJson(out); }
+  catch (e) { if (callClaude.lastStop === 'max_tokens') throw new Error('AI 응답이 출력 한도에 닿아 중간에서 잘려 카드원고를 읽지 못했습니다'); throw e; }
+  var arr = j && (Array.isArray(j) ? j : j.cards);
   if (!Array.isArray(arr) || !arr.length) throw new Error('AI 응답 형식 오류');
   var heads = {};
   if (S) (S.points || []).forEach(function(p, i){ if (pHasContent(p)) heads[i + 1] = String(p.text || '').trim(); });
@@ -20107,24 +20121,67 @@ function aiCutErr(ne, hid0){
 }
 /* 카드원고·프롬프터·원고 자동 생성이 실패했을 때 — 알림만 띄우고 빈 칸을 남기지 않게 묻는다. true = 다시 만들기 */
 function aiFailAsk(head, e, keepText){
-  var why = String((e && e.message) || e || '');
-  return uiChoose(head + '\n' + why + (e && e.interrupted ? '\n\n받는 동안 화면을 켜 둔 채 앱을 떠나지 마세요.' : '') + '\n\n다시 만들까요?',
+  var why = String((e && e.message) || e || ''), inf = (e && e.aiInfo) || callClaude.lastInfo;
+  return uiChoose(head + '\n' + why + (e && e.interrupted ? '\n\n받는 동안 화면을 켜 둔 채 앱을 떠나지 마세요.' : '')
+      + (inf ? '\n\n[이번 생성] ' + aiLogWhy(inf) + ' · ' + aiLogSub(inf, true) : '') + '\n\n다시 만들까요?',
     { okText: '다시 만들기', cancelText: keepText || '그만두기' }).then(function(k){ return k === 'ok'; });
+}
+/* ── v734 AI 생성 기록 (2026-10-29 목사님 요청 — 아이폰에서 받다가 끊긴 원인을 가리려고) ──
+   callClaude 의 시도마다 한 줄: 기능·모델·한도·걸린 시간·받은 글자 수·출력 토큰(생각 포함)·끝난 이유(stop_reason)·오류·가려짐.
+   원고 내용은 남기지 않는다. 이 기기 localStorage tsa.aiLog(최근 30건) → 설정 · 고급 「최근 AI 생성 기록」, 실패 창 [이번 생성] 줄. */
+var AI_LOG_LS = 'tsa.aiLog';
+function aiLogLoad(){ try { var a = JSON.parse(localStorage.getItem(AI_LOG_LS) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function aiLogAdd(info){
+  try {
+    var a = aiLogLoad(); a.push(info);
+    localStorage.setItem(AI_LOG_LS, JSON.stringify(a.slice(-30)));
+  } catch (e) {}
+  try { aiLogPaint(); } catch (e) {}
+}
+function aiLogWhy(x){
+  if (x.err) return x.cut ? '연결 끊김' : '오류 — ' + x.err;
+  if (x.stop === 'max_tokens') return '출력 한도(' + Number(x.max || 0).toLocaleString() + '토큰)에 닿아 잘림';
+  if (x.stop === 'end_turn' || x.stop === 'stop_sequence') return '정상으로 끝남';
+  if (x.stop === 'refusal') return 'AI가 거절함';
+  return x.stop ? '끝남(' + x.stop + ')' : '끝 표시 없음';
+}
+function aiLogBad(x){ return !!(x.err || x.stop === 'max_tokens' || x.stop === 'refusal' || !x.stop); }
+function aiLogSub(x, short){
+  var s = Math.round((x.ms || 0) / 1000), dur = s >= 60 ? Math.floor(s / 60) + '분 ' + (s % 60) + '초' : s + '초';
+  var bits = ['받은 글 ' + Number(x.chars || 0).toLocaleString() + '자', '출력 ' + Number(x.oTok || 0).toLocaleString() + ' / ' + Number(x.max || 0).toLocaleString() + '토큰(생각 포함)', dur];
+  if (!short) {
+    var d = new Date(x.at || 0);
+    bits.unshift((d.getMonth() + 1) + '/' + d.getDate() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2));
+    bits.push(String(x.model || '').replace(/^claude-/, ''));
+  }
+  if (x.n > 1) bits.push(x.n + '번째 시도');
+  if (x.hid) bits.push('도중에 화면 가려짐');
+  return bits.join(' · ');
+}
+function aiLogPaint(){
+  var box = document.getElementById('aiLogBox'); if (!box) return;
+  var a = aiLogLoad().slice().reverse();
+  box.innerHTML = a.length ? a.map(function(x){
+    return '<div class="alRow"><b>' + esc(x.label || x.f || '') + '</b> — <span' + (aiLogBad(x) ? ' class="alBad"' : '') + '>' + esc(aiLogWhy(x)) + '</span><br><span class="alSub">' + esc(aiLogSub(x)) + '</span></div>';
+  }).join('') : '<div class="cnt" style="margin:0">이 기기에서 API 키로 만든 기록이 아직 없습니다.</div>';
 }
 /* feature: AI_FEATURES 의 키('illocr' 등) — 생략하면 'main'. 'claude-…' 모델 ID 를 직접 넘겨도 된다(effort high). */
 async function callClaude(system, user, maxTokens, onTick, feature){
+  callClaude.lastInfo = null;   /* v734 이번 호출의 기록(aiLogAdd) — 실패 창이 끝난 이유를 보여 준다 */
   var key = aiKey();
   if (!key) throw new Error('설정 탭에 Claude API 키를 입력해 주세요.');
   if (key === '__AGENT__') return bridgeCall(system, user, onTick, { feature: feature, maxTokens: maxTokens });   /* 에이전트 모드 — 비전(이미지) 포함 전부 브리지(구독) */
   var ft = /^claude-/.test(String(feature || '')) ? null : aiFeature(feature || 'main');
   var model = ft ? aiModelFor(ft.k) : String(feature);
   var genLabel = (onTick && onTick.genLabel) || '결과물';
+  var maxT = aiClampTokens(model, maxTokens || 8000);
   showGenOverlay(genLabel);
   aiWakeOn();   /* v733 */
   async function once(){
   var hid0 = _aiHidSeq;
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
   var _usage = {}; callClaude.lastStop = '';
+  var info = { at: Date.now(), f: ft ? ft.k : String(feature || 'main'), label: genLabel, model: model, max: maxT, n: att + 1, chars: 0 };
   function onVis(){ if (!document.hidden && _aiHidSeq !== hid0) wd.soon(30000); }   /* v733 가려졌다 돌아오면 — 30초 안에 아무것도 안 오면 죽은 연결 */
   document.addEventListener('visibilitychange', onVis);
   try {
@@ -20139,7 +20196,7 @@ async function callClaude(system, user, maxTokens, onTick, feature){
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body: JSON.stringify(Object.assign({ model: model, max_tokens: aiClampTokens(model, maxTokens || 8000), stream: true,
+      body: JSON.stringify(Object.assign({ model: model, max_tokens: maxT, stream: true,
         system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
         messages: [{ role: 'user', content: user }] }, modelExtra(model, ft ? ft.effort : 'high')))
     });
@@ -20169,18 +20226,27 @@ async function callClaude(system, user, maxTokens, onTick, feature){
       if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) callClaude.lastStop = ev.delta.stop_reason;   /* v690: 잘림(max_tokens) 판별용 */
       if (ev.type === 'message_stop') fin = true;
       if (ev.type === 'content_block_delta' && ev.delta && ev.delta.text) {
-        out += ev.delta.text;
+        out += ev.delta.text; info.chars = out.length;
         if (onTick) onTick(out.length);
       }
       if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || '스트림 오류');
     }
   }
+  info.fin = fin;
   if (!fin && !callClaude.lastStop) throw aiCutErr(null, hid0);   /* v733 끝 표시 없이 닫힌 스트림 = 받다 만 글 — 결과로 쓰지 않는다 */
   return out;
+  } catch (e) {
+    info.err = String((e && e.message) || e); info.cut = !!(e && e.interrupted);
+    try { e.aiInfo = info; } catch (x) {}
+    throw e;
   } finally {
     document.removeEventListener('visibilitychange', onVis);
     wd.clear();
     aiUsageAdd(ft ? ft.k : 'main', model, _usage);   /* v688: 이 기기 AI 사용량(설정 · 고급) — 멈춘 호출도 받은 만큼 */
+    info.ms = Date.now() - info.at; info.stop = callClaude.lastStop || '';
+    info.oTok = +_usage.output_tokens || 0;
+    info.hid = _aiHidSeq !== hid0;
+    callClaude.lastInfo = info; aiLogAdd(info);   /* v734 */
   }
   }
   try {
@@ -35776,7 +35842,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v733';
+var APP_VER = 'v734';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -37234,6 +37300,7 @@ function occKnobPaint(){
     if (e.key === 'Escape' && ov && ov.classList.contains('on') && !document.body.classList.contains('uiDlgOpen')) noteClose();
   });
   try { aiUsagePaint(); } catch (e){}
+  try { aiLogPaint(); } catch (e){}   /* v734 */
 })();
 </script>
 
