@@ -1647,9 +1647,10 @@ body.fmDragging #editorPane{transition:none!important}
 /* 텍스트 칸: 선 없이 투명, 포커스해도 테두리 없음, 스크롤바 없음 */
 body.focusMode #editorPane .edTa,
 body.focusMode #editorPane .edFree{font-size:calc(15.5px * var(--edScale,1));font-family:var(--edFont,inherit);color:var(--text);line-height:1.85;text-align:justify;background:transparent!important;border-color:transparent!important;box-shadow:none!important;resize:none;scrollbar-width:none;overflow:hidden}
-/* v731: 글꼴 「원고」(--edFont 없음)면 종이 작성창과 같은 글꼴 — 이전 방식(종이 끔)은 위의 inherit 그대로 */
+/* v731: 글꼴 「원고」(--edFont 없음)면 종이 작성창과 같은 글꼴 — 이전 방식(종이 끔)은 위의 inherit 그대로
+   v732: 크기도 종이 작성창과 같은 17px 기준(크기 단계 --edScale 1 = 자유원고와 같음) */
 body.edPaper.focusMode #editorPane .edTa,
-body.edPaper.focusMode #editorPane .edFree{font-family:var(--edFont,var(--edSerif))}
+body.edPaper.focusMode #editorPane .edFree{font-family:var(--edFont,var(--edSerif));font-size:calc(17px * var(--edScale,1))}
 /* 집중모드 작성칸은 JS(fmAutosize)가 내용 높이에 맞춰 height를 인라인으로 지정 → 잘림 없이 전체 표시, 페이지가 스크롤. 짧은 글이면 화면을 채워 본문 아래도 입력영역이 됨. */
 body.focusMode #editorPane .edTa::-webkit-scrollbar,
 body.focusMode #editorPane .edFree::-webkit-scrollbar{width:0;height:0;display:none}
@@ -15535,11 +15536,12 @@ function fmAutosize(){
   if (deficit > 0) ta.style.height = (content + deficit) + 'px';
   if (sc && sc.scrollTop !== top) sc.scrollTop = top;   /* 튄 스크롤 복원 */
 }
+/* v732: 크기 1 = 자유원고와 같은 크기(종이 17px) — 저장 키를 tsa.fmScale2 로 바꿔 모든 기기가 한 번 1 에서 시작 */
 function fmSetScale(d){
-  var cur = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
+  var cur = parseFloat(localStorage.getItem('tsa.fmScale2') || '1') || 1;
   if (d === 'reset') cur = 1; else cur = Math.min(1.8, Math.max(0.85, cur + d));
   cur = Math.round(cur * 100) / 100;
-  try { document.body.style.setProperty('--edScale', cur); localStorage.setItem('tsa.fmScale', cur); } catch (e) {}
+  try { document.body.style.setProperty('--edScale', cur); localStorage.setItem('tsa.fmScale2', cur); } catch (e) {}
   fmAutosize();
 }
 /* 집중 모드 글꼴(화면 표시용) — 원고 / 고딕 / IBM Plex Sans KR / 나눔명조 순환
@@ -15644,7 +15646,7 @@ window.addEventListener('resize', function(){
 function fmRestorePrefs(){
   try {
     document.body.style.removeProperty('--edColor');   /* 색 도구 제거 — 잔여 색조 정리 */
-    var s = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
+    var s = parseFloat(localStorage.getItem('tsa.fmScale2') || '1') || 1;
     document.body.style.setProperty('--edScale', s);
     fmApplyFont(parseInt(localStorage.getItem('tsa.fmFont2') || '0', 10) || 0);
     fmApplyShift(fmGetShift(), false);                 /* 지난번에 맞춰 둔 본문 위치 복원 */
@@ -35678,7 +35680,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v731';
+var APP_VER = 'v732';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
