@@ -1647,6 +1647,9 @@ body.fmDragging #editorPane{transition:none!important}
 /* 텍스트 칸: 선 없이 투명, 포커스해도 테두리 없음, 스크롤바 없음 */
 body.focusMode #editorPane .edTa,
 body.focusMode #editorPane .edFree{font-size:calc(15.5px * var(--edScale,1));font-family:var(--edFont,inherit);color:var(--text);line-height:1.85;text-align:justify;background:transparent!important;border-color:transparent!important;box-shadow:none!important;resize:none;scrollbar-width:none;overflow:hidden}
+/* v731: 글꼴 「원고」(--edFont 없음)면 종이 작성창과 같은 글꼴 — 이전 방식(종이 끔)은 위의 inherit 그대로 */
+body.edPaper.focusMode #editorPane .edTa,
+body.edPaper.focusMode #editorPane .edFree{font-family:var(--edFont,var(--edSerif))}
 /* 집중모드 작성칸은 JS(fmAutosize)가 내용 높이에 맞춰 height를 인라인으로 지정 → 잘림 없이 전체 표시, 페이지가 스크롤. 짧은 글이면 화면을 채워 본문 아래도 입력영역이 됨. */
 body.focusMode #editorPane .edTa::-webkit-scrollbar,
 body.focusMode #editorPane .edFree::-webkit-scrollbar{width:0;height:0;display:none}
@@ -15539,8 +15542,11 @@ function fmSetScale(d){
   try { document.body.style.setProperty('--edScale', cur); localStorage.setItem('tsa.fmScale', cur); } catch (e) {}
   fmAutosize();
 }
-/* 집중 모드 글꼴(화면 표시용) — 고딕 / IBM Plex Sans KR / 나눔명조 순환 */
+/* 집중 모드 글꼴(화면 표시용) — 원고 / 고딕 / IBM Plex Sans KR / 나눔명조 순환
+   v731: 첫째 「원고」 = 자유원고 작성창과 같은 글꼴(css null → --edFont 를 지워 CSS 기본값: 종이면 --edSerif, 이전 방식이면 inherit).
+   저장 키를 tsa.fmFont2 로 바꿔 모든 기기가 한 번 「원고」에서 시작한다(옛 tsa.fmFont 의 0 = 고딕). */
 var FM_FONTS = [
+  { k: '원고', css: null, load: null },
   { k: '고딕', css: "'Apple SD Gothic Neo','Noto Sans KR',sans-serif", load: null },
   { k: 'IBM Plex', css: "'IBM Plex Sans KR','Apple SD Gothic Neo',sans-serif", load: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500&display=swap' },
   { k: '나눔명조', css: "'Nanum Myeongjo','AppleMyungjo',serif", load: 'https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap' }
@@ -15550,10 +15556,11 @@ function fmEnsureFontLoaded(url){ if (!url || _fmFontLoaded[url]) return; _fmFon
   try { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = url; document.head.appendChild(l); } catch (e) {} }
 function fmApplyFont(i){ if (!FM_FONTS.length) return; i = ((i % FM_FONTS.length) + FM_FONTS.length) % FM_FONTS.length;
   var f = FM_FONTS[i]; fmEnsureFontLoaded(f.load);
-  try { document.body.style.setProperty('--edFont', f.css); localStorage.setItem('tsa.fmFont', i); } catch (e) {}
+  try { if (f.css) document.body.style.setProperty('--edFont', f.css); else document.body.style.removeProperty('--edFont');
+    localStorage.setItem('tsa.fmFont2', i); } catch (e) {}
   var b = document.getElementById('fmFontBtn'); if (b) b.textContent = '글꼴 · ' + f.k;
   fmAutosize(); setTimeout(fmAutosize, 400); }   /* 글꼴 교체(웹폰트 로드 후) 높이 재계산 */
-function fmCycleFont(){ var i = (parseInt(localStorage.getItem('tsa.fmFont') || '0', 10) || 0) + 1; fmApplyFont(i); }
+function fmCycleFont(){ var i = (parseInt(localStorage.getItem('tsa.fmFont2') || '0', 10) || 0) + 1; fmApplyFont(i); }
 /* ── 본문 열 좌우 이동 (v549) ────────────────────────────────────────────────
    모니터 두 대를 쓰면 브라우저가 있는 모니터가 시선에서 비껴 있어, 그 화면 "가운데"에 놓인
    본문을 보려고 계속 고개를 돌려야 한다. 본문 열을 원하는 쪽으로 밀어 두면 그럴 일이 없다.
@@ -15639,7 +15646,7 @@ function fmRestorePrefs(){
     document.body.style.removeProperty('--edColor');   /* 색 도구 제거 — 잔여 색조 정리 */
     var s = parseFloat(localStorage.getItem('tsa.fmScale') || '1') || 1;
     document.body.style.setProperty('--edScale', s);
-    fmApplyFont(parseInt(localStorage.getItem('tsa.fmFont') || '0', 10) || 0);
+    fmApplyFont(parseInt(localStorage.getItem('tsa.fmFont2') || '0', 10) || 0);
     fmApplyShift(fmGetShift(), false);                 /* 지난번에 맞춰 둔 본문 위치 복원 */
   } catch (e) {}
 }
@@ -35671,7 +35678,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v730';
+var APP_VER = 'v731';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
