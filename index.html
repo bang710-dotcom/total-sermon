@@ -3757,9 +3757,10 @@ function isDesktop(){ return window.matchMedia('(min-width: 900px)').matches; }
    reader.read()마다 bump()로 타이머를 리셋하므로, 긴 생성이라도 데이터가 흐르는 한 끊기지 않는다. */
 function makeIdleAbort(ms){
   var ctrl = new AbortController(), t = null;
-  function bump(){ if (t) clearTimeout(t); t = setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, ms); }
+  function arm(n){ if (t) clearTimeout(t); t = setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, n); }
+  function bump(){ arm(ms); }
   bump();
-  return { signal: ctrl.signal, bump: bump, clear: function(){ if (t) clearTimeout(t); } };
+  return { signal: ctrl.signal, bump: bump, soon: arm, clear: function(){ if (t) clearTimeout(t); } };   /* soon(n) = 다음 한 번만 n 밀리초(받으면 bump 로 원래대로) — v733 */
 }
 /* 새벽 시리즈 아이콘(일출) — currentColor 상속, 1em 크기. 기존 이모지 대체용 공용 SVG */
 var DAWN_ICON = '<svg class="dawn-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>';
@@ -12457,7 +12458,11 @@ async function docGenCards(c, base){
   try {
     cards = base === 'M' ? await cardDraftAI(meta, cardStructOf(c, meta['원고텍스트']), meta['원고텍스트'], 'all', true)
                          : await cardDraftAI(meta, null, docText(c, base), 'all', true);
-  } catch (e) { toast('카드원고 초안을 만들지 못했습니다: ' + (e.message || e) + ' — 빈 카드에서 시작하거나 [AI 초안 다시 만들기]를 누르세요.'); return false; }
+  } catch (e) {
+    if (state.compose !== c) return false;
+    if (await aiFailAsk('카드원고 초안을 받지 못했습니다.', e, '빈 카드로 두기')) return docGenCards(c, base);   /* v733 알림만 띄우고 빈 카드를 남기지 않게 */
+    toast('빈 카드에서 시작하거나 [AI 초안 다시 만들기]를 누르세요.'); return false;
+  }
   if (state.compose !== c) { toast('카드원고 초안이 왔지만 다른 설교로 옮겨 가 넣지 않았습니다.'); return false; }
   if (docFilled(c, 'C') && !await uiConfirm('AI 카드원고 초안이 왔습니다. 그 사이 쓴 카드원고를 AI 초안으로 바꿀까요?')) return false;
   c.cards = cards;
@@ -12479,7 +12484,11 @@ async function docGenMs(c, base){
       '초고설명': (base === 'C' ? '강단용 카드원고(요약 메모체)' : '강단 프롬프터 원고(말하듯 짧은 줄)') + ' — 순서·대지·예화·성경 인용을 지키며 완성 설교 원고로 풀어 쓸 것'
     }), 32000, aiTick('원고'));
     arr = aiJson(out);
-  } catch (e) { toast('원고를 만들지 못했습니다: ' + (e.message || e)); return false; }
+  } catch (e) {
+    if (state.compose !== c) return false;
+    if (await aiFailAsk('원고를 받지 못했습니다.', e)) return docGenMs(c, base);   /* v733 */
+    return false;
+  }
   if (!Array.isArray(arr) || !arr.length) { toast('원고를 만들지 못했습니다 — AI 응답 형식 오류. 다시 시도해 주세요.'); return false; }
   if (state.compose !== c) { toast('원고가 왔지만 다른 설교로 옮겨 가 넣지 않았습니다.'); return false; }
   if (docFilled(c, 'M') && !await uiConfirm('AI 원고가 왔습니다. 그 사이 쓴 원고를 AI 원고로 바꿀까요?')) return false;
@@ -12790,7 +12799,10 @@ async function prAI(opts){
   var input = { '제목': cardTitleNow(), '기준': base === 'C' ? '카드원고' : '원고전문', '카드원고': cardsJoin(prCards()), '원고전문': ms };
   var out;
   try { out = await callClaude(P_PROMPTER, JSON.stringify(input), 16000, aiTick('프롬프터 원고'), 'prompter'); }
-  catch (e) { toast('AI 초안을 만들지 못했습니다 — ' + ((e && e.message) || e)); return false; }
+  catch (e) {
+    if (opts.auto && state.compose === c0 && await aiFailAsk('프롬프터 원고 초안을 받지 못했습니다.', e, '그대로 두기')) return prAI(opts);   /* v733 비어 있던 프롬프터를 열 때 — 알림만 띄우고 빈 칸을 남기지 않게 */
+    toast('AI 초안을 만들지 못했습니다 — ' + ((e && e.message) || e)); return false;
+  }
   var t = String(out || '').replace(/\r/g, '').replace(/^\s*```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/, '').replace(/\*\*/g, '').trim();
   if (t.split('\n').filter(function(l){ return l.trim(); }).length < 6) { toast('AI 응답이 비어 있거나 너무 짧습니다 — 다시 시도해 주세요.'); return false; }
   if (state.compose !== c0) { toast('AI 초안이 왔지만 다른 설교로 옮겨 가 넣지 않았습니다.'); return false; }
@@ -20043,6 +20055,62 @@ function realKey(){ return String(state.settings.claudeKey || '').trim(); }
    실제 키는 realKey()로 따로 읽어, 브리지가 못 하는 경로(설교 대화·이미지 인식)에만 폴백으로 쓴다.
    모드가 꺼져 있으면 기존대로 키. */
 function aiKey(){ return bridgeOn() ? '__AGENT__' : realKey(); }
+/* ── v733 아이폰에서 받다가 끊김 (2026-10-29 목사님 제보 — 카드원고·프롬프터 원고를 받다가 끊기고 빈 원고창이 떴다) ──
+   카드원고(Opus · 수 분)를 받는 사이 화면이 잠기거나 다른 앱으로 넘어가면 iOS 가 앱을 멈추면서 받는 중인 연결을 끊는다
+   ("Load failed" · "네트워크 연결이 유실됨" — 아니면 응답 없이 멈춘다). 예전엔 끊겨도 받은 데까지를 결과로 돌려주거나(스트림이
+   message_stop 없이 끝난 경우 — 프롬프터는 반쪽 글이 그대로 들어갔다) 알림만 2.4초 띄우고 빈 카드원고·프롬프터 보기로 넘어갔다.
+   지금: ① 받는 동안 화면 꺼짐을 막는다(aiWake — Screen Wake Lock, 지원하지 않는 브라우저는 그냥 넘어감)
+   ② 끝(message_stop·stop_reason)이 오지 않은 스트림 = 끊김 → 화면이 다시 보일 때까지 기다렸다가 처음부터 다시 받는다(AI_CUT_RETRY 번까지).
+      화면이 가려졌다 돌아온 뒤 30초 동안 한 바이트도 안 오면 죽은 연결로 본다(그대로면 90초를 기다렸다).
+   ③ 그래도 안 되면 오류에 interrupted 를 단다 — 카드원고·프롬프터·원고 자동 생성은 빈 칸을 남기지 않게 [다시 만들기]를 묻는다(aiFailAsk). */
+var AI_CUT_RETRY = 2, _aiHidSeq = 0, _aiRetryNote = '';
+var _aiWake = { n: 0, lock: null, p: null };
+function aiWakeGet(){
+  if (!_aiWake.n || _aiWake.lock || _aiWake.p || document.hidden) return;
+  var wl = navigator.wakeLock; if (!wl || typeof wl.request !== 'function') return;
+  try {
+    _aiWake.p = wl.request('screen').then(function(l){
+      _aiWake.p = null;
+      if (!_aiWake.n) { l.release().catch(function(){}); return; }
+      _aiWake.lock = l;
+      l.addEventListener('release', function(){ if (_aiWake.lock === l) _aiWake.lock = null; });   /* 화면이 가려지면 브라우저가 풀어 준다 — 돌아오면 다시 */
+    }, function(){ _aiWake.p = null; });
+  } catch (e) { _aiWake.p = null; }
+}
+function aiWakeOn(){ _aiWake.n++; aiWakeGet(); }
+function aiWakeOff(){
+  _aiWake.n = Math.max(0, _aiWake.n - 1);
+  if (!_aiWake.n && _aiWake.lock) { var l = _aiWake.lock; _aiWake.lock = null; try { l.release().catch(function(){}); } catch (e) {} }
+}
+document.addEventListener('visibilitychange', function(){ if (document.hidden) _aiHidSeq++; else aiWakeGet(); });
+function aiVisibleWait(){
+  if (!document.hidden) return Promise.resolve();
+  return new Promise(function(res){
+    function on(){ if (!document.hidden) { document.removeEventListener('visibilitychange', on); res(); } }
+    document.addEventListener('visibilitychange', on);
+  });
+}
+function aiOnlineWait(ms){
+  if (navigator.onLine !== false) return Promise.resolve();
+  return new Promise(function(res){
+    var t = setTimeout(done, ms);
+    function done(){ clearTimeout(t); window.removeEventListener('online', done); res(); }
+    window.addEventListener('online', done);
+  });
+}
+/* 끊김(다시 받을 것) — ne = 연결 오류. 지연 중단(AbortError)은 그 사이 화면이 가려졌을 때만 끊김으로 본다 */
+function aiCutErr(ne, hid0){
+  if (ne && ne.name === 'AbortError' && _aiHidSeq === hid0) return new Error('응답이 지연되어 생성을 중단했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+  var e = new Error('연결이 끊겨 끝까지 받지 못했습니다' + (ne && ne.message ? '(' + ne.message + ')' : ''));
+  e.interrupted = true;
+  return e;
+}
+/* 카드원고·프롬프터·원고 자동 생성이 실패했을 때 — 알림만 띄우고 빈 칸을 남기지 않게 묻는다. true = 다시 만들기 */
+function aiFailAsk(head, e, keepText){
+  var why = String((e && e.message) || e || '');
+  return uiChoose(head + '\n' + why + (e && e.interrupted ? '\n\n받는 동안 화면을 켜 둔 채 앱을 떠나지 마세요.' : '') + '\n\n다시 만들까요?',
+    { okText: '다시 만들기', cancelText: keepText || '그만두기' }).then(function(k){ return k === 'ok'; });
+}
 /* feature: AI_FEATURES 의 키('illocr' 등) — 생략하면 'main'. 'claude-…' 모델 ID 를 직접 넘겨도 된다(effort high). */
 async function callClaude(system, user, maxTokens, onTick, feature){
   var key = aiKey();
@@ -20052,22 +20120,30 @@ async function callClaude(system, user, maxTokens, onTick, feature){
   var model = ft ? aiModelFor(ft.k) : String(feature);
   var genLabel = (onTick && onTick.genLabel) || '결과물';
   showGenOverlay(genLabel);
+  aiWakeOn();   /* v733 */
+  async function once(){
+  var hid0 = _aiHidSeq;
   var wd = makeIdleAbort(90000);   /* 90초간 응답 무흐름이면 중단 */
   var _usage = {}; callClaude.lastStop = '';
+  function onVis(){ if (!document.hidden && _aiHidSeq !== hid0) wd.soon(30000); }   /* v733 가려졌다 돌아오면 — 30초 안에 아무것도 안 오면 죽은 연결 */
+  document.addEventListener('visibilitychange', onVis);
   try {
-  var res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    signal: wd.signal,
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify(Object.assign({ model: model, max_tokens: aiClampTokens(model, maxTokens || 8000), stream: true,
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: user }] }, modelExtra(model, ft ? ft.effort : 'high')))
-  });
+  var res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: wd.signal,
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(Object.assign({ model: model, max_tokens: aiClampTokens(model, maxTokens || 8000), stream: true,
+        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: user }] }, modelExtra(model, ft ? ft.effort : 'high')))
+    });
+  } catch (ne) { throw aiCutErr(ne, hid0); }
   if (!res.ok) {
     var et = '';
     try { et = (await res.json()).error.message; } catch (e) { et = 'HTTP ' + res.status; }
@@ -20075,9 +20151,10 @@ async function callClaude(system, user, maxTokens, onTick, feature){
   }
   var reader = res.body.getReader();
   var dec = new TextDecoder();
-  var buf = '', out = '';
+  var buf = '', out = '', fin = false;
   while (true) {
-    var r = await reader.read();
+    var r;
+    try { r = await reader.read(); } catch (ne) { throw aiCutErr(ne, hid0); }
     wd.bump();
     if (r.done) break;
     buf += dec.decode(r.value, { stream: true });
@@ -20090,6 +20167,7 @@ async function callClaude(system, user, maxTokens, onTick, feature){
       try { ev = JSON.parse(l.slice(5)); } catch (e) { continue; }
       aiUsageEv(_usage, ev);   /* v688 사용량 */
       if (ev.type === 'message_delta' && ev.delta && ev.delta.stop_reason) callClaude.lastStop = ev.delta.stop_reason;   /* v690: 잘림(max_tokens) 판별용 */
+      if (ev.type === 'message_stop') fin = true;
       if (ev.type === 'content_block_delta' && ev.delta && ev.delta.text) {
         out += ev.delta.text;
         if (onTick) onTick(out.length);
@@ -20097,14 +20175,32 @@ async function callClaude(system, user, maxTokens, onTick, feature){
       if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || '스트림 오류');
     }
   }
+  if (!fin && !callClaude.lastStop) throw aiCutErr(null, hid0);   /* v733 끝 표시 없이 닫힌 스트림 = 받다 만 글 — 결과로 쓰지 않는다 */
   return out;
-  } catch (e) {
-    if (e && e.name === 'AbortError') throw new Error('응답이 지연되어 생성을 중단했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
-    throw e;
   } finally {
+    document.removeEventListener('visibilitychange', onVis);
     wd.clear();
-    hideGenOverlay();
     aiUsageAdd(ft ? ft.k : 'main', model, _usage);   /* v688: 이 기기 AI 사용량(설정 · 고급) — 멈춘 호출도 받은 만큼 */
+  }
+  }
+  try {
+    for (var att = 0; ; att++) {
+      try { return await once(); }
+      catch (e) {
+        if (!(e && e.interrupted) || att >= AI_CUT_RETRY) throw e;
+        _aiRetryNote = '연결이 끊겨 다시 받는 중(' + (att + 2) + '/' + (AI_CUT_RETRY + 1) + ') · ';
+        var gc = $('#genCount'); if (gc) gc.textContent = _aiRetryNote + (document.hidden ? '화면이 다시 보이면 이어서…' : '');
+        await aiVisibleWait();
+        await aiOnlineWait(60000);
+        await new Promise(function(r){ setTimeout(r, 1200); });
+        aiWakeGet();
+        if (gc) gc.textContent = _aiRetryNote;
+      }
+    }
+  } finally {
+    _aiRetryNote = '';
+    aiWakeOff();
+    hideGenOverlay();
   }
 }
 function aiJson(text){
@@ -20934,7 +21030,7 @@ function showGenOverlay(label){
   el.classList.add('on');
 }
 function updateGenOverlay(n){
-  var txt = '받는 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자';
+  var txt = (_aiRetryNote || '') + '받는 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자';   /* v733 다시 받는 중이면 앞에 표시 */
   if (window._cascOn) { var cc = $('#cascCnt'); if (cc) cc.textContent = txt; return; }   /* 카세이드 중엔 카세이드 화면에 표시 */
   var c = $('#genCount'); if (!c) return;
   c.textContent = txt;
@@ -35680,7 +35776,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v732';
+var APP_VER = 'v733';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
