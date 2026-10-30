@@ -12853,6 +12853,8 @@ async function prAI(opts){
    (흐리게, 누르면 그 묶음으로). v702: 실제 안경이 보여 주는 대로 위 · 강조 3줄 · 아래 1줄, 모두 같은 글자 크기(예전엔 위아래 2줄씩 작게).
    v703: 위를 3줄로(목사님 요청) — 7줄이 600×350 안에 들게 여백·상자 안쪽 여백을 줄였다(PM_GEO.gap·padY·pad).
    v727: 한 장씩 보기의 줄(위아래 문맥·상자·카드 띠)을 가운데 정렬 — 사역 안경 앱의 표시 방식과 같게(목사님 요청 2026-10-26). 아래 문맥은 1줄 그대로(안경 앱에서 2줄 불가).
+   v736: 아래 문맥 2줄(목사님 요청 2026-10-31) — 비전로고스 안경 화면(플러그인 「VisionLogos 화면」 v5~)이 위 3줄 · 상자 3줄 · 아래 2줄로 바뀌어 그대로 맞췄다.
+   8줄은 600×350 안에 빠듯해서, 들지 않으면 줄 간격만 좁힌다(pmLayout 의 lh — 글자 크기·한 줄 칸 수는 그대로, 안경 플러그인과 같은 방식).
    [전체 글]: 빈 줄로 묶음을 나눈 글 전체(v695 편집 화면).
    빨간 글자 = 안경 한 화면 밖(prOverSpans — 한 줄 W칸을 넘어 꺾일 부분 · 묶음의 4번째 화면 줄부터).
    입력칸 = 글자가 투명한 textarea + 같은 서식의 뒤 글자층(.pmBk — 높이를 정하고, 빨간 구간만 span). 글꼴은 기기 기본 글꼴이고,
@@ -12860,7 +12862,7 @@ async function prAI(opts){
    ⚠ 실제 안경(사역 안경 앱)의 기본 프롬프터는 글자 크기를 한 가지로만 그리고 강조 구간만 밝게 한다(SDK DEVICE_BUSINESS_PROTOCOL 0x04) —
    그래서 v702 부터 이 작성창도 위아래 줄을 같은 크기로 흐리게만 그린다(목사님이 실기기로 확인 — 안경은 우리 편집 화면처럼 그리지 못한다). */
 var PM_GEO = { w: 600, line: 540, lh: 1.42, ctx: 1, gap: 6, padY: 6, pad: .15, max: 920 };   /* v702 ctx 1 = 위아래 줄도 같은 글자 크기(안경과 같게). v703 위 3줄 — 7줄이 600×350 안에 들게 여백(gap·padY)과 상자 안쪽 여백(pad × 한 칸)을 줄였다 */
-var PM_LINES = 3, PM_CTX_PREV = 3, PM_CTX_NEXT = 1, PM_FONT = '-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif';
+var PM_LINES = 3, PM_CTX_PREV = 3, PM_CTX_NEXT = 2, PM_FONT = '-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif';
 var PM_SEP = /\n[ \t　​]*\n/;
 var _pm = { comp: null, blocks: [''], cur: 0, auto: '', base: '', mode: 'page' };
 try { if (localStorage.getItem('tsa.pmMode') === 'all') _pm.mode = 'all'; } catch (e) {}
@@ -12929,17 +12931,20 @@ function pmLayout(){
   var cell = PM_GEO.line * s / cols, fs = cell / cal.h, ws = .35 * cell - cal.s * fs;
   var cfs = fs * PM_GEO.ctx, cws = .35 * cell * PM_GEO.ctx - cal.s * cfs, st = v.style;
   function px(n){ return (Math.round(n * 100) / 100) + 'px'; }
-  st.setProperty('--pmW', px(W)); st.setProperty('--pmH', px(W * 350 / 600));
+  /* v736 위 3 · 상자 3 · 아래 2 = 8줄 — 화면(600×350) 높이에서 여백·상자 테두리를 뺀 만큼에 들지 않으면 줄 간격만 좁힌다(1.15 밑으로는 안 줄임) */
+  var H = W * 350 / 600, room = H - 2 * PM_GEO.padY * s - 2 * PM_GEO.gap * s - 2 * cell * PM_GEO.pad - 3;
+  var lh = Math.max(1.15, Math.min(PM_GEO.lh, room / (fs * PM_LINES + cfs * (PM_CTX_PREV + PM_CTX_NEXT))));
+  st.setProperty('--pmW', px(W)); st.setProperty('--pmH', px(H));
   st.setProperty('--pmTxt', px(cell * cols * 1.02));   /* +2% — 기기 글꼴과 안경 글꼴의 작은 차이로 경계에서 미리 꺾이지 않게(넘침 판정은 계산으로) */
-  st.setProperty('--pmFs', px(fs)); st.setProperty('--pmLh', px(fs * PM_GEO.lh)); st.setProperty('--pmWs', px(ws));
-  st.setProperty('--pmCfs', px(cfs)); st.setProperty('--pmClh', px(cfs * PM_GEO.lh)); st.setProperty('--pmCws', px(cws));
+  st.setProperty('--pmFs', px(fs)); st.setProperty('--pmLh', px(fs * lh)); st.setProperty('--pmWs', px(ws));
+  st.setProperty('--pmCfs', px(cfs)); st.setProperty('--pmClh', px(cfs * lh)); st.setProperty('--pmCws', px(cws));
   st.setProperty('--pmPad', px(cell * PM_GEO.pad)); st.setProperty('--pmGap', px(PM_GEO.gap * s)); st.setProperty('--pmPadY', px(PM_GEO.padY * s));
   /* v699 카드 띠 — 넓으면 5장(좁으면 3장)이 보이게. v700: 카드 = 위 화면을 같은 비율(k)로 줄인 것 */
   var cn = W >= 560 ? 5 : 3, cg = Math.max(6, 10 * s), cw = (W - cg * (cn - 1)) / cn, k = cw / W;
   st.setProperty('--pmCw', px(cw)); st.setProperty('--pmCg', px(cg)); st.setProperty('--pmCside', px((W - cw) / 2));
   st.setProperty('--pmMh', px(cw * 350 / 600)); st.setProperty('--pmMpy', px(PM_GEO.padY * s * k));
   st.setProperty('--pmMtxt', px(cell * cols * 1.02 * k)); st.setProperty('--pmMpad', px(cell * PM_GEO.pad * k)); st.setProperty('--pmMgap', px(PM_GEO.gap * s * k));
-  st.setProperty('--pmMfs', px(fs * k)); st.setProperty('--pmMlh', px(fs * k * PM_GEO.lh)); st.setProperty('--pmMws', px(ws * k));
+  st.setProperty('--pmMfs', px(fs * k)); st.setProperty('--pmMlh', px(fs * k * lh)); st.setProperty('--pmMws', px(ws * k));
   var sp = v.querySelector('.pmStrip'); if (sp) pmStripCenter(sp, true);
 }
 /* v699 묶음 카드 띠 — 묶음마다 작은 안경 화면(3줄). 지금 묶음이 가운데 오게 띠를 옮긴다. 글이 바뀌었을 때만 다시 그린다(_pmStripSig) */
@@ -13062,7 +13067,7 @@ function pmPaint(caret){
   for (i = _pm.cur - 1; i >= 0 && prev.length < PM_CTX_PREV; i--) prev = pmScreenLines(_pm.blocks[i], cols).concat(prev);
   for (j = _pm.cur + 1; j < n && next.length < PM_CTX_NEXT; j++) next = next.concat(pmScreenLines(_pm.blocks[j], cols));
   v.querySelector('.pmPrev').innerHTML = pmCtxHtml(prev.slice(-PM_CTX_PREV), true, PM_CTX_PREV);   /* v703 위 3줄(v702 는 2줄) */
-  v.querySelector('.pmNext').innerHTML = pmCtxHtml(next.slice(0, PM_CTX_NEXT), false, PM_CTX_NEXT);   /* · 아래 1줄 */
+  v.querySelector('.pmNext').innerHTML = pmCtxHtml(next.slice(0, PM_CTX_NEXT), false, PM_CTX_NEXT);   /* · 아래 2줄(v736, v735 까지 1줄) */
   var ta = v.querySelector('.pmPage .pmTa'), val = String(_pm.blocks[_pm.cur] || '');
   if (ta.value !== val) ta.value = val;
   ta.placeholder = empty && n === 1 ? '카드원고가 아직 없습니다 — [카드원고]를 먼저 만들면 자동으로 채워집니다. 여기에 직접 써도 됩니다.' : '';
@@ -13207,7 +13212,7 @@ function pmEditorHtml(){
         '<button class="btn sub mini" type="button" data-pm="fitall">넘친 줄 모두 정리</button></div>' +
       '<div class="cdHelpTx">' +
         '· 검은 화면 = MemoMind One 안경 화면(600×350)과 같은 비율입니다. 가운데 상자가 안경에서 한 번에 강조되는 <b>3줄</b>(한 줄 ' + o.width + '칸)이고, 글자 크기도 안경과 같은 비율입니다.<br>' +
-        '· 안경처럼 상자 위 <b>세 줄</b> = 바로 앞에 읽은 글의 끝, 아래 <b>한 줄</b> = 다음에 읽을 글의 시작(같은 글자 크기로 흐리게). 줄은 모두 가운데 정렬입니다. 누르면 그 묶음으로 갑니다.<br>' +
+        '· 비전로고스 안경 화면처럼 상자 위 <b>세 줄</b> = 바로 앞에 읽은 글의 끝, 아래 <b>두 줄</b> = 다음에 읽을 글의 시작(같은 글자 크기로 흐리게). 줄은 모두 가운데 정렬입니다. 누르면 그 묶음으로 갑니다.<br>' +
         '· <span class="pmOverTx">빨간 글자</span> = 안경 한 화면 밖(한 줄 칸 수를 넘어 꺾이거나 4번째 줄부터) — [넘친 줄 정리]로 나누거나, 고치지 않으면 [본문 복사] 때 자동으로 나눕니다.<br>' +
         '· 첫·끝 줄에서 <b>↑↓</b> · <b>⌥↑⌥↓</b> · PageUp/PageDown = 묶음 이동 · <b>⌘↩</b>(Ctrl+Enter) = 커서에서 나누기 · 맨 앞 <b>⌫</b> = 앞 묶음과 합치기 · 3줄이 찬 묶음 끝에서 <b>↩</b> 또는 빈 줄(↩ 두 번) = 새 묶음 · <b>⇧↩</b> = 묶음 안 줄바꿈.<br>' +
         '· 화면 아래 작은 카드 = 묶음마다 읽는 영역(3줄)을 위 화면과 같은 비율로 줄인 것입니다. 가운데가 지금 묶음, 왼쪽이 앞 묶음들, 오른쪽이 뒤 묶음들입니다(빨간 테두리 = 넘침). 옆으로 밀어 더 볼 수 있습니다.<br>' +
@@ -35987,7 +35992,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v735';
+var APP_VER = 'v736';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
