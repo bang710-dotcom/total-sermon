@@ -12923,14 +12923,12 @@ function pmCalib(){
   _pmCal = { h: h > 20 ? h / 100 : 1, s: sp >= 0 && sp < 100 ? sp / 100 : .3 };
   return _pmCal;
 }
-/* 화면 크기 — 작성창 폭에 맞춰 안경 화면(600 기준)을 늘이고 줄인다. 한 줄 = W칸 = 화면 폭의 90% */
-function pmLayout(){
-  var v = pmView(); if (!v) return;
-  var pane = $('#editorPane'), cols = prOpt().width, cal = pmCalib();
-  var W = Math.max(260, Math.min((pane.clientWidth || 600) - 2, PM_GEO.max)), s = W / PM_GEO.w;
+function pmPx(n){ return (Math.round(n * 100) / 100) + 'px'; }
+/* 안경 화면 한 장(폭 W px, 600×350 비율)의 글자 크기·줄 간격을 el 의 --pm* 로 — 작성창(pmLayout)과 연습 화면(pmPrLayout, v737) 공용 */
+function pmGeomSet(el, W, cols){
+  var cal = pmCalib(), s = W / PM_GEO.w, st = el.style, px = pmPx;
   var cell = PM_GEO.line * s / cols, fs = cell / cal.h, ws = .35 * cell - cal.s * fs;
-  var cfs = fs * PM_GEO.ctx, cws = .35 * cell * PM_GEO.ctx - cal.s * cfs, st = v.style;
-  function px(n){ return (Math.round(n * 100) / 100) + 'px'; }
+  var cfs = fs * PM_GEO.ctx, cws = .35 * cell * PM_GEO.ctx - cal.s * cfs;
   /* v736 위 3 · 상자 3 · 아래 2 = 8줄 — 화면(600×350) 높이에서 여백·상자 테두리를 뺀 만큼에 들지 않으면 줄 간격만 좁힌다(1.15 밑으로는 안 줄임) */
   var H = W * 350 / 600, room = H - 2 * PM_GEO.padY * s - 2 * PM_GEO.gap * s - 2 * cell * PM_GEO.pad - 3;
   var lh = Math.max(1.15, Math.min(PM_GEO.lh, room / (fs * PM_LINES + cfs * (PM_CTX_PREV + PM_CTX_NEXT))));
@@ -12939,6 +12937,14 @@ function pmLayout(){
   st.setProperty('--pmFs', px(fs)); st.setProperty('--pmLh', px(fs * lh)); st.setProperty('--pmWs', px(ws));
   st.setProperty('--pmCfs', px(cfs)); st.setProperty('--pmClh', px(cfs * lh)); st.setProperty('--pmCws', px(cws));
   st.setProperty('--pmPad', px(cell * PM_GEO.pad)); st.setProperty('--pmGap', px(PM_GEO.gap * s)); st.setProperty('--pmPadY', px(PM_GEO.padY * s));
+  return { s: s, cell: cell, fs: fs, ws: ws, lh: lh };
+}
+/* 화면 크기 — 작성창 폭에 맞춰 안경 화면(600 기준)을 늘이고 줄인다. 한 줄 = W칸 = 화면 폭의 90% */
+function pmLayout(){
+  var v = pmView(); if (!v) return;
+  var pane = $('#editorPane'), cols = prOpt().width, st = v.style, px = pmPx;
+  var W = Math.max(260, Math.min((pane.clientWidth || 600) - 2, PM_GEO.max));
+  var g = pmGeomSet(v, W, cols), s = g.s, cell = g.cell, fs = g.fs, ws = g.ws, lh = g.lh;
   /* v699 카드 띠 — 넓으면 5장(좁으면 3장)이 보이게. v700: 카드 = 위 화면을 같은 비율(k)로 줄인 것 */
   var cn = W >= 560 ? 5 : 3, cg = Math.max(6, 10 * s), cw = (W - cg * (cn - 1)) / cn, k = cw / W;
   st.setProperty('--pmCw', px(cw)); st.setProperty('--pmCg', px(cg)); st.setProperty('--pmCside', px((W - cw) / 2));
