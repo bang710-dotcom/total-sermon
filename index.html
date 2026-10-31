@@ -2518,6 +2518,22 @@ body.focusMode #refInsBar{bottom:72px}
 .pmOverTx{color:var(--bad);font-weight:600}
 .pmUnsaved{color:var(--warn);font-weight:600}
 .pmHelp{width:var(--pmW,600px);max-width:100%;margin:14px auto 0}
+/* v737 프롬프터 연습 — 안경 화면을 화면 가득. 부품은 작성창 한 장씩 보기(.pmView .pmPage .pmScr) 그대로, 크기는 pmPrLayout 이 --pm* 로 */
+#pmPrOv{position:fixed;inset:0;z-index:9985;display:flex;align-items:center;justify-content:center;background:var(--gl-bg);outline:none;
+  touch-action:none;user-select:none;-webkit-user-select:none;cursor:default}
+#pmPrOv:not(.ui){cursor:none}
+#pmPrOv .pmPage{width:100%}
+#pmPrOv .pmScr{border-radius:0;box-shadow:none}
+#pmPrOv .pmCtx,#pmPrOv .pmCtx:hover{cursor:inherit;color:color-mix(in srgb,var(--gl-ink) 40%,var(--gl-bg))}
+.pmPrPos{position:absolute;left:50%;bottom:max(6px,env(safe-area-inset-bottom));transform:translateX(-50%);font-size:var(--fs-sm);
+  color:color-mix(in srgb,var(--gl-ink) 58%,var(--gl-bg));font-variant-numeric:tabular-nums;pointer-events:none}
+.pmPrHint{position:absolute;left:50%;top:max(10px,env(safe-area-inset-top));transform:translateX(-50%);max-width:calc(100% - 120px);font-size:var(--fs-sm);
+  color:color-mix(in srgb,var(--gl-ink) 70%,var(--gl-bg));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .3s;pointer-events:none}
+.pmPrX{position:absolute;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  margin:0;padding:0;border:1px solid color-mix(in srgb,var(--gl-ink) 34%,var(--gl-bg));border-radius:var(--r-pill);background:var(--gl-bg);color:var(--gl-ink);
+  font:inherit;font-size:var(--fs-lg);cursor:pointer;opacity:0;transition:opacity .3s}
+#pmPrOv.ui .pmPrHint,#pmPrOv.ui .pmPrX,.pmPrX:focus-visible{opacity:1}
+@media (hover:none){.pmPrX{opacity:.7}}
 .pmSet{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:10px 0;font-size:var(--fs-sm);color:var(--text)}
 .pmSet label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
 .pmSet input[type=number]{width:58px;padding:5px 6px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--text);font:inherit}
@@ -3750,7 +3766,7 @@ function anyOverlayOpen(){
     var r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1;
   }
-  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'illViewOv', 'histOv', 'arOv', 'calOv', 'uiDlgOv', 'penPad', 'frOv', 'noteOv', 'citeOv'];
+  var ids = ['studyOv', 'brefOv', 'featOv', 'illOv', 'illReqOv', 'illViewOv', 'histOv', 'arOv', 'calOv', 'uiDlgOv', 'penPad', 'frOv', 'noteOv', 'citeOv', 'pmPrOv'];
   for (var i = 0; i < ids.length; i++){ if (vis(document.getElementById(ids[i]))) return true; }
   return false;
 }
@@ -13224,6 +13240,7 @@ function pmEditorHtml(){
         '· 화면 아래 작은 카드 = 묶음마다 읽는 영역(3줄)을 위 화면과 같은 비율로 줄인 것입니다. 가운데가 지금 묶음, 왼쪽이 앞 묶음들, 오른쪽이 뒤 묶음들입니다(빨간 테두리 = 넘침). 옆으로 밀어 더 볼 수 있습니다.<br>' +
         '· 카드를 누르면 그 묶음이 가운데로 오고 띠가 <b>켜집니다</b>(밝은 테두리). 켜진 동안 <b>방향키</b>(← → 또는 ↑ ↓)로 한 묶음씩, Home·End 로 처음·끝으로 옮기고, <b>↩</b> 를 누르면 그 묶음을 고칩니다. 다른 곳을 누르거나 Esc 를 누르면 꺼져 방향키가 카드를 옮기지 않습니다.<br>' +
         '· [전체 글] = 빈 줄로 묶음을 나눈 글 전체를 한 번에 고칩니다(붙여넣기·많이 고칠 때).<br>' +
+        '· 머리줄 <b>[미리보기]</b> = 안경 화면을 화면 가득 띄워 연습합니다 — <b>→ ↓ Space</b> 다음 · <b>← ↑</b> 이전 · Home·End 처음·끝 · <b>Esc</b> 닫기(화면 오른쪽을 누르거나 옆으로 밀어도 됩니다). 안경에 실제로 가는 모양(넘친 줄은 꺾고 나눈 것)으로 보이고, 닫으면 작성창이 연습을 마친 묶음으로 갑니다.<br>' +
         '· 고친 글은 원고처럼 <b>[저장]</b>하면 시트(「프롬프터원고」 칸)에 함께 저장되어 다른 기기와 사역 안경 앱에서도 읽습니다. 고치지 않았으면 카드원고가 바뀔 때 따라 바뀝니다.<br>' +
         '· 안경의 기본 프롬프터는 글자 크기를 한 가지로 그리고 강조한 3줄만 밝게 합니다 — 이 작성창도 그대로 맞췄습니다.' +
       '</div></details>' +
@@ -13332,6 +13349,115 @@ async function pmAct(op, b){
     }).observe(pane);
   }
   try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ _pmCal = null; if (state.compose && state.compose.style === '프롬프터') pmLayout(); }); } catch (e) {}
+})();
+/* ── v737 프롬프터 연습 (목사님 요청 2026-11-01) — 프롬프터 보기에서 머리줄 [미리보기]를 누르면 안경 화면을 화면 가득(되면 브라우저 전체 화면) 띄우고 키보드로 넘긴다.
+   글 = 안경에 실제로 가는 묶음(prFromEdit — 한 줄 W칸을 넘는 줄은 꺾고 3줄 넘는 묶음은 나눈 것)이라, 작성창의 빨간 넘침이 안경에서 어떻게 보일지도 여기서 본다.
+   모양 = 작성창 한 장씩 보기와 같은 부품(위 3줄 · 상자 3줄 · 아래 2줄, 크기는 pmGeomSet). 글은 바꾸지 않는다.
+   키: → ↓ Space PageDown Enter = 다음 · ← ↑ ⇧Space PageUp Backspace = 이전 · Home·End = 처음·끝 · Esc = 닫기(전체 화면이면 브라우저가 먼저 풀고 그때 닫힌다).
+   누르기: 화면 왼쪽 1/3 = 이전, 나머지 = 다음, 옆으로 밀기도. 닫으면 작성창이 연습을 마친 묶음으로 간다. */
+var _pmPr = null;
+function pmPrBuild(){
+  if (_pm.comp !== state.compose) pmLoad();
+  var cols = prOpt().width, B = [], map = [], start = -1;
+  _pm.blocks.forEach(function(t, ei){
+    if (!String(t == null ? '' : t).trim()) return;
+    if (start < 0 && ei >= _pm.cur) start = B.length;
+    prFromEdit(t, cols).blocks.forEach(function(b){ B.push(b.filter(function(l){ return l !== PR_SPACER; })); map.push(ei); });
+  });
+  return { B: B, map: map, i: Math.max(0, Math.min(B.length - 1, start < 0 ? B.length - 1 : start)) };
+}
+function pmPrLayout(){
+  var P = _pmPr; if (!P) return;
+  var vw = window.innerWidth, vh = window.innerHeight, m = Math.round(Math.max(12, Math.min(vw, vh) * .03));
+  pmGeomSet(P.ov, Math.max(260, Math.min(vw - 2 * m, (vh - 2 * m) * 600 / 350)), prOpt().width);
+}
+function pmPrPaint(){
+  var P = _pmPr; if (!P) return;
+  var B = P.B, i = P.i, n = B.length, prev = [], next = [], j, ov = P.ov;
+  for (j = i - 1; j >= 0 && prev.length < PM_CTX_PREV; j--) prev = B[j].concat(prev);
+  for (j = i + 1; j < n && next.length < PM_CTX_NEXT; j++) next = next.concat(B[j]);
+  ov.querySelector('.pmPrev').innerHTML = pmCtxHtml(prev.slice(-PM_CTX_PREV), true, PM_CTX_PREV);
+  ov.querySelector('.pmNext').innerHTML = pmCtxHtml(next.slice(0, PM_CTX_NEXT), false, PM_CTX_NEXT);
+  ov.querySelector('.pmBk').textContent = (B[i] || []).join('\n');
+  ov.querySelector('.pmPrPos').textContent = (i + 1) + ' / ' + n;
+}
+function pmPrGo(i){
+  var P = _pmPr; if (!P) return;
+  i = Math.max(0, Math.min(P.B.length - 1, i)); if (i === P.i) return;
+  P.i = i; pmPrPaint();
+}
+/* 닫기 단추·안내는 마우스를 움직이거나 처음 열 때만 잠깐(그 밖엔 마우스 포인터도 숨김) */
+function pmPrUi(){
+  var P = _pmPr; if (!P) return;
+  P.ov.classList.add('ui'); clearTimeout(P.uiT);
+  P.uiT = setTimeout(function(){ if (_pmPr === P) P.ov.classList.remove('ui'); }, 2600);
+}
+function pmPractice(){
+  if (_pmPr) return;
+  var d = pmPrBuild();
+  if (!d.B.length) { toast('연습할 프롬프터 원고가 없습니다 — 원고를 쓰거나 [카드원고]를 먼저 만드세요.'); return; }
+  var ov = document.createElement('div');
+  ov.id = 'pmPrOv'; ov.className = 'pmView'; ov.tabIndex = -1;
+  ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', '프롬프터 연습 — 안경 화면');
+  ov.innerHTML = '<div class="pmPage"><div class="pmScr">' +
+      '<div class="pmCtx pmPrev" aria-hidden="true"></div>' +
+      '<div class="pmBox" aria-live="polite"><div class="pmBk"></div></div>' +
+      '<div class="pmCtx pmNext" aria-hidden="true"></div></div></div>' +
+    '<div class="pmPrPos" aria-hidden="true"></div>' +
+    '<div class="pmPrHint">' + (matchMedia('(hover: none)').matches ? '오른쪽을 누르면 다음 · 왼쪽은 이전 · ✕ 닫기' : '→ ↓ Space 다음 · ← ↑ 이전 · Esc 닫기') + '</div>' +
+    '<button type="button" class="pmPrX" aria-label="연습 닫기 (Esc)" title="닫기 (Esc)">✕</button>';
+  document.body.appendChild(ov);
+  var P = _pmPr = { ov: ov, B: d.B, map: d.map, i: d.i, opener: document.activeElement, bodyOv: document.body.style.overflow, fsOn: false, uiT: 0, px: null, py: null };
+  document.body.style.overflow = 'hidden';
+  pmPrLayout(); pmPrPaint(); pmPrUi();
+  try { ov.focus({ preventScroll: true }); } catch (e) {}
+  ov.addEventListener('mousemove', pmPrUi);
+  ov.querySelector('.pmPrX').addEventListener('click', function(e){ e.stopPropagation(); pmPrClose(); });
+  ov.addEventListener('pointerdown', function(e){ P.px = e.clientX; P.py = e.clientY; });
+  ov.addEventListener('pointerup', function(e){
+    if (_pmPr !== P || (e.pointerType === 'mouse' && e.button !== 0) || (e.target.closest && e.target.closest('.pmPrX'))) return;
+    var dx = P.px == null ? 0 : e.clientX - P.px, dy = P.py == null ? 0 : e.clientY - P.py; P.px = P.py = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) pmPrGo(P.i + (dx < 0 ? 1 : -1));   /* 왼쪽으로 밀면 다음 */
+    else pmPrGo(P.i + (e.clientX < window.innerWidth / 3 ? -1 : 1));
+  });
+  if (!(document.fullscreenElement || document.webkitFullscreenElement)) fmRequestFull();   /* [미리보기]를 누른 바로 그 동작 안이라 허용된다 */
+}
+function pmPrClose(){
+  var P = _pmPr; if (!P) return;
+  _pmPr = null; clearTimeout(P.uiT);
+  P.ov.remove(); document.body.style.overflow = P.bodyOv || '';
+  if (P.fsOn) fmExitFull();
+  var ei = P.map[P.i];
+  if (ei != null && state.compose && state.compose.style === '프롬프터' && pmView()) { if (_pm.mode === 'page') pmGo(ei); else _pm.cur = ei; }
+  var op = P.opener;
+  if (op && document.body.contains(op) && op.offsetParent !== null) try { op.focus({ preventScroll: true }); } catch (e) {}
+}
+(function(){
+  /* 연습창이 떠 있는 동안 키는 모두 여기서 끝낸다(뒤의 작성창·빠른 실행 등으로 가지 않게) — ⌘·Ctrl 조합은 브라우저 동작만 남긴다 */
+  window.addEventListener('keydown', function(e){
+    var P = _pmPr; if (!P) return;
+    e.stopImmediatePropagation();
+    if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+    var k = e.key, to = null;
+    if (k === 'Escape') { e.preventDefault(); pmPrClose(); return; }
+    if (k === 'Tab') { e.preventDefault(); pmPrUi(); try { P.ov.querySelector('.pmPrX').focus(); } catch (x) {} return; }
+    if ((k === 'Enter' || k === ' ') && document.activeElement && document.activeElement.classList.contains('pmPrX')) { e.preventDefault(); pmPrClose(); return; }
+    if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === 'Enter' || (k === ' ' && !e.shiftKey)) to = P.i + 1;
+    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace' || (k === ' ' && e.shiftKey)) to = P.i - 1;
+    else if (k === 'Home') to = 0;
+    else if (k === 'End') to = P.B.length - 1;
+    if (to == null) return;
+    e.preventDefault(); pmPrGo(to);
+  }, true);
+  function fsChange(){
+    var P = _pmPr; if (!P) return;
+    if (document.fullscreenElement || document.webkitFullscreenElement) P.fsOn = true;
+    else if (P.fsOn) { P.fsOn = false; pmPrClose(); return; }   /* Esc 로 전체 화면이 풀리면 연습도 닫는다(브라우저가 그 Esc 를 페이지에 넘기지 않는다) */
+    pmPrLayout();
+  }
+  document.addEventListener('fullscreenchange', fsChange);
+  document.addEventListener('webkitfullscreenchange', fsChange);
+  window.addEventListener('resize', function(){ if (_pmPr) pmPrLayout(); });
 })();
 
 /* ── 측정(실제 쪽과 같은 글꼴·크기 비율) ── */
@@ -30889,6 +31015,7 @@ function saveComposeFinal(data){
   });
 }
 $('#c_preview').addEventListener('click', function(){
+  if (state.compose.style === '프롬프터') { pmPractice(); return; }   /* v737 프롬프터 보기 = 안경 화면을 화면 가득 띄워 연습 */
   var data = collectCompose();
   if (state.compose.style === '카드원고') { cardPreview(data); return; }   /* v635 카드원고 문서 — 카드 한 장 = 한 쪽 */
   var built = parasFromCompose(data, state.compose);
@@ -35998,7 +36125,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v736';
+var APP_VER = 'v737';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
