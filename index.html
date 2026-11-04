@@ -23956,7 +23956,10 @@ window.requestTransDoc = function(){
    · 전환 바 #EE0000 흰 볼드 · 성경 인용 빨강 · 예화 파랑.
    이미지는 이미 저장해 둔 백스테이지 zip(NN.png)에서 읽는다(새로 만들지 않는다). */
 var TPDF_PG = { w: 216, h: 290, m: 10 };   /* mm — 전환표시본 용지·여백과 동일 */
+/* v739 설교양식 B형 = 표준 A4(목사님: 「A형 216×290 은 아이패드용 맞춤이라 한국 프린터가 못 뽑는 경우가 있다 — B형은 A4」). buildTransPdfBlob 이 만들 때 고른다 */
+var TPDF_PG_A = TPDF_PG, TPDF_PG_B = { w: 210, h: 297, m: 20 };
 var TPDF_FONT = "'함초롬바탕','HCR Batang','Gowun Batang','Nanum Myeongjo',serif";
+var TPDF_FONT_B = "'굴림','Gulim','Apple SD Gothic Neo','Malgun Gothic',sans-serif";
 function tpdfPx(mm){ return Math.round(mm * 96 / 25.4); }
 function ensureTransPdfFonts(){
   if (document.getElementById('tp-fonts')) return;
@@ -23966,7 +23969,7 @@ function ensureTransPdfFonts(){
 }
 function tpdfCss(cw, ch){
   return '.tp-page{box-sizing:border-box;position:relative;width:' + cw + 'px;height:' + ch + 'px;overflow:hidden;'
-    + 'background:#fff;color:#000;font-family:' + TPDF_FONT + ';font-size:16px;line-height:1.9}'
+    + 'background:#fff;color:#000;font-family:' + (isFormB() ? TPDF_FONT_B : TPDF_FONT) + ';font-size:16px;line-height:1.9}'
     + '.tp-page p{margin:0;text-align:justify;word-break:keep-all}'
     + '.tp-b{font-weight:700}'
     + '.tp-ind{text-indent:2em}'
@@ -24186,6 +24189,7 @@ function tpdfBlocks(paras, imgMap){
   return out;
 }
 async function buildTransPdfBlob(meta, body, imgMap){
+  TPDF_PG = isFormB() ? TPDF_PG_B : TPDF_PG_A;   /* v739 B형 = A4 */
   await loadPdfLibs(); ensureTransPdfFonts();
   try { await document.fonts.load("16px 'Gowun Batang'"); await document.fonts.ready; } catch (e) {}
   var style = msStyleOf(meta);
@@ -24231,7 +24235,8 @@ async function buildTransPdfBlob(meta, body, imgMap){
       if (hasTextFont) tpdfDrawTextLayer(pdf, pages[p]);   /* ★ 하이라이트·밑줄·검색이 되도록 글자를 얹는다 */
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(9); pdf.setTextColor(90);
-      pdf.text('- ' + (p + 1) + ' -', TPDF_PG.w / 2, TPDF_PG.h - 4.5, { align: 'center' });
+      if (isFormB()) pdf.text('- ' + (p + 1) + ' -', TPDF_PG.w - TPDF_PG.m, TPDF_PG.m - 7, { align: 'right' });   /* v739 B형 — 오른쪽 위 */
+      else pdf.text('- ' + (p + 1) + ' -', TPDF_PG.w / 2, TPDF_PG.h - 4.5, { align: 'center' });
     }
     return pdf.output('blob');
   } finally { document.body.removeChild(host); }
