@@ -3358,6 +3358,12 @@ body.focusMode #refInsBar{bottom:72px}
           <button type="button" class="chip" data-fmt="hwpx">HWPX (한글)</button>
           <button type="button" class="chip" data-fmt="docx">DOCX (워드)</button>
         </div>
+        <div class="setHl" style="margin-top:14px"><label>설교양식</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+        <div class="hlpTx" hidden>AI 원고 작성·원고 내보내기·파일 제목이 따를 양식입니다. A형은 지금까지의 양식(대지 = 변화의 지침, 적용·실천·정리, 「말씀을 정리합니다」, 216×290mm 함초롬바탕, 대지 굵게·예화 파랑·인용 빨강 굵게, 파일 이름 「20261018_주일_제목_본문」)입니다. B형은 「최한윤 설교 양식 참고 자료」 원고 9편에서 뽑은 양식(인사·삶의 장면·예화로 문 열기, 절 순서를 따르는 대지 「1. … (1-4절)」, 「결론」, 설교후 기도·봉헌기도·축도, A4 굴림 13pt, 머리 두 줄, 인용 빨강, 오른쪽 위 쪽번호, 파일 이름 「10월 18일 주일설교 (창12장 10~20절, 감사함의 이유)」)입니다. 카드원고·프롬프터·LTC 교재는 양식과 상관없이 그대로입니다. 고르는 즉시 저장되고 다른 기기와 공유됩니다.</div>
+        <div class="chips" id="formChips">
+          <button type="button" class="chip" data-form="A">A형 (기본)</button>
+          <button type="button" class="chip" data-form="B">B형</button>
+        </div>
         <div class="setHl" style="margin-top:14px"><label for="imgEngineSel">설교 이미지 AI</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>배경 컷을 만들 엔진입니다. Flux 는 분위기·질감 배경, Gemini(Nano Banana)는 더 사실적이고 디테일한 배경, Krea 2 Turbo 는 회화적인 질감에 강하고 장당 비용이 가장 낮습니다(약 $0.02). Gemini·Krea 는 fal.ai 를 거칩니다. 고르는 즉시 저장되고 다른 기기와 공유됩니다.</div>
         <select id="imgEngineSel">
