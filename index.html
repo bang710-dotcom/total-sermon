@@ -17949,6 +17949,13 @@ function hwpxXmlToText(xml){
 /* ── 산출물 파일 형식: 기본 HWPX(한글), 설정에서 DOCX로 되돌릴 수 있음 ── */
 function outFmt(){ return ((state.settings || {}).fileFmt === 'docx') ? 'docx' : 'hwpx'; }
 function outExt(){ return '.' + outFmt(); }
+/* ── 설교양식 A/B (v739, 2026-11-04 목사님 요청) — 설정 → 산출물 → 설교양식(#formChips). 기본 A형.
+   B형 = 「최한윤 설교 양식 참고 자료」 원고 9편에서 뽑은 양식(스킬 ~/.claude/skills/sermon-form-b/SKILL.md).
+   B형이면 바뀌는 것: 완성 원고 AI(P_MS_B — aiManuscript·docGenMs) · 개요 선택지의 대지(formOutlineP — 시리즈·상황·주제) ·
+   설교 대화/Ask 지침(sysFor) · 원고 내보내기(parasFromCompose·parasFromText → B 문단, hwpx/templates/manuscript_b.hwpx, DOCX 'B원고', 미리보기, 전환표시본) ·
+   파일 제목(sermonFileBase). 카드원고·프롬프터·LTC·설교노트·이미지자료 문서는 그대로(B형 참고 원고가 없다). 다른 기기와 공유(VAULT_FIELDS 'sermonForm'). */
+function sermonForm(){ return ((state.settings || {}).sermonForm === 'B') ? 'B' : 'A'; }
+function isFormB(){ return sermonForm() === 'B'; }
 function isDocOut(name){ return /\.(docx|hwpx)$/i.test(String(name || '')); }
 
 /* ── DOCX 문단 모델({text,bold,color,size,bar}) → hwpx 블록 ── */
@@ -23231,8 +23238,42 @@ function seriesTag(meta, legacy){
   no = no.replace(/[^\d]/g, '');                         /* '3회' → '3' */
   return ser.replace(/\s+/g, '') + no;
 }
-/* 설교 파일명 규칙: "YYYYMMDD 원고형태_설교장소_(시리즈번호)제목_본문" */
-function sermonFileBase(meta, type, legacy){
+/* v739 B형 파일 제목 — 「10월 18일 주일설교 (창12장 10~20절, 감사함의 이유)」(B형 참고 원고의 이름 규칙, 스킬 sermon-form-b 2장).
+   연도·시리즈는 넣지 않는다(참고 원고가 그렇다). 딸린 파일은 뒤에 빈칸 + 종류(「… 감사함의 이유) 카드원고」·「… 전환표」). */
+function formBService(svc){
+  svc = String(svc || '').trim();
+  if (!svc || /^주일(예배)?$/.test(svc)) return '주일설교';
+  if (/(설교|예배|철야|기도회|집회)$/.test(svc)) return svc;
+  return svc + '설교';
+}
+/* "창세기 12:10-20"·"창 12:10-20" → "창12장 10~20절" / "수 5:13-6:7" → "수5장 13절~6장 7절" / "요 3:16" → "요3장 16절".
+   여러 본문(「;」로 나눔)은 첫 본문만. 성구로 읽지 못하면 ':' 만 「장 」으로 바꿔 그대로 쓴다. */
+function formBRefName(ref){
+  var s = String(ref || '').trim(); if (!s) return '';
+  var first = s.split(';')[0].trim();
+  var m = first.match(new RegExp('^(' + BOOKS + ')\\s*(\\d+)\\s*[:장]\\s*(\\d+)[a-zA-Z]?(?:\\s*[-~]\\s*(?:(\\d+)\\s*[:장]\\s*)?(\\d+)[a-zA-Z]?)?'));
+  if (!m) return first.replace(/\s*:\s*/g, '장 ');
+  var out = bookAbbrOf(m[1]) + m[2] + '장 ';
+  if (m[5] && m[4]) out += m[3] + '절~' + m[4] + '장 ' + m[5] + '절';
+  else if (m[5]) out += m[3] + '~' + m[5] + '절';
+  else out += m[3] + '절';
+  return out;
+}
+function sermonFileBaseB(meta, type){
+  function san(s){ return String(s || '').replace(/[\\/:*?"<>|]/g, '').replace(/\.+$/, '').trim(); }
+  var dm = String(meta['날짜'] || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  var day = dm ? (+dm[2]) + '월 ' + (+dm[3]) + '일 ' : '';
+  var svc = san(formBService(meta['예배구분']).replace(/[\\/]/g, '.'));
+  var ref = san(formBRefName(meta['본문']).replace(/[\\/]/g, '.'));
+  var title = san(meta['제목'] || '');
+  var inner = (ref && title) ? ref + ', ' + title : (ref || title);
+  var tp = san(type);
+  return san(day + svc + (inner ? ' (' + inner + ')' : '') + (tp ? ' ' + tp : ''));
+}
+/* 설교 파일명 규칙: "YYYYMMDD 원고형태_설교장소_(시리즈번호)제목_본문" — B형(v739)이면 sermonFileBaseB.
+   form 을 주면 그 양식으로(되읽기 후보용), 없으면 설정의 설교양식. */
+function sermonFileBase(meta, type, legacy, form){
+  if ((form || sermonForm()) === 'B') return sermonFileBaseB(meta, type);
   function san(s){ return String(s || '').replace(/[\\/:*?"<>|]/g, '').replace(/\.+$/, '').trim(); }
   var d = String(meta['날짜'] || '').replace(/-/g, '');
   var loc = san(meta['예배구분'] || '대학부');
@@ -23249,8 +23290,10 @@ function sermonFileBase(meta, type, legacy){
    저장은 항상 새 규칙 한 가지로만 하고, 찾을 때만 옛 이름도 함께 본다
    (번호 규칙을 고치기 전에 만들어 둔 전환표·컷 사이드카·백스테이지 zip을 잃지 않도록). */
 function sermonFileBases(meta, type){
-  var a = sermonFileBase(meta, type), b = sermonFileBase(meta, type, true);
-  return (a === b) ? [a] : [a, b];
+  /* v739: 설교양식을 바꿔도 다른 양식 이름으로 만든 전환표·컷 사이드카·백스테이지 zip 을 찾게 — 지금 양식 이름이 먼저 */
+  var all = [sermonFileBase(meta, type), sermonFileBase(meta, type, true),
+    sermonFileBase(meta, type, false, 'A'), sermonFileBase(meta, type, true, 'A'), sermonFileBase(meta, type, false, 'B')];
+  return all.filter(function(x, i){ return all.indexOf(x) === i; });
 }
 function sermonFileNames(meta, type, ext){
   return sermonFileBases(meta, type).map(function(b){ return b + (ext || ''); });
@@ -31949,6 +31992,25 @@ function paintFmtChips(){
   });
   paintFmtChips();
 })();
+/* 설교양식 칩(v739) — 누르는 즉시 저장하고 다른 기기와 공유(금고) */
+function paintFormChips(){
+  var box = $('#formChips'); if (!box) return;
+  var cur = sermonForm();
+  box.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-form') === cur); });
+}
+(function(){
+  var box = $('#formChips'); if (!box) return;
+  box.addEventListener('click', function(e){
+    var c = e.target.closest('.chip'); if (!c) return;
+    state.settings = state.settings || {};
+    if (c.getAttribute('data-form') === 'B') state.settings.sermonForm = 'B'; else delete state.settings.sermonForm;
+    save(LS.settings, state.settings);
+    paintFormChips();
+    if (typeof vaultTouch === 'function') vaultTouch();
+    toast('설교양식: ' + (isFormB() ? 'B형 — AI 원고·원고 내보내기·파일 제목이 B형으로 바뀝니다' : 'A형 (기본)'));
+  });
+  paintFormChips();
+})();
 /* 설정 화면의 연결 칸 → state.settings (v676: 칸을 벗어나면 저장, [저장하고 연결 확인]은 연결 확인까지).
    예전엔 칸 목록으로 설정 객체를 새로 만들어, 목록에 없는 값(기능별 모델 등)을 따로 살려야 했다 — 이제 기존 값 위에 덮는다. */
 var SET_INPUTS = { url: 'setUrl', token: 'setToken', claudeKey: 'setClaude', laUrl: 'setLaUrl', laToken: 'setLaToken',
@@ -31964,6 +32026,7 @@ function settingsPaint(){
   if ($('#imgEngineSel')) $('#imgEngineSel').value = s.imgEngine || 'flux';
   if ($('#imgScreensSel')) $('#imgScreensSel').value = s.imgScreens || 'both';
   if ($('#imgVignetteSel')) $('#imgVignetteSel').value = s.imgVignette ? 'on' : 'off';
+  try { paintFormChips(); } catch (eFm){}   /* v739 설교양식 — 금고·설정 코드로 값이 들어온 뒤에도 */
 }
 function settingsSaveFromInputs(opts){
   opts = opts || {};
@@ -32037,7 +32100,8 @@ var VAULT_FIELDS = [
   { k: 'imgEngine', n: '설교 이미지 AI' },
   { k: 'imgScreens', n: '강단 스크린 출력' },
   { k: 'imgVignette', n: '가장자리 비네팅' },
-  { k: 'aiModels', n: 'AI 기능별 모델' }
+  { k: 'aiModels', n: 'AI 기능별 모델' },
+  { k: 'sermonForm', n: '설교양식' }   /* v739 A형/B형 */
 ];
 function vaultField(k){ return VAULT_FIELDS.filter(function(F){ return F.k === k; })[0] || null; }
 function cfgModelsStr(o){
@@ -32055,6 +32119,7 @@ function cfgGet(k){
   if (k === 'aiModels') return cfgModelsStr(s.aiModels);
   if (k === 'imgEngine') return (s.imgEngine === 'gemini' || s.imgEngine === 'krea') ? s.imgEngine : '';
   if (k === 'imgScreens') return (s.imgScreens === 'wide' || s.imgScreens === 'side') ? s.imgScreens : '';
+  if (k === 'sermonForm') return s.sermonForm === 'B' ? 'B' : '';   /* v739 기본(A형) = '' */
   return String(s[k] || '').trim();
 }
 function cfgSet(k, v){
@@ -32076,6 +32141,7 @@ function cfgSet(k, v){
   }
   if (k === 'imgEngine'){ state.settings.imgEngine = v || 'flux'; return; }
   if (k === 'imgScreens'){ state.settings.imgScreens = v || 'both'; return; }
+  if (k === 'sermonForm'){ if (v === 'B') state.settings.sermonForm = 'B'; else delete state.settings.sermonForm; return; }   /* v739 */
   state.settings[k] = v;
 }
 function cfgHash(v){
