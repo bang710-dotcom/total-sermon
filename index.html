@@ -32397,7 +32397,7 @@ async function styleLearnText(it){
       else if (x.kind === 'pdf') t = await pdfImportText(buf);
       else t = decodeTextBuf(buf);
       t = normImportText(t);
-      if (t.replace(/\s/g, '').length >= 600) return t;
+      if (t.replace(/\s/g, '').length >= 1500) return t;   /* 글자층이 일부만 있는 PDF 조각은 빼고 */
     } catch (e) {}
   }
   return '';
