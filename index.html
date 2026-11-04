@@ -17865,6 +17865,11 @@ async function hwpxPrvMake(secHead, hdr, spec, content){
     }
     drew = true;
   }
+  if (/<hp:pageNum\b[^>]*pos="TOP_RIGHT"/.test(secHead)){   /* v739 B형 — 오른쪽 위 「- 1 -」 */
+    var sideR = (secHead.match(/<hp:pageNum\b[^>]*sideChar="([^"]*)"/) || [0, ''])[1], Fr = font('12');
+    g.font = Fr.f; g.fillStyle = '#000000'; g.textAlign = 'right';
+    g.fillText((sideR ? sideR + ' ' : '') + '1' + (sideR ? ' ' + sideR : ''), X1, (mg('header') + 1000) * s); g.textAlign = 'left';
+  }
   if (/<hp:pageNum\b[^>]*pos="BOTTOM_CENTER"/.test(secHead)){
     var side = (secHead.match(/<hp:pageNum\b[^>]*sideChar="([^"]*)"/) || [0, ''])[1], Fn = font(String(st.normal));
     g.font = Fn.f; g.fillStyle = '#000000'; g.textAlign = 'center';
@@ -18135,7 +18140,10 @@ async function zipDocParas(buf){
 var DOCX_STYLES = {
   '기본원고': { font: '함초롬바탕', size: 26, line: 360, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
   '자유원고': { font: '함초롬바탕', size: 26, line: 360, titleSize: 26, page: { w: 216, h: 290, t: 10, b: 10, l: 10, r: 10 } },
-  '카드원고': { font: '함초롬바탕', size: 44, line: 312, titleSize: 44, page: { w: 310, h: 210, t: 12.49, b: 12.49, l: 10, r: 10 }, cards: true }
+  '카드원고': { font: '함초롬바탕', size: 44, line: 312, titleSize: 44, page: { w: 310, h: 210, t: 12.49, b: 12.49, l: 10, r: 10 }, cards: true },
+  /* v739 설교양식 B형 — A4·여백 좌우 30 위 20 아래 15mm·머리말 15mm, 굴림 13pt 줄 간격 160%, 머리 두 줄 함초롬바탕 10pt, 쪽번호 오른쪽 위(hwpx manuscript_b 와 같은 규격) */
+  'B원고': { font: '굴림', size: 26, line: 384, titleSize: 20, page: { w: 210, h: 297, t: 20, b: 15, l: 30, r: 30 }, header: 15, pageNum: true, formB: true,
+    fontCss: "'굴림','Gulim','Apple SD Gothic Neo','Malgun Gothic',sans-serif" }
 };
 var EX_BLUE = '4C94D8';
 var REF_RED = 'EE0000';   /* 성경 인용 — 빨간 볼드(카드원고 quote 색과 동일) */
@@ -18274,6 +18282,7 @@ function mm2twip(v){ return Math.round(v * 56.6929); }
 function buildDocxParas(D, paras, st){
   var FONT = { ascii: st.font, eastAsia: st.font, hAnsi: st.font };
   var children = paras.map(function(p){
+    var pFont = p.font ? { ascii: p.font, eastAsia: p.font, hAnsi: p.font } : undefined;   /* v739 B형 머리 두 줄 = 함초롬바탕 */
     if (p.bar) return new D.Paragraph({   /* 이미지 전환 바 — 빨간 띠·가운데·흰 글씨(본문 양식과 무관한 표시 전용) */
       shading: { type: D.ShadingType.CLEAR, fill: 'B12121' }, pageBreakBefore: !!p.brk,
       alignment: D.AlignmentType.CENTER,
@@ -18283,9 +18292,9 @@ function buildDocxParas(D, paras, st){
     var opts = {
       alignment: D.AlignmentType.JUSTIFIED,   /* 본문 양쪽 정렬 — 미리보기(종이 페이지)와 동일 */
       spacing: { line: st.line },
-      children: p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) */
-        ? p.spans.map(function(x){ return new D.TextRun({ text: x[0], bold: x[1] || !!p.bold, color: x[1] ? REF_RED : p.color, size: p.size }); })
-        : [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size })]
+      children: p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) · B형(v739)은 spanColor 빨강·spanBold false */
+        ? p.spans.map(function(x){ return new D.TextRun({ text: x[0], bold: (x[1] && p.spanBold !== false) || !!p.bold, color: x[1] ? (p.spanColor || REF_RED) : p.color, size: p.size, font: pFont }); })
+        : [new D.TextRun({ text: p.text || '', bold: !!p.bold, color: p.color, size: p.size, font: pFont })]
     };
     if (p.brk) opts.pageBreakBefore = true;   /* v635 카드원고: 카드 한 장 = 한 쪽 */
     if (p.mk && p.mk.length && st.page) {   /* v663 카드원고 전환 아이콘 — 종이 왼쪽 여백에 글 앞으로 띄운 작은 그림(줄을 차지하지 않는다) */
@@ -18309,21 +18318,27 @@ function buildDocxParas(D, paras, st){
     return new D.Paragraph(opts);
   });
   var pg = st.page;
-  return new D.Document({
-    styles: { default: { document: { run: { font: FONT, size: st.size } } } },
-    sections: [{
+  var sect = {
       properties: {
         page: {
           size: { width: mm2twip(pg.w), height: mm2twip(pg.h) },
           margin: {
             top: mm2twip(pg.t), bottom: mm2twip(pg.b),
             left: mm2twip(pg.l), right: mm2twip(pg.r),
-            header: 0, footer: 0
+            header: st.header ? mm2twip(st.header) : 0, footer: st.header ? mm2twip(st.header) : 0
           }
         }
       },
       children: children
-    }]
+    };
+  if (st.pageNum && D.Header && D.PageNumber) {   /* v739 B형 — 오른쪽 위 「- 1 -」(함초롬돋움 10pt) */
+    var PNF = { ascii: '함초롬돋움', eastAsia: '함초롬돋움', hAnsi: '함초롬돋움' };
+    sect.headers = { default: new D.Header({ children: [new D.Paragraph({ alignment: D.AlignmentType.RIGHT,
+      children: [new D.TextRun({ children: ['- ', D.PageNumber.CURRENT, ' -'], font: PNF, size: 20 })] })] }) };
+  }
+  return new D.Document({
+    styles: { default: { document: { run: { font: FONT, size: st.size } } } },
+    sections: [sect]
   });
 }
 
@@ -18357,6 +18372,7 @@ function msTitleLine(meta, style){
   return titleLine;
 }
 function parasFromText(meta, bodyText, style, opts){
+  if (style !== '카드원고' && !(opts && opts.cards) && isFormB()) return parasFromTextB(meta, bodyText);   /* v739 설교양식 B형 — 원고·전환표시본·미리보기 */
   var st = DOCX_STYLES[style] || DOCX_STYLES['기본원고'];
   var cards = !!(opts && opts.cards), brkNext = false;   /* v635: 카드원고 문서 — (카드) 줄마다 새 쪽, 빈 줄은 쓴 그대로(자동 간격 없음) */
   var paras = [];
@@ -18423,6 +18439,10 @@ function parasFromText(meta, bodyText, style, opts){
 /* 구조화 작성 내용을 문단 배열로 (대지·ex 굵게, ex 파랑) */
 function parasFromCompose(meta, c){
   var style = '기본원고';   /* v635: 카드원고는 별도 문서(cardPreview·cardDocBlob) — 원고는 늘 기본원고 서식 */
+  if (isFormB()) {   /* v739 설교양식 B형 — 구조 작성창은 저장 때와 같은 글(assembleText)로 모아 B형 문단으로 */
+    if (composeBaseStyle(c) === '자유원고') return parasFromTextB(meta, c.free);
+    if (c === state.compose) return parasFromTextB(meta, assembleText());
+  }
   if (composeBaseStyle(c) === '자유원고') return parasFromText(meta, c.free, style);
   var st = DOCX_STYLES[style];
   var doInd = style !== '카드원고'; /* 카드원고(화면 투사용)는 들여쓰기 제외 */
@@ -18484,6 +18504,105 @@ function parasFromCompose(meta, c){
   var concPts2 = concPointsOut(c); if (concPts2.trim()) concPts2.split('\n').forEach(function(l){ if (l.trim()) push(l.trim(), true); });
   if (c.concBody.trim()) c.concBody.trim().split('\n').forEach(function(l, i, L){ push(l, false, null, doInd, L, i + 1); });
   /* v609: 결론 끝 핵심메시지 자동 줄(굵게)을 없앴다 — assembleText 와 같은 규칙 */
+  return { paras: paras, st: st };
+}
+/* ══ v739 B형 원고 문단(설교양식 B형) — 스킬 sermon-form-b 1장 「지면 서식」 ══════════════════════
+   머리 두 줄(함초롬바탕 10pt) 「10월 18일 주일설교 - 감사함의 이유 -」·「본문: 창세기 12:10-20」 → 빈 줄 → 본문(굴림 13pt).
+   문단 사이 빈 줄 하나, 일반 문단 첫머리 빈칸 하나(B형 원고의 들여쓰기). 대지 줄·「결론」·꺾쇠 기도 머리(「<설교후 기도>」)는 굵지 않게.
+   성경 인용 = 성구 표기 줄 + 절 번호 줄(「창 12:1-2, "1 … 2 …"」를 나눔), 빨강·굵지 않음. 문단 일부 인용은 그 구간만 빨강.
+   예화 표시(ex)·(예화))와 구조 코드는 찍지 않는다(예화 제목 글은 한 줄로 남김). 첫 문단의 formB 가 hwpxManuscript 에게 B형 서식을 고르게 한다. */
+var B_RED = 'FF0000';
+var B_TITLE_FONT = '함초롬바탕';
+function formBTitleLine(meta){
+  var dm = String(meta['날짜'] || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return (dm ? (+dm[2]) + '월 ' + (+dm[3]) + '일 ' : '') + formBService(meta['예배구분']) + ' - ' + String(meta['제목'] || '').trim() + ' -';
+}
+/* 「창 12:10-20」 → 「창세기 12:10-20」 (B형 머리 둘째 줄은 책 이름을 다 쓴다) */
+function formBRefFull(ref){
+  var names = BOOKS.split('|'), re = new RegExp('^(' + BOOKS + ')\\s*(?=\\d)');
+  return String(ref || '').split(';').map(function(seg){
+    return seg.trim().replace(re, function(m0, bk){ var i = devoBookIdxMap()[bk]; return (i != null ? names[i] : bk) + ' '; });
+  }).filter(Boolean).join('; ');
+}
+/* 「창 12:1-2, "1 여호와께서 … 2 내가 …"」 → ['창 12:1-2', '1 여호와께서 …', '2 내가 …'].
+   절 번호가 범위 차례대로 다 있을 때만 절마다 나누고, 아니면 [성구, 본문 전체]. 형식이 아니면 null. */
+function formBQuoteLines(line){
+  var m = String(line || '').trim().match(new RegExp('^((?:' + BOOKS + ')\\s*' + REF_SPAN + ')\\s*,?\\s*["“”]([\\s\\S]*?)["“”]\\s*[.。]?\\s*$'));
+  if (!m) return null;
+  var ref = m[1].trim(), txt = m[2].trim();
+  if (!txt) return null;
+  var r = ref.match(/(\d+)\s*[:장]\s*(\d+)[a-zA-Z]?(?:\s*[-~]\s*(\d+)[a-zA-Z]?)?\s*$/);
+  if (r && r[3] && +r[3] > +r[2] && +r[3] - +r[2] < 60){
+    var a = +r[2], b = +r[3], cuts = [], from = 0, ok = true;
+    for (var n = a; n <= b; n++){
+      var re = new RegExp((n === a ? '^' : '\\s') + n + '\\s+(?=\\S)', 'g');
+      re.lastIndex = from;
+      var hit = re.exec(txt);
+      if (!hit || (n === a && hit.index !== 0)) { ok = false; break; }
+      cuts.push(n === a ? 0 : hit.index + 1); from = hit.index + hit[0].length;
+    }
+    if (ok) return [ref].concat(cuts.map(function(c0, k){ return txt.slice(c0, k + 1 < cuts.length ? cuts[k + 1] : txt.length).trim(); }));
+  }
+  return [ref, txt];
+}
+function parasFromTextB(meta, bodyText){
+  var st = DOCX_STYLES['B원고'];
+  var paras = [];
+  paras.push({ text: formBTitleLine(meta), hrole: 'title', formB: true, size: st.titleSize, font: B_TITLE_FONT });
+  if (String(meta['본문'] || '').trim()) paras.push({ text: '본문: ' + formBRefFull(meta['본문']), hrole: 'title', size: st.titleSize, font: B_TITLE_FONT });
+  paras.push({ text: '' });
+  function lastBlank(){ return !paras.length || String(paras[paras.length - 1].text || '').trim() === ''; }
+  function gap(){ if (!lastBlank()) paras.push({ text: '' }); }   /* 문단 사이 빈 줄 하나(겹치지 않게) */
+  function red(t){ paras.push({ text: t, color: B_RED, hrole: 'scripture' }); }
+  var refTrk = refQuoteTracker(), vq = null;   /* vq = 성구 표기 줄 바로 뒤 절 번호 줄 {lo, hi} */
+  var src = stripTrailMsg(bodyText, meta && meta['핵심메시지']).split('\n');
+  src.forEach(function(line, li, LL){
+    var l = String(line).trim();
+    if (CARD_MARK_RE.test(l) || !l) { refTrk(''); vq = null; return; }   /* 빈 줄은 gap() 이 맞춘다 */
+    if (/^▶.*◀$/.test(l)) { refTrk(''); vq = null; gap(); paras.push({ text: l, bar: true }); return; }   /* 전환표시본의 이미지 전환 바 */
+    var mdBold = /^\*\*[^*]+\*\*$/.test(l);
+    if (mdBold) l = l.slice(2, -2).trim();
+    else if (l.indexOf('**') > -1) l = l.replace(/\*\*([^*]+)\*\*/g, '$1');
+    l = l.replace(/^\((?:서론|대지\s*내용|내용|적용|주해|근거|강화|실천|정리)\)\s*/, '');
+    if (!l) return;
+    var head = false, plainHead = false;
+    if (/^\(대지\)\s*/.test(l)) { l = l.replace(/^\(대지\)\s*/, '').trim(); head = true; }
+    else if (/^\d{1,2}\s*[.)](?!\d)\s*\S/.test(l)) head = true;
+    if (/^\(결론\)/.test(l)) { l = l.replace(/^\(결론\)\s*/, '').trim() || concHeadDefault(); plainHead = true; }
+    else if (/^\[?\s*결론\s*\]?$/.test(l) || /^말씀을\s*정리/.test(l) || /^<[^<>]{1,24}>$/.test(l)) plainHead = true;
+    var ex = l.match(/^(?:ex\)|\(예화\))\s*(.*)$/i);
+    if (ex) { l = ex[1].trim(); if (!l) return; }
+    /* 성구 표기 줄 바로 뒤의 절 번호 줄(「1 여호와께서…」) — B형 원고 그대로 쓴 인용 */
+    if (vq && !head && !plainHead){
+      var vn = l.match(/^(\d{1,3})\s*\.?\s+\S/);
+      if (vn && +vn[1] >= vq.lo && +vn[1] <= vq.hi) { refTrk(''); red(l); return; }
+      vq = null;
+    }
+    if (head || plainHead || ex) {
+      refTrk(''); vq = null; gap();
+      paras.push({ text: l, bold: mdBold || undefined, hrole: mdBold ? 'bold' : 'heading' });
+      if (head || plainHead) gap();
+      return;
+    }
+    if (bareRefRe().test(l)) {   /* 성구 표기만 있는 줄 — 빨강, 뒤 절 번호 줄을 잇는다 */
+      refTrk(l, LL, li + 1);
+      var rr = l.match(/(\d+)\s*[:장]\s*(\d+)[a-zA-Z]?(?:\s*[-~]\s*(\d+))?\s*$/);
+      vq = rr ? { lo: +rr[2], hi: rr[3] ? +rr[3] : +rr[2] } : null;
+      gap(); red(l); return;
+    }
+    var qs = refTrk(l, LL, li + 1);
+    if (qs === true) {
+      var ql = formBQuoteLines(toLeadRefQuote(l, true));
+      var prevRed = paras.length && paras[paras.length - 1].hrole === 'scripture';
+      if (!prevRed) gap();   /* 여러 줄 인용의 이어지는 줄은 붙여 쓴다 */
+      (ql || [l]).forEach(red);
+      return;
+    }
+    gap();
+    if (Array.isArray(qs)) { paras.push({ text: l, spans: [[' ', false]].concat(qs), spanColor: B_RED, spanBold: false }); return; }
+    paras.push({ text: mdBold ? l : ' ' + l, bold: mdBold || undefined, hrole: mdBold ? 'bold' : undefined });
+  });
+  while (paras.length > 3 && lastBlank()) paras.pop();
   return { paras: paras, st: st };
 }
 function docxFileName(meta){
@@ -35959,19 +36078,21 @@ function paraPreviewHtml(meta, built){
   var st = (built && built.st) || {};
   var baseSz = st.size ? (st.size / 2) : 13;   /* docx size = half-point */
   var lh = st.line ? (st.line / 240) : 1.5;     /* docx line = 240ths per line */
-  var h = '<div style="font-size:' + baseSz + 'pt;line-height:' + lh + (st.cards ? ';text-align:left' : '') + '">';
+  var h = '<div style="font-size:' + baseSz + 'pt;line-height:' + lh + (st.cards ? ';text-align:left' : '') + (st.fontCss ? ';font-family:' + st.fontCss : '') + '">';   /* v739 B형 = 굴림 */
   paras.forEach(function(p){
     var t = String(p.text || '');
     var s = 'margin:0;' + (p.brk ? 'break-before:column;-webkit-column-break-before:always;' : '') + (p.center ? 'text-align:center;' : '');
     if (p.size) s += 'font-size:' + (p.size / 2) + 'pt;';
+    if (p.font) s += 'font-family:\'' + p.font + '\',\'나눔명조\',serif;';   /* v739 B형 머리 두 줄 */
     if (p.bold) s += 'font-weight:bold;';
     if (p.color) s += 'color:#' + p.color + ';';
     if (p.just) s += 'text-align:justify;text-indent:2em;';
     else if (p.ind) s += 'text-indent:1em;';
     if (!t.trim()) { h += '<div style="' + s + '">&nbsp;</div>'; return; } /* 빈 단락 = 한 줄 */
-    var inner = p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) */
-      ? p.spans.map(function(x){ return x[1] ? '<b style="color:#' + REF_RED + '">' + esc(x[0]) + '</b>' : esc(x[0]); }).join('')
+    var inner = p.spans   /* 문단 일부 성경 인용 — 그 구간만 빨간 볼드(v571) · B형(v739)은 빨강만 */
+      ? p.spans.map(function(x){ return x[1] ? (p.spanBold === false ? '<span style="color:#' + (p.spanColor || REF_RED) + '">' + esc(x[0]) + '</span>' : '<b style="color:#' + REF_RED + '">' + esc(x[0]) + '</b>') : esc(x[0]); }).join('')
       : esc(t);
+    if (st.formB) inner = inner.replace(/^ /, '&nbsp;');   /* B형 문단 첫 빈칸(들여쓰기) — HTML 은 앞 빈칸을 지우므로 */
     if (p.mk && p.mk.length) {   /* v663 카드원고 전환 아이콘 — 문단 첫 줄 왼쪽 여백(흐름 밖이라 줄바꿈·쪽수 그대로) */
       var lhMm = (p.size ? p.size / 2 : baseSz) * lh * 25.4 / 72;
       s += 'position:relative;';
