@@ -3365,11 +3365,11 @@ body.focusMode #refInsBar{bottom:72px}
           <button type="button" class="chip" data-form="B">B형</button>
         </div>
         <div class="setHl" style="margin-top:14px"><label>기존 설교 학습</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
-        <div class="hlpTx" hidden>설교 기본원고 저장 폴더(01 Sermons)에 있는 지난 원고를 AI가 읽고, 목사님의 문체(끝맺음·호칭·물음)와 논리 흐름(서론을 여는 법, 대지를 세우고 잇는 법, 예화를 꺼내고 닫는 법, 적용과 마무리)을 「문체·논리 흐름 지침」으로 정리합니다. 이 지침은 지금 고른 설교양식(A형·B형)에 따로 저장되고, 그 양식으로 쓰는 AI 완성 원고·개요(대지) 제안·설교 대화·스킬사용 원고요청에 함께 들어갑니다. 양식 규칙(구조·인용 형식·분량)이 지침보다 앞섭니다. HWPX·DOCX·PDF 원고를 읽고, 옛 .hwp 만 있는 원고와 카드원고·디자인·LTC 파일은 건너뜁니다. 폴더를 읽어야 해서 학습은 데스크탑(Chrome·Total Sermons 앱)에서 하고, 결과는 시트 금고로 다른 기기와 공유합니다. 원고 편수만큼 AI 사용량이 듭니다. [학습 내용 보기·고치기]에서 지침을 직접 고치거나 비워서 지울 수 있습니다.</div>
+        <div class="hlpTx" hidden>설교 기본원고 저장 폴더(01 Sermons)에 있는 지난 원고를 AI가 읽고, 목사님의 문체(끝맺음·호칭·물음)와 논리 흐름(서론을 여는 법, 대지를 세우고 잇는 법, 예화를 꺼내고 닫는 법, 적용과 마무리)을 「문체·논리 흐름 지침」으로 정리합니다. 이 지침은 지금 고른 설교양식(A형·B형)에 따로 저장되고, 그 양식으로 쓰는 AI 완성 원고·개요(대지) 제안·설교 대화·스킬사용 원고요청에 함께 들어갑니다. 양식 규칙(구조·인용 형식·분량)이 지침보다 앞섭니다. HWPX·DOCX·PDF 원고를 읽고, 옛 .hwp 만 있는 원고와 카드원고·디자인·LTC 파일은 건너뜁니다. 폴더를 읽어야 해서 학습은 데스크탑(Chrome·Total Sermons 앱)에서 하고, 결과는 시트 금고로 다른 기기와 공유합니다. 원고 편수만큼 AI 사용량이 듭니다. [학습 내용 보기]에서 지침을 직접 고치거나 비워서 지울 수 있습니다.</div>
         <div class="cnt" id="learnState" style="margin:4px 2px 8px"></div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
           <button class="btn sub" id="learnRun" type="button">기존 설교 학습</button>
-          <button class="btn sub" id="learnView" type="button">학습 내용 보기·고치기</button>
+          <button class="btn sub" id="learnView" type="button">학습 내용 보기</button>
           <button class="btn sub" id="learnToggle" type="button">반영 끄기</button>
         </div>
         <div class="setHl" style="margin-top:14px"><label for="imgEngineSel">설교 이미지 AI</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
@@ -32446,7 +32446,8 @@ async function styleLearnRun(){
     var nA = Math.min(30, all.length), nB = Math.min(60, all.length), spAll = styleLearnSpan(all);
     var msg = '「' + dirHandle.name + '」에서 읽을 수 있는 원고 ' + all.length + '편을 찾았습니다' + (spAll ? '(' + spAll + ')' : '') + '.' +
       (sc.hwpOnly ? '\n옛 .hwp 만 있는 ' + sc.hwpOnly + '편은 건너뜁니다.' : '') +
-      '\n최근 원고부터 몇 편으로 학습해 ' + form + '형에 저장할까요? 편수만큼 AI 사용량이 들고, 30편이면 몇 분 걸립니다.';
+      (nB > nA ? '\n최근 원고부터 몇 편으로 학습해 ' + form + '형에 저장할까요?' : '\n이 ' + nA + '편으로 학습해 ' + form + '형에 저장할까요?') +
+      ' 편수만큼 AI 사용량이 들고, 30편이면 몇 분 걸립니다.';
     var cc = nB > nA ? await uiChoose(msg, { okText: '최근 ' + nA + '편', extraText: '최근 ' + nB + '편', cancelText: '취소' })
       : (await uiConfirm(msg, { okText: '최근 ' + nA + '편으로 학습' }) ? 'ok' : 'cancel');
     if (cc === 'cancel') return;
