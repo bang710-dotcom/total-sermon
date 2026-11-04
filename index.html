@@ -32292,6 +32292,8 @@ function styleLearnClean(L){
   if (+L.n) o.n = +L.n;
   if (L.sp) o.sp = String(L.sp);
   if (L.src) o.src = String(L.src);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(L.d0 || '')) o.d0 = L.d0;   /* v742 학습한 원고 날짜 범위(보충 때 건너뜀) */
+  if (/^\d{4}-\d{2}-\d{2}$/.test(L.d1 || '')) o.d1 = L.d1;
   if (L.off) o.off = 1;
   return o;
 }
@@ -32410,6 +32412,22 @@ function styleLearnSpan(list){
   var ds = list.map(function(x){ return x.date; }).filter(Boolean).sort();
   return ds.length ? ds[0].slice(0, 7).replace('-', '.') + '~' + ds[ds.length - 1].slice(0, 7).replace('-', '.') : '';
 }
+/* 날짜 → 「2025.01」 */
+function styleLearnYm(d){ return d ? String(d).slice(0, 7).replace('-', '.') : ''; }
+/* 이미 학습한 원고 범위(파일명 날짜) — 보충할 때 이 범위의 원고는 다시 읽지 않는다. 범위 안의 원고를 모두 읽었다고 본다:
+   새로 바꾸기 = 최근 N편(연속), 보충 = 범위 바로 뒤(새 원고, 가까운 것부터) → 범위 바로 앞(그 이전 원고, 가까운 것부터)이라 늘 한 덩어리로 이어진다.
+   v741 에서 만든 지침(d0·d1 없음)은 sp 「2025.01~2026.10」의 달로 어림한다. 다른 폴더에서 학습한 지침이면 범위를 쓰지 않는다. */
+function styleLearnRange(L, srcName){
+  if (!L || (L.src && srcName && L.src !== srcName)) return null;
+  if (L.d0 && L.d1) return { d0: L.d0, d1: L.d1 };
+  var m = /^(\d{4})\.(\d{2})~(\d{4})\.(\d{2})$/.exec(String(L.sp || ''));
+  return m ? { d0: m[1] + '-' + m[2] + '-01', d1: m[3] + '-' + m[4] + '-31' } : null;
+}
+/* 보충 — STYLE_LEARN_SKILL 뒤에 붙인다. 기존 지침(목사님이 고치신 줄 포함)은 살리고 새로 보인 특징만 덧붙인다 */
+var STYLE_LEARN_MERGE = '\n★보충(이번 작업 — 위 원칙과 다른 것만 적었다): 입력 맨 앞 [기존 지침]은 이 설교자의 다른 원고에서 이미 정리했고 목사님이 직접 고치셨을 수도 있는 지침이다. 새로 읽은 원고(또는 그 관찰 노트)로 이 지침을 보충해, 같은 형식의 지침 한 편으로 다시 내놓는다. ' +
+  '①기존 지침의 줄은 새 원고와 분명히 어긋나지 않는 한 그대로 둔다 — 문장도 되도록 고치지 않는다. ②새 원고에서 되풀이해 보인 특징 가운데 기존 지침에 없는 것만 알맞은 제목 아래 덧붙인다. ' +
+  '③새 원고가 기존 지침과 어긋나면 기존 줄을 지우지 말고 그 줄 끝에 「(다른 원고에서는 ~)」처럼 함께 적는다. ④[즐겨 쓰는 표현]은 합쳐 15개 이내, 겹치면 하나만. ' +
+  '⑤기존 지침에 위 제목 형식에 없는 줄이나 제목(목사님이 넣으신 것)이 있으면 그대로 살린다. ⑥분량은 합쳐 공백 포함 3,800자 이내 — 넘치면 새로 덧붙일 줄을 줄이고 기존 줄은 남긴다.';
 var _learnBusy = false;
 async function styleLearnRun(){
   if (_learnBusy) { toast('기존 설교 학습이 이미 진행 중입니다.'); return; }
@@ -32426,10 +32444,20 @@ async function styleLearnRun(){
   } catch (e) { toast('폴더 권한 확인 실패: ' + e.message); return; }
   var cur = sermonForm();
   var fc = await uiChoose('학습한 「문체·논리 흐름 지침」을 어느 설교양식에 저장할까요?\n저장한 양식으로 AI 원고를 쓸 때만 반영됩니다. 지금 고른 설교양식은 ' + cur + '형입니다.' +
-    (styleLearnCur('A') || styleLearnCur('B') ? '\n이미 학습해 둔 양식을 고르면 새 결과로 바뀝니다(' + styleLearnSummary(styleLearnAll()) + ').' : ''),
+    (styleLearnCur('A') || styleLearnCur('B') ? '\n이미 학습한 양식(' + styleLearnSummary(styleLearnAll()) + ')을 고르면 보충할지 새로 바꿀지 묻습니다.' : ''),
     { okText: 'A형에 저장', extraText: 'B형에 저장', cancelText: '취소' });
   if (fc === 'cancel') return;
   var form = fc === 'extra' ? 'B' : 'A';
+  /* v742 이미 학습한 양식이면 — 기존 지침에 보충 / 새로 바꾸기 (2026-11-04 목사님 요청) */
+  var old = styleLearnCur(form), merge = false;
+  if (old) {
+    var mc = await uiChoose('「' + form + '형」에는 이미 학습한 지침이 있습니다(원고 ' + (old.n || '?') + '편' + (old.sp ? ', ' + old.sp : '') + (old.at ? ', ' + String(old.at).slice(0, 10) + ' 학습' : '') + ').\n' +
+      '· 기존 지침에 보충: 지금 지침(직접 고치신 부분 포함)은 살리고, 아직 읽지 않은 원고를 더 읽어 새로 보인 특징을 덧붙입니다.\n' +
+      '· 새로 바꾸기: 최근 원고로 처음부터 다시 학습해 지금 지침을 바꿉니다(고치신 부분도 사라집니다).',
+      { okText: '기존 지침에 보충', extraText: '새로 바꾸기', cancelText: '취소' });
+    if (mc === 'cancel') return;
+    merge = mc === 'ok';
+  }
   _learnBusy = true;
   try {
     showWaitOverlay('원고 폴더를 살펴보는 중…', '「' + dirHandle.name + '」 안의 연도별 폴더를 읽고 있어요.', 0);
@@ -32437,21 +32465,38 @@ async function styleLearnRun(){
     try { sc = await styleLearnScan(dirHandle); }
     catch (e) { toast('폴더 읽기 실패: ' + e.message); return; }
     finally { hideWaitOverlay(); }
-    var all = sc.items;
-    if (all.length < 3) {
-      toast('읽을 수 있는 원고(HWPX·DOCX·PDF)가 ' + all.length + '편뿐이라 학습할 수 없습니다' +
-        (sc.hwpOnly ? ' — 옛 .hwp 만 있는 원고 ' + sc.hwpOnly + '편은 한글에서 HWPX·PDF 로 저장하면 읽습니다' : '') + '.');
-      return;
+    var all = sc.items, hwpNote = sc.hwpOnly ? '\n옛 .hwp 만 있는 ' + sc.hwpOnly + '편은 건너뜁니다.' : '', msg, cand, unit;
+    if (merge) {
+      var rng = styleLearnRange(old, dirHandle.name), newer = [], older = [];
+      if (rng) {
+        newer = all.filter(function(x){ return x.date && x.date > rng.d1; }).sort(function(a, b){ return a.date.localeCompare(b.date); });
+        older = all.filter(function(x){ return x.date && x.date < rng.d0; });
+        cand = newer.concat(older);
+      } else cand = all;
+      if (!cand.length) { toast('「' + dirHandle.name + '」의 원고는 이미 모두 학습했습니다(' + (old.sp || '') + '). 새 원고가 생기면 다시 보충해 주세요.'); return; }
+      msg = (rng ? '이미 학습한 원고(' + (old.sp || styleLearnYm(rng.d0) + '~' + styleLearnYm(rng.d1)) + ')는 빼고, ' +
+          [newer.length ? '그 뒤 새 원고 ' + newer.length + '편' : '', older.length ? '그 이전 원고 ' + older.length + '편' : ''].filter(Boolean).join('과 ') + '이 남았습니다.'
+        : '「' + dirHandle.name + '」에서 읽을 수 있는 원고 ' + cand.length + '편을 찾았습니다(지난 학습 범위를 알 수 없어 최근 원고부터 읽습니다).') + hwpNote;
+      unit = '더 ';
+    } else {
+      cand = all;
+      if (cand.length < 3) {
+        toast('읽을 수 있는 원고(HWPX·DOCX·PDF)가 ' + cand.length + '편뿐이라 학습할 수 없습니다' +
+          (sc.hwpOnly ? ' — 옛 .hwp 만 있는 원고 ' + sc.hwpOnly + '편은 한글에서 HWPX·PDF 로 저장하면 읽습니다' : '') + '.');
+        return;
+      }
+      var spAll = styleLearnSpan(cand);
+      msg = '「' + dirHandle.name + '」에서 읽을 수 있는 원고 ' + cand.length + '편을 찾았습니다' + (spAll ? '(' + spAll + ')' : '') + '.' + hwpNote;
+      unit = '최근 ';
     }
-    var nA = Math.min(30, all.length), nB = Math.min(60, all.length), spAll = styleLearnSpan(all);
-    var msg = '「' + dirHandle.name + '」에서 읽을 수 있는 원고 ' + all.length + '편을 찾았습니다' + (spAll ? '(' + spAll + ')' : '') + '.' +
-      (sc.hwpOnly ? '\n옛 .hwp 만 있는 ' + sc.hwpOnly + '편은 건너뜁니다.' : '') +
-      (nB > nA ? '\n최근 원고부터 몇 편으로 학습해 ' + form + '형에 저장할까요?' : '\n이 ' + nA + '편으로 학습해 ' + form + '형에 저장할까요?') +
+    var nA = Math.min(30, cand.length), nB = Math.min(60, cand.length);
+    msg += (nB > nA ? '\n' + (merge ? '몇 편을 더 읽어 ' + form + '형 지침에 보충할까요?' : '최근 원고부터 몇 편으로 학습해 ' + form + '형에 저장할까요?')
+        : '\n이 ' + nA + '편' + (merge ? '을 읽어 ' + form + '형 지침에 보충할까요?' : '으로 학습해 ' + form + '형에 저장할까요?')) +
       ' 편수만큼 AI 사용량이 들고, 30편이면 몇 분 걸립니다.';
-    var cc = nB > nA ? await uiChoose(msg, { okText: '최근 ' + nA + '편', extraText: '최근 ' + nB + '편', cancelText: '취소' })
-      : (await uiConfirm(msg, { okText: '최근 ' + nA + '편으로 학습' }) ? 'ok' : 'cancel');
+    var cc = nB > nA ? await uiChoose(msg, { okText: unit + nA + '편', extraText: unit + nB + '편', cancelText: '취소' })
+      : (await uiConfirm(msg, { okText: unit + nA + '편 ' + (merge ? '보충' : '학습') }) ? 'ok' : 'cancel');
     if (cc === 'cancel') return;
-    var pick = all.slice(0, cc === 'extra' ? nB : nA), docs = [];
+    var pick = cand.slice(0, cc === 'extra' ? nB : nA), docs = [];
     showWaitOverlay('지난 원고를 읽는 중…', '', 0);
     try {
       for (var i = 0; i < pick.length; i++) {
@@ -32460,8 +32505,8 @@ async function styleLearnRun(){
         if (t) docs.push({ it: pick[i], t: styleLearnClip(t) });
       }
     } finally { hideWaitOverlay(); }
-    if (docs.length < 3) { toast('글자를 읽을 수 있는 원고가 ' + docs.length + '편뿐이라 학습하지 못했습니다(스캔 PDF 는 읽지 않습니다).'); return; }
-    /* 묶음(6만 자 안팎)마다 관찰 노트 → 노트를 모아 지침 한 편. 한 묶음이면 원고에서 바로 지침 */
+    if (docs.length < (merge ? 1 : 3)) { toast('글자를 읽을 수 있는 원고가 ' + docs.length + '편뿐이라 학습하지 못했습니다(스캔 PDF 는 읽지 않습니다).'); return; }
+    /* 묶음(6만 자 안팎)마다 관찰 노트 → 노트를 모아 지침 한 편. 한 묶음이면 원고에서 바로 지침. 보충이면 기존 지침을 맨 앞에 */
     var batches = [], cb = [], cl = 0;
     docs.forEach(function(d, k){
       var x = d.it, block = '=== 설교 ' + (k + 1) + ' — ' + [x.date, x.service, x.title, x.ref].filter(Boolean).join(' · ') + ' ===\n' + d.t;
@@ -32469,27 +32514,39 @@ async function styleLearnRun(){
       cb.push(block); cl += block.length;
     });
     if (cb.length) batches.push(cb);
+    var sysP = STYLE_LEARN_SKILL + (merge ? STYLE_LEARN_MERGE : '');
+    var oldHead = merge ? '[기존 지침 — 원고 ' + (old.n || '?') + '편' + (old.sp ? '(' + old.sp + ')' : '') + '에서 정리]\n' + String(old.t).trim() + '\n[/기존 지침]\n\n' : '';
     var prof = '';
     try {
       if (batches.length === 1) {
-        prof = await callClaude(STYLE_LEARN_SKILL, '아래는 한 설교자의 실제 설교 원고 ' + docs.length + '편입니다.\n\n' + batches[0].join('\n\n'), 8000, aiTick('문체·논리 흐름 지침'));
+        prof = await callClaude(sysP, oldHead + '아래는 ' + (merge ? '새로 읽은 ' : '') + '한 설교자의 실제 설교 원고 ' + docs.length + '편입니다.\n\n' + batches[0].join('\n\n'), 8000, aiTick('문체·논리 흐름 지침'));
       } else {
         var notes = [];
         for (var b = 0; b < batches.length; b++) {
           notes.push(await callClaude(STYLE_LEARN_NOTE, '아래는 한 설교자의 실제 설교 원고 묶음 ' + (b + 1) + '/' + batches.length + '(' + batches[b].length + '편)입니다.\n\n' + batches[b].join('\n\n'),
             6000, aiTick('문체 관찰 노트 ' + (b + 1) + '/' + batches.length)));
         }
-        prof = await callClaude(STYLE_LEARN_SKILL, '아래는 한 설교자의 설교 원고 ' + docs.length + '편을 ' + batches.length + '묶음으로 나눠 읽은 관찰 노트입니다.\n\n' +
+        prof = await callClaude(sysP, oldHead + '아래는 ' + (merge ? '새로 읽은 ' : '') + '한 설교자의 설교 원고 ' + docs.length + '편을 ' + batches.length + '묶음으로 나눠 읽은 관찰 노트입니다.\n\n' +
           notes.map(function(n, k){ return '=== 노트 ' + (k + 1) + ' ===\n' + String(n || '').trim(); }).join('\n\n'), 8000, aiTick('문체·논리 흐름 지침'));
       }
     } catch (e) { toast('기존 설교 학습 실패: ' + e.message); return; }
     finally { try { renderSyncState(); } catch (e2) {} }
     prof = String(prof || '').replace(/^\s*```[a-z]*\s*\n?|\n?```\s*$/g, '').trim();
     if (prof.replace(/\s/g, '').length < 300) { toast('기존 설교 학습 실패: 지침이 너무 짧게 왔습니다 — 다시 눌러 주세요.'); return; }
-    styleLearnSave(form, { t: prof, at: nowLocalStr_(), n: docs.length, sp: styleLearnSpan(docs.map(function(d){ return d.it; })), src: dirHandle.name });
+    /* 학습 범위 = 읽으려 한 원고(pick)의 날짜 — 못 읽은 파일(스캔 PDF 등)도 다음 보충 때 다시 시도하지 않게 */
+    var ds = pick.map(function(x){ return x.date; }).filter(Boolean).sort();
+    var d0 = ds[0] || '', d1 = ds[ds.length - 1] || '';
+    if (merge) {
+      var r0 = styleLearnRange(old, dirHandle.name);
+      if (r0) { d0 = (!d0 || r0.d0 < d0) ? r0.d0 : d0; d1 = (!d1 || r0.d1 > d1) ? r0.d1 : d1; }
+    }
+    var sp = d0 && d1 ? styleLearnYm(d0) + '~' + styleLearnYm(d1) : styleLearnSpan(pick);
+    styleLearnSave(form, { t: prof, at: nowLocalStr_(), n: (merge ? (+old.n || 0) : 0) + docs.length, sp: sp, d0: d0, d1: d1, src: dirHandle.name });
+    if (merge) styleLearnRun._added = docs.length;
   } finally { _learnBusy = false; }
-  var L = styleLearnCur(form) || {};
-  var go = await uiConfirm('기존 설교 ' + (L.n || '') + '편으로 「문체·논리 흐름 지침」을 만들어 ' + form + '형에 저장했습니다.\n' +
+  var L = styleLearnCur(form) || {}, added = styleLearnRun._added; styleLearnRun._added = 0;
+  var go = await uiConfirm((merge && added ? '원고 ' + added + '편을 더 읽어 ' + form + '형 지침에 보충했습니다(모두 ' + (L.n || '') + '편' + (L.sp ? ', ' + L.sp : '') + ').\n'
+      : '기존 설교 ' + (L.n || '') + '편으로 「문체·논리 흐름 지침」을 만들어 ' + form + '형에 저장했습니다.\n') +
     (form === sermonForm() ? '이제 AI 완성 원고·개요(대지) 제안·설교 대화·스킬사용 원고요청에 반영됩니다.' : '설교양식을 ' + form + '형으로 고르면 AI 작성에 반영됩니다(지금은 ' + sermonForm() + '형).') +
     '\n학습 내용을 지금 볼까요?', { okText: '보기', cancelText: '닫기' });
   if (go) styleLearnView(form);
@@ -36782,7 +36839,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v741';
+var APP_VER = 'v742';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
