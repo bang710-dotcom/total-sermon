@@ -12457,7 +12457,7 @@ function pStructFilled(p){ return pBlocks(p).some(function(b){ return (b.body ||
 function pHasContent(p){ return p && ((p.text || '').trim() || pStructFilled(p)); }
 /* 구조(서론·대지·결론)에 작성된 내용이 하나라도 있는가 */
 function structHasContent(c){ return !!((c.intro || '').trim() || (c.concBody || '').trim() || (c.points || []).some(pHasContent)); }
-function newCompose(){ return { style: '기본원고', introTitle: '', intro: '', free: '', concIntro: '말씀을 정리합니다.', concPoints: '', concPtsEdited: false, concBody: '', concBodySeeded: false, points: [newPoint()], cards: null, prompter: null, prompterBase: null, docAt: {} }; }
+function newCompose(){ return { style: '기본원고', introTitle: '', intro: '', free: '', concIntro: concHeadDefault(), concPoints: '', concPtsEdited: false, concBody: '', concBodySeeded: false, points: [newPoint()], cards: null, prompter: null, prompterBase: null, docAt: {} }; }
 
 /* ===================== 카드원고 = 따로 저장되는 문서 (v635) =====================
    기본원고·자유원고는 같은 원고(원고텍스트)를 보여 주는 방식만 다르다. 카드원고는 그 원고를 추려 강단 화면용으로
@@ -14653,7 +14653,9 @@ function introTitlePersist(id, title){
   } catch (e) {}
 }
 /* 결론의 대지 요약: 기본은 대지 명제에서 자동 생성. 사용자가 결론칸에서 직접 고치면(concPtsEdited) 그 텍스트를 사용. */
-function concPointsDerived(c){ return (c.points || []).filter(function(p){ return (p.text || '').trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n'); }
+/* v739: B형 결론에는 대지 요약 줄이 없다 — 자동 요약을 만들지 않고, 목사님이 칸에 쓴 것만 넣는다 */
+function concHeadDefault(){ return isFormB() ? '결론' : '말씀을 정리합니다.'; }
+function concPointsDerived(c){ if (isFormB()) return ''; return (c.points || []).filter(function(p){ return (p.text || '').trim(); }).map(function(p, i){ return (i + 1) + '. ' + p.text.trim(); }).join('\n'); }
 function concPointsOut(c){ var v = String(c.concPoints || '').trim(); return (c.concPtsEdited && v) ? v : concPointsDerived(c); }
 state.compose = newCompose();
 
@@ -15116,7 +15118,7 @@ function structHeadProp(l){
   return s.replace(/^\s*\d+\s*[.)]\s*/, '').trim();
 }
 /* 결론 머리는 줄머리 패턴만 본다(v572) — 예전엔 줄 어디든 "말씀을 정리"가 있으면(본문 속 "…이 말씀을 정리하면") 거기부터 결론이 됐다. */
-function isStructConc(l){ var s = stripBoldEnds(l); return /^\s*(?:\(결론\)|(?:이제\s*|오늘\s*)?(?:이\s*)?말씀을\s*정리)/.test(s); }
+function isStructConc(l){ var s = stripBoldEnds(l); return /^\s*(?:\(결론\)|(?:이제\s*|오늘\s*)?(?:이\s*)?말씀을\s*정리)/.test(s) || (isFormB() && /^\s*\[?\s*결론\s*\]?\s*$/.test(s)); }   /* v739 B형 결론 줄 「결론」·「[결론]」 */
 /* 내보내기용: 줄 맨 앞 구조화 코드 토큰만 제거(내용은 보존). 서식 판단은 호출부에서 따로. */
 function stripStructCode(l){
   return String(l).replace(/^\s*\((?:서론|대지|대지\s*내용|내용|주해|근거|적용|강화|실천|정리|예화|결론)\)\s*/, '');
@@ -15195,7 +15197,7 @@ function parseFreeToStructure(){
   if (pts.length) c.points = pts;
   if (concIdx >= 0) {
     var ch = stripBoldEnds(lines[concIdx]);
-    c.concIntro = /^\s*\(결론\)/.test(ch) ? (ch.replace(/^\s*\(결론\)\s*/, '').trim() || '말씀을 정리합니다.') : ch.trim();
+    c.concIntro = /^\s*\(결론\)/.test(ch) ? (ch.replace(/^\s*\(결론\)\s*/, '').trim() || concHeadDefault()) : ch.trim();
     var concL = [], recapL = [];
     for (var k = concIdx + 1; k < lines.length; k++) {
       if (isStructHead(lines[k])) { recapL.push(stripBoldEnds(lines[k]).trim()); continue; } /* 결론의 대지 요약 줄 */
@@ -15485,7 +15487,7 @@ function renderEditor(){
     /* v609: 예전엔 핵심메시지를 [결론 내용] 칸에 1회 자동으로 채웠다 — 자동 삽입을 없앴다(목사님 요청). */
     html += '<div class="edPoint"><div class="edPtHead"><div class="edPointTitle">결론</div>' + cardSecBtn('C') + '</div>' +
       ta('concIntro', 0, '', 2, '', c.concIntro) +
-      ta('concPoints', 0, '', 3, '결론에서 정리할 대지 요약 — 위 대지에서 자동으로 채워집니다. 자유롭게 고쳐 쓰세요.', (c.concPtsEdited ? (c.concPoints || '') : concPointsDerived(c))) +
+      ta('concPoints', 0, '', 3, isFormB() ? '결론에서 정리할 대지 요약 — B형은 자동으로 넣지 않습니다. 쓰시면 결론 머리 다음에 들어갑니다.' : '결론에서 정리할 대지 요약 — 위 대지에서 자동으로 채워집니다. 자유롭게 고쳐 쓰세요.', (c.concPtsEdited ? (c.concPoints || '') : concPointsDerived(c))) +
       ta('concBody', 0, '', 4, '결론 내용을 작성하세요', c.concBody) +
       '</div>';
     if (String(c.free || '').trim()) {
@@ -16288,7 +16290,7 @@ function assembleText(){
     });
     L.push('');   /* 대지 사이 한 줄 */
   });
-  L.push(c.concIntro.trim() || '말씀을 정리합니다.');
+  L.push(c.concIntro.trim() || concHeadDefault());
   var concPts = concPointsOut(c); if (concPts.trim()) concPts.split('\n').forEach(function(l){ if (l.trim()) L.push(l.trim()); });
   if (c.concBody.trim()) { L.push(''); L.push(c.concBody.trim()); }
   /* v609: 결론 끝에 핵심메시지를 자동으로 붙이지 않는다(목사님 요청). 원고 끝 줄은 결론 내용에 쓴 그대로다. */
