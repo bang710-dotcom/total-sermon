@@ -753,6 +753,16 @@ body.focusMode .arIndF{display:inline-flex}
 .oxfS{font-size:var(--fs-sm);line-height:1.55;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:8px 12px;margin:8px 0}
 .oxfO1{cursor:auto}
 .oxfO3{padding:1px 0 1px 2.6em;color:var(--dim)}
+/* 표·그림(v747) — 원본 스캔에서 잘라 낸 흑백 그림(HOW·옥스퍼드). 너비는 자료의 표시 너비, 화면보다 넓으면 줄인다.
+   어두운 화면 = 뒤집어 배경에 녹임, 밝은·세피아 화면 = 곱하기로 종이색에 녹임. 누르면 .figZoom(원래 크기, 가로 스크롤) */
+.figBox{margin:10px auto;max-width:100%}
+.figBox img{display:block;width:100%;height:auto;cursor:zoom-in;filter:invert(1) brightness(.85);mix-blend-mode:lighten}
+:is(html[data-theme="light"],html[data-theme="sepia"]) .figBox img{filter:none;mix-blend-mode:multiply}
+.figBox img:not([src]){background:var(--card2);filter:none;mix-blend-mode:normal}
+.figZoom{position:fixed;inset:0;z-index:9995;background:#fff;overflow:auto;-webkit-overflow-scrolling:touch;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.figZoom img{display:block;max-width:none;margin:0 auto;cursor:zoom-out}
+.figZoom.fit img{width:100%;height:auto;cursor:zoom-in}
+.figZoomX{position:fixed;top:max(10px,env(safe-area-inset-top));right:12px;z-index:9996;width:40px;height:40px;border-radius:20px;border:none;background:rgba(0,0,0,.62);color:#fff;font-size:20px;line-height:40px;cursor:pointer}
 .mkNote:first-child{border-top:none;padding-top:0}
 .mkPtT{font-weight:700;margin:12px 0 4px;padding-left:9px;border-left:3px solid var(--accent2)}
 .mkPtT:first-child{margin-top:0}
@@ -8054,8 +8064,9 @@ async function wbcStudyInput(R){
 /* ── HOW주석(두란노 「OOO 어떻게 설교할 것인가」 50권) — WBC 와 같은 비공개 키코드·워커(wbc-private, ?s=how), 책별로 받는다 (v745, 2026-11-06) ──
    [받기] = 목차(how/index.json)만 → IndexedDB how_idx. 책은 본문연구 HOW 탭에서 그 책을 처음 열 때 저장된 키코드로 받아 how_b<책>.
    책별 = {bi, ko, vols, intro:[{vol, no, t, au, r?, items}], units:[{vol, no, r:[c1,v1,c2,v2], rx?, t, au, items}]}
-   intro = 「I. 배경연구」 글(제목에 「(출 1~4장)」 같은 범위가 있으면 r) · units = 「II. 본문연구」(본문 주해와 적용) · items: ['h', 소제목] | ['p', 문단]
+   intro = 「I. 배경연구」 글(제목에 「(출 1~4장)」 같은 범위가 있으면 r) · units = 「II. 본문연구」(본문 주해와 적용) · items: ['h', 소제목] | ['p', 문단] | ['f', 글, 그림, 너비, 높이, 표시 너비](v747)
    rx = 범위가 여러 토막일 때 둘째 토막부터(「출 25~31장, 35~40장」). 스캔 PDF 를 OCR 로 읽어 만들었다 — 미주(각주)·원어 일람표는 뺐다.
+   'f' = 표·도식 — 원본 스캔에서 잘라 낸 흑백 그림(figHtml). 둘째 칸 글은 그림 속 글을 행 순서로(AI 정리 입력).
    만든 과정: Dropbox/total-sermon/work/HOW_20261106/README.md */
 var HOW_WORKER = 'https://wbc-private.bang710.workers.dev';
 var HOWSB = { idx: undefined, books: {}, loading: null, fetching: {} };
@@ -8144,7 +8155,7 @@ function howArtHtml(a, bk, uid, curTxt){
       n++;
       toc += '<button type="button" class="mkChip" data-mkgo="' + uid + '-h' + j + '">' + esc(x[1].length > 16 ? x[1].slice(0, 15) + '…' : x[1]) + '</button>';
       body += '<div class="mkSubh mkSec" id="' + uid + '-h' + j + '"><span>' + esc(x[1]) + '</span></div>';
-    } else body += '<p>' + mukText(x[1], bk, r) + '</p>';
+    } else body += (x[0] === 'f' && figHtml(x)) || '<p>' + mukText(x[1], bk, r) + '</p>';
   });
   return (n >= 3 ? '<div class="mkToc mkSticky"><span class="mkCur">' + esc(curTxt) + '</span>' + toc + '</div>' : '') + body;
 }
@@ -8201,12 +8212,13 @@ async function howStudyInput(R){
    [받기] = 목차(oxf/index.json) + 책 서론(oxf/rep.json, 「OO서 리포트」 — 모두 약 0.5MB) → IndexedDB oxf_idx · oxf_rep.
    권은 본문연구 옥스퍼드 탭에서 그 범위를 다룬 권을 처음 열 때 저장된 키코드로 받아 oxf_v<권>(권당 약 2MB, 다음부터는 기기에서).
    목차 = {id:'oxf', name, built, vols:{v002:{name, books, size}}, books:[{bi, ko, n, size, vols:[[권, c1, v1, c2, v2]]}]}
-   권 = {vol, name, books, units:[{bi, r:[c1,v1,c2,v2], t, secs:[[꼭지, items]]}]} · 리포트 = {"<bi>": {vol, name, items, of?}}
+   권 = {vol, name, books, units:[{bi, r:[c1,v1,c2,v2], t, secs:[[꼭지, items]]}]} · 리포트 = {"<bi>": {vol, name, items, of?, fig?, fsize?}}
    꼭지: 내용 분해 · 스페셜 포인트 · 원어 해설 강해 · 설교 주제 리서치 (몇 단원은 + 정통 신학 변증 · 복음주의 비평 자료 · 성경 배경 연구)
-   items: ['p', 문단] · ['h', 소제목] · ['q', 인용 성구] · ['v', 절, 표제어, 음역, 설명] · ['o', 깊이, 줄](내용 분해) · ['s', 줄](구조 도표)
-   스캔을 OCR 로 읽어 만들었다(낱자 오독이 남아 있다). 그림·지도·일람표 쪽은 뺐다. 만든 과정: Dropbox/total-sermon/work/OXF_20261106/README.md */
+   items: ['p', 문단] · ['h', 소제목] · ['q', 인용 성구] · ['v', 절, 표제어, 음역, 설명] · ['o', 깊이, 줄](내용 분해) · ['s', 줄](구조 도표 — 옛 자료)
+          · ['f', 글, 그림, 너비, 높이, 표시 너비](v747 — 표·지도·일람표·원문 구조 도표를 원본에서 잘라 낸 그림. 리포트 그림은 'r:<키>' → oxf_f<fig>)
+   스캔을 OCR 로 읽어 만들었다(낱자 오독이 남아 있다). 만든 과정: Dropbox/total-sermon/work/OXF_20261106/README.md */
 var OXF_WORKER = 'https://wbc-private.bang710.workers.dev';
-var OXFSB = { idx: undefined, rep: null, vols: {}, loading: null, fetching: {} };
+var OXFSB = { idx: undefined, rep: null, vols: {}, loading: null, fetching: {}, rfig: {} };
 function oxfReady(){ try { return localStorage.getItem('tsa.oxfReady') === '1'; } catch (e){ return false; } }
 function oxfHave(){ try { return JSON.parse(localStorage.getItem('tsa.oxfHave') || '[]'); } catch (e){ return []; } }
 function oxfHaveSet(a){ try { localStorage.setItem('tsa.oxfHave', JSON.stringify(a)); } catch (e){} }
@@ -8270,7 +8282,8 @@ async function oxfClearVols(){
   var ids = Object.keys((ix && ix.vols) || {});
   oxfHave().forEach(function(id){ if (ids.indexOf(id) < 0) ids.push(id); });
   for (var i = 0; i < ids.length; i++) await idbSet('oxf_v' + ids[i], null);
-  OXFSB.vols = {}; oxfHaveSet([]);
+  for (var b = 0; b < 66; b++) await idbSet('oxf_f' + b, null);      // 리포트 표·그림(v747)
+  OXFSB.vols = {}; OXFSB.rfig = {}; oxfHaveSet([]);
 }
 async function oxfClear(){
   await oxfClearVols();
@@ -8289,7 +8302,7 @@ async function oxfFetchAll(){
 }
 function oxfVolName(id){ var v = OXFSB.idx && OXFSB.idx.vols ? OXFSB.idx.vols[id] : null; return '옥스퍼드 ' + (v ? v.name : id); }
 var OXF_CHIP = { '내용 분해': '분해', '스페셜 포인트': '포인트', '원어 해설 강해': '원어', '설교 주제 리서치': '설교', '정통 신학 변증': '변증', '복음주의 비평 자료': '비평', '성경 배경 연구': '배경' };
-function oxfItemsHtml(items, bk, r){
+function oxfItemsHtml(items, bk, r, look){
   var h = '', lastV = '', box = '';
   var close = function(){ if (box){ h += '</div>'; box = ''; } };
   (items || []).forEach(function(x){
@@ -8304,7 +8317,7 @@ function oxfItemsHtml(items, bk, r){
     }
     else if (k === 'q') h += '<blockquote class="mkQ">' + mukText(x[1], bk, r) + '</blockquote>';
     else if (k === 'h') h += '<div class="mkSubh"><span>' + esc(x[1]) + '</span></div>';
-    else h += '<p>' + mukText(x[1], bk, r) + '</p>';
+    else h += (k === 'f' && figHtml(x, look)) || '<p>' + mukText(x[1], bk, r) + '</p>';
   });
   close();
   return h;
@@ -8339,7 +8352,8 @@ function oxfPaneHtml(vols, R){
   }
   var rp = OXFSB.rep && OXFSB.rep[bi];
   if (rp && rp.items && rp.items.length)
-    h += '<details class="mkU"><summary>' + esc((rp.of != null ? rp.name : name) + ' 리포트') + ' · 책 서론 <span class="wbcVol">' + esc(oxfVolName(rp.vol)) + '</span></summary><div class="mkB">' + oxfItemsHtml(rp.items, name, null) + '</div></details>';
+    h += '<details class="mkU"' + (rp.fig != null ? ' data-oxffig="' + rp.fig + '"' : '') + '><summary>' + esc((rp.of != null ? rp.name : name) + ' 리포트') + ' · 책 서론 <span class="wbcVol">' + esc(oxfVolName(rp.vol)) + '</span></summary><div class="mkB">'
+      + oxfItemsHtml(rp.items, name, null, function(k){ var m = OXFSB.rfig[rp.fig]; return m ? m[k] : ''; }) + '</div></details>';
   return h;
 }
 function oxfManageHtml(){
@@ -8380,6 +8394,52 @@ async function oxfStudyInput(R){
     return x;
   });
 }
+/* 표·그림(v747) — ['f', 글, 그림, 너비, 높이, 표시 너비](HOW·옥스퍼드). 그림 = data URI 또는 'r:<키>'(옥스퍼드 리포트, look(키) 로 찾는다).
+   아직 없는 리포트 그림은 src 없는 자리(data-figk)로 두었다가 리포트를 펼칠 때 받아 채운다(oxfFillFigs). 그림이 아니면 null → 글로 */
+function figHtml(x, look){
+  var s = x[2], k = '';
+  if (typeof s !== 'string' || !s) return null;
+  if (s.slice(0, 2) === 'r:'){ k = s.slice(2); s = look ? look(k) : ''; }
+  return '<figure class="figBox" style="width:' + (x[5] || 600) + 'px"><img ' + (s ? 'src="' + s + '" alt="표·그림"' : 'data-figk="' + esc(k) + '" alt="표·그림 받는 중…"')
+    + ' width="' + (x[3] || 600) + '" height="' + (x[4] || 400) + '" data-figzoom="1"></figure>';
+}
+function figZoom(src){
+  var o = document.createElement('div'); o.className = 'figZoom';
+  o.innerHTML = '<img alt="표·그림"><button type="button" class="figZoomX" aria-label="닫기">✕</button>';
+  o.querySelector('img').src = src;
+  o.addEventListener('click', function(e){
+    if (e.target.closest('.figZoomX')) o.remove();
+    else if (e.target.tagName === 'IMG') o.classList.toggle('fit');
+  });
+  document.body.appendChild(o);
+}
+/* 옥스퍼드 리포트 표·그림 — oxf/b<번호>.json = {bi, figs:{키: data URI}} → IndexedDB oxf_f<번호> (책마다 0.1~1MB) */
+function oxfLoadFigs(n){
+  if (OXFSB.rfig[n]) return Promise.resolve(OXFSB.rfig[n]);
+  var fk = 'f' + n;
+  if (OXFSB.fetching[fk]) return OXFSB.fetching[fk];
+  OXFSB.fetching[fk] = idbGet('oxf_f' + n).catch(function(){ return null; }).then(function(m){
+    if (m) return m;
+    var key = gateKeyGet();
+    if (!key) throw new Error('키코드가 없습니다');
+    return oxfGet('b' + n, key).then(function(v){
+      if (!v || !v.figs) throw new Error('자료 형식 오류');
+      return idbSet('oxf_f' + n, v.figs).then(function(){ return v.figs; });
+    });
+  }).then(function(m){ OXFSB.rfig[n] = m; delete OXFSB.fetching[fk]; return m; }, function(e){ delete OXFSB.fetching[fk]; throw e; });
+  return OXFSB.fetching[fk];
+}
+function oxfFillFigs(root, n){
+  oxfLoadFigs(n).then(function(m){
+    root.querySelectorAll('img[data-figk]').forEach(function(im){ var s = m[im.getAttribute('data-figk')]; if (s){ im.src = s; im.alt = '표·그림'; im.removeAttribute('data-figk'); } });
+  }).catch(function(e){ var t = (e && e.message) || String(e); toast('리포트 표·그림을 받지 못했습니다: ' + (t === 'CORS' ? '인터넷 연결' : t)); });
+}
+/* 리포트(접힘)를 펼치면 그 책 리포트의 표·그림을 채운다 — toggle 은 거품이 일지 않아 잡기 단계에서 */
+document.addEventListener('toggle', function(e){
+  var d = e.target;
+  if (!d || !d.open || !d.getAttribute || d.getAttribute('data-oxffig') == null) return;
+  if (d.querySelector('img[data-figk]')) oxfFillFigs(d, +d.getAttribute('data-oxffig'));
+}, true);
 function esvManageHtml(){
   return '<div style="display:flex;gap:6px;margin-top:12px;padding-top:8px;border-top:1px dashed var(--line)"><button class="btn sub mini" id="esvGet" type="button">↻ 다시 받기</button><button class="btn sub mini" id="esvDel" type="button">이 기기에서 삭제</button></div>';
 }
@@ -19594,6 +19654,8 @@ document.addEventListener('click', function(e){
     try { t.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e3){ t.scrollIntoView(); }
     return;
   }
+  var fz = e.target.closest && e.target.closest('#stPane img[data-figzoom][src]');
+  if (fz){ figZoom(fz.src); return; }
   var oa = e.target.closest && e.target.closest('[data-oxfact]');
   if (oa){
     var oact = oa.getAttribute('data-oxfact');
@@ -37279,7 +37341,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v746';
+var APP_VER = 'v747';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
