@@ -511,6 +511,16 @@ WBC 성경주석(솔로몬 한글판) 스캔 PDF 58권(38,974쪽)을 맥 Vision 
 - 책 = `{bi, ko, vols, intro:[{vol, items, shared?}], units:[{vol, r:[c1,v1,c2,v2], t, path, secs:[[꼭지,[[k,…]]]]}]}`, k = `p` 문단 · `h` 소제목 · `v` 절 문단 · `n` 원문주해 · `e` 영어 번역 절.
 - 시험(시험 사본 + 가짜 워커): 목차만 받기 → 책 열 때 한 번 받기 · 키 틀리면 403 안내 · 없는 책 안내 · 칩·고정 줄 · 요 1:19-28(단원 서론 칩) · 잠 3장 · 시 23편 · 롬 8장 · 계 21장 · AI 입력. ⚠ 실제 워커 배포 전에는 [받기]가 실패한다(목사님이 `worker/deploy.sh` 실행).
 
+## 본문연구 [HOW 주석] 탭 (키코드 자료, 책별로 받기) — v745 (2026-11-06)
+
+두란노 HOW주석 「OOO 어떻게 설교할 것인가」 스캔 PDF 50권(18,057쪽)을 맥 Vision OCR 로 읽어 만든 자료. **66책 · 본문연구 699편 · 배경연구 404편 · 약 36MB**. 만든 과정·다시 만들기: `Dropbox/total-sermon/work/HOW_20261106/README.md`.
+- 한 권 = I. 배경연구(책 전체를 다룬 글) + II. 본문연구(본문 구간마다 「주해와 적용」 글). 미주·원어 일람표는 뺐다. 저자는 차례·간지에서(차례 OCR 이 한 글자 틀린 이름은 `build.py author_fix` 가 바로잡음).
+- **저작권 자료 · 책별로 받기**: WBC 워커 **`wbc-private`** 를 함께 쓴다(`?s=how&f=index` / `?s=how&f=b<책>` → R2 `nkt-bible/how/`, ACCESS_KEY 같음 — `s` 가 없으면 예전처럼 WBC). 설정 → 저작권 자료의 「HOW주석」 [받기](`GATED` `type:'how'`, `nofile`) = **목차만** → IndexedDB `how_idx` + `tsa.howReady`. 책은 HOW 주석 탭에서 그 책을 처음 열 때 `howLoadBook` → `how_b<bi>`(받은 책 목록 `tsa.howHave`). 관리 줄 `howManageHtml`(`[data-howact]`): 모든 책 미리 받기 · 받은 책 지우기. 목차 `built` 가 바뀌면 [받기] 때 받아 둔 책을 지운다.
+- 탭 = 주석 묶음의 WBC 다음 **「HOW 주석」**(`data-sttab="how"`, `howPaneHtml`). 이 범위와 겹치는 본문연구 글(펼침) → 「배경연구 N편」(`.howBg` 접힘, 범위가 맞는 글이 먼저). 글 = 묵상과 설교 부품(`.mk*`, 소제목 3개 이상이면 바로가기 줄 `.mkToc.mkSticky` + `mukSpy`), 머리 = 범위 · 제목 · 「저자 · HOW 갈라디아서」(`howBy`).
+- 책 = `{bi, ko, vols, intro:[{vol,no,t,au,r?,items}], units:[{vol,no,r:[c1,v1,c2,v2],rx?,t,au,items}]}`, items = `['h',소제목] | ['p',문단]`.
+- **AI 정리 입력** `HOW주석`(`howStudyInput`): 범위와 겹치는 본문연구 글 앞에서부터 최대 4편 · 합쳐 약 12,000자(없으면 범위가 맞는 배경연구). `P_STUDYSYN` 에 입력 설명·근거 목록·쓰는 법 줄(본문 구조·주해 → 구조·정황·핵심원어 근거, 적용 → 설교다리 근거), `AI_CITE_SRC` 에 「HOW주석」 → `how` 탭. ⚠ 성경앱 `AISYN` 모듈에도 같은 줄이 있다 — 함께 고칠 것.
+- 패치 스크립트: `work/HOW_20261106/tools/patch_sermon.py`(기준점 = WBC 코드), 적용 `apply_apps.py`.
+
 ## AI 정리 → 성경앱 노트 자동 갱신 — v642 (2026-10-13 목사님 요청)
 ⚠ **2026-10-14: 성경앱 주석 창에도 같은 「AI 정리」가 생겼다**(성경앱 SHELL v514, `Dropbox/bible/CLAUDE.md`). `P_STUDYSYN`·`MISUSE_RULE`·`aiJson`·`renderStudyAi`·`studyBibleNoteText` 를 고치면 성경앱 `AISYN` 모듈도 함께 고칠 것 — 노트 id(`study-<usfm><범위>`)를 같게 써서 두 앱이 같은 노트를 고친다.
 **v648 — 설교앱·성경앱 AI 정리 = 한 기록** (2026-10-14 목사님 요청 「두 앱의 AI 정리가 물 흐르듯 이어지게」)
