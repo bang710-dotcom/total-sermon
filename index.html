@@ -20273,30 +20273,60 @@ function renderScripture(range){
 /* ===================== 본문 보기(개역개정) 모달 =====================
    앱 어디서든 성경 장절 표기를 탭하면 개역개정 본문을 모달로 띄운다.
    parseRange·renderScripture·loadBook(bible/bNN.json)을 그대로 재사용한다. */
-var BREF_RE = null;
+/* 성경 표기 링크 — 거짓 표기 거르기(v748, 2026-11-06 목사님 제보 「이미 5:20에서」가 미가 5:20 링크).
+   · 책 이름 바로 앞이 한글 음절이면 낱말 끝 글자다(「이미」의 '미', 「그러나」의 '나', 「특히」의 '히', 「여로보암 2세」의 '암') → 책이 아니다.
+     뒤가 '장:절'이면 문맥 책(ctx)의 바로참조로 링크한다(「이미 5:20에서」 → 로마서 5:20).
+     다만 띄어쓰기 없이 붙은 「참고·비교·참조·및·과」 뒤는 책이다(「참고호 5:5」「비교시 2:8」).
+   · 장만 있는 약어 표기(「롬 8」)는 뒤에 장·편이 붙거나(「롬 8장」「민 13~14장」「시 23편」) 숫자 뒤가 끝·띄어쓰기·문장부호일 때만 —
+     「약 40년」「약 1.5kg」「주 전 5세기」「에 2인칭」은 링크하지 않는다. 책 이름을 다 쓴 것(「신명기 5」)은 그대로.
+   · 띄어 쓴 약어(「고 전 1:8」「살 전 4:16」 — '전'(전도서)로 읽히던 것)는 한 책으로.
+   · data-ref 는 '책 장:절' 꼴로 고쳐 넣는다(「롬5:1」「롬 3: 25」「롬 5장 1절」도 parseRange 가 읽게).
+   · 그 책에 없는 장(「창 125」「약 100」 — OCR 오독·숫자)은 링크하지 않는다(BREF_NCH = 책마다 장 수, BOOKS 순서).
+     한 장짜리 책의 「오바댜 11-14절」「요삼 11절」은 1장의 절로. 범위 끝의 「20: 4」(쌍점 뒤 띄어쓰기 — 목록 구분)는 장:절로 읽지 않는다(「롬 3:19~20: 4」 → 롬 3:19-20). */
+var BREF_RE = null, BREF_FULL = null, BREF_IX = null;
+var BREF_NCH = [50,40,27,36,34,24,21,4,31,24,22,25,29,36,10,13,10,42,150,31,12,8,66,52,5,48,12,14,3,9,1,4,7,3,3,3,2,14,4,28,16,24,21,28,16,16,13,6,6,4,4,5,3,6,4,3,1,13,5,5,3,5,1,1,1,22];
 function buildBrefRe(){
-  /* 책이름 포함 전체표기  또는  괄호 안 '장:절(-절)' 바로참조 */
-  return new RegExp('(' + BOOKS + ')\\s*\\d+(?:\\s*[:장]\\s*\\d+(?:\\s*[-~–—‐-―]\\s*(?:\\d+\\s*[:장]\\s*)?\\d+)?)?' +
+  /* 띄어 쓴 약어  또는  책이름 포함 전체표기  또는  괄호 안 '장:절(-절)' 바로참조 */
+  return new RegExp('((?:고|살|딤|벧)\\s(?:전|후)|(?:삼|왕|대)\\s(?:상|하)|' + BOOKS + ')\\s*\\d+(?:\\s*[:장]\\s*\\d+(?:\\s*[-~–—‐-―]\\s*(?:\\d+\\s*[:장](?=\\d))?\\d+)?)?' +
     '|\\(\\s*\\d+\\s*[:장]\\s*\\d+(?:\\s*[-~–—‐-―]\\s*\\d+)?\\s*\\)', 'g');
 }
+function brefNorm(x){ return String(x).trim().replace(/\s*장\s*(?=\d)/g, ':').replace(/\s*:\s*/g, ':').replace(/\s*([-~–—‐-―])\s*/g, '-'); }
 function brefBook(ref){ var r = parseRange(String(ref || '').trim()); return r ? r.book : ''; }
 /* text를 esc하면서 성경 표기를 클릭 가능한 span으로 감싼다.
    ctx(책 이름)가 있으면 괄호 안 '8:1' 같은 바로참조도 'ctx 8:1'로 링크한다.
    esc 대체용으로 안전(표기엔 HTML 특수문자가 없음). */
 function linkifyRefs(text, ctx){
-  if (!BREF_RE) BREF_RE = buildBrefRe();
+  if (!BREF_RE) {
+    BREF_RE = buildBrefRe(); BREF_FULL = {}; BREF_IX = {};
+    BOOKS.split('|').forEach(function(b, i){ BREF_IX[b] = i % 66; if (i < 66) BREF_FULL[b] = 1; });
+  }
   var s = String(text || ''), out = '', last = 0, m;
   BREF_RE.lastIndex = 0;
   while ((m = BREF_RE.exec(s))) {
-    out += esc(s.slice(last, m.index));
-    var tok = m[0], ref;
-    if (m[1]) { ref = tok; }                                   /* 책 포함 전체표기 */
-    else {
-      var inner = tok.replace(/[()]/g, '').trim();
-      if (!ctx) { out += esc(tok); last = m.index + tok.length; continue; } /* 문맥 없으면 링크 안 함 */
-      ref = ctx + ' ' + inner;
+    var tok = m[0], bk = m[1], ref = '', shown = tok;
+    if (bk) {
+      var rest = tok.slice(bk.length), cv = /\d\s*[:장]\s*\d/.test(rest), after = s.slice(m.index + tok.length);
+      var pw = (s.slice(Math.max(0, m.index - 8), m.index).match(/[가-힣]+$/) || [''])[0];
+      if (pw && !/^(?:참고|비교|참조|및|과)$/.test(pw)) {                   /* 낱말 끝 글자 — 책이 아니다(「참고호 5:5」「비교시 2:8」「및막 9:33」은 책) */
+        if (cv && ctx) { shown = rest.replace(/^\s+/, ''); ref = ctx + ' ' + brefNorm(shown); }
+      } else if (/\s/.test(bk)) {                                          /* 띄어 쓴 약어 */
+        if (cv) ref = bk.replace(/\s+/g, '') + ' ' + brefNorm(rest);
+      } else if (cv || BREF_FULL[bk] || /^\s*(?:[-~–—‐-―]\s*\d+\s*)?[장편]/.test(after) || !/^[가-힣A-Za-z0-9.]/.test(after)
+                 || (BREF_NCH[BREF_IX[bk]] === 1 && /^\s*(?:[-~–—‐-―]\s*\d+\s*)?절/.test(after))) {      /* 한 장짜리 책의 「유 12절」 */
+        ref = bk + ' ' + brefNorm(rest);
+      }
+    } else if (ctx) {
+      ref = ctx + ' ' + brefNorm(tok.replace(/[()]/g, ''));
     }
-    out += '<span class="bref" data-ref="' + esc(ref) + '">' + esc(tok) + '</span>';
+    if (ref) {                                                            /* 없는 장이면 링크하지 않는다 */
+      var pr = parseRange(ref), ix = pr ? BREF_IX[pr.book] : undefined;
+      if (pr && ix !== undefined && BREF_NCH[ix] === 1 && pr.wholeChapter) {    /* 한 장짜리 책(오바댜·빌레몬서·요이·요삼·유다서)의 「오바댜 11-14절」은 1장 11-14절 */
+        ref = pr.book + ' 1:' + pr.c1 + (pr.c2 !== pr.c1 ? '-' + pr.c2 : ''); pr = parseRange(ref);
+      }
+      if (!pr || (ix !== undefined && (pr.c1 < 1 || pr.c1 > BREF_NCH[ix] || pr.c2 > BREF_NCH[ix]))) ref = '';
+    }
+    out += esc(s.slice(last, m.index + tok.length - shown.length));
+    out += ref ? '<span class="bref" data-ref="' + esc(ref) + '">' + esc(shown) + '</span>' : esc(shown);
     last = m.index + tok.length;
   }
   out += esc(s.slice(last));
@@ -37341,7 +37371,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v747';
+var APP_VER = 'v748';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
