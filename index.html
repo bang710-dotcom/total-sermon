@@ -960,6 +960,23 @@ body.focusMode .arIndF{display:inline-flex}
 .strans{color:var(--accent2);font-size:var(--fs-md);margin-left:4px}
 .scode{color:var(--dim);font-size:var(--fs-sm);margin-left:6px}
 .swd{font-size:var(--fs-md);line-height:1.6;color:var(--text);margin-bottom:7px}
+/* 원어 사전 자세히 — 성경앱 lexko/(공개 원전 BDB·Abbott-Smith·LSJ·Strong 기반 한국어 항목) */
+.lkxBox{border:1px solid var(--line);border-radius:var(--r-md);background:var(--card);margin:2px 0 8px;font-size:var(--fs-md);line-height:1.7;color:var(--text)}
+.lkxBox>summary{cursor:pointer;list-style:none;padding:7px 10px;font-weight:700;color:var(--accent)}
+.lkxBox>summary::-webkit-details-marker{display:none}
+.lkxBox>summary::before{content:'▸ '}
+.lkxBox[open]>summary::before{content:'▾ '}
+.lkxBody{padding:0 10px 9px}
+.lkxM{font-weight:600;margin-bottom:6px}
+.lkxH{font-size:var(--fs-sm);font-weight:700;color:var(--dim);margin:9px 0 2px}
+.lkxBody p{margin:0 0 5px}
+.lkxBody ol,.lkxBody ul{margin:0;padding-left:1.3em}
+.lkxBody li{margin-bottom:5px}
+.lkxSh{font-weight:700}
+.lkxR{font-size:var(--fs-sm);color:var(--dim)}
+.lkxCode{border:1px solid var(--line);border-radius:6px;padding:0 5px;margin:0 2px;font-size:var(--fs-sm);color:var(--accent);background:var(--card2);cursor:pointer}
+.lkxCode .sorig{font-size:inherit;font-weight:600;color:inherit}
+.lkxSrc{margin-top:8px;padding-top:6px;border-top:1px dashed var(--line);font-size:var(--fs-sm);color:var(--dim);line-height:1.5}
 .sconcOut{margin-top:6px}
 .sconcHd{font-size:var(--fs-sm);color:var(--accent);font-weight:600;margin:2px 0 5px}
 .sconcRow{font-size:var(--fs-sm);line-height:1.6;padding:3px 0;border-top:1px dashed var(--line)}
@@ -10129,6 +10146,54 @@ function studyWordDetail(codesStr){
   studySetTab('orig');
   if (window.matchMedia && window.matchMedia('(max-width:720px)').matches){ try { $('#studyDetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
 }
+/* ===== 원어 사전 자세히 — 성경앱과 같은 자료(COM_BASE/lexko/) =====
+   공개 원전(BDB·Abbott-Smith·LSJ·Strong·STEPBible)을 바탕으로 쓴 한국어 항목. 번호 250개씩 H00.json …, 목록 index.json.
+   자료를 고치면 성경앱 LEXKOV 와 함께 LEXKO_V 를 올린다. 칸: m 핵심 뜻 · o 어원 · s 용법[{h,x,r}] · t 신학적 의미 · y 비슷한 말[{c,x}] · p 설교 포인트 · k 개역개정 번역 · src */
+var LEXKO_V = '?v=1', LEXKO = { idx: null, blk: {} };
+function lexkoIdx(){
+  if (!LEXKO.idx) LEXKO.idx = fetch(COM_BASE + '/lexko/index.json' + LEXKO_V).then(function(r){ return r.json(); }).catch(function(){ LEXKO.idx = null; return { files: [] }; });
+  return LEXKO.idx;
+}
+function lexkoGet(code){
+  return lexkoIdx().then(function(ix){
+    var n = parseInt(String(code).slice(1), 10); if (isNaN(n)) return null;
+    var b = String(code).charAt(0) + ('0' + Math.floor(n / (ix.block || 250))).slice(-2);
+    if ((ix.files || []).indexOf(b) < 0) return null;
+    if (!LEXKO.blk[b]) LEXKO.blk[b] = fetch(COM_BASE + '/lexko/' + b + '.json' + LEXKO_V).then(function(r){ return r.json(); }).catch(function(){ delete LEXKO.blk[b]; return {}; });
+    return LEXKO.blk[b].then(function(d){ return d[code] || null; });
+  });
+}
+function lexkoHtml(e){
+  var T = function(t){ return linkifyRefs(t || '').replace(/(^|[^A-Za-z0-9="])([GH]\d{1,4})(?![0-9A-Za-z])/g, function(m, pre, c){
+    var L = STUDY.lex && STUDY.lex[c]; return pre + '<span class="lkxCode" data-lkx="' + c + '">' + c + (L && L.w ? ' <span class="sorig">' + esc(L.w) + '</span>' : '') + '</span>'; }); };
+  var open = true; try { open = localStorage.getItem('lkOpen') !== '0'; } catch (x) {}
+  var h = '<details class="lkxBox"' + (open ? ' open' : '') + '><summary>원어 사전 자세히</summary><div class="lkxBody">';
+  if (e.m) h += '<div class="lkxM">' + T(e.m) + '</div>';
+  if (e.o) h += '<div class="lkxH">어원 · 관련어</div><p>' + T(e.o) + '</p>';
+  if (e.s && e.s.length) h += '<div class="lkxH">용법</div><ol>' + e.s.map(function(s){
+    return '<li>' + (s.h ? '<span class="lkxSh">' + T(s.h) + '</span>' + (s.x ? ' — ' : '') : '') + T(s.x)
+      + ((s.r && s.r.length) ? '<div class="lkxR">' + s.r.map(function(r){ return linkifyRefs(r); }).join(' · ') + '</div>' : '') + '</li>'; }).join('') + '</ol>';
+  if (e.t) h += '<div class="lkxH">신학적 의미</div>' + String(e.t).split(/\n{2,}/).map(function(p){ return '<p>' + T(p) + '</p>'; }).join('');
+  if (e.y && e.y.length) h += '<div class="lkxH">비슷한 말</div>' + e.y.map(function(y){ return '<p>' + (y.c && /^[GH]\d+$/.test(y.c) ? T(y.c) + ' ' : '') + T(y.x) + '</p>'; }).join('');
+  if (e.p && e.p.length) h += '<div class="lkxH">설교 포인트</div><ul>' + e.p.map(function(p){ return '<li>' + T(p) + '</li>'; }).join('') + '</ul>';
+  if (e.k) h += '<div class="lkxH">개역개정 번역</div><p>' + T(e.k) + '</p>';
+  h += '<div class="lkxSrc">근거 ' + esc((e.src || []).join(' · ')) + ' — 원전을 바탕으로 AI가 한국어로 정리했습니다. BDB · Abbott-Smith · Strong 은 퍼블릭 도메인, STEPBible 자료는 CC BY 4.0(Tyndale House).</div>';
+  return h + '</div></details>';
+}
+function studyLexkoFill(pane){
+  pane.querySelectorAll('.swRich').forEach(function(el){
+    lexkoGet(el.getAttribute('data-code')).then(function(e){
+      if (!e || !el.isConnected) return;
+      el.innerHTML = lexkoHtml(e);
+      var d = el.querySelector('details');
+      if (d) d.addEventListener('toggle', function(){ try { localStorage.setItem('lkOpen', d.open ? '1' : '0'); } catch (x) {} });
+      el.addEventListener('click', function(ev){
+        var c = ev.target.closest && ev.target.closest('.lkxCode'); if (!c) return;
+        ev.preventDefault(); ev.stopPropagation(); studyWordDetail(c.getAttribute('data-lkx'));
+      });
+    });
+  });
+}
 function studyWordDetailInto(pane, codesStr){
   var seen = {}, uniq = [];
   String(codesStr || '').split(',').forEach(function(c){ if (c && !seen[c]){ seen[c] = 1; uniq.push(c); } });
@@ -10138,12 +10203,14 @@ function studyWordDetailInto(pane, codesStr){
     var head = '<span class="sorig">' + (L ? esc(L.w) : '') + '</span> <span class="strans">' + (L ? esc(L.t) : '') + '</span> <span class="scode">' + esc(code) + '</span>';
     return '<div class="sworddef"><div class="swh">' + head + '</div>'
       + '<div class="swd">' + (L ? esc(L.d) : '뜻풀이 없음') + '</div>'
+      + '<div class="swRich" data-code="' + esc(code) + '"></div>'
       + '<button class="btn sub mini sconc" type="button" data-conc="' + esc(code) + '">이 원어가 쓰인 다른 본문 보기</button>'
       + '<button class="btn sub mini swDeepBtn" type="button" data-deep="' + esc(code) + '" data-deepw="' + esc((L && L.w) || '') + '"><svg class=ico aria-hidden=true><use href=#i-search></use></svg> 이 단어 깊이 파기</button>'
       + '<div class="swDeepBox" id="swdeep-' + esc(code) + '" style="display:none"></div>'
       + '<div class="sconcOut" id="sconc-' + esc(code) + '"></div></div>';
   }).join('');
   pane.scrollTop = 0;
+  studyLexkoFill(pane);
 }
 function renderConc(code){
   var out = $('#sconc-' + code); if (!out) return;
@@ -37374,7 +37441,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v749';
+var APP_VER = 'v750';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
