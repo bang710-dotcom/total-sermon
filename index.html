@@ -3366,6 +3366,13 @@ body.focusMode #refInsBar{bottom:72px}
         <div class="cnt" style="margin-top:6px">넣으면 [리더스앱 업로드]가 파일을 내려받는 대신 리더스앱 시트에 바로 한 줄 추가합니다.</div>
         </details>
 
+        <details class="setGrp" id="sgDevoApp">
+          <summary>묵상 앱 연결 <span class="sgSub">Why에서 Way로 묵상 앱</span><span class="setBadge" data-badge="devoapp"></span></summary>
+        <label for="setDevoApp">연결 코드</label>
+        <input type="password" autocomplete="off" id="setDevoApp" placeholder="WDV1.… (묵상 앱 → 나 → 관리자에서 복사)">
+        <div class="cnt" style="margin-top:6px">넣으면 Why에서 Way로 연간 계획의 월별 묵상집에 [묵상 앱에 올리기]가 생깁니다. 다른 기기와 함께 씁니다.</div>
+        </details>
+
         <div style="margin-top:14px"><button class="btn" id="saveSettings">저장하고 연결 확인</button></div>
         <div class="cnt" style="margin:6px 2px 0">칸을 벗어나면 저절로 저장됩니다.</div>
       </div>
@@ -19837,7 +19844,8 @@ function renderSetBadges(){
     ai: has(s.claudeKey) || (typeof bridgeOn === 'function' && bridgeOn()),
     memo: has(s.memoUrl) && has(s.memoKey),
     proxy: has(s.proxyUrl) && has(s.proxyToken),
-    la: has(s.laUrl) && has(s.laToken)
+    la: has(s.laUrl) && has(s.laToken),
+    devoapp: !!devoAppConn()
   };
   Object.keys(map).forEach(function(k){
     var el = document.querySelector('[data-badge="' + k + '"]');
@@ -27828,6 +27836,53 @@ async function lbtDevoRegister(mo, quiet){
   if (!quiet) toast('묵상집 시트에 ' + n + '일 등록 — 「이달의 묵상」과 성경앱에서 볼 수 있습니다.');
   return n;
 }
+/* ══ v751 — Why에서 Way로 묵상 앱(whyway-devo)에 이 달 묵상 올리기 (2026-11-10 목사님 요청) ══
+   벗님들이 앱에서 묵상하는 별도 앱. 연결 코드 「WDV1.<base64 JSON {u: 앱 주소, k: 관리자 열쇠}>」는 묵상 앱 → 나 → 관리자에서 복사해
+   설정 「묵상 앱 연결」(state.settings.devoApp, 금고로 다른 기기와 공유)에 넣는다. 올리기 = POST <u>/api/admin/month (X-Admin-Key).
+   보내는 것 = 그 달 날짜·본문·제목·질문 3개 + 주일마다 주제·질문(설교 없는 주 = free) + 대주제·월 주제·흐름·기간.
+   같은 달을 다시 올리면 덮어쓴다(빠진 날은 앱에서 지움 — 그날 쓴 벗님들 글은 남는다). 이 기기의 묵상 자료만 바꾸지 않는다. */
+function devoAppConn(){
+  var s = String((state.settings && state.settings.devoApp) || '').replace(/\s+/g, ''), m = s.match(/WDV1\.([A-Za-z0-9+\/=_-]+)/);
+  if (!m) return null;
+  try {
+    var j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))));
+    if (!j || !/^https?:\/\/[^\s]+$/.test(String(j.u || '')) || !j.k) return null;
+    return { u: String(j.u).replace(/\/+$/, ''), k: String(j.k) };
+  } catch (e) { return null; }
+}
+async function lbtDevoToApp(mo){
+  var D = lbtDevoGet(mo); if (!D || !D.rows.length) { toast('먼저 묵상 본문을 만들어 주세요.'); return; }
+  if (lbtDevoAudit(D.rows, mo)) { toast('본문에 문제가 있는 날(빨간 표시)을 먼저 고쳐 주세요.'); return; }
+  var C = devoAppConn(); if (!C) { toast('설정 → 묵상 앱 연결에 연결 코드를 넣어 주세요.'); return; }
+  var rows = D.rows.slice().sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; });
+  var noQ = rows.filter(function(r){ return !r['관찰질문'] || !r['묵상질문'] || !r['적용질문']; }).length;
+  if (noQ && !await uiConfirm('질문이 비어 있는 날이 ' + noQ + '일 있습니다. 그대로 올릴까요?\n(나중에 질문을 채워 다시 올려도 됩니다)', { okText: '올리기' })) return;
+  var G = lbtG(mo.g) || { g: mo.g, t: '' }, wks = lbtDevoWeeks(mo), mk = lbtDevoKey(mo.m);
+  var first = rows[0]['날짜'], last = rows[rows.length - 1]['날짜'];
+  var body = {
+    ym: mk, series: LBT_SERIES, title: G.t || '', theme: mo.theme || '', sub: mo.theme || '', flow: mo.flow || '',
+    period: devoMD(first) + ' ~ ' + devoMD(last),
+    weeks: wks.map(function(x){ return { sun: x.sun, free: !x.w, title: x.w ? (x.w.title || (D.themes && D.themes[x.sun]) || '') : '',
+      qs: x.w ? x.w.ids.map(function(id){ var q = lbtQ(id); return q ? q.q : ''; }).filter(Boolean) : [] }; }),
+    days: rows.map(function(r){ return { date: r['날짜'], sun: r.sun || '', ref: r['본문범위'] || '', title: r['제목'] || '',
+      q_obs: r['관찰질문'] || '', q_med: r['묵상질문'] || '', q_app: r['적용질문'] || '', fixed: !!r.fixed }; })
+  };
+  var ctl = new AbortController(), tm = setTimeout(function(){ ctl.abort(); }, 30000), res, j = {};
+  try {
+    res = await fetch(C.u + '/api/admin/month', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': C.k }, body: JSON.stringify(body), signal: ctl.signal });
+    try { j = await res.json(); } catch (e2) {}
+  } catch (e) {
+    throw new Error(e && e.name === 'AbortError' ? '묵상 앱 응답이 없습니다(30초)' : '묵상 앱에 연결하지 못했습니다 — 인터넷과 연결 코드의 주소를 확인해 주세요');
+  } finally { clearTimeout(tm); }
+  if (!res.ok || !j.ok) {
+    if (res.status === 403) throw new Error('관리자 열쇠가 맞지 않습니다 — 묵상 앱에서 연결 코드를 다시 복사해 넣어 주세요');
+    if (res.status === 409 && j.clash) throw new Error('이미 다른 달에 들어 있는 날짜가 있습니다: ' + j.clash.map(function(c){ return devoMD(c.date) + '(' + c.ym + ')'; }).join(', '));
+    throw new Error((j && j.error) || ('HTTP ' + res.status));
+  }
+  D.appAt = nowLocalStr_(); lbtSaveNow(); renderLbtPane();
+  toast(mo.m + '월 묵상 ' + j.days + '일을 묵상 앱에 올렸습니다.');
+  return j.days;
+}
 /* 책 조판 — 시리즈 묵상집(buildDevoBookletHtml)에 ww 옵션: 표지 라벨·「이달의 질문」 1쪽·주차 표지만 다르다 */
 function lbtDevoBooklet(mo){
   var D = lbtDevoGet(mo); if (!D || !D.rows.length) { toast('먼저 묵상 본문을 만들어 주세요.'); return; }
@@ -27862,14 +27917,15 @@ function lbtDevoHtml(mo, mi){
   var nBad = has ? D.rows.filter(function(r){ return r.bad; }).length : 0, noQ = has ? D.rows.filter(function(r){ return !r['관찰질문'] || !r['묵상질문'] || !r['적용질문']; }).length : 0;
   var stale = has && D.sig && D.sig !== lbtDevoSig(wks), open = !!(state.lbt.year.devoOpen || {})[mk];
   var h = '<details class="lbtDevo" data-mk="' + mk + '"' + (open ? ' open' : '') + '><summary><svg class=ico aria-hidden=true><use href=#i-library></use></svg> ' + mo.m + '월 묵상집'
-    + '<span class="cnt"> — ' + (has ? D.rows.length + '일' + (D.sheetAt ? ' · 시트 등록됨' : ' · 시트 미등록') : '아직 없음 · 주일 ' + wks.length + '번 × 월~토 = ' + (wks.length * 6) + '일') + '</span>'
+    + '<span class="cnt"> — ' + (has ? D.rows.length + '일' + (D.sheetAt ? ' · 시트 등록됨' : ' · 시트 미등록') + (D.appAt ? ' · 묵상 앱 올림' : '') : '아직 없음 · 주일 ' + wks.length + '번 × 월~토 = ' + (wks.length * 6) + '일') + '</span>'
     + (nBad ? '<span class="lbtDevoWarn">문제 ' + nBad + '일</span>' : '') + '</summary>';
   if (!open) return h + '</details>';
   h += '<div class="toolrow" style="flex-wrap:wrap">'
     + '<button class="btn" type="button" data-devo="gen" data-mi="' + mi + '">' + (has ? '<svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 본문 다시 고르기' : '<svg class=ico aria-hidden=true><use href=#i-library></use></svg> 묵상 본문·질문 만들기') + '</button>'
     + (has && noQ ? '<button class="btn sub" type="button" data-devo="q" data-mi="' + mi + '"><svg class=ico aria-hidden=true><use href=#i-help></use></svg> 빈 질문 채우기 (' + noQ + ')</button>' : '')
     + (has ? '<button class="btn sub" type="button" data-devo="reg" data-mi="' + mi + '"><svg class=ico aria-hidden=true><use href=#i-download></use></svg> 묵상집 시트 등록</button>'
-      + '<button class="btn sub" type="button" data-devo="print" data-mi="' + mi + '"><svg class=ico aria-hidden=true><use href=#i-printer></use></svg> 묵상집 인쇄(PDF)</button>' : '')
+      + '<button class="btn sub" type="button" data-devo="print" data-mi="' + mi + '"><svg class=ico aria-hidden=true><use href=#i-printer></use></svg> 묵상집 인쇄(PDF)</button>'
+      + (devoAppConn() ? '<button class="btn sub" type="button" data-devo="app" data-mi="' + mi + '"><svg class=ico aria-hidden=true><use href=#i-send></use></svg> 묵상 앱에 올리기</button>' : '') : '')
     + '</div>';
   if (stale) h += '<div class="lbtDevoWarn" style="display:block;margin-top:6px">계획(주제·질문·추천 본문)이 이 묵상을 만든 뒤 바뀌었습니다 — 필요하면 [<svg class=ico aria-hidden=true><use href=#i-refresh></use></svg> 본문 다시 고르기]를 누르세요.</div>';
   if (!has) return h + '<div class="cnt" style="margin-top:6px">첫 주일 앞 월요일(' + lbtMd(wks[0].days[0]) + ')부터 마지막 주일 앞 토요일(' + lbtMd(wks[wks.length - 1].days[5]) + ')까지. 설교 주일 앞 주는 그 주일의 질문을 향하고(토요일 = 추천 본문 중 이야기 본문), 설교가 없는 주일 앞 주는 대주제로 자유 묵상합니다.</div></details>';
@@ -27916,6 +27972,7 @@ function lbtYearPaneClick(e){
     var dmo = P.months[+dv.dataset.mi]; if (!dmo) return true;
     var act = dv.dataset.devo;
     if (act === 'print') { withBusy(dv, '조판 중…', function(){ return Promise.resolve(lbtDevoBooklet(dmo)); })(); return true; }
+    if (act === 'app') { withBusy(dv, '올리는 중…', function(){ return lbtDevoToApp(dmo).catch(function(er){ toast('묵상 앱에 올리지 못했습니다: ' + er.message); }); })(); return true; }
     withBusy(dv, act === 'gen' ? '만드는 중…' : act === 'q' ? '채우는 중…' : '등록 중…', function(){
       var job = act === 'gen' ? aiLbtDevoMonth(+dv.dataset.mi)
         : act === 'reg' ? lbtDevoRegister(dmo)
@@ -27925,7 +27982,7 @@ function lbtYearPaneClick(e){
             var ws = lbtDevoWeeks(dmo), G = lbtG(dmo.g);
             Dq.rows.forEach(function(r){ var x = ws.filter(function(y){ return y.days.indexOf(r['날짜']) >= 0; })[0]; if (x) r._q = lbtDevoQ(x, G); });
             var n = await fillMissingDevoQ(Dq.rows.filter(function(r){ return !r.bad; }));
-            Dq.sheetAt = ''; lbtSaveNow(); renderLbtPane(); toast('질문 ' + n + '일분을 채웠습니다 — [📥 묵상집 시트 등록]으로 반영하세요.');
+            Dq.sheetAt = ''; Dq.appAt = ''; lbtSaveNow(); renderLbtPane(); toast('질문 ' + n + '일분을 채웠습니다 — [📥 묵상집 시트 등록]으로 반영하세요.');
           })();
       return job.catch(function(er){ renderSyncState(); toast('묵상집 작업 실패: ' + er.message); });
     })();
@@ -27998,7 +28055,7 @@ $('#lbtPane').addEventListener('change', function(e){
     if (r[f] === v) return;
     r[f] = v;
     if (f === '본문범위') { r['관찰질문'] = r['묵상질문'] = r['적용질문'] = ''; r.fixed = false; lbtDevoAudit(Dm.rows, (Y.plan.months || []).filter(function(m2){ return m2.m && lbtDevoKey(m2.m) === t.dataset.mk; })[0]); }
-    Dm.sheetAt = ''; lbtSaveSoon();
+    Dm.sheetAt = ''; Dm.appAt = ''; lbtSaveSoon();
     if (f === '본문범위') renderLbtPane();
     return;
   }
@@ -33196,7 +33253,7 @@ function styleLearnToggle(){
    예전엔 칸 목록으로 설정 객체를 새로 만들어, 목록에 없는 값(기능별 모델 등)을 따로 살려야 했다 — 이제 기존 값 위에 덮는다. */
 var SET_INPUTS = { url: 'setUrl', token: 'setToken', claudeKey: 'setClaude', laUrl: 'setLaUrl', laToken: 'setLaToken',
   proxyUrl: 'setProxyUrl', proxyToken: 'setProxyToken', vidProxyUrl: 'setVidProxyUrl', geminiKey: 'setGeminiKey',
-  memoUrl: 'setMemoUrl', memoKey: 'setMemoKey' };
+  memoUrl: 'setMemoUrl', memoKey: 'setMemoKey', devoApp: 'setDevoApp' };
 /* state.settings → 설정 화면 칸 (부팅·설정 코드·금고에서 값이 들어온 뒤) */
 function settingsPaint(){
   var s = state.settings || {};
@@ -33277,6 +33334,7 @@ var VAULT_FIELDS = [
   { k: 'memoKey', n: '성경앱 메모 키', sec: 1 },
   { k: 'laUrl', n: '리더스앱 URL' },
   { k: 'laToken', n: '리더스앱 토큰', sec: 1 },
+  { k: 'devoApp', n: '묵상 앱 연결 코드', sec: 1 },   /* v751 Why에서 Way로 묵상 앱 */
   { k: 'gateKey', n: '저작권 자료 키코드', sec: 1 },
   { k: 'imgEngine', n: '설교 이미지 AI' },
   { k: 'imgScreens', n: '강단 스크린 출력' },
@@ -33644,6 +33702,8 @@ function cfgStatusRows(){
   rows.push({ n: '성경앱 연동', v: memo ? '연결됨' : '없음', c: memo ? 'ok' : '', go: 'sgMemo' });
   var la = has(s.laUrl) && has(s.laToken);
   rows.push({ n: '리더스앱 업로드', v: la ? '연결됨' : '없음 — 파일로 저장', c: la ? 'ok' : '', go: 'sgLa' });
+  var dap = devoAppConn();
+  rows.push({ n: '묵상 앱', v: dap ? '연결됨' : has(s.devoApp) ? '연결 코드를 읽지 못함' : '없음', c: dap ? 'ok' : has(s.devoApp) ? 'warn' : '', go: 'sgDevoApp' });
   var gN = 0; try { GATED.forEach(function(g){ if (gateHas(g)) gN++; }); } catch (e){}
   rows.push({ n: '저작권 자료', v: gN + '/' + GATED.length + ' 받음' + (gateKeyGet() ? '' : ' · 키코드 없음'), c: gN >= GATED.length ? 'ok' : '', go: 'sgGate' });
   if (window.showDirectoryPicker && isDesktop())
@@ -37441,7 +37501,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v750';
+var APP_VER = 'v751';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
