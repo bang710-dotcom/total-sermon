@@ -37540,7 +37540,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v752';
+var APP_VER = 'v753';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -39743,6 +39743,7 @@ function occKnobPaint(){
     box.classList.toggle('show', pendingDocs.length > 0);
   }
   function clearDocs(){ pendingDocs = []; renderDocs(); }
+  function docUnsent(d){ var o = Object.assign({}, d); delete o.id; return o; }   /* 보낸 문서를 다시 첨부 줄로(질문 고치기·오류) */
   function attachFiles(list){
     var files = Array.prototype.slice.call(list || []).filter(function(f){ return f && typeof f.name === 'string'; });
     if (!files.length) return;
@@ -40216,7 +40217,9 @@ function occKnobPaint(){
     var d = document.createElement('div');
     d.className = 'hint';
     d.innerHTML = '<b>' + nm + '</b> 화면에서 함께 준비해요.<br>본문 해석, 대지 다듬기, 예화·적용,<br>제목 후보까지 무엇이든 물어보세요.<br><br>위의 <b>현재 화면 참고</b>를 켜면<br>지금 입력한 내용을 보고 답합니다.' +
-      (agOn() ? '<br><br><b>앱 일도 맡길 수 있어요</b><br>「7번 이미지를 더 밝게 세 가지로 다시 만들어 줘」<br>「대지 2 근거를 보강해서 바로 넣어 줘」<br>「지난주 설교 열어 줘」' : '');
+      (agOn() ? '<br><br><b>앱 일도 맡길 수 있어요</b><br>「7번 이미지를 더 밝게 세 가지로 다시 만들어 줘」<br>「대지 2 근거를 보강해서 바로 넣어 줘」<br>「지난주 설교 열어 줘」' : '') +
+      '<br><br><b>문서도 함께</b><br>클립 단추·끌어 놓기로 한글·워드·PDF·파워포인트·엑셀 파일을 붙여 물어보세요.' +
+      (agOn() ? '<br>「이 내용을 한글 문서로 만들어 줘」처럼 파일도 만들어 드리고,' + (wdOk() ? '<br>폴더 단추로 작업 폴더를 연결하면 그 폴더의 파일을 찾아 읽고 새 문서를 저장합니다.' : '') : '');
     body.appendChild(d);
   }
 
@@ -40271,6 +40274,7 @@ function occKnobPaint(){
       else if (Array.isArray(m.content)) m.content.forEach(function(c){
         if (c && c.type === 'text') t.push(String(c.text || ''));
         else if (c && c.type === 'image'){ n++; imgsC.push(c); }
+        else if (c && c.type === 'document') t.push('(위 스캔 PDF 는 이 경로(브라우저 에이전트 모드)로는 넘기지 못했다 — 목사님께 PDF 내용을 볼 수 없다고 말씀드린다)');   /* v753 */
       });
       lines.push((m.role === 'assistant' ? '[어시스턴트]' : '[사용자]') + (n ? ' (이미지 ' + n + '장 — 패널 상단 표시)' : '') + '\n' + t.join('\n'));
     });
@@ -40462,8 +40466,7 @@ function occKnobPaint(){
   function agLastUserText(){
     for (var i = convo.length - 1; i >= 0; i--){
       var m = convo[i]; if (m.role !== 'user') continue;
-      var t = typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.filter(function(b){ return b && b.type === 'text'; }).map(function(b){ return b.text; }).join(' ') : '');
-      return String(t).replace(/^\[현재[\s\S]*?\n\[질문\]\n/, '');
+      return stripCtx(textOf(m.content));   /* v753: 첨부 문서 블록·작업 폴더 줄 제외 */
     }
     return '';
   }
@@ -41391,6 +41394,7 @@ function occKnobPaint(){
     if (L.aEl) L.aEl.remove(); if (L.uEl) L.uEl.remove();
     input.value = L.text || ''; autosize();
     if (L.shot){ pendingShot = L.shot; renderAttach(); }
+    if (L.docs && L.docs.length){ pendingDocs = L.docs.map(docUnsent); renderDocs(); }   /* v753 */
     AG.lastCtx = ''; AG.scr = null; AG.last = null;
     if (!convo.length) showHint(); else persistCurrent();
     input.focus();
@@ -41406,35 +41410,46 @@ function occKnobPaint(){
   async function send(){
     if (busy) return;
     var text = input.value.trim(), shot = pendingShot;
-    if (!text && !shot) return;
+    if (pendingDocs.some(function(d){ return d.loading; })){ if (typeof toast === 'function') toast('붙인 문서를 아직 읽는 중입니다 — 잠시 뒤 보내 주세요.'); return; }
+    var docs = pendingDocs.filter(function(d){ return !d.err; });   /* v753 — 읽지 못한 문서는 빼고 보낸다 */
+    if (!text && !shot && !docs.length) return;
     var pg = curPage();
     if (convo.length === 0) body.innerHTML = '';   /* 힌트 제거 */
     /* 사용자 메시지 = (선택) 화면 내용 + 질문 (+ 첨부). 화면 내용이 직전 질문 때와 같으면 다시 싣지 않는다(대화가 길어질수록 느려지지 않게) */
-    var userVisible = text || (shot ? '(첨부한 화면을 봐주세요)' : '');
-    var userSend = text || '첨부한 화면을 보고 도와주세요.';
+    var userVisible = text || (shot ? '(첨부한 화면을 봐주세요)' : '(붙인 문서를 봐주세요)');
+    var userSend = text || (shot ? '첨부한 화면을 보고 도와주세요.' : '붙인 문서를 읽고 무엇이 담겼는지 간추려 주세요.');
     var sentCtx = '';
+    /* v753 작업 폴더가 연결돼 있으면 맨 앞에 한 줄(stripCtx·extractCtx 가 알아본다) — 이름은 시스템 지침이 아니라 여기에(캐시를 깨지 않게) */
+    var pre = (agOn() && WD.h) ? '[연결된 작업 폴더: 「' + WD.name + '」' + (WD.perm === 'granted' ? '' : ' — 아직 이 창에서 권한 전(폴더 도구를 부르면 허용 카드가 뜬다)') + ']\n' : '';
+    var wrapped = false;
     if (ctxOn.checked){
       if (PAGES[pg]){
         var ctx = gatherContext(pg);
         if (ctx){
-          if (ctx === AG.lastCtx) userSend = '[현재 ' + PAGES[pg] + ' 화면 입력 내용 — 직전 질문 때와 같음]\n\n[질문]\n' + userSend;
-          else { sentCtx = ctx; AG.lastCtx = ctx; userSend = '[현재 ' + PAGES[pg] + ' 화면 입력 내용]\n' + ctx + '\n\n[질문]\n' + userSend; }
+          wrapped = true;
+          if (ctx === AG.lastCtx) userSend = pre + '[현재 ' + PAGES[pg] + ' 화면 입력 내용 — 직전 질문 때와 같음]\n\n[질문]\n' + userSend;
+          else { sentCtx = ctx; AG.lastCtx = ctx; userSend = pre + '[현재 ' + PAGES[pg] + ' 화면 입력 내용]\n' + ctx + '\n\n[질문]\n' + userSend; }
         }
-      } else if (agOn()) userSend = '[현재 화면: ' + agPageName(pg) + ']\n\n[질문]\n' + userSend;
+      } else if (agOn()){ wrapped = true; userSend = pre + '[현재 화면: ' + agPageName(pg) + ']\n\n[질문]\n' + userSend; }
     }
-    var content = shot ? [{ type: 'text', text: userSend }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: shot.split(',')[1] } }] : userSend;
+    if (!wrapped && pre) userSend = pre + '\n[질문]\n' + userSend;
+    var docBlocks = docs.length ? docBlocksFor(docs) : [];
+    var content = (shot || docBlocks.length)
+      ? docBlocks.concat([{ type: 'text', text: userSend }], shot ? [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: shot.split(',')[1] } }] : [])
+      : userSend;
     var uEl = addMsg('user', userVisible, shot, sentCtx);
+    if (docs.length) uEl.appendChild(docNoteEl(docs.map(function(d){ return d.name; })));
     convo.push({ role: 'user', content: content });
     jumpBottom();   /* 사용자가 보냈으면 항상 최신으로 (이후 스트리밍은 사용자 스크롤 존중) */
     input.value = ''; autosize();
-    clearAttach();
-    await agReply(pg, { text: text, shot: shot, uEl: uEl, pg: pg });
+    clearAttach(); clearDocs();
+    await agReply(pg, { text: text, shot: shot, docs: docs, uEl: uEl, pg: pg });
   }
   async function agReply(pg, meta){
     busy = true; agBusyUi(true);
     var myGen = chatGen;   /* 이 응답이 속한 대화 세대 */
     var aEl = addMsg('assistant', '');
-    AG.last = { uEl: meta.uEl, aEl: aEl, text: meta.text, shot: meta.shot, pg: pg };
+    AG.last = { uEl: meta.uEl, aEl: aEl, text: meta.text, shot: meta.shot, docs: meta.docs, pg: pg };
     try {
       var r = await agRespond(pg, aEl);
       if (myGen !== chatGen) return;   /* 그 사이 새 대화 시작 → 폐기(convo 오염 방지) */
@@ -41460,6 +41475,7 @@ function occKnobPaint(){
         else { aEl.classList.add('err'); aEl.innerHTML = ''; aEl.textContent = '오류: ' + ((e && e.message) || e); }
         input.value = meta.text || ''; autosize();
         if (meta.shot){ pendingShot = meta.shot; renderAttach(); }
+        if (meta.docs && meta.docs.length){ pendingDocs = meta.docs.map(docUnsent); renderDocs(); }   /* v753 */
         AG.lastCtx = ''; AG.scr = null; AG.last = null;
       }
     } finally {
@@ -41480,7 +41496,7 @@ function occKnobPaint(){
     chatRemotePull();   /* 열 때 다른 기기 대화 조용히 동기화 */
   }
   function closePanel(){ panel.classList.remove('open'); document.body.classList.remove('aiChatOpen'); }
-  function newChat(){ agStop(); persistCurrent(); chatGen++; convo = []; curSessId = null; AG.lastCtx = ''; AG.scr = null; AG.last = null; AG.trustJs = false; AG.convUsd = 0; clearAttach(); showHint(); input.value = ''; autosize(); autoFollow = true; syncFollowBtn(); input.focus(); }
+  function newChat(){ agStop(); persistCurrent(); chatGen++; convo = []; curSessId = null; AG.lastCtx = ''; AG.scr = null; AG.last = null; AG.trustJs = false; AG.convUsd = 0; AG.docs = {}; AG.docSeq = 0; clearAttach(); clearDocs(); showHint(); input.value = ''; autosize(); autoFollow = true; syncFollowBtn(); input.focus(); }
 
   /* ===================== 대화 기록(localStorage) ===================== */
   var STORE_KEY = 'tsa.aiChats', MAX_SESS = 60;
@@ -41499,20 +41515,25 @@ function occKnobPaint(){
   function convoForStore(c){
     return c.map(function(m){
       var content = m.content;
-      if (Array.isArray(content)) content = content.map(function(b){ return b && b.type === 'image' ? { type: 'text', text: '[이미지 첨부]' } : b; });
+      if (Array.isArray(content)) content = content.map(function(b){
+        if (b && b.type === 'image') return { type: 'text', text: '[이미지 첨부]' };
+        if (b && b.type === 'document') return null;   /* v753 스캔 PDF — 앞의 머리 줄만 남긴다 */
+        if (b && b.type === 'text' && DOC_HEAD_RE.test(b.text || '')) return { type: 'text', text: String(b.text).split('\n')[0] + ' (문서 내용은 대화 기록에 남기지 않았다 — 다시 보려면 목사님이 다시 붙이셔야 한다)' };
+        return b;
+      }).filter(Boolean);
       return { role: m.role, content: content };
     });
   }
   /* 메시지 content → 표시용 평문(화면참고 접두부 제거) */
-  function stripCtx(t){ return String(t || '').replace(/^\[현재[\s\S]*?\n\[질문\]\n/, ''); }
+  function stripCtx(t){ return String(t || '').replace(/^\[(?:현재|연결된 작업 폴더)[\s\S]*?\n\[질문\]\n/, ''); }   /* v753 작업 폴더 줄 */
   /* 저장된 메시지에서 함께 보낸 '화면 내용'만 역추출(미리보기 복원용) */
   function extractCtx(content){
-    var m = String(textOf(content) || '').match(/^\[현재[^\]]*화면 입력 내용\]\n([\s\S]*?)\n\n\[질문\]\n/);
+    var m = String(textOf(content) || '').match(/^(?:\[연결된 작업 폴더[^\n]*\n)?\[현재[^\]]*화면 입력 내용\]\n([\s\S]*?)\n\n\[질문\]\n/);
     return m ? m[1] : '';
   }
   function textOf(content){
     if (typeof content === 'string') return content;
-    if (Array.isArray(content)) return content.filter(function(b){ return b && b.type === 'text'; }).map(function(b){ return b.text; }).join(' ');
+    if (Array.isArray(content)) return content.filter(function(b){ return b && b.type === 'text' && !DOC_HEAD_RE.test(b.text || ''); }).map(function(b){ return b.text; }).join(' ');   /* v753 첨부 문서 블록은 빼고 */
     return '';
   }
   function cleanUserText(content){ return stripCtx(textOf(content)).replace(/\s*\[이미지 첨부\]\s*/g, ' ').replace(/\s+/g, ' ').trim(); }
@@ -41638,6 +41659,7 @@ function occKnobPaint(){
         var t = cleanUserText(m.content);
         var el = addMsg('user', t || (hasImg ? '(이미지 첨부)' : ''), null, extractCtx(m.content));
         if (hasImg && t){ var note = document.createElement('div'); note.style.cssText = 'font-size:var(--fs-xs);opacity:.7;margin-top:4px'; note.innerHTML = uiIco('image') + ' 이미지 첨부됨'; el.appendChild(note); }
+        var dn = docHeadNames(m.content); if (dn.length) el.appendChild(docNoteEl(dn, true));   /* v753 */
       } else {
         var a = addMsg('assistant', m.content || '');
         addCopy(a, (function(txt){ return function(){ return txt; }; })(m.content || ''));
@@ -41681,8 +41703,9 @@ function occKnobPaint(){
     chatGen++;                  /* 진행 중 응답 차단 */
     AG.lastCtx = ''; AG.scr = null; AG.last = null; AG.trustJs = false; AG.convUsd = 0;
     convo = (s.convo || []).map(function(m){ return { role: m.role, content: m.content }; });
+    AG.docs = {}; AG.docSeq = docSeqOf(convo);   /* v753 — 기록에는 문서 내용이 없다(새로 붙이는 문서는 이어지는 번호로) */
     curSessId = s.id;
-    clearAttach();
+    clearAttach(); clearDocs();
     renderConvo(convo);
     closeHistory();
     if (typeof toast === 'function') toast('이전 대화를 불러왔습니다 — 이어서 질문할 수 있습니다.');
@@ -41743,10 +41766,35 @@ function occKnobPaint(){
   sendBtn.addEventListener('click', function(){ if (busy) agStop(); else send(); });   /* v645: 답하는 동안은 [멈춤] */
   if (shotBtn) shotBtn.addEventListener('click', pickImage);
   var fileIn = $('#aiFile');
-  if (fileIn) fileIn.addEventListener('change', function(){ if (this.files && this.files[0]) attachFromFile(this.files[0]); });
+  if (fileIn) fileIn.addEventListener('change', function(){ if (this.files && this.files.length) attachFiles(this.files); });   /* v753 이미지·문서 여러 개 */
   var attachRm = $('#aiAttachRm'); if (attachRm) attachRm.addEventListener('click', clearAttach);
+  /* v753 작업 폴더 단추·줄 · 대화창에 끌어 놓기(전체 화면 드롭존이 aiChatDrop* 를 묻는다) */
+  var folderBtn = $('#aiFolderBtn');
+  if (folderBtn) folderBtn.addEventListener('click', async function(){
+    if (!WD.h){ wdPick(); return; }
+    var ch = await uiChoose('작업 폴더 「' + WD.name + '」가 연결돼 있습니다.', { okText: '다른 폴더로 바꾸기', extraText: '연결 끊기', cancelText: '닫기' });
+    if (ch === 'ok') wdPick(); else if (ch === 'extra') wdOff();
+  });
+  var folderBar = $('#aiFolderBar');
+  if (folderBar) folderBar.addEventListener('click', function(e){
+    var b = e.target.closest('[data-wd]'); if (!b) return;
+    var k = b.getAttribute('data-wd');
+    if (k === 'perm') wdPermAsk().then(function(ok){ if (!ok && typeof toast === 'function') toast('권한을 받지 못했습니다 — 다시 [권한 허용]을 눌러 주세요.'); });
+    else if (k === 'change') wdPick();
+    else if (k === 'off') wdOff();
+  });
+  window.aiChatDropHit = function(e){
+    if (!panel.classList.contains('open') || hostPanelOn()) return false;
+    var r = panel.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  };
+  window.aiChatDropMark = function(on){ panel.classList.toggle('aiDropOn', !!on); };
+  window.aiChatDropFiles = function(files){ attachFiles(files); input.focus(); };
+  wdRestore();
   /* 붙여넣기(맥 Cmd+V): 클립보드의 화면 캡처 이미지를 바로 첨부 */
   input.addEventListener('paste', function(e){
+    var pf = Array.prototype.slice.call((e.clipboardData && e.clipboardData.files) || []);   /* v753 Finder 에서 복사한 문서도 */
+    if (pf.length && pf.some(function(f){ return !docIsImg(f); })){ e.preventDefault(); attachFiles(pf); return; }
     var items = (e.clipboardData && e.clipboardData.items) || [];
     for (var i = 0; i < items.length; i++){
       if (items[i].type && items[i].type.indexOf('image') === 0){
