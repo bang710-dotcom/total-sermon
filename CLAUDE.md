@@ -1205,6 +1205,11 @@ Claude Code 플러그인 **im-not-ai**(`humanize-korean@im-not-ai` 2.3.2, MIT �
 - 맥 앱 1.8.0: 문서 첨부(`docread.js` — HWPX·DOCX·PPTX·XLSX·RTF·HTML·글, 끌어 놓은 파일은 디스크 경로째, 전체 글은 대화 작업 폴더 `첨부/이름.txt`) · 폴더 연결(입력칸 폴더 단추 → `chat-prefs.json` folder, 메시지마다 `[연결된 폴더]` 줄) · 가드(연결 폴더 = 새 파일 바로, 기존 파일 고치기·덮어쓰기·지우기·옮기기 = 확인 카드).
 - ⚠ **맥 앱을 다시 빌드·설치해야 Ask 패널에 생긴다**(설교앱 코드와 달리 패널은 앱 본체) — 각 맥에서 `zsh ~/Dropbox/total-sermon/browser/build.sh`. 1.7.0 이하 맥 앱은 hostSave 를 보내지 않으므로 v754 에서도 예전과 같다.
 - 시험: smoke 통과 · 가짜 claude + 시험 프로필 + 로컬 v754 로 첨부 7종·긴 글 자르기·폴더 줄·doc_create → 연결 폴더 HWPX/DOCX·덮어쓰기 카드 → 「(2)」·폴더 끊고 작업 폴더·기존 파일 Edit 확인 카드·가드 20/20·폴더 없을 때 판단 1.7.0 과 138건 같음 · `build.sh --no-install`. ⚠ 실제 Claude·실제 파일 고르기 창·설치판·윈도우판은 아직.
+- 이 맥북에 1.8.0 설치(같은 날, 목사님 승인). **맥 DMG**(빌드 없이 다른 맥에 까는 디스크 이미지)는 `Dropbox/total-sermon/browser/mac/` — 만드는 법은 브라우저 README 3장 「맥 DMG」.
+
+### v755 — 맥 앱 1.8.1: DMG 로 깐 맥에서도 문서 도구·쇼츠 (2026-11-12 목사님 요청)
+- 설교앱 쪽 변경은 하나: 쇼츠 진행 문구 `SHORTS_PHASE.node`(「Node.js 를 받는 중 (처음 한 번, 1~2분)」) — 맥 앱이 Node.js 를 받는 단계.
+- 맥 앱 1.8.1(브라우저 README 2-11): 앱 안에 독립형 파이썬 + python-docx·openpyxl·python-pptx·pypdf(`Resources/pyrt`, build.sh 가 uv 판 CPython 3.12 로 만듦)와 쇼츠 틀 사본(`Resources/sermon-shorts`)을 넣었다. 쇼츠는 그 맥에 Node.js 가 없으면 처음 누를 때 nodejs.org 공식 배포본(latest-v24.x)을 받아 지문을 맞춰 보고 앱 데이터 폴더 `node/` 에 둔다. DMG = `mac/Total Sermons 1.8.1.dmg`(약 185MB). OpenMontage 는 넣지 않았다.
 
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
