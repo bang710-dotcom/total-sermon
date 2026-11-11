@@ -1197,6 +1197,14 @@ Claude Code 플러그인 **im-not-ai**(`humanize-korean@im-not-ai` 2.3.2, MIT �
 - 전체 화면 드롭존(가져오기) IIFE 가 `window.aiChatDropHit/Mark/Files` 를 묻는다 — 열린 대화창 위에서는 가져오기 안내 대신 대화창 점선(`#aiPanel.aiDropOn`), 놓으면 첨부. 바깥이면 예전처럼 가져오기.
 - 시험(로컬 사본 + 가짜 Claude 스트림 + OPFS 폴더를 작업 폴더로): 첨부 8종(실제 원고 HWPX 5,441자·DOCX·글자층 PDF 8,123자·XLSX·PPTX·스캔 PDF 2쪽·.hwp 오류·MD) · 요청 본문(문서 블록 → document 블록 → 폴더 줄+질문, 끝 블록 캐시 표시) · 도구 13번(doc_read find 20곳 · folder_list(.DS_Store 제외) · folder_find 내용까지 · 폴더 이름부터 쓴 경로 · 스캔 PDF 쪽 그림 · HWPX 부분 읽기 · HWPX/DOCX/PDF/HTML/MD/설교원고 HWPX·PDF·DOCX 만들기 · 같은 이름 → 확인 카드 → 「(2)」) · 결과 파일을 디스크로 꺼내 확인(HWPX 미리보기 그림·DOCX XML 표 너비·PDF Quick Look·PDFKit 으로 글자층 찾기와 위치) · 기록 저장(문서 내용 없음·제목 = 질문) · 기록 다시 열기(이름 칩) · 질문 고치기(첨부 복귀) · 끌어 놓기(대화창 안/밖) · 휴대폰 375 가로 넘침 없음 · Ask 패널 지침·도구 목록 · smoke 통과. ⚠ 실제 Claude 로 문서 질문·폴더 일·만든 문서의 품질, 실제 컴퓨터 폴더(OPFS 아님)의 권한 창, 한컴오피스 한글·워드로 연 확인, 아이패드는 아직.
 - ⚠ 작업 중 사고: 지침을 나누던 파이썬 편집이 `index.html` 을 잘라 저장했고(약 05:46), 브라우저에 남은 직전 사본으로 되돌렸다(05:48). 그 사이 워처가 잘린 파일을 한 번 올렸을 수 있다 — `index.html` 은 네트워크 우선이라 다음 온라인 실행에서 바로 바뀐다. 큰 파일을 스크립트로 고칠 때는 쓰기 전에 끝이 `</html>` 인지·길이 차이를 확인할 것.
+  → 확인 결과(같은 날 07:5x): 그 무렵 GitHub Actions·Pages 장애(05:48)로 05:30~05:50 배포 8건이 모두 멈춰 **잘린 파일은 배포되지 않았다**. 걸린 배포는 GitHub 쪽에서 「끝남」으로 처리돼 취소도 안 되고 목록에만 대기로 남았다 → `gh workflow run static.yml -R bang710-dotcom/total-sermon --ref main` 으로 새 배포를 돌려 v753 이 올라갔다(목사님 요청). 자동 푸시는 정상이었다 — 앱이 새 버전이 안 되면 푸시(`.git/refs`)와 배포(`gh run list`)를 나눠 볼 것.
+
+### v754 — 맥 앱 Ask 패널에도 문서 첨부·폴더 연결·한글 문서 저장 (2026-11-12 목사님 요청 「Ask 패널에서 이 문서 기능이 되도록」)
+맥 앱(Total Sermons)에서는 웹 대화창이 숨겨지고(v670) Ask 패널을 쓰므로, v753 의 세 기능을 **맥 앱 1.8.0** 에 넣었다. 자세한 것 = 브라우저 README 2-10(`Dropbox/total-sermon/browser/README.md`).
+- 설교앱 쪽 변경은 하나: `TSA_AGENT.run(…, opts)` 의 **`opts.hostSave`** → `V.hostSave`. `doc_create` 가 dest 「작업폴더」이고 hostSave 면 파일을 만들어 저장하지 않고 `{ text, hostFile: { name, path, b64, mime } }` 를 돌려주고, `run` 이 그 `hostFile` 을 결과에 실어 보낸다 — 맥 앱이 Ask 패널에 연결된 폴더(없으면 그 대화의 작업 폴더)에 쓰고 같은 이름 확인·파일 카드도 맥 앱이 한다. 웹 대화창(hostSave 없음)은 예전 그대로(WD 작업 폴더). dest 결과함·내려받기는 둘 다 설교앱이.
+- 맥 앱 1.8.0: 문서 첨부(`docread.js` — HWPX·DOCX·PPTX·XLSX·RTF·HTML·글, 끌어 놓은 파일은 디스크 경로째, 전체 글은 대화 작업 폴더 `첨부/이름.txt`) · 폴더 연결(입력칸 폴더 단추 → `chat-prefs.json` folder, 메시지마다 `[연결된 폴더]` 줄) · 가드(연결 폴더 = 새 파일 바로, 기존 파일 고치기·덮어쓰기·지우기·옮기기 = 확인 카드).
+- ⚠ **맥 앱을 다시 빌드·설치해야 Ask 패널에 생긴다**(설교앱 코드와 달리 패널은 앱 본체) — 각 맥에서 `zsh ~/Dropbox/total-sermon/browser/build.sh`. 1.7.0 이하 맥 앱은 hostSave 를 보내지 않으므로 v754 에서도 예전과 같다.
+- 시험: smoke 통과 · 가짜 claude + 시험 프로필 + 로컬 v754 로 첨부 7종·긴 글 자르기·폴더 줄·doc_create → 연결 폴더 HWPX/DOCX·덮어쓰기 카드 → 「(2)」·폴더 끊고 작업 폴더·기존 파일 Edit 확인 카드·가드 20/20·폴더 없을 때 판단 1.7.0 과 138건 같음 · `build.sh --no-install`. ⚠ 실제 Claude·실제 파일 고르기 창·설치판·윈도우판은 아직.
 
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
