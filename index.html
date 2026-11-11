@@ -23257,7 +23257,7 @@ window.cnPresentShare = cnPresentShare;
    영상에는 소리가 없다(인스타·유튜브에 올릴 때 그 앱에서 음악을 고른다). 디자인·움직임은 틀(src/CardShorts.tsx)에서 고친다. */
 function hostVideoOn(){ try { return !!(window.TSA_HOST && window.TSA_HOST.video && typeof window.TSA_HOST.video.render === 'function'); } catch (e) { return false; } }
 var _videoRunId = '';
-var SHORTS_PHASE = { sync: '영상 틀을 맞추는 중', install: '영상 도구를 준비하는 중 (처음 한 번, 1~2분)', browser: '렌더링 엔진을 받는 중 (처음 한 번)', bundle: '영상 틀을 준비하는 중', render: '영상을 그리는 중' };
+var SHORTS_PHASE = { node: 'Node.js 를 받는 중 (처음 한 번, 1~2분)', sync: '영상 틀을 맞추는 중', install: '영상 도구를 준비하는 중 (처음 한 번, 1~2분)', browser: '렌더링 엔진을 받는 중 (처음 한 번)', bundle: '영상 틀을 준비하는 중', render: '영상을 그리는 중' };
 async function cnShortsMake(p){
   if (!hostVideoOn()) { toast('쇼츠 영상은 Total Sermons 맥 앱에서 만들 수 있습니다.'); return; }
   if (_videoRunId) { toast('쇼츠 영상을 만드는 중입니다 — 끝난 뒤 다시 눌러 주세요.'); return; }
@@ -37540,7 +37540,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v754';
+var APP_VER = 'v755';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
