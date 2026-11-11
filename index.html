@@ -39589,6 +39589,602 @@ function occKnobPaint(){
     rd.readAsDataURL(file);
   }
   function pickImage(){ var fi = document.getElementById('aiFile'); if (fi){ fi.value = ''; fi.click(); } }
+
+  /* ===================== v753 문서 첨부 · 문서 만들기 · 작업 폴더 (2026-11-12 목사님 요청) =====================
+     ① 첨부: 📎 단추·대화창에 끌어 놓기·붙여넣기로 한글(HWPX)·워드(DOCX)·PDF·파워포인트(PPTX)·엑셀(XLSX)·텍스트(TXT·MD·RTF·HTML·CSV·JSON…)를 받아
+        이 기기에서 글자를 뽑아(zipDocParas·pdfImportText — 가져오기와 같은 판독기) 질문 앞에 [첨부 문서 dN — 「이름」 …] + <document> 로 싣는다.
+        한 문서 DOC_INLINE 자·한 번에 DOC_TOTAL 자까지 — 넘으면 앞부분만 싣고(목사님 화면·모델 모두에 알림) 나머지는 doc_read 도구로(에이전트일 때).
+        글자층 없는 스캔 PDF 는 PDF 그대로(document 블록 — 30MB·600쪽까지) 보낸다. 대화 기록(이 기기·시트)에는 문서 내용 없이 머리 줄만 남는다.
+     ② 만들기: 도구 doc_create — 마크다운 줄 → HWPX(앱 원고 서식 껍데기의 A4 판)·DOCX·PDF(보이지 않는 글자층)·MD·TXT·HTML·CSV·JSON.
+        template:"설교원고" 면 앱의 원고 길(parasFromText → hwpxManuscript / buildDocxParas / buildTransPdfBlob) 그대로 — 설교양식 A/B 도 따른다.
+     ③ 작업 폴더: 대화창 아래 폴더 단추로 고른 폴더(IndexedDB agWorkDir — 기기·브라우저마다 따로, 권한은 창을 새로 열면 한 번 허용) 안에서만
+        folder_list·folder_find·folder_read 와 doc_create(dest 작업폴더). 지우기·옮기기는 없고, 덮어쓰기는 확인 카드에서 목사님이 눌러야 한다.
+     ⚠ 대화 기록에서 문서 블록을 알아보는 표지는 DOC_HEAD_RE(「[첨부 문서 dN — 」로 시작) — 모양을 바꾸면 convoForStore·textOf·renderConvo 도 함께. */
+  var DOC_INLINE = 60000, DOC_TOTAL = 160000, DOC_PDF_MAX = 30 * 1024 * 1024, DOC_FILE_MAX = 80 * 1024 * 1024, DOC_MAX_N = 10;
+  var DOC_HEAD_RE = /^\[첨부 문서 d\d+ — /;
+  var DOC_TEXT_EXT = /^(txt|text|md|markdown|csv|tsv|json|xml|ya?ml|srt|vtt|log|ini|tex)$/;
+  var DOC_IMG_EXT = /^(png|jpe?g|gif|webp|bmp|heic|heif|avif)$/;
+  var DOC_FMT_LABEL = { hwpx: '한글 HWPX', docx: '워드 DOCX', pdf: 'PDF', md: '마크다운', txt: '텍스트', html: 'HTML', csv: 'CSV', json: 'JSON' };
+  function docExt(n){ var m = String(n || '').match(/\.([A-Za-z0-9]+)$/); return m ? m[1].toLowerCase() : ''; }
+  function docIsImg(f){ return /^image\//.test((f && f.type) || '') || DOC_IMG_EXT.test(docExt(f && f.name)); }
+  function docKb(n){ n = +n || 0; return n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+  function docNum(n){ try { return Number(n).toLocaleString('ko-KR'); } catch(e){ return String(n); } }
+  function docNfc(s){ try { return String(s).normalize('NFC'); } catch(e){ return String(s); } }
+  function docStamp(){ var d = new Date(); function z(n){ return (n < 10 ? '0' : '') + n; } return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()); }
+  function docB64(buf){
+    if (typeof zoneB64 === 'function') return zoneB64(buf);
+    var u8 = new Uint8Array(buf), s = '', CH = 0x8000;
+    for (var i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+    return btoa(s);
+  }
+  async function docJsZip(){ if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'); return window.JSZip; }
+  function docXmlText(x){
+    return String(x).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, function(_, n){ return String.fromCharCode(+n); }).replace(/&amp;/g, '&');
+  }
+  function docPptParas(xml){
+    return (String(xml).match(/<a:p>[\s\S]*?<\/a:p>|<a:p [\s\S]*?<\/a:p>/g) || [])
+      .map(function(p){ return (p.match(/<a:t>[\s\S]*?<\/a:t>|<a:t [\s\S]*?<\/a:t>/g) || []).map(docXmlText).join(''); })
+      .filter(function(t){ return t.trim(); });
+  }
+  /* 파워포인트 — 슬라이드마다 글자(a:t), 발표자 노트도 */
+  async function docPptxText(buf){
+    var zip = await (await docJsZip()).loadAsync(buf), out = [];
+    var names = Object.keys(zip.files).filter(function(n){ return /^ppt\/slides\/slide\d+\.xml$/.test(n); })
+      .sort(function(a, b){ return (+a.match(/(\d+)\.xml$/)[1]) - (+b.match(/(\d+)\.xml$/)[1]); });
+    if (!names.length) throw new Error('파워포인트 슬라이드를 찾지 못했습니다');
+    for (var i = 0; i < names.length; i++){
+      var n = +names[i].match(/(\d+)\.xml$/)[1];
+      out.push('[슬라이드 ' + n + ']\n' + (docPptParas(await zip.file(names[i]).async('string')).join('\n') || '(글자 없음)'));
+      var nf = zip.file('ppt/notesSlides/notesSlide' + n + '.xml');
+      if (nf){ var np = docPptParas(await nf.async('string')).filter(function(t){ return !/^\s*\d+\s*$/.test(t); }); if (np.length) out.push('(발표자 노트) ' + np.join('\n')); }
+    }
+    return out.join('\n\n');
+  }
+  /* 엑셀 — 시트마다 CSV(SheetJS) */
+  async function docXlsxText(buf){
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    var wb = window.XLSX.read(new Uint8Array(buf), { type: 'array' }), out = [];
+    (wb.SheetNames || []).forEach(function(nm){
+      var csv = window.XLSX.utils.sheet_to_csv(wb.Sheets[nm], { blankrows: false });
+      out.push('[시트: ' + nm + ']\n' + (String(csv || '').replace(/^(,*\n)+/, '').trim() || '(빈 시트)'));
+    });
+    if (!out.length) throw new Error('엑셀 시트를 찾지 못했습니다');
+    return out.join('\n\n');
+  }
+  async function docPdfLib(){
+    if (!window.pdfjsLib) await loadScript(PDFJS_BASE + 'pdf.min.js');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + 'pdf.worker.min.js';
+    return window.pdfjsLib;
+  }
+  async function docPdfPages(buf){
+    try { var pdf = await (await docPdfLib()).getDocument({ data: new Uint8Array(buf.slice(0)) }).promise, n = pdf.numPages; try { pdf.destroy(); } catch(e){} return n; }
+    catch(e){ return 0; }
+  }
+  /* 스캔 PDF p0 쪽부터 n 쪽 → JPEG(base64) — folder_read 가 모델에게 보여 준다 */
+  async function docPdfRender(buf, p0, n){
+    var pdf = await (await docPdfLib()).getDocument({ data: new Uint8Array(buf) }).promise, got = [];
+    try {
+      for (var p = p0; p < p0 + n && p <= pdf.numPages; p++){
+        var page = await pdf.getPage(p), v1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: Math.min(2.5, 1200 / v1.width) });
+        var cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+        await page.render({ canvasContext: cx, viewport: vp }).promise;
+        got.push(cv.toDataURL('image/jpeg', 0.82).split(',')[1]);
+      }
+      return { got: got, total: pdf.numPages };
+    } finally { try { pdf.destroy(); } catch(e){} }
+  }
+  function docHtmlText(raw){
+    var dd = new DOMParser().parseFromString(raw, 'text/html');
+    Array.prototype.forEach.call(dd.querySelectorAll('script,style,noscript,template'), function(x){ x.remove(); });
+    Array.prototype.forEach.call(dd.querySelectorAll('br'), function(x){ x.replaceWith('\n'); });
+    Array.prototype.forEach.call(dd.querySelectorAll('p,div,li,tr,h1,h2,h3,h4,h5,h6,section,article,blockquote,pre,dt,dd'), function(x){ x.append('\n'); });
+    Array.prototype.forEach.call(dd.querySelectorAll('td,th'), function(x){ x.append('\t'); });
+    return (dd.body && dd.body.textContent) || '';
+  }
+  /* 파일 하나 → { text, label, size } 또는 스캔 PDF { scan:true, b64, pages, label, size } — 첨부·folder_read 공용(opt.noB64 = PDF 그대로 보낼 일 없음) */
+  async function docReadFile(f, opt){
+    opt = opt || {};
+    var n = String((f && f.name) || ''), ext = docExt(n), size = (f && f.size) || 0, ty = String((f && f.type) || '');
+    if (/^~\$|^\._/.test(n)) throw new Error('임시 파일입니다');
+    if (ext === 'hwp') throw new Error('옛 한글(.hwp)은 읽을 수 없습니다 — 한글에서 [다른 이름으로 저장 → HWPX]로 바꿔 주세요');
+    if (/^(doc|ppt|xls)$/.test(ext)) throw new Error('옛 오피스 파일(.' + ext + ')은 읽을 수 없습니다 — .' + ext + 'x 로 저장해 주세요');
+    if (size > DOC_FILE_MAX) throw new Error('파일이 너무 큽니다(' + docKb(size) + ' — 80MB까지)');
+    var isPdf = ext === 'pdf' || ty === 'application/pdf';
+    var known = isPdf || /^(hwpx|docx|pptx|xlsx|xlsm|rtf|html?|xhtml)$/.test(ext) || DOC_TEXT_EXT.test(ext) || /^text\//.test(ty) || /json|xml|csv/.test(ty);
+    if (!known) throw new Error('이 형식(.' + (ext || '?') + ')은 읽지 못합니다');
+    var buf = await f.arrayBuffer(), t = '', label = (ext || 'txt').toUpperCase();
+    if (ext === 'hwpx' || ext === 'docx'){
+      var ps = await zipDocParas(buf);
+      if (!ps) throw new Error('문서 본문을 찾지 못했습니다(손상되었거나 한글·워드 문서가 아님)');
+      t = ps.join('\n'); label = ext === 'hwpx' ? '한글 HWPX' : '워드 DOCX';
+    } else if (ext === 'pptx'){ t = await docPptxText(buf); label = '파워포인트 PPTX'; }
+    else if (ext === 'xlsx' || ext === 'xlsm'){ t = await docXlsxText(buf); label = '엑셀 XLSX'; }
+    else if (isPdf){
+      label = 'PDF';
+      t = await pdfImportText(buf);
+      if (t.replace(/\s/g, '').length < 100){   /* 글자층이 없는 스캔 PDF — 그대로 보낸다 */
+        var pages = await docPdfPages(buf);
+        if (opt.noB64) return { scan: true, pages: pages, label: '스캔 PDF', size: size };
+        if (buf.byteLength > DOC_PDF_MAX) throw new Error('글자층이 없는(스캔) PDF인데 ' + docKb(buf.byteLength) + '라 보낼 수 없습니다(30MB까지)');
+        if (pages > 600) throw new Error('스캔 PDF가 ' + pages + '쪽이라 보낼 수 없습니다(600쪽까지)');
+        return { scan: true, b64: docB64(buf), pages: pages, label: '스캔 PDF', size: size };
+      }
+    }
+    else if (ext === 'rtf') t = rtfToText(new TextDecoder('utf-8').decode(new Uint8Array(buf)));
+    else if (/^(html?|xhtml)$/.test(ext) || ty === 'text/html'){ t = docHtmlText(decodeTextBuf(buf)); label = 'HTML'; }
+    else t = decodeTextBuf(buf);
+    t = normImportText(t);
+    if (!t.replace(/\s/g, '')) throw new Error('글자를 찾지 못했습니다');
+    return { text: t, label: label, size: size };
+  }
+  /* ── 첨부 줄(보내기 전) ── */
+  var _docSeq = 0;
+  function docStat(d){
+    if (d.loading) return '읽는 중';
+    if (d.err) return d.err;
+    if (d.scan) return d.label + (d.pages ? ' ' + d.pages + '쪽' : '') + ' · PDF 그대로 보냄';
+    var n = d.text.length;
+    return d.label + ' · ' + docNum(n) + '자' + (n > DOC_INLINE ? ' · 앞 ' + docNum(DOC_INLINE) + '자만 싣고 나머지는 필요할 때 읽음' : '');
+  }
+  function renderDocs(){
+    var box = document.getElementById('aiDocs'); if (!box) return;
+    box.innerHTML = '';
+    pendingDocs.forEach(function(d){
+      var el = document.createElement('span'); el.className = 'aiDoc' + (d.loading ? ' load' : d.err ? ' err' : '');
+      el.innerHTML = uiIco('file') + '<span class="nm"></span><span class="st"></span><button type="button" class="rm" aria-label="첨부 빼기" title="첨부 빼기">✕</button>';
+      el.querySelector('.nm').textContent = d.name;
+      el.querySelector('.st').textContent = docStat(d);
+      el.title = d.name + ' — ' + docStat(d);
+      el.querySelector('.rm').addEventListener('click', function(){ pendingDocs = pendingDocs.filter(function(x){ return x !== d; }); renderDocs(); input.focus(); });
+      box.appendChild(el);
+    });
+    box.classList.toggle('show', pendingDocs.length > 0);
+  }
+  function clearDocs(){ pendingDocs = []; renderDocs(); }
+  function attachFiles(list){
+    var files = Array.prototype.slice.call(list || []).filter(function(f){ return f && typeof f.name === 'string'; });
+    if (!files.length) return;
+    var imgs = files.filter(docIsImg), docs = files.filter(function(f){ return !docIsImg(f); }), skipped = 0;
+    if (imgs.length){
+      attachFromFile(imgs[0]);
+      if (imgs.length > 1 && typeof toast === 'function') toast('이미지는 한 번에 한 장만 붙습니다 — 첫 장(' + imgs[0].name + ')만 붙였습니다.');
+    }
+    docs.forEach(function(f){
+      if (pendingDocs.length >= DOC_MAX_N){ skipped++; return; }
+      var d = { name: f.name || '문서', loading: true, seq: ++_docSeq, size: f.size || 0 };
+      pendingDocs.push(d);
+      docReadFile(f).then(function(r){ Object.assign(d, r); d.loading = false; renderDocs(); })
+        .catch(function(e){ d.loading = false; d.err = String((e && e.message) || e).slice(0, 160); renderDocs(); });
+    });
+    renderDocs();
+    if (skipped && typeof toast === 'function') toast('문서는 한 번에 ' + DOC_MAX_N + '개까지 — ' + skipped + '개는 빼고 붙였습니다.');
+  }
+  /* 보낼 문서 → 메시지 블록(질문 앞에 둔다). 이 대화의 문서는 AG.docs 에 두고 doc_read 가 읽는다 */
+  function docBlocksFor(docs){
+    var out = [], used = 0;
+    docs.forEach(function(d){
+      var id = 'd' + (++AG.docSeq); d.id = id;
+      AG.docs[id] = { name: d.name, label: d.label, text: d.text || '', scan: !!d.scan, pages: d.pages || 0 };
+      if (d.scan){
+        out.push({ type: 'text', text: '[첨부 문서 ' + id + ' — 「' + d.name + '」 · ' + d.label + (d.pages ? ' ' + d.pages + '쪽' : '') + ' · 글자층이 없어 바로 아래 PDF를 그대로 붙였다]' });
+        out.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: d.b64 } });
+        return;
+      }
+      var t = d.text, room = Math.max(4000, Math.min(DOC_INLINE, DOC_TOTAL - used)), part = t.length > room ? t.slice(0, room) : t;
+      used += part.length;
+      var more = t.length > part.length ? '\n…(전체 ' + docNum(t.length) + '자 중 앞 ' + docNum(part.length) + '자만 실었다 — ' +
+        (agOn() ? '나머지는 doc_read(doc:"' + id + '", from:' + part.length + ')로 읽는다' : '나머지는 이 대화에 싣지 못했다') + ')' : '';
+      out.push({ type: 'text', text: '[첨부 문서 ' + id + ' — 「' + d.name + '」 · ' + d.label + ' · ' + docNum(t.length) + '자]\n<document name="' + String(d.name).replace(/"/g, "'") + '">\n' + part + more + '\n</document>' });
+    });
+    return out;
+  }
+  function docNoteEl(names, gone){
+    var w = document.createElement('div'); w.className = 'aiMsgDocs';
+    names.forEach(function(nm){
+      var s = document.createElement('span'); s.innerHTML = uiIco('file'); s.appendChild(document.createTextNode(' ' + nm));
+      s.title = nm + (gone ? ' — 문서 내용은 대화 기록에 남기지 않았습니다(이어서 물으려면 다시 붙여 주세요)' : '');
+      w.appendChild(s);
+    });
+    return w;
+  }
+  function docHeadNames(content){
+    return (Array.isArray(content) ? content : []).filter(function(b){ return b && b.type === 'text' && DOC_HEAD_RE.test(b.text || ''); })
+      .map(function(b){ var m = String(b.text).match(/「([^」\n]*)」/); return m ? m[1] : '문서'; });
+  }
+  function docSeqOf(c){
+    var mx = 0;
+    (c || []).forEach(function(m){ (Array.isArray(m.content) ? m.content : []).forEach(function(b){ var k = b && b.type === 'text' && String(b.text || '').match(/^\[첨부 문서 d(\d+) — /); if (k && +k[1] > mx) mx = +k[1]; }); });
+    return mx;
+  }
+
+  /* ── 작업 폴더(목사님 컴퓨터의 폴더 하나) ── */
+  var WD = { h: null, name: '', perm: '', ask: null };
+  function wdOk(){ return !!window.showDirectoryPicker; }
+  function wdPaint(){
+    var btn = document.getElementById('aiFolderBtn'), bar = document.getElementById('aiFolderBar');
+    if (btn){
+      btn.hidden = !wdOk(); btn.classList.toggle('on', !!WD.h);
+      btn.title = WD.h ? '작업 폴더 「' + WD.name + '」 — 눌러서 다른 폴더로 바꾸거나 연결을 끊습니다' : '작업 폴더 연결 — 컴퓨터의 폴더를 연결하면 대화가 그 폴더의 파일을 찾고·읽고·새 문서를 저장합니다';
+      btn.setAttribute('aria-label', WD.h ? '작업 폴더 ' + WD.name : '작업 폴더 연결');
+    }
+    if (!bar) return;
+    if (!WD.h){ bar.classList.remove('show'); bar.innerHTML = ''; return; }
+    var need = WD.perm !== 'granted', noKey = !agOn();
+    bar.innerHTML = uiIco('folder') + '<span class="fn"></span><span class="fs' + (need || noKey ? ' warn' : '') + '"></span>' +
+      (need ? '<button type="button" class="pri" data-wd="perm">권한 허용</button>' : '') +
+      '<button type="button" data-wd="change">바꾸기</button><button type="button" data-wd="off">끊기</button>';
+    bar.querySelector('.fn').textContent = WD.name;
+    bar.querySelector('.fs').textContent = noKey ? '· 폴더 작업은 설정에 Claude API 키가 있을 때 됩니다' : need ? '· 이 창에서 권한을 한 번 허용해 주세요' : '· 이 폴더의 파일을 찾고 읽고 새 문서를 저장합니다';
+    bar.title = '작업 폴더 「' + WD.name + '」 — 이 기기·이 브라우저에만 연결됩니다. 지우기·옮기기는 하지 않고, 이미 있는 파일은 [덮어쓰기]를 누르셔야 바뀝니다.';
+    bar.classList.add('show');
+  }
+  async function wdRestore(){
+    if (wdOk()){
+      try {
+        var h = await idbGet('agWorkDir');
+        if (h && h.kind === 'directory'){ WD.h = h; WD.name = h.name; try { WD.perm = await h.queryPermission({ mode: 'readwrite' }); } catch(e){ WD.perm = ''; } }
+      } catch(e){}
+    }
+    wdPaint();
+  }
+  async function wdPick(){
+    if (!wdOk()){ if (typeof toast === 'function') toast('이 브라우저는 폴더 연결을 지원하지 않습니다 — 데스크탑 Chrome·Edge 에서 써 주세요.'); return false; }
+    var h;
+    try { h = await window.showDirectoryPicker({ mode: 'readwrite' }); }
+    catch(e){ if (!(e && e.name === 'AbortError') && typeof toast === 'function') toast('폴더를 열지 못했습니다: ' + ((e && e.message) || e)); return false; }
+    WD.h = h; WD.name = h.name; WD.perm = 'granted'; _wdCache = {};
+    try { await idbSet('agWorkDir', h); } catch(e){}
+    wdPaint();
+    if (typeof toast === 'function') toast('작업 폴더 「' + h.name + '」를 연결했습니다' + (agOn() ? ' — 대화에서 이 폴더의 파일을 다룰 수 있습니다.' : ' — 폴더 작업은 설정에 Claude API 키를 넣으면 됩니다.'));
+    return true;
+  }
+  async function wdPermAsk(){
+    if (!WD.h) return false;
+    try { WD.perm = await WD.h.requestPermission({ mode: 'readwrite' }); } catch(e){ WD.perm = ''; }
+    wdPaint();
+    return WD.perm === 'granted';
+  }
+  function wdOff(){
+    WD.h = null; WD.name = ''; WD.perm = ''; _wdCache = {};
+    idbSet('agWorkDir', null).catch(function(){});
+    wdPaint();
+    if (typeof toast === 'function') toast('작업 폴더 연결을 끊었습니다(폴더와 파일은 그대로입니다).');
+  }
+  /* 도구가 폴더를 쓰기 전 — 권한이 없으면 확인 카드(누르는 순간 권한 요청). 동시에 부른 읽기 도구들은 카드 하나를 함께 기다린다 */
+  async function wdNeed(T){
+    if (!WD.h) throw new Error('연결된 작업 폴더가 없습니다 — 대화창 아래 폴더 단추로 먼저 연결해 주세요(데스크탑 Chrome·Edge).');
+    var p = ''; try { p = await WD.h.queryPermission({ mode: 'readwrite' }); } catch(e){}
+    if (p === 'granted'){ if (WD.perm !== 'granted'){ WD.perm = 'granted'; wdPaint(); } return WD.h; }
+    if (!WD.ask) WD.ask = agAsk(T, { title: '작업 폴더 「' + WD.name + '」에 접근하려면 권한을 허용해 주세요.', ok: '폴더 권한 허용', no: '취소',
+      onOk: async function(){ if (!(await wdPermAsk())) throw new Error('폴더 권한을 받지 못했습니다'); } }).finally(function(){ WD.ask = null; });
+    if (!(await WD.ask)) throw new Error('폴더 권한을 받지 못했습니다.');
+    return WD.h;
+  }
+  function wdParts(p){
+    var s = String(p == null ? '' : p).replace(/\\/g, '/').trim().replace(/^\.\/+/, '').replace(/^\/+|\/+$/g, '');
+    if (!s || s === '.') return [];
+    var parts = s.split('/').filter(function(x){ return x && x !== '.'; });
+    parts.forEach(function(x){ if (x === '..') throw new Error('작업 폴더 밖(..)으로는 갈 수 없습니다'); });
+    return parts;
+  }
+  /* 이름으로 한 단계 — 맥 파일 이름(NFD)과 입력(NFC)이 달라도 찾는다 */
+  async function wdChild(dir, name, kind, create){
+    try { return kind === 'dir' ? await dir.getDirectoryHandle(name, { create: !!create }) : await dir.getFileHandle(name, { create: !!create }); }
+    catch(e){
+      if (create || (e && e.name !== 'NotFoundError' && e.name !== 'TypeError' && e.name !== 'TypeMismatchError')) throw e;
+      var want = docNfc(name).toLowerCase();
+      for await (var h of dir.values()){ if ((kind === 'dir') === (h.kind === 'directory') && docNfc(h.name).toLowerCase() === want) return h; }
+      throw new Error((kind === 'dir' ? '폴더' : '파일') + ' 「' + name + '」을(를) 찾지 못했습니다');
+    }
+  }
+  /* 모델이 경로를 작업 폴더 이름부터 쓴 경우(「설교자료/2026/…」) 그 앞마디를 뗀다 */
+  async function wdStrip(parts){
+    if (parts.length && docNfc(parts[0]).toLowerCase() === docNfc(WD.name).toLowerCase()){
+      try { await wdChild(WD.h, parts[0], 'dir'); return parts; } catch(e){}
+      try { await wdChild(WD.h, parts[0], 'file'); return parts; } catch(e){}
+      return parts.slice(1);
+    }
+    return parts;
+  }
+  async function wdDirAt(parts, create){ var d = WD.h; for (var i = 0; i < parts.length; i++) d = await wdChild(d, parts[i], 'dir', create); return d; }
+  async function wdFileAt(path){
+    var parts = await wdStrip(wdParts(path)); if (!parts.length) throw new Error('파일 경로(path)가 없습니다');
+    return { h: await wdChild(await wdDirAt(parts.slice(0, -1)), parts[parts.length - 1], 'file'), rel: parts.join('/') };
+  }
+  function wdSkip(n){ return /^\.|^~\$|^Thumbs\.db$|^desktop\.ini$/i.test(String(n || '')); }
+  async function wdEntries(dir){
+    var a = [];
+    for await (var h of dir.values()){ if (!wdSkip(h.name)) a.push(h); }
+    a.sort(function(x, y){ if (x.kind !== y.kind) return x.kind === 'directory' ? -1 : 1; return docNfc(x.name).localeCompare(docNfc(y.name), 'ko'); });
+    return a;
+  }
+  function wdTime(ms){ var d = new Date(ms); function z(n){ return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+  /* 같은 파일을 여러 번 읽을 때(나눠 읽기·찾기) 다시 뽑지 않게 — 크기·고친 시각이 같을 때만 */
+  var _wdCache = {};
+  async function wdTextOf(rel, f){
+    var k = rel + '|' + f.size + '|' + f.lastModified;
+    if (_wdCache[k]) return _wdCache[k];
+    var r = await docReadFile(f, { noB64: true }), ks = Object.keys(_wdCache);
+    if (ks.length >= 40) delete _wdCache[ks[0]];
+    _wdCache[k] = r;
+    return r;
+  }
+  /* 폴더(dir)에 blob 을 이름(name)으로 — 같은 이름이 있으면 덮어쓸지 확인 카드(아니면 「이름 (2)」) */
+  async function docFreeName(dir, name){
+    var m = name.match(/^(.*?)(\.[^.]+)?$/), base = m[1], ext = m[2] || '';
+    for (var i = 2; i < 300; i++){ var nm = base + ' (' + i + ')' + ext; try { await wdChild(dir, nm, 'file'); } catch(e){ return nm; } }
+    return base + ' ' + Date.now() + ext;
+  }
+  async function docSaveIn(T, dir, name, blob, shown){
+    var have = null; try { have = await wdChild(dir, name, 'file'); } catch(e){}
+    if (have){
+      var ok = await agAsk(T, { title: '「' + shown + have.name + '」 파일이 이미 있습니다. 덮어쓸까요?', ok: '덮어쓰기', no: '새 이름으로 저장' });
+      if (ok) name = have.name; else name = await docFreeName(dir, name);
+    }
+    var fh = await dir.getFileHandle(name, { create: true }), w = await fh.createWritable();
+    await w.write(blob); await w.close();
+    return name;
+  }
+  async function wdSave(T, path, name, blob){
+    await wdNeed(T);
+    var raw = String(path || '').replace(/\\/g, '/').trim(), parts = await wdStrip(wdParts(raw)), fname = name;
+    if (parts.length && !/\/$/.test(raw) && /\.[A-Za-z0-9]{1,6}$/.test(parts[parts.length - 1])) fname = docFileName(parts.pop(), docExt(name));
+    var dir = await wdDirAt(parts, true), shown = parts.length ? parts.join('/') + '/' : '';
+    _wdCache = {};
+    return shown + await docSaveIn(T, dir, fname, blob, shown);
+  }
+
+  /* ── 문서 만들기(doc_create) ── */
+  function docFileName(s, fmt){
+    var n = String(s || '').split(/[\\/]/).pop().replace(/[\u0000-\u001f:*?"<>|]/g, '').replace(/\s+/g, ' ').trim()
+      .replace(/\.(hwpx|docx|pdf|md|markdown|txt|html?|csv|json)$/i, '').replace(/^\.+/, '').trim();
+    if (!n) n = '문서 ' + docStamp();
+    if (n.length > 90) n = n.slice(0, 90).trim();
+    return n + '.' + fmt;
+  }
+  function docInline(s){ return String(s == null ? '' : s).replace(/`([^`]+)`/g, '$1').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '$1 ($2)'); }
+  function docRuns(s){
+    s = docInline(s); var out = [], re = /\*\*([^*]+)\*\*|__([^_]+)__/g, last = 0, m;
+    while ((m = re.exec(s))){ if (m.index > last) out.push([false, s.slice(last, m.index)]); out.push([true, m[1] || m[2]]); last = re.lastIndex; }
+    if (last < s.length) out.push([false, s.slice(last)]);
+    return out.length ? out : [[false, '']];
+  }
+  function docTextOf(s){ return docRuns(s).map(function(r){ return r[1]; }).join(''); }
+  function docIsScripture(t){ try { return typeof refQuoteRe === 'function' && refQuoteRe().test(docTextOf(t).trim()); } catch(e){ return false; } }
+  /* 마크다운 줄 → 블록 [{t:h1|h2|h3|p|li|oli|quote|hr|pre|table|blank, …}] — 한 줄 = 한 문단, 빈 줄 = 문단 사이 */
+  function docParse(src){
+    var L = String(src || '').replace(/\r\n?/g, '\n').split('\n'), out = [], i = 0, m;
+    function push(b){ if (b.t === 'blank' && (!out.length || out[out.length - 1].t === 'blank')) return; out.push(b); }
+    function lv(sp){ return Math.min(3, Math.floor(String(sp || '').replace(/\t/g, '  ').length / 2)); }
+    while (i < L.length){
+      var ln = L[i];
+      if (/^\s*```/.test(ln)){ var code = []; i++; while (i < L.length && !/^\s*```/.test(L[i])){ code.push(L[i]); i++; } i++; push({ t: 'pre', lines: code }); continue; }
+      if (/^\s*\|.*\|\s*$/.test(ln)){
+        var rows = [], head = false;
+        while (i < L.length && /^\s*\|.*\|\s*$/.test(L[i])){
+          var r = L[i].trim().replace(/^\|/, '').replace(/\|$/, '');
+          if (/^\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*$/.test(r)){ if (rows.length === 1) head = true; }
+          else rows.push(r.split('|').map(function(c){ return c.trim(); }));
+          i++;
+        }
+        if (rows.length) push({ t: 'table', rows: rows, head: head });
+        continue;
+      }
+      if ((m = ln.match(/^\s*(#{1,6})\s+(.*?)\s*#*\s*$/))){ push({ t: 'h' + Math.min(3, m[1].length), text: m[2] }); i++; continue; }
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(ln)){ push({ t: 'hr' }); i++; continue; }
+      if ((m = ln.match(/^(\s*)[-*+•·▪]\s+(.*)$/))){ push({ t: 'li', lv: lv(m[1]), text: m[2] }); i++; continue; }
+      if ((m = ln.match(/^(\s*)(\d{1,3})[.)]\s+(.*)$/))){ push({ t: 'oli', lv: lv(m[1]), num: m[2], text: m[3] }); i++; continue; }
+      if ((m = ln.match(/^\s*>\s?(.*)$/))){ if (m[1].trim()) push({ t: 'quote', text: m[1] }); i++; continue; }
+      if (!ln.trim()){ push({ t: 'blank' }); i++; continue; }
+      push({ t: 'p', text: ln.trim() }); i++;
+    }
+    while (out.length && out[out.length - 1].t === 'blank') out.pop();
+    while (out.length && out[0].t === 'blank') out.shift();
+    return out;
+  }
+  function docPlain(src){
+    return docParse(src).map(function(b){
+      if (b.t === 'blank' || b.t === 'hr') return '';
+      if (b.t === 'pre') return b.lines.join('\n');
+      if (b.t === 'table') return b.rows.map(function(r){ return r.map(docTextOf).join('\t'); }).join('\n');
+      if (b.t === 'li') return '  '.repeat(b.lv) + '• ' + docTextOf(b.text);
+      if (b.t === 'oli') return '  '.repeat(b.lv) + b.num + '. ' + docTextOf(b.text);
+      if (b.t === 'quote') return '    ' + docTextOf(b.text);
+      return docTextOf(b.text);
+    }).join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+  /* 한글 — 앱 원고 서식 껍데기의 A4 판(manuscript_b: A4·여백 좌우 30mm) 역할 그대로. 이 문서만 본문 11pt·제목 16pt(charHeights) */
+  async function docHwpx(title, blocks){
+    var B = [];
+    function gap(){ if (B.length && B[B.length - 1].role !== 'blank') B.push({ role: 'blank' }); }
+    function runs(s, base){ return docRuns(s).map(function(r){ return [r[0] ? 'bold' : base, r[1]]; }); }
+    blocks.forEach(function(b){
+      if (b.t === 'blank' || b.t === 'hr'){ gap(); return; }
+      if (b.t === 'h1'){ gap(); B.push({ role: 'title', text: docTextOf(b.text) }); return; }
+      if (b.t === 'h2' || b.t === 'h3'){ gap(); B.push({ role: 'bold', text: docTextOf(b.text) }); return; }
+      if (b.t === 'li' || b.t === 'oli'){ B.push({ role: 'line', runs: [['normal', '  '.repeat(b.lv) + (b.t === 'li' ? '• ' : b.num + '. ')]].concat(runs(b.text, 'normal')) }); return; }
+      if (b.t === 'quote'){ var sq = docIsScripture(b.text); B.push({ role: 'line', runs: [['normal', '    ']].concat(runs(b.text, sq ? 'red' : 'normal')) }); return; }
+      if (b.t === 'pre'){ b.lines.forEach(function(l){ B.push({ role: 'line', text: l || ' ' }); }); return; }
+      if (b.t === 'table'){ gap(); b.rows.forEach(function(r, k){ B.push({ role: 'line', runs: [[b.head && k === 0 ? 'bold' : 'normal', r.map(docTextOf).join('   │   ')]] }); }); gap(); return; }
+      var sc = docIsScripture(b.text);
+      B.push({ role: sc ? 'scripture' : 'normal', runs: runs(b.text, sc ? 'red' : 'normal') });
+    });
+    while (B.length && B[B.length - 1].role === 'blank') B.pop();
+    return hwpxBuild({ type: 'manuscript_b', slots: [title || ''], blocks: B, charHeights: { 5: 1100, 7: 1100, 8: 1100, 9: 1100, 11: 1600 } });
+  }
+  async function docDocx(title, blocks){
+    var D = await ensureDocxLib(), FONT = '맑은 고딕', ch = [], TW = 11906 - 1134 * 2;
+    function R(t, o){ o = o || {}; return new D.TextRun({ text: t, bold: !!o.b, italics: !!o.i, size: o.s, color: o.c, font: o.f }); }
+    function runs(s, o){ o = o || {}; return docRuns(s).map(function(r){ return R(r[1], { b: r[0] || o.b, s: o.s, c: o.c, i: o.i, f: o.f }); }); }
+    function table(b){
+      var nc = Math.max.apply(null, b.rows.map(function(r){ return r.length; })), cw = Math.floor(TW / Math.max(1, nc)), widths = [];
+      for (var c = 0; c < nc; c++) widths.push(cw);
+      return new D.Table({ columnWidths: widths, width: { size: TW, type: D.WidthType.DXA },
+        rows: b.rows.map(function(r, k){
+          var head = b.head && k === 0, cells = [];
+          for (var c2 = 0; c2 < nc; c2++) cells.push(new D.TableCell({ width: { size: cw, type: D.WidthType.DXA },
+            shading: head ? { type: D.ShadingType.CLEAR, fill: 'E8EEF6', color: 'auto' } : undefined,
+            margins: { top: 60, bottom: 60, left: 100, right: 100 },
+            children: [new D.Paragraph({ children: runs(r[c2] || '', { b: head, s: 20 }) })] }));
+          return new D.TableRow({ tableHeader: head, children: cells });
+        }) });
+    }
+    if (title) ch.push(new D.Paragraph({ spacing: { after: 240 }, border: { bottom: { style: D.BorderStyle.SINGLE, size: 8, color: '333333', space: 6 } }, children: [R(title, { b: true, s: 34 })] }));
+    blocks.forEach(function(b){
+      if (b.t === 'blank') return;
+      if (b.t === 'hr'){ ch.push(new D.Paragraph({ spacing: { after: 160 }, border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: 'BBBBBB', space: 4 } }, children: [] })); return; }
+      if (/^h[1-3]$/.test(b.t)){ var hs = { h1: 30, h2: 26, h3: 23 }[b.t]; ch.push(new D.Paragraph({ keepNext: true, spacing: { before: b.t === 'h3' ? 180 : 260, after: 100 }, children: runs(b.text, { b: true, s: hs }) })); return; }
+      if (b.t === 'li' || b.t === 'oli'){ ch.push(new D.Paragraph({ spacing: { after: 60, line: 300 }, indent: { left: 400 + b.lv * 360, hanging: 260 }, children: [R(b.t === 'li' ? '• ' : b.num + '. ')].concat(runs(b.text)) })); return; }
+      if (b.t === 'quote'){ var sq = docIsScripture(b.text); ch.push(new D.Paragraph({ spacing: { after: 100, line: 300 }, indent: { left: 480 }, border: { left: { style: D.BorderStyle.SINGLE, size: 12, color: sq ? 'E06666' : 'BBBBBB', space: 8 } }, children: runs(b.text, sq ? { c: 'FF0000', b: true } : { c: '444444' }) })); return; }
+      if (b.t === 'pre'){ b.lines.forEach(function(l){ ch.push(new D.Paragraph({ shading: { type: D.ShadingType.CLEAR, fill: 'F3F3F3', color: 'auto' }, spacing: { after: 0, line: 260 }, children: [R(l || ' ', { f: 'Consolas', s: 19 })] })); }); ch.push(new D.Paragraph({ children: [] })); return; }
+      if (b.t === 'table'){ ch.push(table(b)); ch.push(new D.Paragraph({ spacing: { after: 120 }, children: [] })); return; }
+      var sc = docIsScripture(b.text);
+      ch.push(new D.Paragraph({ alignment: D.AlignmentType.JUSTIFIED, spacing: { after: 120, line: 320 }, children: runs(b.text, sc ? { c: 'FF0000', b: true } : {}) }));
+    });
+    var doc = new D.Document({ creator: 'Total Sermons', title: title || '',
+      styles: { default: { document: { run: { font: { ascii: FONT, eastAsia: FONT, hAnsi: FONT }, size: 21 } } } },
+      sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } } }, children: ch }] });
+    return D.Packer.toBlob(doc);
+  }
+  /* PDF·HTML 공용 서식 — cw 가 있으면 PDF 쪽(고정 크기), 0 이면 HTML 본문 */
+  function docCss(cw, ch){
+    var F = (typeof TPDF_FONT === 'string') ? TPDF_FONT : 'serif';
+    return '.dp-page{box-sizing:border-box;position:relative;' + (cw ? 'width:' + cw + 'px;height:' + ch + 'px;overflow:hidden;' : '') + 'background:#fff;color:#111;font-family:' + F + ';font-size:14.5px;line-height:1.8;word-break:keep-all;overflow-wrap:anywhere}'
+      + '.dp-page p{margin:0 0 .55em;text-align:justify}.dp-page p.dp-cont{margin-bottom:0}'
+      + '.dp-page h1{font-size:22px;line-height:1.4;margin:.3em 0 .5em;font-weight:700}'
+      + '.dp-page h2{font-size:18px;line-height:1.45;margin:.8em 0 .35em;font-weight:700}'
+      + '.dp-page h3{font-size:15.5px;line-height:1.5;margin:.7em 0 .3em;font-weight:700}'
+      + '.dp-title{font-size:25px;font-weight:700;line-height:1.35;margin:0 0 .7em;padding-bottom:.35em;border-bottom:1.5px solid #333}'
+      + '.dp-page p.dp-li{margin:0 0 .25em;padding-left:1.3em;text-indent:-1.3em;text-align:left}'
+      + '.dp-page p.dp-q{padding:.05em 0 .05em .9em;border-left:3px solid #bbb;color:#444;text-align:left}'
+      + '.dp-page .dp-sc{color:#d00000;font-weight:700}.dp-page p.dp-q.dp-sc{border-left-color:#e06666}'
+      + '.dp-pre{font-family:Menlo,Consolas,monospace;font-size:12.5px;line-height:1.55;background:#f4f4f4;padding:2px 8px;margin:0 0 .5em;white-space:pre-wrap}'
+      + '.dp-hr{border:0;border-top:1px solid #bbb;margin:.5em 0 .9em}.dp-gap{height:.45em}'
+      + '.dp-tr{display:flex;border:1px solid #999;border-top-width:0;font-size:13px;line-height:1.5;text-align:left}'
+      + '.dp-tr.first{border-top-width:1px}.dp-tr.last{margin-bottom:.8em}.dp-tr.head{background:#e8eef6;font-weight:700}'
+      + '.dp-tr > div{padding:4px 7px;border-left:1px solid #999;min-width:0}.dp-tr > div:first-child{border-left:0}';
+  }
+  /* 긴 문단은 문장 끝에서 나눈다 — 한 블록이 한 쪽보다 길면 잘리므로 */
+  function docChunks(t, max){
+    t = String(t || ''); if (t.length <= max) return [t];
+    var ss = t.match(/[^.!?。]+[.!?。]+["'”’」』)\]]*\s*|[^.!?。]+$/g) || [t], out = [], cur = '';
+    ss.forEach(function(s){ if (cur && (cur + s).length > max){ out.push(cur.trim()); cur = ''; } cur += s; while (cur.length > max * 1.6){ out.push(cur.slice(0, max)); cur = cur.slice(max); } });
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+  function docHtmlBlocks(title, blocks){
+    var out = [];
+    function inl(s){ return docRuns(s).map(function(r){ var t = mdEsc(r[1]); return r[0] ? '<b>' + t + '</b>' : t; }).join(''); }
+    if (title) out.push('<div class="dp-title">' + mdEsc(title) + '</div>');
+    blocks.forEach(function(b){
+      if (b.t === 'blank'){ out.push('<div class="dp-gap"></div>'); return; }
+      if (b.t === 'hr'){ out.push('<hr class="dp-hr">'); return; }
+      if (/^h[1-3]$/.test(b.t)){ out.push('<' + b.t + '>' + inl(b.text) + '</' + b.t + '>'); return; }
+      if (b.t === 'li' || b.t === 'oli'){ out.push('<p class="dp-li" style="margin-left:' + (b.lv * 1.3) + 'em">' + (b.t === 'li' ? '•&nbsp;' : mdEsc(b.num) + '.&nbsp;') + inl(b.text) + '</p>'); return; }
+      if (b.t === 'quote'){ out.push('<p class="dp-q' + (docIsScripture(b.text) ? ' dp-sc' : '') + '">' + inl(b.text) + '</p>'); return; }
+      if (b.t === 'pre'){ for (var k = 0; k < b.lines.length; k += 24) out.push('<pre class="dp-pre">' + mdEsc(b.lines.slice(k, k + 24).join('\n')) + '</pre>'); return; }
+      if (b.t === 'table'){
+        var nc = Math.max.apply(null, b.rows.map(function(r){ return r.length; })), wts = [];
+        for (var c = 0; c < nc; c++) wts.push(Math.max(3, Math.min(40, Math.max.apply(null, b.rows.map(function(r){ return docTextOf(r[c] || '').length; })))));
+        b.rows.forEach(function(r, k2){
+          var cls = 'dp-tr' + (k2 === 0 ? ' first' : '') + (k2 === b.rows.length - 1 ? ' last' : '') + (b.head && k2 === 0 ? ' head' : '');
+          var cells = ''; for (var c3 = 0; c3 < nc; c3++) cells += '<div style="flex:' + wts[c3] + ' 1 0">' + inl(r[c3] || '') + '</div>';
+          out.push('<div class="' + cls + '">' + cells + '</div>');
+        });
+        return;
+      }
+      var sc = docIsScripture(b.text);
+      docChunks(b.text, 650).forEach(function(c4, k3, A){ out.push('<p class="' + (sc ? 'dp-sc' : '') + (k3 < A.length - 1 ? ' dp-cont' : '') + '">' + inl(c4) + '</p>'); });
+    });
+    return out;
+  }
+  function docHtmlPage(title, blocks){
+    return '<!doctype html>\n<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + mdEsc(title || '문서') + '</title>\n<style>body{margin:0;background:#f2f2ef}main.dp-page{max-width:760px;margin:24px auto;padding:40px 44px;box-shadow:0 2px 12px rgba(0,0,0,.08)}@media (max-width:600px){main.dp-page{margin:0;padding:22px 16px;box-shadow:none}}' + docCss(0, 0) + '</style></head>\n<body><main class="dp-page">\n' + docHtmlBlocks(title, blocks).join('\n') + '\n</main></body></html>\n';
+  }
+  /* PDF — 전환 표시 PDF 와 같은 방식(쪽마다 그림 + 보이지 않는 글자층 — 검색·밑줄·복사가 된다), A4·여백 20mm */
+  async function docPdf(title, blocks){
+    await loadPdfLibs();
+    try { ensureTransPdfFonts(); await document.fonts.load("16px 'Gowun Batang'"); await document.fonts.ready; } catch(e){}
+    var PG = { w: 210, h: 297, m: 20 }, cw = tpdfPx(PG.w - PG.m * 2), chh = tpdfPx(PG.h - PG.m * 2), html = docHtmlBlocks(title, blocks);
+    var host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-99999px;top:0;width:' + (cw + 60) + 'px;background:#fff';
+    host.innerHTML = '<style>' + docCss(cw, chh) + '</style>';
+    document.body.appendChild(host);
+    var keepPG = window.TPDF_PG;
+    try {
+      var pages = [], cur = null;
+      function newPage(){ var d = document.createElement('div'); d.className = 'dp-page'; host.appendChild(d); pages.push(d); return d; }
+      cur = newPage();
+      for (var b = 0; b < html.length; b++){
+        var box = document.createElement('div'); box.innerHTML = html[b];
+        var node = box.firstChild; if (!node) continue;
+        cur.appendChild(node);
+        if (cur.scrollHeight > chh && cur.childNodes.length > 1){   /* 넘치면 다음 쪽으로 — 바로 앞이 소제목이면 함께 */
+          cur.removeChild(node);
+          var old = cur, prev = old.lastChild;
+          cur = newPage();
+          if (prev && /^H[1-3]$/.test(prev.tagName) && old.childNodes.length > 1) cur.appendChild(prev);
+          if (/dp-gap/.test(node.className || '') && !cur.childNodes.length) continue;
+          cur.appendChild(node);
+        }
+      }
+      var pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: [PG.w, PG.h] });
+      var hasFont = await tpdfAddTextFont(pdf);
+      window.TPDF_PG = PG;   /* tpdfDrawTextLayer 가 쓰는 쪽 크기 — 끝나면 되돌린다 */
+      for (var p = 0; p < pages.length; p++){
+        var cv = await window.html2canvas(pages[p], { scale: 2, backgroundColor: '#ffffff', logging: false });
+        if (p > 0) pdf.addPage([PG.w, PG.h], 'portrait');
+        pdf.addImage(cv.toDataURL('image/jpeg', 0.9), 'JPEG', PG.m, PG.m, PG.w - PG.m * 2, PG.h - PG.m * 2);
+        if (hasFont) tpdfDrawTextLayer(pdf, pages[p]);
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(120);
+        pdf.text('- ' + (p + 1) + ' -', PG.w / 2, PG.h - 9, { align: 'center' });
+      }
+      try { pdf.setProperties({ title: title || '', creator: 'Total Sermons' }); } catch(e){}
+      return pdf.output('blob');
+    } finally { window.TPDF_PG = keepPG; document.body.removeChild(host); }
+  }
+  /* 설교원고 — 앱의 원고 내보내기와 같은 길(성경 인용 빨강·예화 파랑·대지 굵게, 설교양식 A/B 도 따름) */
+  async function docSermonMake(fmt, title, content, ref){
+    var meta = { '제목': title || '', '본문': String(ref || '').trim() };
+    if (fmt === 'pdf'){
+      var ov = document.getElementById('genOverlay'), ovWas = !!(ov && ov.classList.contains('on'));
+      try { return await buildTransPdfBlob(meta, content, {}); }
+      finally { if (!ovWas){ try { hideGenOverlay(); } catch(e){} } }
+    }
+    var built = parasFromText(meta, content, '기본원고');
+    if (fmt === 'hwpx') return hwpxBuild(hwpxManuscript(built.paras));
+    var D = await ensureDocxLib();
+    return D.Packer.toBlob(buildDocxParas(D, built.paras, built.st));
+  }
+  async function docMake(fmt, title, content, tpl, ref){
+    if (fmt === 'csv') return new Blob(['﻿' + content.replace(/\r?\n/g, '\r\n')], { type: 'text/csv;charset=utf-8' });
+    if (fmt === 'json'){ var j; try { j = JSON.parse(content); } catch(e){ throw new Error('json 내용이 올바른 JSON 이 아닙니다 — ' + e.message); } return new Blob([JSON.stringify(j, null, 2)], { type: 'application/json' }); }
+    if (fmt === 'md') return new Blob([(title && !/^\s*#\s/.test(content) ? '# ' + title + '\n\n' : '') + content.replace(/\s*$/, '\n')], { type: 'text/markdown;charset=utf-8' });
+    if (fmt === 'txt'){ var pl = docPlain(content); return new Blob([(title && pl.indexOf(title) !== 0 ? title + '\n\n' : '') + pl + '\n'], { type: 'text/plain;charset=utf-8' }); }
+    if (tpl === '설교원고') return docSermonMake(fmt, title, content, ref);
+    var blocks = docParse(content);
+    if (title && blocks.length && blocks[0].t === 'h1' && docNfc(docTextOf(blocks[0].text)).trim() === docNfc(title).trim()) blocks.shift();
+    if (fmt === 'html') return new Blob([/^\s*(<!doctype|<html)/i.test(content) ? content : docHtmlPage(title, blocks)], { type: 'text/html;charset=utf-8' });
+    if (fmt === 'hwpx') return docHwpx(title, blocks);
+    if (fmt === 'docx') return docDocx(title, blocks);
+    if (fmt === 'pdf') return docPdf(title, blocks);
+    throw new Error('알 수 없는 형식: ' + fmt);
+  }
+  /* 만든 파일 카드 — [내려받기](늘) · [열기](브라우저가 보여 주는 형식만) */
+  function agFileCard(T, blob, name, where){
+    var url = URL.createObjectURL(blob), ext = docExt(name);
+    var box = document.createElement('div'); box.className = 'agFile';
+    box.innerHTML = uiIco('file') + '<div class="agFiT"><b></b><span></span></div><div class="agFiB"><button type="button" class="agMini agDl">내려받기</button>' +
+      (/^(pdf|html|txt)$/.test(ext) ? '<button type="button" class="agMini agOpen">열기</button>' : '') + '</div>';
+    box.querySelector('b').textContent = name;
+    box.querySelector('.agFiT span').textContent = (DOC_FMT_LABEL[ext] || ext.toUpperCase()) + ' · ' + docKb(blob.size) + ' · ' + (where ? where + ' 에 저장함' : '아직 저장하지 않음 — [내려받기]로 받으세요');
+    box.querySelector('.agDl').addEventListener('click', function(){ var a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); });
+    var op = box.querySelector('.agOpen'); if (op) op.addEventListener('click', function(){ window.open(url, '_blank'); });
+    T.attach(box);
+    return box;
+  }
   function addCopy(el, getText){
     var b = document.createElement('button');
     b.className = 'copyMsg'; b.type = 'button'; b.textContent = '복사';
@@ -39651,7 +40247,7 @@ function occKnobPaint(){
        키 없이 브라우저 에이전트 모드(Aside 구독)만 있으면 예전처럼 브리지로 한 번에 받는다(도구 없음).
      ★ 도구를 주고받는 동안의 대화(생각 블록·도구 호출·결과)는 받은 그대로 덧붙이기만 한다(preserved thinking — 중간을 고치면 400).
        끝난 차례는 글(+실행 기록 한 줄)만 convo 에 남기고 다음 질문 때는 글만 보낸다 → 생각 블록을 다시 보내지 않으므로 검사 대상이 없다. */
-  var AG = { stopped: false, stopNow: null, pendingAsk: null, trustJs: false, cands: {}, candSeq: 0, lastCtx: '', last: null, scr: null };
+  var AG = { stopped: false, stopNow: null, pendingAsk: null, trustJs: false, cands: {}, candSeq: 0, lastCtx: '', last: null, scr: null, docs: {}, docSeq: 0 };
   var AG_MAX_STEPS = 24;
   function agOn(){ return !!(window.realKey && realKey()); }
   function agStopErr(){ var e = new Error('중단했습니다'); e.code = 'STOP'; return e; }
@@ -39872,7 +40468,8 @@ function occKnobPaint(){
     return '';
   }
   /* 도구 줄 — 무엇을 하는지·결과를 한 줄로, 아래에 확인 카드·그림·되돌리기 단추가 붙는다 */
-  var AG_ICON = { screen_read: 'eye', compose_edit: 'edit', image_cuts: 'image', image_view: 'image', image_generate: 'image', image_apply: 'image', image_undo: 'history', app_code_search: 'search', app_code_read: 'file', app_js_run: 'wrench' };
+  var AG_ICON = { screen_read: 'eye', compose_edit: 'edit', image_cuts: 'image', image_view: 'image', image_generate: 'image', image_apply: 'image', image_undo: 'history', app_code_search: 'search', app_code_read: 'file', app_js_run: 'wrench',
+    doc_read: 'paperclip', doc_create: 'file', folder_list: 'folder', folder_find: 'search', folder_read: 'eye' };   /* v753 */
   function agChip(parent, name){
     var wrap = document.createElement('div'); wrap.className = 'agToolW';
     wrap.innerHTML = '<div class="agTool run"><span class="agTlIc">' + uiIco(AG_ICON[name] || 'zap') + '</span><span class="agTlLb"></span><span class="agTlSt"></span></div><div class="agTlX"></div>';
@@ -40360,6 +40957,162 @@ function occKnobPaint(){
         if (!r.ok) throw new Error('코드 오류: ' + r.error + logs);
         T.ok('완료');
         return 'return 값:\n' + r.value + logs;
+      } },
+    /* ── v753 문서 첨부 · 문서 만들기 · 작업 폴더 (위 「v753」 묶음의 도우미를 쓴다 — 지침 AG_SYS 와 함께 고칠 것) ── */
+    doc_read: { label: '첨부 문서 읽기', webOnly: true,
+      def: { description: '이 대화에 목사님이 붙인 문서(질문 앞 [첨부 문서 dN — 「이름」 …] 줄의 dN)의 글을 from(글자 위치, 기본 0)부터 length(기본 30000·최대 60000)자까지 읽는다. find 를 주면 그 말이 나오는 곳(최대 20곳)의 위치와 앞뒤 글을 돌려준다. 앱을 새로 고치거나 지난 대화를 다시 열면 문서 내용은 없다.',
+        input_schema: { type: 'object', properties: { doc: { type: 'string' }, from: { type: 'integer' }, length: { type: 'integer' }, find: { type: 'string' } }, required: ['doc'] } },
+      run: async function(inp, T){
+        var id = String(inp.doc || '').trim().replace(/^\[|\]$/g, ''), D = AG.docs[id];
+        if (!D){
+          var ks = Object.keys(AG.docs);
+          throw new Error('문서 ' + id + ' 이(가) 없습니다' + (ks.length ? ' — 지금 있는 문서: ' + ks.map(function(k){ return k + '「' + AG.docs[k].name + '」'; }).join(', ') : ' — 이 대화에 붙인 문서가 없습니다(지난 대화를 다시 열었으면 문서를 다시 붙여 달라고 말씀드린다)'));
+        }
+        if (D.scan) throw new Error('「' + D.name + '」은(는) 스캔 PDF라 대화에 PDF 그대로 실려 있다 — 그 PDF를 보면 된다');
+        T.label('첨부 문서 읽기 — ' + D.name);
+        var t = D.text;
+        if (inp.find){
+          var q = docNfc(String(inp.find)).toLowerCase(), low = docNfc(t).toLowerCase(), at = -1, hits = [];
+          if (!q.trim()) throw new Error('찾을 말이 비어 있습니다');
+          while (hits.length < 20 && (at = low.indexOf(q, at + 1)) >= 0) hits.push(docNum(at) + '자: …' + t.slice(Math.max(0, at - 100), at + q.length + 160).replace(/\s+/g, ' ').trim() + '…');
+          T.ok(hits.length + '곳');
+          return '「' + D.name + '」(' + docNum(t.length) + '자)에서 「' + inp.find + '」 ' + hits.length + '곳' + (hits.length ? ' (from 에 위치를 넣으면 그 부분을 읽는다):\n' + hits.join('\n') : '');
+        }
+        var from = Math.max(0, Math.min(t.length, +inp.from || 0)), len = Math.max(1000, Math.min(60000, +inp.length || 30000)), part = t.slice(from, from + len);
+        T.ok(docNum(part.length) + '자');
+        return '「' + D.name + '」 · ' + D.label + ' · 전체 ' + docNum(t.length) + '자 — ' + docNum(from) + '~' + docNum(from + part.length) + '자' +
+          (from + part.length < t.length ? ' (다음은 from:' + (from + part.length) + ')' : ' (끝까지)') + '\n<document name="' + String(D.name).replace(/"/g, "'") + '">\n' + part + '\n</document>';
+      } },
+    doc_create: { label: '문서 만들기',
+      def: { description: '문서 파일을 실제로 만든다. format: hwpx(한글)|docx(워드)|pdf|md|txt|html|csv|json — 비우면 앱 설정의 산출물 형식(한글 또는 워드). content: 마크다운 줄(# 제목 · ## 소제목 · ### 작은 제목 · - 목록 · 1. 번호 · > 인용 · | 칸 | 칸 | 표(둘째 줄 |---|면 첫 줄이 머리) · --- 구분선 · **굵게**; 한 줄 = 한 문단, 빈 줄 = 문단 사이). csv·json 은 그 형식 글 그대로, html 은 완성된 html 이면 그대로. title: 문서 맨 위 제목이자 파일 이름. template: 일반(기본 — A4 문서)|설교원고(앱의 원고 서식 그대로 — 설교 원고 글을 넣으면 성경 인용 빨강·예화 파랑·대지 굵게, ref 에 본문 성구; hwpx·docx·pdf 만). dest: 결과함(기본 — 결과함 오늘 날짜 폴더, 결과함이 연결되지 않은 기기면 저장 없이 [내려받기] 단추만)|작업폴더(연결된 작업 폴더 안 path — 「하위폴더/」 또는 「하위폴더/파일이름.확장자」, 없는 하위 폴더는 만든다)|내려받기(저장하지 않고 단추만). filename: 파일 이름(생략하면 제목). 같은 이름 파일이 있으면 덮어쓸지 목사님께 묻는 카드가 뜬다. 목사님 화면에는 [내려받기]·[열기] 단추가 붙은 파일 카드가 보인다.',
+        input_schema: { type: 'object', properties: {
+          format: { type: 'string', enum: ['hwpx', 'docx', 'pdf', 'md', 'txt', 'html', 'csv', 'json'] }, title: { type: 'string' }, content: { type: 'string' },
+          template: { type: 'string', enum: ['일반', '설교원고'] }, dest: { type: 'string', enum: ['결과함', '작업폴더', '내려받기'] },
+          path: { type: 'string' }, filename: { type: 'string' }, ref: { type: 'string' } }, required: ['content'] } },
+      run: async function(inp, T, V){
+        var fmt = inp.format || ((typeof outFmt === 'function') ? outFmt() : 'hwpx');
+        var title = String(inp.title || '').trim(), content = String(inp.content || '');
+        if (!content.trim()) throw new Error('내용(content)이 비어 있습니다');
+        var tpl = (inp.template === '설교원고' && /^(hwpx|docx|pdf)$/.test(fmt)) ? '설교원고' : '일반';
+        if (!title && tpl === '일반'){ var m0 = content.match(/^\s*#\s+(.+)/); if (m0) title = docTextOf(m0[1]).trim(); }
+        var name = docFileName(inp.filename || title || ('문서 ' + docStamp()), fmt);
+        var dest = inp.dest || (inp.path ? '작업폴더' : '결과함');
+        T.label('문서 만들기 — ' + name); T.status('만드는 중');
+        var blob = await docMake(fmt, title, content, tpl, inp.ref);
+        if (AG.stopped) throw agStopErr();
+        var where = '';
+        if (dest === '작업폴더'){ T.status('작업 폴더에 저장 중'); where = '작업 폴더 「' + WD.name + '」/' + await wdSave(T, inp.path, name, blob); }
+        else if (dest === '결과함' && window.canFolderSave && canFolderSave()){
+          await agFolder(T);
+          T.status('결과함에 저장 중');
+          var rdir = await resultsTodayDir();
+          where = '결과함/' + rdir.name + '/' + await docSaveIn(T, rdir, name, blob, '결과함/' + rdir.name + '/');
+        }
+        var shownName = where ? where.split('/').pop() : name;
+        agFileCard(T, blob, shownName, where);
+        V.log.push('문서 만듦(' + (where || shownName) + ')');
+        T.ok(docKb(blob.size));
+        return '「' + shownName + '」 만들었다(' + (DOC_FMT_LABEL[fmt] || fmt) + ' · ' + docKb(blob.size) + (tpl === '설교원고' ? ' · 앱 원고 서식' : '') + ') — ' +
+          (where ? where + ' 에 저장했다. 목사님 화면의 파일 카드에 [내려받기] 단추도 있다.'
+            : (dest === '결과함' ? '이 기기에 결과함 폴더가 연결되지 않아 저장은 하지 않았고, ' : '') + '목사님 화면의 파일 카드 [내려받기] 단추로 받으실 수 있다.');
+      } },
+    folder_list: { label: '작업 폴더 목록', webOnly: true,
+      def: { description: '연결된 작업 폴더(목사님 컴퓨터) 안의 목록. path(폴더 안 상대 경로, 비우면 맨 위) · depth(하위 폴더를 몇 단계까지 펼칠지 1~4, 기본 1) · max(최대 줄 수, 기본 200·최대 600). 폴더는 「이름/」, 파일은 「이름 · 크기 · 고친 시각」. 숨김 파일은 뺀다.',
+        input_schema: { type: 'object', properties: { path: { type: 'string' }, depth: { type: 'integer' }, max: { type: 'integer' } } } },
+      run: async function(inp, T){
+        await wdNeed(T);
+        var parts = await wdStrip(wdParts(inp.path)), dir = await wdDirAt(parts), base = parts.join('/');
+        var depth = Math.max(1, Math.min(4, +inp.depth || 1)), max = Math.max(10, Math.min(600, +inp.max || 200));
+        T.label('작업 폴더 목록 — ' + (base || WD.name));
+        var lines = [], nDir = 0, nFile = 0, cut = false;
+        async function walk(d, lv){
+          var ents = await wdEntries(d);
+          for (var i = 0; i < ents.length; i++){
+            if (lines.length >= max){ cut = true; return; }
+            var h = ents[i], ind = '  '.repeat(lv);
+            if (h.kind === 'directory'){ nDir++; lines.push(ind + h.name + '/'); if (lv + 1 < depth) await walk(h, lv + 1); }
+            else { nFile++; var info = ''; try { var f = await h.getFile(); info = ' · ' + docKb(f.size) + ' · ' + wdTime(f.lastModified); } catch(e){} lines.push(ind + h.name + info); }
+          }
+        }
+        await walk(dir, 0);
+        T.ok('폴더 ' + nDir + ' · 파일 ' + nFile + (cut ? '+' : ''));
+        return '작업 폴더 「' + WD.name + '」' + (base ? ' / ' + base : '') + ' — 폴더 ' + nDir + '개 · 파일 ' + nFile + '개' +
+          (cut ? ' (앞 ' + max + '줄까지만 — path 를 좁히거나 max 를 늘려 다시)' : '') + '\n' + (lines.join('\n') || '(비어 있음)');
+      } },
+    folder_find: { label: '작업 폴더에서 찾기', webOnly: true,
+      def: { description: '작업 폴더(와 하위 폴더 6단계까지)에서 파일·폴더 이름으로 찾는다 — 띄어 쓴 낱말이 모두 든 이름(대소문자·한글 자모 조합 차이 무시). content:true 면 문서 속 글자에서도 찾는다(한글·워드·PDF·파워포인트·엑셀·텍스트 — 최대 80개 파일, 파일당 20MB까지 열어 보고 찾은 곳 앞뒤 글을 돌려준다). path 로 범위를 좁히고, ext 로 확장자를 거른다(예 "hwpx,pdf"). max = 최대 결과 수(기본 60).',
+        input_schema: { type: 'object', properties: { query: { type: 'string' }, path: { type: 'string' }, content: { type: 'boolean' }, ext: { type: 'string' }, max: { type: 'integer' } }, required: ['query'] } },
+      run: async function(inp, T){
+        await wdNeed(T);
+        var q = docNfc(String(inp.query || '')).toLowerCase().trim(); if (!q) throw new Error('찾을 말이 없습니다');
+        var terms = q.split(/\s+/).filter(Boolean);
+        var exts = String(inp.ext || '').toLowerCase().split(/[\s,]+/).map(function(x){ return x.replace(/^\./, ''); }).filter(Boolean);
+        var parts = await wdStrip(wdParts(inp.path)), dir = await wdDirAt(parts), base = parts.join('/'), max = Math.max(5, Math.min(200, +inp.max || 60));
+        T.label('작업 폴더에서 찾기 — ' + inp.query + (inp.content ? ' (내용까지)' : ''));
+        var hits = [], seen = 0, files = [], cutWalk = false;
+        async function walk(d, pre, lv){
+          var ents = await wdEntries(d);
+          for (var i = 0; i < ents.length; i++){
+            if (++seen > 5000){ cutWalk = true; return; }
+            if (AG.stopped) throw agStopErr();
+            var h = ents[i], rel = pre + h.name, nm = docNfc(h.name).toLowerCase(), isDir = h.kind === 'directory';
+            var extOk = !exts.length || (!isDir && exts.indexOf(docExt(h.name)) >= 0);
+            if (hits.length < max && extOk && terms.every(function(t){ return nm.indexOf(t) >= 0; })) hits.push(isDir ? '[폴더] ' + rel + '/' : rel);
+            if (isDir){ if (lv < 6) await walk(h, rel + '/', lv + 1); }
+            else if (inp.content && extOk) files.push({ h: h, rel: rel });
+          }
+        }
+        T.status('훑는 중');
+        await walk(dir, base ? base + '/' : '', 0);
+        var chits = [], opened = 0, skippedBig = 0, cand = [];
+        if (inp.content){
+          cand = files.filter(function(x){ var e = docExt(x.h.name); return /^(hwpx|docx|pptx|xlsx|xlsm|pdf|rtf|html?)$/.test(e) || DOC_TEXT_EXT.test(e); });
+          for (var k = 0; k < cand.length && opened < 80 && chits.length < max; k++){
+            if (AG.stopped) throw agStopErr();
+            var f; try { f = await cand[k].h.getFile(); } catch(e){ continue; }
+            if (f.size > 20 * 1024 * 1024){ skippedBig++; continue; }
+            opened++; T.status('문서 ' + opened + '개 열어 보는 중');
+            var r; try { r = await wdTextOf(cand[k].rel, f); } catch(e){ continue; }
+            if (!r || !r.text) continue;
+            var low = docNfc(r.text).toLowerCase();
+            if (!terms.every(function(t){ return low.indexOf(t) >= 0; })) continue;
+            var at = low.indexOf(terms[0]);
+            chits.push(cand[k].rel + ' (' + docNum(r.text.length) + '자 중 ' + docNum(at) + '자 근처): …' + r.text.slice(Math.max(0, at - 80), at + 170).replace(/\s+/g, ' ').trim() + '…');
+          }
+        }
+        T.ok('이름 ' + hits.length + (inp.content ? ' · 내용 ' + chits.length : ''));
+        return '「' + inp.query + '」 — 이름이 맞는 것 ' + hits.length + '개' + (hits.length ? ':\n' + hits.join('\n') : '') +
+          (inp.content ? '\n\n문서 속 글에서 찾은 것 ' + chits.length + '개(문서 ' + opened + '개를 열어 봄' + (skippedBig ? ' · 20MB 넘는 ' + skippedBig + '개는 건너뜀' : '') +
+            (cand.length > opened + skippedBig ? ' · 나머지 ' + (cand.length - opened - skippedBig) + '개는 열지 않음 — path 를 좁혀 다시' : '') + ')' + (chits.length ? ':\n' + chits.join('\n') : '') : '') +
+          (cutWalk ? '\n(5,000개까지만 훑었다 — path 를 좁혀 다시 찾기)' : '');
+      } },
+    folder_read: { label: '작업 폴더 파일 읽기', webOnly: true,
+      def: { description: '작업 폴더 안 파일 하나를 읽는다(path = 폴더 안 상대 경로). 한글·워드·PDF·파워포인트·엑셀·텍스트 문서는 글자를 뽑아 from(글자 위치, 기본 0)부터 length(기본 30000·최대 60000)자까지. 그림 파일은 그림을 직접 본다. 글자층 없는 스캔 PDF 는 page(기본 1)부터 pages(기본 3·최대 5)쪽을 그림으로 본다. 결과 끝에 전체 길이와 다음에 읽을 위치가 있다.',
+        input_schema: { type: 'object', properties: { path: { type: 'string' }, from: { type: 'integer' }, length: { type: 'integer' }, page: { type: 'integer' }, pages: { type: 'integer' } }, required: ['path'] } },
+      run: async function(inp, T){
+        await wdNeed(T);
+        var at = await wdFileAt(inp.path), f = await at.h.getFile(), rel = at.rel;
+        T.label('파일 읽기 — ' + f.name);
+        var head = '「' + rel + '」 · ' + docKb(f.size) + ' · 고친 시각 ' + wdTime(f.lastModified);
+        if (docIsImg(f)){
+          var b64 = await agB64(f, 1400);
+          if (!b64) throw new Error('이 그림은 열지 못했습니다(' + (f.type || docExt(f.name)) + ')');
+          T.ok('그림');
+          return { text: head + ' — 그림(가로 1400px 이하로 줄여서 봄)', images: [b64] };
+        }
+        T.status('읽는 중');
+        var r = await wdTextOf(rel, f);
+        if (r.scan){
+          var p0 = Math.max(1, +inp.page || 1), n = Math.max(1, Math.min(5, +inp.pages || 3));
+          var im = await docPdfRender(await f.arrayBuffer(), p0, n), last = p0 + im.got.length - 1;
+          if (!im.got.length) throw new Error('스캔 PDF ' + im.total + '쪽 — ' + p0 + '쪽이 없습니다');
+          T.ok(im.got.length + '쪽 그림');
+          return { text: head + ' — 글자층이 없는 스캔 PDF ' + im.total + '쪽 중 ' + p0 + '~' + last + '쪽을 그림으로 본다' + (last < im.total ? ' (다음은 page:' + (last + 1) + ')' : ' (끝까지)'), images: im.got };
+        }
+        var t = r.text, from = Math.max(0, Math.min(t.length, +inp.from || 0)), len = Math.max(1000, Math.min(60000, +inp.length || 30000)), part = t.slice(from, from + len);
+        T.ok(docNum(part.length) + '자' + (from + part.length < t.length ? ' / ' + docNum(t.length) : ''));
+        return head + ' · ' + r.label + ' · 전체 ' + docNum(t.length) + '자 — ' + docNum(from) + '~' + docNum(from + part.length) + '자' +
+          (from + part.length < t.length ? ' (다음은 from:' + (from + part.length) + ')' : ' (끝까지)') + '\n<document name="' + rel.replace(/"/g, "'") + '">\n' + part + '\n</document>';
       } }
   };
   /* v678 screen_read 「바뀐 부분만」(Aside 의 snapshot diff 와 같은 생각) — 같은 차례에(앱 대화는 차례마다 새로, 브라우저 Ask 패널은
@@ -40376,7 +41129,7 @@ function occKnobPaint(){
     if (body.length > cur.length * 0.6) return cur;
     return '(직전 screen_read 이후 달라진 줄만 — "- "=사라짐, "+ "=새로 생김 · 전체가 필요하면 fresh:true)\n' + b[0] + '\n' + body;
   }
-  var AG_RO = { screen_read: 1, image_cuts: 1, image_view: 1, app_code_search: 1, app_code_read: 1 };   /* v678: 화면·자료를 읽기만 하는 도구 — 동시에 실행해도 됨 */
+  var AG_RO = { screen_read: 1, image_cuts: 1, image_view: 1, app_code_search: 1, app_code_read: 1, doc_read: 1, folder_list: 1, folder_find: 1, folder_read: 1 };   /* v678: 화면·자료를 읽기만 하는 도구 — 동시에 실행해도 됨 */
   function agToolDefs(){
     return Object.keys(AG_TOOLS).map(function(k){
       return { name: k, description: AG_TOOLS[k].def.description, input_schema: AG_TOOLS[k].def.input_schema, eager_input_streaming: true };
@@ -40470,7 +41223,7 @@ function occKnobPaint(){
   }
   window.TSA_AGENT = {
     ver: 1,
-    tools: function(){ return Object.keys(AG_TOOLS).map(function(k){ return { name: k, label: AG_TOOLS[k].label, description: AG_TOOLS[k].def.description, input_schema: AG_TOOLS[k].def.input_schema }; }); },
+    tools: function(){ return Object.keys(AG_TOOLS).filter(function(k){ return !AG_TOOLS[k].webOnly; }).map(function(k){ return { name: k, label: AG_TOOLS[k].label, description: AG_TOOLS[k].def.description, input_schema: AG_TOOLS[k].def.input_schema }; }); },   /* v753: 첨부 문서·작업 폴더 도구(webOnly)는 앱 대화창 전용 — Ask 패널은 Claude Code 의 파일 도구가 있다 */
     system: function(opt){ return sysFor(opt && opt.neutral ? '' : curPage(), true); },   /* v672: 브라우저는 {neutral:true} — 화면별 안내는 context().hint 로 */
     context: function(){
       AG.scr = null;   /* v681: 맥 앱은 보낼 때마다 context() 를 먼저 부른다 → screen_read 변경분은 그 차례 안에서만(프로세스를 새로 띄운 뒤 모델이 못 본 화면과 비교하지 않게 — 웹 대화의 agRespond 와 같은 규칙) */
