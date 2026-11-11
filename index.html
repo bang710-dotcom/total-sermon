@@ -39669,7 +39669,7 @@ function occKnobPaint(){
         var page = await pdf.getPage(p), v1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: Math.min(2.5, 1200 / v1.width) });
         var cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
         var cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
-        await page.render({ canvasContext: cx, viewport: vp }).promise;
+        await page.render({ canvasContext: cx, viewport: vp, intent: 'print' }).promise;   /* print = requestAnimationFrame 을 쓰지 않는다 — 창을 가리거나 다른 탭으로 가도 멈추지 않게 */
         got.push(cv.toDataURL('image/jpeg', 0.82).split(',')[1]);
       }
       return { got: got, total: pdf.numPages };
