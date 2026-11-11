@@ -41490,6 +41490,7 @@ function occKnobPaint(){
     if (hostPanelOn()){ window.TSA_HOST.panel.open(); return; }   /* v669: 전용 브라우저 — 오른쪽 Ask 패널(Claude Code 구독 에이전트)로 */
     refreshCtxTag();
     if (convo.length === 0) showHint();
+    wdPaint();   /* v753 — 키를 넣었거나 권한이 바뀌었으면 작업 폴더 줄을 새로 */
     panel.classList.add('open'); document.body.classList.add('aiChatOpen');
     syncFollowBtn();
     setTimeout(function(){ input.focus(); }, 220);
