@@ -1,5 +1,5 @@
 /* 토탈 설교 앱 — 오프라인 셸 캐시 */
-var CACHE = 'tsa-v751';         /* 앱 셸 — 버전마다 교체(index.html 등) */
+var CACHE = 'tsa-v752';         /* 앱 셸 — 버전마다 교체(index.html 등) */
 var CONTENT = 'tsa-content-v1';   /* 대용량 콘텐츠 — 버전 업에도 유지(매번 재다운로드 방지) */
 var ASSETS = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 /* ill-index(색인)·ill-story(전문 샤드, 해시 파일명=불변)도 콘텐츠 캐시 — v444 */
@@ -25,6 +25,10 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
     return Promise.all(keys.filter(function (k) { return k !== CACHE && k !== CONTENT; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
+});
+/* v752: 페이지가 이 워커의 버전을 물으면 CACHE 이름으로 답한다(새 버전 알림을 띄울지 판단) */
+self.addEventListener('message', function (e) {
+  if (e.data && e.data.type === 'tsa-ver' && e.ports && e.ports[0]) e.ports[0].postMessage(CACHE);
 });
 self.addEventListener('fetch', function (e) {
   var url = new URL(e.request.url);

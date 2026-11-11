@@ -37501,7 +37501,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v751';
+var APP_VER = 'v752';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -37602,7 +37602,15 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
         var nw = reg.installing; if (!nw) return;
         nw.addEventListener('statechange', function(){
           /* 새 워커가 설치 완료 + 기존 컨트롤러 존재 = 갱신본 도착(최초 설치는 제외) */
-          if (nw.state === 'installed' && navigator.serviceWorker.controller && window.__showUpdateBar) window.__showUpdateBar();
+          if (nw.state !== 'installed' || !navigator.serviceWorker.controller || !window.__showUpdateBar) return;
+          /* v752: 새 워커의 버전(CACHE)이 지금 화면의 APP_VER 와 같으면 알리지 않는다 —
+             앱을 연 직후엔 index.html 을 네트워크에서 먼저 받아 이미 새 버전으로 떠 있다.
+             1.5초 안에 답이 없으면(옛 워커 등) 예전처럼 알린다. */
+          var done = false, ch = new MessageChannel();
+          var go = function(v){ if (done) return; done = true; if (v !== 'tsa-' + APP_VER) window.__showUpdateBar(); };
+          ch.port1.onmessage = function(e){ go(e.data); };
+          setTimeout(function(){ go(null); }, 1500);
+          try { nw.postMessage({ type: 'tsa-ver' }, [ch.port2]); } catch (e) { go(null); }
         });
       });
     }).catch(function(){});
@@ -37755,7 +37763,7 @@ document.addEventListener('touchstart', setAppHeight, { passive: true });
     btn.addEventListener('click', function(){ try { location.reload(); } catch(e){} });
     b.appendChild(btn);
     wrap.appendChild(b);
-    try { toast('새 버전이 준비됐습니다 — 위의 [새로고침]을 눌러 적용하세요.'); } catch(e){}
+    /* v752: 토스트는 띄우지 않는다 — 토스트는 하나뿐이라 「저장했습니다」 등을 덮어썼다 */
   };
 
   /* ── 대기열 배지 클릭: 설정으로 이동 + 즉시 전송 시도 ── */
