@@ -3455,6 +3455,15 @@ body.focusMode #refInsBar{bottom:72px}
           <option value="gemini">Gemini (Nano Banana · 사실적 디테일)</option>
           <option value="krea">Krea 2 Turbo (미감·질감 · 저가)</option>
         </select>
+        <div id="imgFluxWrap">
+          <div class="setHl"><label for="imgFluxSel">Flux 모델</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+          <div class="hlpTx" hidden>위에서 Flux 를 골랐을 때 쓰는 모델입니다. FLUX.2 klein 은 지금까지 쓰던 모델(빠르고 장당 비용이 낮음)입니다. FLUX.3 Image klein 은 새 세대의 가벼운 모델이고, FLUX.3 Image 는 새 세대의 최상위 모델입니다 — 그림을 만들기 전에 웹을 찾아 실제 사물·장소를 맞추므로 시간이 더 걸리고 비용도 더 듭니다. 요금은 BFL 요금표(해상도별 장당)를 따릅니다. 묵상집 배경 테마도 이 모델로 만듭니다. 고르는 즉시 저장되고 다른 기기와 공유됩니다.</div>
+          <select id="imgFluxSel">
+            <option value="">FLUX.2 klein (기본 · 지금까지와 같음)</option>
+            <option value="flux-3-image-klein">FLUX.3 Image klein (새 세대 · 가벼움)</option>
+            <option value="flux-3-image">FLUX.3 Image (새 세대 · 최상위)</option>
+          </select>
+        </div>
         <div class="setHl"><label for="imgScreensSel">강단 스크린 출력</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>강단 스크린은 가운데 4160×1620 한 대와 양옆 16:9 두 대입니다. 「두 벌 모두」면 한 번 만든 배경으로 가운데용 초광각(JPEG, zip 맨 위)과 사이드용 16:9(PNG, side-1920x1080 폴더)를 함께 만들어 어느 화면에서도 늘어난 그림이 나오지 않습니다.</div>
         <select id="imgScreensSel">
@@ -34045,6 +34054,12 @@ function vidProxyCfg(){
 }
 /* 설교 이미지 AI 엔진 선택(설정에 저장) — 'flux'(기본) / 'gemini'(=fal.ai 경유 Nano Banana) / 'krea'(=fal.ai 경유 Krea 2 Turbo) */
 function imgEngine(){ var e = state.settings && state.settings.imgEngine; return (e === 'gemini' || e === 'krea') ? e : 'flux'; }
+/* v756 Flux 모델(설정에 저장) — ''(기본 = FLUX.2 klein) / 'flux-3-image-klein' / 'flux-3-image'.
+   프록시 워커는 MODEL_IDS.flux 에 없는 이름을 BFL 엔드포인트 이름으로 그대로 쓰므로(api.bfl.ai/v1/<이름>) 워커 수정이 필요 없다. */
+var FLUX_MODELS = { 'flux-3-image-klein': 'FLUX.3 Image klein', 'flux-3-image': 'FLUX.3 Image' };
+function fluxModel(){ var m = state.settings && state.settings.fluxModel; return FLUX_MODELS[m] ? m : ''; }
+function fluxModelName(m){ return FLUX_MODELS[m] || 'FLUX.2 klein'; }
+function fluxWrapSync(){ var w = document.getElementById('imgFluxWrap'), e = document.getElementById('imgEngineSel'); if (w && e) w.hidden = (e.value !== 'flux'); }
 /* 작업유형 + 엔진 → {provider, model}.
    ※ 성구(본문) 컷은 어느 엔진을 써도 AI로 생성하지 않는다 — 직전 일반 이미지를
      톤다운·어둡게·흐리게 처리한 파생본을 배경으로 쓴다(아래 deriveScriptureBg).
@@ -34052,13 +34067,13 @@ function imgEngine(){ var e = state.settings && state.settings.imgEngine; return
    - 제목 텍스트는 한글 정확도 때문에 엔진과 무관하게 Nano Banana(fal.ai).
    - Gemini 선택 시: 지역 차단 회피를 위해 fal.ai 경유 nano-banana-pro로 라우팅.
    - Krea 선택 시: fal.ai 경유 krea-2-turbo (배경·핵심 컷 동일 모델, 미감·질감 강점·저가).
-   - Flux 선택 시: background→klein(저가·대량), background-hero→max(핵심 컷). */
+   - Flux 선택 시: background→설정의 Flux 모델(기본 klein), background-hero→max(연결 테스트 전용). */
 function engineRoute(jobType, engine){
   engine = engine || imgEngine();
   if (jobType === 'text') return { provider: 'fal', model: 'nano-banana-pro' };
   if (engine === 'gemini') return { provider: 'fal', model: 'nano-banana-pro' };
   if (engine === 'krea') return { provider: 'fal', model: 'krea-2-turbo' };
-  return { provider: 'flux', model: (jobType === 'background-hero' ? 'max' : 'klein') };
+  return { provider: 'flux', model: (jobType === 'background-hero' ? 'max' : (fluxModel() || 'klein')) };
 }
 /* 데스크탑(File System Access API)에서만 폴더 저장 가능. iOS 사파리 등은 미지원 → 화면 저장. */
 function canFolderSave(){ return !!(xHandle && window.FileSystemHandle); }
@@ -34205,7 +34220,7 @@ function themePrompt(part, m){
   return THEME_WRAP_HEAD + m.weekly + ' Vertical A4, calm empty upper area, no people.';
 }
 async function genThemeBg(prompt){
-  var r = await genSermonImage({ jobType: 'background', prompt: prompt, aspectRatio: '3:4', provider: 'flux', model: 'klein' });
+  var r = await genSermonImage({ jobType: 'background', prompt: prompt, aspectRatio: '3:4', provider: 'flux', model: fluxModel() || 'klein' });
   return r.src; /* dataURL */
 }
 function openDevoThemePicker(){
