@@ -28139,8 +28139,7 @@ function P_LTCWW(t){
 /* 그 주의 입력 — 확정 계획의 주 카드(tid) + 그 달 월별 묵상집에서 그 주일 앞 월~토 */
 function ltcwwCtx(tid){
   var hd = lbtYWeek(tid); if (!hd || !hd.w.d) return null;
-  var w = hd.w, mo = hd.mo, G = lbtG(mo.g), D = lbtDevoGet(mo);
-  var days = D ? D.rows.filter(function(r){ return r.sun === w.d && r['본문범위']; }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; }) : [];
+  var w = hd.w, mo = hd.mo, G = lbtG(mo.g), days = ltcwwDays(w, mo);
   var nth = Math.ceil(+w.d.slice(8, 10) / 7), sat = new Date(w.d + 'T12:00:00');
   while (sat.getDay() !== 6) sat.setDate(sat.getDate() - 1);
   function md(d){ return (+d.slice(5, 7)) + '. ' + (+d.slice(8, 10)) + '.'; }
@@ -28155,6 +28154,11 @@ function ltcwwCtx(tid){
       '방향': w.dir || '', '추천본문': (w.refs || []).map(function(x){ return x.r + (x.why ? ' — ' + x.why : ''); }),
       '대주제': G ? G.t : '', '월주제': mo.theme || '',
       '묵상': days.map(function(r){ return { '날짜': r['날짜'], '요일': devoWD(r['날짜']), '본문': r['본문범위'], '제목': r['제목'], '적용질문': r['적용질문'] }; }) } };
+}
+/* 그 주일 앞 월~토 묵상 — 날짜로 고른다(묵상집을 만든 뒤 주제를 옮겨도 그 주일 앞 엿새) */
+function ltcwwDays(w, mo){
+  var D = lbtDevoGet(mo), from = lbtYmdAdd(w.d, -6), to = lbtYmdAdd(w.d, -1);
+  return D ? D.rows.filter(function(r){ return r['날짜'] >= from && r['날짜'] <= to && r['본문범위']; }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; }) : [];
 }
 /* M 원고형 — 그 주일의 「Why에서 Way로」 설교(시리즈명 또는 비고의 질문 태그로) */
 function ltcwwSermon(w){
@@ -28371,7 +28375,7 @@ async function ltcwwRun(tid, act){
   } finally { if (changed) renderLbtPane(); }
 }
 function ltcwwMenuHtml(w, mo){
-  var D = lbtDevoGet(mo), devo = !!(D && D.rows.some(function(r){ return r.sun === w.d; })), sm = !!ltcwwSermon(w);
+  var devo = ltcwwDays(w, mo).length > 0, sm = !!ltcwwSermon(w);
   var id = 'ltcwwM_' + String(w.tid).replace(/[^\w-]/g, '_'), tid = esc(w.tid), last = LTCWW_TYPES[w.ltcT];
   function it(k, off, why){
     var T = LTCWW_TYPES[k];
