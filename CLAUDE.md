@@ -1211,6 +1211,14 @@ Claude Code 플러그인 **im-not-ai**(`humanize-korean@im-not-ai` 2.3.2, MIT �
 - 설교앱 쪽 변경은 하나: 쇼츠 진행 문구 `SHORTS_PHASE.node`(「Node.js 를 받는 중 (처음 한 번, 1~2분)」) — 맥 앱이 Node.js 를 받는 단계.
 - 맥 앱 1.8.1(브라우저 README 2-11): 앱 안에 독립형 파이썬 + python-docx·openpyxl·python-pptx·pypdf(`Resources/pyrt`, build.sh 가 uv 판 CPython 3.12 로 만듦)와 쇼츠 틀 사본(`Resources/sermon-shorts`)을 넣었다. 쇼츠는 그 맥에 Node.js 가 없으면 처음 누를 때 nodejs.org 공식 배포본(latest-v24.x)을 받아 지문을 맞춰 보고 앱 데이터 폴더 `node/` 에 둔다. DMG = `~/Dropbox/Developer dmg 모음/Total Sermons 1.8.1.dmg`(약 185MB). OpenMontage 는 넣지 않았다.
 
+## Flux 모델 고르기 — v756 (2026-11-12 목사님 요청)
+BFL 의 새 모델 FLUX.3 Image · FLUX.3 Image klein 을 고를 수 있게 했다. 설정 → 산출물 → 설교 이미지 AI 에서 Flux 를 고르면 바로 아래 「Flux 모델」 칸(`#imgFluxWrap` / `#imgFluxSel`)이 보인다. 다른 엔진이면 숨긴다(`fluxWrapSync`).
+- 저장값 `state.settings.fluxModel`: `''` = FLUX.2 klein(예전 그대로·기본, 저장하지 않음) · `'flux-3-image-klein'` · `'flux-3-image'`. 읽기는 `fluxModel()`(목록 `FLUX_MODELS` 밖이면 ''), 이름은 `fluxModelName`. 고르는 즉시 저장 + 금고(`VAULT_FIELDS` 'fluxModel', cfgGet/cfgSet) → 다른 기기와 공유.
+- 쓰는 곳: `engineRoute` 의 Flux 일반 이미지(표지·컷·낱장 재생성·대화 에이전트 image_generate — 모두 이 함수를 거침) = `fluxModel() || 'klein'`, 묵상집 배경 테마 `genThemeBg` 도 같다. 연결 테스트의 background-hero(max)는 그대로.
+- **프록시 워커는 고치지 않았다** — `genFlux` 가 `MODEL_IDS.flux` 에 없는 이름을 BFL 엔드포인트 이름으로 그대로 쓴다(`api.bfl.ai/v1/flux-3-image` 등, 본문 prompt·width·height 그대로). 워커가 이 동작을 바꾸면 여기가 깨진다.
+- ⚠ FLUX.3 Image 는 기본으로 그림 전에 웹 검색(grounding)을 해서 느리다 — 워커 폴링 약 120초·앱 중단 150초에 걸릴 수 있다. 자주 그러면 워커가 `grounding: false` 를 보내게 고쳐 다시 배포해야 한다(목사님 승인 필요). 요금은 BFL 요금표(해상도별 장당) — 앱 도움말에 금액을 적지 않았다.
+- 시험: smoke 통과. ⚠ 실제 BFL 로 FLUX.3 두 모델 생성·시간은 아직.
+
 ## 작업 규칙
 - 앱 코드 변경 후: 인라인 `<script>` 블록 문법 재검사(현재 3블록) + 위 두 버전 +1. 한 번에 확인하려면 `bash Dropbox/total-sermon/tools/smoke.sh`(문법+버전일치+샤드 정합). 백업 정리는 `tools/cleanup_baks.sh`(종류별 최근 5개 유지).
 - 큰 변경 전 `index.html.bak-*` 백업 생성(`.gitignore`로 추적 제외됨).
