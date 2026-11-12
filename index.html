@@ -33310,6 +33310,8 @@ function settingsPaint(){
     if (el && document.activeElement !== el) el.value = s[k] || '';
   });
   if ($('#imgEngineSel')) $('#imgEngineSel').value = s.imgEngine || 'flux';
+  if ($('#imgFluxSel')) $('#imgFluxSel').value = fluxModel();   /* v756 */
+  fluxWrapSync();
   if ($('#imgScreensSel')) $('#imgScreensSel').value = s.imgScreens || 'both';
   if ($('#imgVignetteSel')) $('#imgVignetteSel').value = s.imgVignette ? 'on' : 'off';
   try { paintFormChips(); } catch (eFm){}   /* v739 설교양식 — 금고·설정 코드로 값이 들어온 뒤에도 */
@@ -33323,6 +33325,7 @@ function settingsSaveFromInputs(opts){
   var next = Object.assign({}, prev);
   Object.keys(SET_INPUTS).forEach(function(k){ var el = document.getElementById(SET_INPUTS[k]); if (el) next[k] = el.value.trim(); });
   if ($('#imgEngineSel')) next.imgEngine = $('#imgEngineSel').value;
+  if ($('#imgFluxSel')){ if (FLUX_MODELS[$('#imgFluxSel').value]) next.fluxModel = $('#imgFluxSel').value; else delete next.fluxModel; }   /* v756 */
   if ($('#imgScreensSel')) next.imgScreens = $('#imgScreensSel').value;
   if ($('#imgVignetteSel')) next.imgVignette = $('#imgVignetteSel').value === 'on';
   next.fileFmt = (prev.fileFmt === 'docx') ? 'docx' : 'hwpx';
@@ -33385,6 +33388,7 @@ var VAULT_FIELDS = [
   { k: 'devoApp', n: '묵상 앱 연결 코드', sec: 1 },   /* v751 Why에서 Way로 묵상 앱 */
   { k: 'gateKey', n: '저작권 자료 키코드', sec: 1 },
   { k: 'imgEngine', n: '설교 이미지 AI' },
+  { k: 'fluxModel', n: 'Flux 모델' },   /* v756 FLUX.3 Image / klein */
   { k: 'imgScreens', n: '강단 스크린 출력' },
   { k: 'imgVignette', n: '가장자리 비네팅' },
   { k: 'aiModels', n: 'AI 기능별 모델' },
@@ -33406,6 +33410,7 @@ function cfgGet(k){
   if (k === 'imgVignette') return s.imgVignette ? '1' : '';
   if (k === 'aiModels') return cfgModelsStr(s.aiModels);
   if (k === 'imgEngine') return (s.imgEngine === 'gemini' || s.imgEngine === 'krea') ? s.imgEngine : '';
+  if (k === 'fluxModel') return fluxModel();   /* v756 기본(FLUX.2 klein) = '' */
   if (k === 'imgScreens') return (s.imgScreens === 'wide' || s.imgScreens === 'side') ? s.imgScreens : '';
   if (k === 'sermonForm') return s.sermonForm === 'B' ? 'B' : '';   /* v739 기본(A형) = '' */
   if (k === 'styleLearn') return styleLearnStr(s.styleLearn);   /* v741 */
@@ -33429,6 +33434,7 @@ function cfgSet(k, v){
     return;
   }
   if (k === 'imgEngine'){ state.settings.imgEngine = v || 'flux'; return; }
+  if (k === 'fluxModel'){ if (FLUX_MODELS[v]) state.settings.fluxModel = v; else delete state.settings.fluxModel; return; }   /* v756 */
   if (k === 'imgScreens'){ state.settings.imgScreens = v || 'both'; return; }
   if (k === 'sermonForm'){ if (v === 'B') state.settings.sermonForm = 'B'; else delete state.settings.sermonForm; return; }   /* v739 */
   if (k === 'styleLearn'){   /* v741 */
@@ -33744,7 +33750,7 @@ function cfgStatusRows(){
   rows.push({ n: 'AI 생성', v: ai || '없음 — 요청함 방식', c: ai ? 'ok' : '', go: 'sgAi' });
   rows.push({ n: '유튜브 전사', v: has(s.geminiKey) ? 'Gemini 키' : '없음', c: has(s.geminiKey) ? 'ok' : '', go: 'sgProxy' });
   var px = has(s.proxyUrl) && has(s.proxyToken);
-  var eng = { gemini: 'Gemini', krea: 'Krea 2 Turbo' }[s.imgEngine] || 'Flux';
+  var eng = { gemini: 'Gemini', krea: 'Krea 2 Turbo' }[s.imgEngine] || ('Flux · ' + fluxModelName(fluxModel()));
   rows.push({ n: '설교 이미지', v: px ? '연결됨 · ' + eng : '없음 — 요청함 방식', c: px ? 'ok' : '', go: 'sgProxy' });
   var memo = has(s.memoUrl) && has(s.memoKey);
   rows.push({ n: '성경앱 연동', v: memo ? '연결됨' : '없음', c: memo ? 'ok' : '', go: 'sgMemo' });
@@ -34008,7 +34014,20 @@ async function bibPrefetch(from, to, btn){
     state.settings.imgEngine = sel.value;
     save(LS.settings, state.settings);
     vaultTouch();
-    toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini (Nano Banana)' : sel.value === 'krea' ? 'Krea 2 Turbo' : 'Flux'));
+    toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini (Nano Banana)' : sel.value === 'krea' ? 'Krea 2 Turbo' : 'Flux · ' + fluxModelName(fluxModel())));
+    fluxWrapSync();
+  });
+})();
+/* v756 Flux 모델 선택: 변경 즉시 저장 · 다른 기기와 공유 */
+(function(){
+  var sel = document.getElementById('imgFluxSel');
+  if (!sel) return;
+  sel.addEventListener('change', function(){
+    state.settings = state.settings || {};
+    if (FLUX_MODELS[sel.value]) state.settings.fluxModel = sel.value; else delete state.settings.fluxModel;
+    save(LS.settings, state.settings);
+    vaultTouch();
+    toast('Flux 모델: ' + fluxModelName(fluxModel()));
   });
 })();
 /* 강단 스크린 출력 규격: 변경 즉시 저장 */
@@ -37555,7 +37574,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v755';
+var APP_VER = 'v756';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
