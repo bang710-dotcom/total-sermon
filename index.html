@@ -1965,6 +1965,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .cmMenu .mnTx{display:flex;flex-direction:column;gap:2px;min-width:0}
 .cmMenu .mnTx small{font-size:var(--fs-xs);font-weight:400;color:var(--dim);white-space:normal;line-height:1.4}
 #slNewMenu{min-width:280px}
+.ltcwwMenu{min-width:300px}
 /* 왼쪽 열 탭 */
 .cmTabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:3px;margin-bottom:12px;position:sticky;top:0;z-index:5}
 .cmTabs button{flex:1 1 0;background:none;border:none;color:var(--dim);font-family:inherit;font-size:var(--fs-md);font-weight:600;padding:7px 0;border-radius:7px;cursor:pointer}
@@ -27189,6 +27190,7 @@ function renderLbtYearPane(){
         (hasOpt ? '<span class="lbtYBadge has">선택지 ' + w.opts.length + '</span>' : '') +
         (u ? '<span class="lbtUsed">✓ 설교함</span>' : '') +
         (ok && !wo ? '<button class="btn sub lbtYGenOne" type="button" data-t="' + w.tid + '">' + (hasOpt ? '다시 구상' : '개요 초안') + '</button>' : '') +
+        (ok && !wo ? ltcwwMenuHtml(w, mo) : '') +   /* v757 LTC 교안 네 유형 */
         (wo && !ok ? '<button class="btn sub lbtYDelTopic" type="button" data-t="' + w.tid + '"><svg class=ico aria-hidden=true><use href=#i-trash></use></svg> 삭제</button>' : '') +
         '</div>' +
         (wo ? '<div class="lbtOverNote">' + (!mo.m ? '이 묶음은 배정된 달이 없습니다 — 묶음을 설교하는 달 위로 끌어다 놓으세요.'
@@ -27994,6 +27996,14 @@ function lbtDevoHtml(mo, mi){
 function lbtYearPaneClick(e){
   var Y = state.lbt.year, P = Y.plan;
   var t = e.target;
+  var lw = t.closest('[data-ltcww]');   /* v757 주 카드 [LTC 교안 ▾] — 메뉴는 누르면 닫히므로 「만드는 중」은 메뉴를 연 단추에 */
+  if (lw) {
+    var lwb = (lw.closest('.cmMenuWrap') || lw).querySelector('[data-cmmenu]') || lw;
+    withBusy(lwb, lw.dataset.ltcww === 'tsv' ? '올리는 중…' : '만드는 중…', function(){
+      return ltcwwRun(lw.dataset.t, lw.dataset.ltcww).catch(function(er){ renderSyncState(); toast('LTC 교안 실패: ' + er.message); });
+    })();
+    return true;
+  }
   if (t.closest('#lbtY_confirm')) {
     lbtYearRelayout();
     var empty = 0, over = 0, gap = 0;
@@ -28081,6 +28091,300 @@ function lbtYearPaneClick(e){
   var gsl = t.closest('.lbtYGenSlot');
   if (gsl) { withBusy(gsl, '만드는 중…', function(){ return aiLbtYearSlot(+gsl.dataset.mi, gsl.dataset.d).catch(function(er){ renderSyncState(); toast('주제 생성 실패: ' + er.message); }); })(); return true; }
   return false;
+}
+/* ── v757 LTC 교안 네 유형 (Why에서 Way로 · 2026-11-12 목사님 요청) ──────────────────────────────
+   주일 앞 토요일 LTC 의 마을별 모임(경건회가 끝난 뒤, 마을 담당 교역자가 인도)에서 쓰는 교안. 모임 45분.
+   · A 흐름형 · B 쟁점·토론형 · C 묵상 연결형 — 원고 없이 연간 계획(주일의 질문·기본 질문·추천 본문)과
+     그 주일 앞 월~토 묵상으로 만든다. 설교의 답을 미리 주지 않고 질문을 열어 둔다.
+   · M 원고형 — 지금 LTC 교재(aiLtc) 그대로. 그 주일 설교 원고가 있어야 한다.
+   · 세 유형 모두 경건회 순서·「소그룹 인도 체험」 문구를 넣지 않고, [내일 나눌 GBS 질문]을 공지사항 바로 앞에 둔다.
+   · 리더스앱(통합시트 A~G 한 줄): E열은 기존 키(sections·gbs·notices·scripture)에 gbsHead·gbsNote·readGuide·readRefs 를 더한다.
+     리더스앱이 새 키를 읽기 전에는 기존 머리말(「함께 생각해보기」)로 보인다.
+   그 주에 마지막으로 고른 유형은 w.ltcT(계획에 저장), AI 결과는 이 기기 IDB 'ltcww:<tid>:<유형>'(입력 서명이 같을 때만 재사용). */
+var LTCWW_TYPES = {
+  A: { n: 'A 흐름형', f: 'A흐름형', d: '묵상 나눔 20분 · 생각해 볼 질문 20분 — 처음 시작하거나 리더 경험이 고르지 않을 때' },
+  B: { n: 'B 쟁점·토론형', f: 'B쟁점토론형', d: '청년들이 하는 말 · 성경의 단서 세 곳 · 생각 모으기 — 쟁점이 뚜렷한 주제' },
+  C: { n: 'C 묵상 연결형', f: 'C묵상연결형', d: '한 주의 묵상이 곧 토론 — 묵상을 꾸준히 해 온 마을' },
+  M: { n: 'M 원고형', f: 'M원고형', d: '지금 LTC 교재 — 주일 설교 원고로 만듭니다' }
+};
+var LTCWW_GBS_HEAD = '내일 나눌 GBS 질문';
+var LTCWW_GBS_NOTE = '내일 주일 예배 뒤 GBS에서 나눌 질문입니다. 미리 읽어 두세요.';
+var LTCWW_GBS_CAT = ['마음 열기', '말씀 나눔', '삶의 적용'];
+var LTCWW_LINE = '______________________________';
+function P_LTCWW(t){
+  var G3 = '"gbs":[{"cat":"마음 열기","q":"…"},{"cat":"말씀 나눔","q":"…"},{"cat":"삶의 적용","q":"…"}]';
+  var shape = {
+    A: '{"intro":"…","share":["…","…","…"],"discussIntro":"…","discuss":[{"cat":"마음 열기","q":"…"},{"cat":"말씀","q":"…"},{"cat":"생각 나누기","q":"…"},{"cat":"생각 나누기","q":"…"}],"prayer":"…",' + G3 + '}',
+    B: '{"intro":"…","devoShare":"…","voices":["…","…","…","…"],"voicesShare":"…","clues":[{"ref":"요 4:19-26","q":"…"},{"ref":"…","q":"…"},{"ref":"…","q":"…"}],"gather":[{"cat":"판단","q":"…"},{"cat":"판단","q":"…"},{"cat":"적용","q":"…"}],' + G3 + '}',
+    C: '{"intro":"…","days":["첫째 날 물음","…묵상 날 수만큼"],"gather":[{"cat":"모으기","q":"…"},{"cat":"모으기","q":"…"}],"prayer":"…",' + G3 + '}'
+  }[t];
+  var rule = {
+    A: 'A 흐름형(주중 묵상 은혜 나눔 20분 → 생각해 볼 질문 20분 → 마무리 5분). share: 한 주 묵상 전체를 두고 하나를 골라 나눌 질문 3개(가장 오래 남은 날·구절 / 그 말씀이 내 생활과 만난 장면 / 적용 질문을 실제로 해 본 것과 못 한 것). discussIntro: 이번 주일 설교가 어떤 질문에서 출발하는지 알리고, 정답보다 솔직한 생각과 경험을 꺼내는 시간이라고 안내하는 1~2문장. discuss 4개: ①마음 열기 — 주일의 질문과 맞닿은 경험 ②말씀 — 추천 본문 하나를 짚어 본문에서 보이는 것을 묻는다(절 표기 포함) ③④생각 나누기 — 서로 다른 입장에서 맞는 점과 놓친 점을 따져 보게 한다. prayer: 「~하도록」으로 끝나는 기도 제목 한 구절.',
+    B: 'B 쟁점·토론형(주중 묵상 나눔 10분 → 질문 펼치기 10분 → 성경이 주는 단서 15분 → 생각 모으기 10분). devoShare: 이번 주 묵상에서 주일의 질문에 대해 새로 보인 것을 묻는 나눔 질문 1개. voices: 청년들이 이 질문을 두고 실제로 하는 말 4개 — 따옴표 없이 입말로, 서로 다른 입장이 섞이게. voicesShare: voices 가운데 내 마음과 가까운 말을 고르고 그렇게 느낀 때를 나누게 하는 질문 1개. clues 3개: ref 는 입력의 추천 본문이나 묵상 본문에서 고른 개역개정 구절 표기(예: "요 4:19-26", 책 이름은 약어), q 는 그 본문을 읽고 답할 물음 하나(절 표기 포함, 설교의 결론을 말하지 말 것). gather 3개: ①②판단 — 두 입장 각각의 가장 강한 이유, 두 입장이 함께 붙든 것을 따지게 ③적용.',
+    C: 'C 묵상 연결형(한 주의 묵상과 물음 30분 → 조각 맞추기 10분 → 마무리 기도 5분). days: 입력 「묵상」 배열과 같은 개수·같은 순서로, 그날 본문이 주일의 질문에 건네는 물음 하나씩 — 그날 본문의 장면·인물·말에 기대어 묻는다. gather 2개: ①오늘 나온 조각을 모으면 주일의 질문에 어떤 그림이 그려지는지 ②아직 풀리지 않은 물음과 주일 설교에서 듣고 싶은 것. prayer: 「~하도록」으로 끝나는 기도 제목 한 구절.'
+  }[t];
+  var L = P_LTC.split('\n');
+  return ['당신은 영락대학부 LTC(토요일 소그룹 리더 훈련) 교안 편집자다. 이 교안은 경건회가 끝난 뒤 마을별 리더 모임에서 마을 담당 교역자가 인도하며 쓴다. 경건회 순서·찬양·여는 말씀은 넣지 않는다.',
+    '모임은 다음 날 주일 설교보다 먼저 열린다. 설교 원고는 없다. 입력(JSON)은 그 주일의 질문(주일질문)·기본 질문·추천 본문·이달의 대주제·그 주일 앞 월~토 묵상(날짜·요일·본문·제목·적용질문)이다. 설교의 답을 미리 정해 주지 말고 질문을 열어 두어, 리더들이 각자 붙든 생각을 가지고 주일 예배에 가게 한다.',
+    '출력은 반드시 JSON 객체만: ' + shape,
+    rule,
+    'intro: 이 모임에서 무엇을 하는지 알리는 2~3문장. 결론을 내리지 않아도 괜찮다는 점을 담는다.',
+    'gbs: 내일 주일 예배 뒤 GBS(소그룹)에서 리더가 조원들과 나눌 질문 3개. cat 은 순서대로 "마음 열기", "말씀 나눔", "삶의 적용". 아직 설교를 듣기 전이니 설교 내용을 지어내지 말고, 주일의 질문과 추천 본문에 기대어 설교를 들은 뒤에도 그대로 쓸 수 있게 연다. GBS 는 주일 당일에 열리므로 질문 속 시점은 「오늘」이다(예: "오늘 설교에서 들은 말씀 가운데…", "오늘 예배에서…").',
+    '문체: 안내 문장(intro·discussIntro)은 합쇼체("~합니다"), 질문은 해요체. 모든 질문은 정답이 하나로 정해진 확인 질문이 아니라 사람마다 다르게 답해 나눔이 이어지는 열린 질문으로 쓴다.'
+  ].concat(L.slice(5, 7)).concat([
+    '꼬리질문은 share·devoShare·voicesShare·discuss·gather·gbs 에만 붙인다(voices·clues·days 는 물음 하나만).',
+    '모든 문자열에 탭·줄바꿈·화살표 기호 금지(한 항목 = 한두 문장).'
+  ]).join('\n') + REPEAT_WORD_RULE;
+}
+/* 그 주의 입력 — 확정 계획의 주 카드(tid) + 그 달 월별 묵상집에서 그 주일 앞 월~토 */
+function ltcwwCtx(tid){
+  var hd = lbtYWeek(tid); if (!hd || !hd.w.d) return null;
+  var w = hd.w, mo = hd.mo, G = lbtG(mo.g), D = lbtDevoGet(mo);
+  var days = D ? D.rows.filter(function(r){ return r.sun === w.d && r['본문범위']; }).sort(function(a, b){ return a['날짜'] < b['날짜'] ? -1 : 1; }) : [];
+  var nth = Math.ceil(+w.d.slice(8, 10) / 7), sat = new Date(w.d + 'T12:00:00');
+  while (sat.getDay() !== 6) sat.setDate(sat.getDate() - 1);
+  function md(d){ return (+d.slice(5, 7)) + '. ' + (+d.slice(8, 10)) + '.'; }
+  var seen = {}, rr = days.map(function(r){ return String(r['본문범위']).split(':')[0].trim(); }).filter(function(r){ return seen[r] ? false : (seen[r] = 1); });
+  return { w: w, mo: mo, no: hd.no, days: days, satYmd: lbtYmd(sat), sat: ltcSaturday(w.d),
+    wk: (+w.d.slice(5, 7)) + '월 ' + (['첫째', '둘째', '셋째', '넷째', '다섯째'][nth - 1] || nth + '번째') + ' 주',
+    qs: w.ids.map(function(id){ var q = lbtQ(id); return q ? q.q : ''; }).filter(Boolean),
+    ref: ((w.refs || [])[0] || {}).r || (days[0] ? days[0]['본문범위'] : ''),
+    readGuide: days.length ? '이번 주 묵상 본문 (' + md(days[0]['날짜']) + '~' + md(days[days.length - 1]['날짜']) + ')' : '이번 주일의 추천 본문',
+    readRefs: days.length ? rr.join(' · ') : (w.refs || []).map(function(x){ return x.r; }).join(' · '),
+    input: { '주일': w.d, '주일질문': w.title || '', '기본질문': w.ids.map(function(id){ var q = lbtQ(id); return q ? id + ' ' + q.q : id; }),
+      '방향': w.dir || '', '추천본문': (w.refs || []).map(function(x){ return x.r + (x.why ? ' — ' + x.why : ''); }),
+      '대주제': G ? G.t : '', '월주제': mo.theme || '',
+      '묵상': days.map(function(r){ return { '날짜': r['날짜'], '요일': devoWD(r['날짜']), '본문': r['본문범위'], '제목': r['제목'], '적용질문': r['적용질문'] }; }) } };
+}
+/* M 원고형 — 그 주일의 「Why에서 Way로」 설교(시리즈명 또는 비고의 질문 태그로) */
+function ltcwwSermon(w){
+  return ((state.data && state.data.sermons) || []).filter(function(s){
+    return String(s['날짜'] || '').slice(0, 10) === w.d && !s['충돌원본'] && (s['시리즈'] === LBT_SERIES || LBT_TAG_RE.test(String(s['비고'] || '')));
+  })[0] || null;
+}
+function ltcwwClean(v){
+  if (typeof v === 'string') return v.replace(/[\t\r\n]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+  if (Array.isArray(v)) return v.map(ltcwwClean);
+  if (v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function(k){ o[k] = ltcwwClean(v[k]); }); return o; }
+  return v;
+}
+/* AI 응답 점검·정리 — 맞으면 true */
+function ltcwwFix(t, j, x){
+  function s(v){ return typeof v === 'string' && !!v; }
+  function qa(a, n){ return Array.isArray(a) && a.length >= n && a.slice(0, n).every(function(o){ return o && s(o.q); }); }
+  if (!j || !s(j.intro) || !qa(j.gbs, 3)) return false;
+  j.gbs = j.gbs.slice(0, 3).map(function(o, i){ return { cat: LTCWW_GBS_CAT[i], q: o.q }; });
+  if (t === 'A') {
+    if (!Array.isArray(j.share) || (j.share = j.share.filter(s).slice(0, 3)).length < 3 || !s(j.discussIntro) || !qa(j.discuss, 4) || !s(j.prayer)) return false;
+    j.discuss = j.discuss.slice(0, 4).map(function(o, i){ return { cat: ['마음 열기', '말씀', '생각 나누기', '생각 나누기'][i], q: o.q }; });
+    return true;
+  }
+  if (t === 'B') {
+    if (!s(j.devoShare) || !s(j.voicesShare) || !Array.isArray(j.voices) || (j.voices = j.voices.filter(s).slice(0, 4)).length < 3 || !qa(j.gather, 3)) return false;
+    j.clues = (Array.isArray(j.clues) ? j.clues : []).filter(function(c){ return c && s(c.ref) && s(c.q) && !lbtRefWhyBad(c.ref); }).slice(0, 3);
+    if (j.clues.length < 2) return false;
+    j.gather = j.gather.slice(0, 3).map(function(o, i){ return { cat: i < 2 ? '판단' : '적용', q: o.q }; });
+    return true;
+  }
+  if (t === 'C') {
+    if (!Array.isArray(j.days) || j.days.length < x.days.length || !j.days.slice(0, x.days.length).every(s) || !qa(j.gather, 2) || !s(j.prayer)) return false;
+    j.days = j.days.slice(0, x.days.length);
+    j.gather = j.gather.slice(0, 2).map(function(o){ return { cat: '모으기', q: o.q }; });
+    return true;
+  }
+  return false;
+}
+/* 교안 문서 — 대지마다 차례대로 놓이는 조각: {p} 안내 · {box,lines} 상자 · {q:{cat,t}} 번호 질문 · {share} ✦ 나눔 · {pray} ✦ 기도 */
+function ltcwwBuild(t, j, x){
+  function qs(a){ return a.map(function(o){ return { q: { cat: o.cat, t: o.q } }; }); }
+  function day(r){ return devoWD(r['날짜']) + '(' + lbtMd(r['날짜']) + ')  ' + r['본문범위'] + (r['제목'] ? ' · ' + r['제목'] : ''); }
+  var S = [], KN = ['', '한', '두', '세', '네', '다섯', '여섯'], n = x.days.length;
+  if (t === 'A') S = [
+    { t: '주중 묵상 은혜 나눔 · 20분', it: [{ box: '이번 주 묵상', lines: x.days.map(day) },
+      { p: '한 사람이 2분 안쪽으로, 아래 셋 가운데 하나를 골라 나눕니다. 묵상을 거른 날이 있어도 괜찮습니다. 묵상을 잘 해서 나누는 것이 아니라, 묵상을 잘 하려고 나누는 것입니다.' }]
+      .concat(j.share.map(function(v){ return { share: v }; })) },
+    { t: '생각해 볼 질문 · 20분', it: [{ p: j.discussIntro }].concat(x.qs.length ? [{ box: '이번 주일이 다루는 질문', lines: x.qs }] : []).concat(qs(j.discuss)) },
+    { t: '마무리 · 5분', it: [{ p: '주일 설교에서 귀 기울여 들을 것을 한 줄로 적고 서로를 위해 기도합니다.' }, { box: '주일 설교에서 확인해 볼 것', lines: [LTCWW_LINE] }, { pray: j.prayer }] }
+  ];
+  if (t === 'B') S = [
+    { t: '주중 묵상 나눔 · 10분', it: [{ p: '이번 주 묵상 본문(' + x.readRefs + ')을 떠올리며 한 사람씩 짧게 나눕니다.' }, { share: j.devoShare }] },
+    { t: '질문 펼치기 · 10분', it: [{ box: '이런 말, 들어 본 적 있나요?', lines: j.voices.map(function(v){ return '“' + v.replace(/^["“”']+|["“”']+$/g, '') + '”'; }) }, { share: j.voicesShare }] },
+    { t: '성경이 주는 단서 · 15분', it: [{ p: '이번 주일의 질문과 함께 읽어 볼 본문입니다. 본문을 함께 읽고 아래 물음에 답해 봅니다.' }]
+      .concat(j.clues.map(function(c){ return { box: c.ref, lines: [c.q] }; })) },
+    { t: '생각 모으기 · 10분', it: qs(j.gather).concat([{ box: '주일 설교에서 확인할 것', lines: ['오늘 나의 잠정 답: ' + LTCWW_LINE, '설교에서 들어 볼 것: ' + LTCWW_LINE] }]) }
+  ];
+  if (t === 'C') S = [
+    { t: (KN[n] ? KN[n] + ' 날의 묵상, ' + KN[n] + ' 개의 물음' : '한 주의 묵상과 물음') + ' · 30분', it: [{ p: '날마다 그날의 묵상이 주일의 질문에 던지는 물음을 하나씩 적었습니다. 가장 마음에 남은 날을 하나 골라 그 물음에 내 묵상으로 대답해 봅니다. 같은 날을 고른 사람은 이어서 나눕니다. 모든 날이 다 나오지 않아도 괜찮고, 그날 묵상을 거른 사람은 그 자리에서 본문을 읽고 함께합니다.' }]
+      .concat(x.days.map(function(r, i){ return { box: day(r), lines: [j.days[i]] }; })) },
+    { t: '조각 맞추기 · 10분', it: qs(j.gather).concat([{ box: '내가 붙든 한 문장', lines: [LTCWW_LINE] }]) },
+    { t: '마무리 기도 · 5분', it: [{ pray: j.prayer }] }
+  ];
+  return { reftop: '- ' + x.wk + ' · 주일의 질문 -', title: x.w.title || '', readGuide: x.readGuide, readRefs: x.readRefs, intro: j.intro, sections: S, gbs: j.gbs, notices: [] };
+}
+/* 한글 — 지금 LTC 교재 서식(type 'ltc')의 역할을 그대로 쓴다 */
+function hwpxLtcWW(doc, x){
+  var b = [];
+  b.push({ role: 'reftop', text: doc.reftop });
+  b.push({ role: 'title', text: '"' + doc.title + '"' });
+  b.push({ role: 'read', runs: [['read', doc.readGuide + '  '], ['readref', '- ' + doc.readRefs + ' -']] });
+  if (doc.intro) b.push({ role: 'body', text: doc.intro });
+  doc.sections.forEach(function(sec, i){
+    b.push({ role: 'point', runs: [['num', (i + 1) + '. '], ['pname', sec.t]] });
+    var qn = 0;
+    sec.it.forEach(function(it){
+      if (it.p) b.push({ role: 'body', text: it.p });
+      else if (it.box != null) {
+        b.push({ role: 'boxhead', text: '[ ' + it.box + ' ]' });
+        it.lines.forEach(function(l, k){ b.push({ role: k === it.lines.length - 1 ? 'boxitem_end' : 'boxitem', runs: [['bullet', '•'], ['boxtext', ' ' + l]] }); });
+      } else if (it.q) {
+        b.push({ role: 'gbsq', runs: [['gnum', (++qn) + '. '], ['readref', '[' + it.q.cat + '] '], ['body', it.q.t]] });
+        b.push({ role: 'blank' });
+      } else if (it.share || it.pray) b.push({ role: 'share', runs: [['sharemark', '✦'], ['sharelabel', it.pray ? ' 기도: ' : ' 나눔: '], ['sharetext', it.pray || it.share]] });
+    });
+  });
+  b.push({ role: 'gbshead', runs: [['num', '●'], ['sechead', ' ' + LTCWW_GBS_HEAD]] });
+  b.push({ role: 'gbsnote', runs: [['notemark', '※'], ['notetext', ' ' + LTCWW_GBS_NOTE]] });
+  doc.gbs.forEach(function(q, i){
+    b.push({ role: 'gbsq', runs: [['gnum', (i + 1) + '. '], ['readref', '[' + q.cat + '] '], ['body', q.q]] });
+    b.push({ role: 'blank' });
+  });
+  b.push({ role: 'noticehead', runs: [['num', '●'], ['sechead', ' 공지사항']] });
+  (doc.notices.length ? doc.notices : ['공지사항을 입력해 주세요.']).forEach(function(n, i){ b.push({ role: 'notice', text: (i + 1) + '. ' + n }); });
+  return { type: 'ltc', slots: ['  영락대학부 LTC', '   |   ', x.sat, '   |   ', LBT_SERIES + (x.no ? ' ' + x.no : '')], blocks: b };
+}
+/* 리더스앱 E열 — 기존 스키마(title→paras→boxes→summary→sharing). 번호 질문은 「함께 나눌 질문」 상자, 나눔이 여럿이면 상자 하나로 */
+function ltcwwAppJson(doc){
+  var secs = doc.sections.map(function(sec){
+    var o = { title: sec.t, paras: [], boxes: [], summary: '', sharing: '' }, sh = [], qb = null, qn = 0;
+    sec.it.forEach(function(it){
+      if (it.p) o.paras.push(it.p);
+      else if (it.box != null) { o.boxes.push({ title: it.box, lines: it.lines.slice() }); qb = null; }
+      else if (it.q) { if (!qb) o.boxes.push(qb = { title: '함께 나눌 질문', lines: [] }); qb.lines.push((++qn) + '. [' + it.q.cat + '] ' + it.q.t); }
+      else if (it.share) sh.push(it.share);
+      else if (it.pray) o.summary = '✦ 기도: ' + it.pray;
+    });
+    if (sh.length === 1) o.sharing = sh[0];
+    else if (sh.length) o.boxes.push({ title: '✦ 나눔 — 하나를 골라 나눕니다', lines: sh });
+    return o;
+  });
+  return { sections: secs, gbs: doc.gbs.map(function(q){ return { category: q.cat, text: q.q }; }),
+    notices: doc.notices.length ? doc.notices : ['공지사항을 입력해 주세요.'], scripture: [],
+    gbsHead: LTCWW_GBS_HEAD, gbsNote: LTCWW_GBS_NOTE, readGuide: doc.readGuide, readRefs: doc.readRefs };
+}
+function ltcwwFileName(x, t){ return 'LTC교안_' + x.satYmd.replace(/-/g, '') + '_' + LTCWW_TYPES[t].f + '_' + String(x.w.title || '제목 없음').replace(/[\\/:*?"<>|]/g, '').trim() + '.hwpx'; }
+/* 저장 — LTC 폴더의 「Why에서 Way로」 폴더, 없으면 오늘 결과함(폴더가 없으면 내려받기). quiet = 보관본(폴더 없으면 건너뜀) */
+async function ltcwwSave(blob, fname, quiet){
+  if (ltcHandle) {
+    try {
+      if (await ltcHandle.queryPermission({ mode: 'readwrite' }) === 'granted' || await ltcHandle.requestPermission({ mode: 'readwrite' }) === 'granted') {
+        var bd = await findBookDir(ltcHandle, LBT_SERIES, true);
+        var wr = await (await bd.getFileHandle(fname, { create: true })).createWritable();
+        await wr.write(blob); await wr.close();
+        if (!quiet) toast('저장 완료: ' + ltcHandle.name + '/' + bd.name + '/' + fname);
+        return true;
+      }
+    } catch (e) {}
+  }
+  if (quiet) return false;
+  await saveBlobToResults(blob, fname);
+  if (canFolderSave()) toast('저장 완료(오늘 결과함): ' + fname);
+  return true;
+}
+/* AI 로 교안 내용 — ask: 만들어 둔 것이 있으면 그대로 쓸지 물음 */
+async function ltcwwData(tid, t, ask){
+  var x = ltcwwCtx(tid);
+  if (!x) throw new Error('확정한 계획에서 이 주를 찾지 못했습니다.');
+  if (!x.days.length) throw new Error('이 주의 묵상이 없습니다 — 그 달의 월별 묵상집을 먼저 만드세요.');
+  var key = 'ltcww:' + tid + ':' + t, sig = JSON.stringify(x.input), j = null;
+  try { j = await idbGet(key); } catch (e) {}
+  if (!j || j.sig !== sig || !j.o) j = null;
+  else if (ask) {
+    var ch = await uiChoose('이 주의 ' + LTCWW_TYPES[t].n + ' 교안을 ' + (j.at || '앞서') + '에 만들어 두었습니다.', { okText: '그대로 다시 저장', extraText: '새로 만들기', cancelText: '취소' });
+    if (!ch || ch === 'cancel') return null;
+    if (ch === 'extra') j = null;
+  }
+  if (!j) {
+    if (!aiKey()) { toast('설정 탭에 Claude API 키를 먼저 입력해 주세요.'); return null; }
+    toast('LTC 교안(' + LTCWW_TYPES[t].n + ')을 만듭니다…');
+    var raw = await callClaude(P_LTCWW(t), JSON.stringify(x.input), 32000, aiTick('LTC 교안'));
+    var o;
+    try { o = ltcwwClean(aiJson(raw)); } catch (pe) { throw new Error('교안 응답을 읽지 못했습니다(잘렸을 수 있음) — 다시 시도해 주세요.'); }
+    if (!ltcwwFix(t, o, x)) throw new Error('교안 형식이 맞지 않습니다 — 다시 시도해 주세요.');
+    var d = new Date();
+    j = { sig: sig, o: o, at: (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() };
+    try { await idbSet(key, j); } catch (e) {}
+    renderSyncState();
+  }
+  return { x: x, doc: ltcwwBuild(t, j.o, x) };
+}
+async function aiLtcWW(tid, t){
+  var r = await ltcwwData(tid, t, true); if (!r) return;
+  await ltcwwSave(await hwpxBuild(hwpxLtcWW(r.doc, r.x)), ltcwwFileName(r.x, t));
+}
+/* 리더스앱 — 통합시트 A~G 한 줄(탭 6개). A 회차 = 「Why에서 Way로 N」(같은 회차의 이전 게시는 시트가 해제) */
+async function ltcwwLeadersTsv(tid, t){
+  var r = await ltcwwData(tid, t, false); if (!r) return;
+  var x = r.x, es = JSON.stringify(ltcwwAppJson(r.doc)).replace(/[\t\r\n]+/g, ' ');
+  JSON.parse(es);
+  var cols = [LBT_SERIES + ' ' + (x.no || ''), x.sat, x.ref, x.w.title || '', es, '', 'TRUE'], row = cols.join('\t');
+  if (row.split('\t').length !== 7 || /[\r\n]/.test(row)) throw new Error('TSV 검증 실패');
+  var laUrl = (state.settings || {}).laUrl, laToken = (state.settings || {}).laToken, direct = !!(laUrl && laToken && navigator.onLine);
+  if (!await uiConfirm('리더스앱에 「' + cols[0] + ' · ' + cols[3] + '」 교안(' + LTCWW_TYPES[t].n + ')을 올릴까요?\n' +
+    (direct ? '통합시트에 바로 올라가 리더들에게 보입니다. 같은 회차로 먼저 올린 교안은 게시가 해제됩니다.' : '업로드 주소·토큰이 설정에 없거나 오프라인이라 붙여넣기용 파일로 받습니다.'), { okText: '올리기' })) return;
+  var uploaded = false, unpub = 0;
+  if (direct) {
+    try {
+      var rj = await fetch(laUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ token: laToken, action: 'append', cols: cols }) }).then(function(q){ return q.json(); });
+      if (!rj || !rj.ok) throw new Error((rj && rj.error) || '업로드 응답 오류');
+      uploaded = true; unpub = (rj.data && rj.data.unpublished) || 0;
+    } catch (ue) { toast('리더스앱 직접 업로드 실패 — 파일로 받습니다: ' + ue.message); }
+  }
+  var tblob = new Blob([row], { type: 'text/plain;charset=utf-8' });
+  if (!uploaded) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(tblob); a.download = LBT_SERIES.replace(/\s+/g, '') + (x.no || '') + '_LTC_리더스앱.txt'; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  }
+  try { await ltcwwSave(tblob, '리더스앱_' + ltcwwFileName(x, t).replace(/\.hwpx$/, '.txt'), true); } catch (e2) {}
+  renderSyncState();
+  toast(uploaded ? '리더스앱 통합시트에 올렸습니다 — 앱에 바로 보입니다.' + (unpub ? ' (이전 버전 ' + unpub + '건 게시 해제)' : '')
+    : (direct ? '리더스앱 파일을 받았습니다 — 통합시트 A열 첫 칸에 붙여넣으세요.' : '리더스앱 업로드 주소·토큰이 설정에 없어 파일로 받았습니다 — 통합시트 A열 첫 칸에 붙여넣으세요.'));
+}
+/* 주 카드 [LTC 교안 ▾] 메뉴 항목 — act: A·B·C·M(교안 만들기) 또는 tsv(마지막으로 고른 유형을 리더스앱에) */
+async function ltcwwRun(tid, act){
+  var hd = lbtYWeek(tid); if (!hd || !hd.w.d) { toast('확정한 계획에서 이 주를 찾지 못했습니다.'); return; }
+  var w = hd.w, t = act === 'tsv' ? w.ltcT : act;
+  if (!LTCWW_TYPES[t]) { toast('먼저 교안 유형을 골라 한 번 만드세요.'); return; }
+  var changed = act !== 'tsv' && w.ltcT !== t;
+  if (changed) { w.ltcT = t; lbtSaveNow(); }   /* 화면은 끝난 뒤 다시 그린다 — 작업 중에 그리면 「만드는 중」 단추가 새 단추로 바뀌어 두 번 눌린다 */
+  try {
+    if (t === 'M') {
+      var s = ltcwwSermon(w);
+      if (!s) { toast('이 주일 설교가 아직 없습니다 — 원고를 저장하면 M 원고형을 쓸 수 있습니다.'); return; }
+      var row = (await ensureText(s['ID'])) || s;
+      if (act !== 'tsv') return await aiLtc(row['ID'], row);
+      if (!await uiConfirm('리더스앱에 「' + (row['제목'] || '') + '」 LTC 교재(M 원고형)를 올릴까요?\n통합시트에 바로 올라가면 같은 회차로 먼저 올린 교재는 게시가 해제됩니다.', { okText: '올리기' })) return;
+      return await aiLeadersTsv(row['ID'], row);
+    }
+    return await (act === 'tsv' ? ltcwwLeadersTsv(tid, t) : aiLtcWW(tid, t));
+  } finally { if (changed) renderLbtPane(); }
+}
+function ltcwwMenuHtml(w, mo){
+  var D = lbtDevoGet(mo), devo = !!(D && D.rows.some(function(r){ return r.sun === w.d; })), sm = !!ltcwwSermon(w);
+  var id = 'ltcwwM_' + String(w.tid).replace(/[^\w-]/g, '_'), tid = esc(w.tid), last = LTCWW_TYPES[w.ltcT];
+  function it(k, off, why){
+    var T = LTCWW_TYPES[k];
+    return '<button type="button" data-ltcww="' + k + '" data-t="' + tid + '"' + (off ? ' disabled' : '') + '><span class="mnTx"><span>' + T.n + (w.ltcT === k ? ' · 지난번' : '') + '</span><small>' + (off ? why : T.d) + '</small></span></button>';
+  }
+  return '<div class="cmMenuWrap"><button class="btn sub" type="button" data-cmmenu="' + id + '" aria-haspopup="true" aria-expanded="false">LTC 교안 <svg class=ico aria-hidden=true><use href=#i-chevron></use></svg></button>' +
+    '<div class="cmMenu cmMenuR ltcwwMenu" id="' + id + '" hidden>' +
+    it('A', !devo, '이 달의 월별 묵상집을 먼저 만드세요') + it('B', !devo, '이 달의 월별 묵상집을 먼저 만드세요') + it('C', !devo, '이 달의 월별 묵상집을 먼저 만드세요') +
+    it('M', !sm, '이 주일 설교를 저장하면 쓸 수 있습니다') +
+    '<div class="cmMenuSep"></div>' +
+    '<button type="button" data-ltcww="tsv" data-t="' + tid + '"' + (last ? '' : ' disabled') + '><span class="mnTx"><span>리더스앱에 올리기</span><small>' +
+      (last ? last.n + ' — 마지막으로 고른 유형' : '먼저 유형을 골라 교안을 만드세요') + '</small></span></button>' +
+    '</div></div>';
 }
 $('#lbtPane').addEventListener('change', function(e){
   var t = e.target, Y = state.lbt.year;
@@ -37574,7 +37878,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v756';
+var APP_VER = 'v757';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
