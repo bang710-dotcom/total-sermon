@@ -28207,7 +28207,7 @@ function ltcwwBuild(t, j, x){
     { t: '마무리 · 5분', it: [{ p: '주일 설교에서 귀 기울여 들을 것을 한 줄로 적고 서로를 위해 기도합니다.' }, { box: '주일 설교에서 확인해 볼 것', lines: [LTCWW_LINE] }, { pray: j.prayer }] }
   ];
   if (t === 'B') S = [
-    { t: '주중 묵상 나눔 · 10분', it: [{ p: '이번 주 묵상 본문(' + x.readRefs + ')을 떠올리며 한 사람씩 짧게 나눕니다.' }, { share: j.devoShare }] },
+    { t: '주중 묵상 나눔 · 10분', it: [{ p: '이번 주 묵상을 떠올리며 한 사람씩 짧게 나눕니다. 묵상을 거른 날이 있어도 괜찮습니다.' }, { share: j.devoShare }] },
     { t: '질문 펼치기 · 10분', it: [{ box: '이런 말, 들어 본 적 있나요?', lines: j.voices.map(function(v){ return '“' + v.replace(/^["“”']+|["“”']+$/g, '') + '”'; }) }, { share: j.voicesShare }] },
     { t: '성경이 주는 단서 · 15분', it: [{ p: '이번 주일의 질문과 함께 읽어 볼 본문입니다. 본문을 함께 읽고 아래 물음에 답해 봅니다.' }]
       .concat(j.clues.map(function(c){ return { box: c.ref, lines: [c.q] }; })) },
