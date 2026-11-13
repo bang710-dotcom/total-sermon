@@ -2547,6 +2547,12 @@ body.focusMode #refInsBar{bottom:72px}
 /* 뒤 글자층이 높이를 정하고(최소 3줄), 입력칸은 그 위에 겹친다(글자는 투명 — 커서·선택·한글 조합만) */
 .pmBk{position:relative;min-height:calc(var(--pmLh,38px) * 3 + 2 * var(--pmPad,8px));color:var(--gl-ink);pointer-events:none}
 .pmBk .ov{color:var(--gl-red);background:color-mix(in srgb,var(--gl-red) 20%,transparent);border-radius:2px}
+/* v760 이미지 전환 칩 — 입력칸 뒤 글자층(.pmMkE)은 글자 폭을 바꾸면 커서가 어긋나므로 바탕·그림자만 칠한다.
+   문맥 줄·카드 띠·연습(.pmMk)은 사역 안경 플러그인처럼 「▶」를 떼고 번호만 칩 — 상자 안은 꽉 찬 칩, 상자 밖(흐린 줄)은 밝은 테두리 칩 */
+.pmBk .pmMkE{background:var(--gl-ink);color:var(--gl-bg);border-radius:.18em;box-shadow:0 0 0 .1em var(--gl-ink)}
+.pmBk .ov.pmMkE{background:var(--gl-red);box-shadow:0 0 0 .1em var(--gl-red)}
+.pmMk{display:inline-block;padding:0 .26em;margin-right:.3em;border-radius:.2em;background:var(--gl-ink);color:var(--gl-bg);line-height:1.2;white-space:pre}
+.pmCtx .pmMk{background:transparent;color:var(--gl-ink);box-shadow:inset 0 0 0 .08em var(--gl-ink)}
 .pmTa{position:absolute;inset:0;height:100%;background:transparent;color:transparent;-webkit-text-fill-color:transparent;caret-color:var(--gl-ink);
   resize:none;outline:none;overflow:hidden;border-radius:inherit;-webkit-appearance:none;appearance:none}
 .pmTa::placeholder{color:color-mix(in srgb,var(--gl-ink) 34%,var(--gl-bg));-webkit-text-fill-color:color-mix(in srgb,var(--gl-ink) 34%,var(--gl-bg));opacity:1}
@@ -13845,7 +13851,7 @@ function pmLayout(){
 var _pmStripSig = '';
 function pmCardHtml(B, SL, i, cols){
   var L = SL[i];
-  function ln(t){ return '<span class="ln">' + esc(t) + '</span>'; }
+  function ln(t){ return '<span class="ln">' + pmMkLine(t) + '</span>'; }
   return '<button type="button" class="pmCard' + (i === _pm.cur ? ' on' : '') + (pmOver(B[i], cols) ? ' over' : '') + '" data-pmcard="' + i + '" tabindex="-1" title="묶음 ' + (i + 1) + '로">' +
     '<span class="pmMini" aria-hidden="true"><span class="pmMiniBox">' + (L.length ? L.slice(0, PM_LINES).map(ln).join('') : '<span class="ln empty">(빈 묶음)</span>') + '</span></span>' +
     '<span class="pmCardNo">' + (i + 1) + (L.length > PM_LINES ? ' <span class="pmCardMore">+' + (L.length - PM_LINES) + '줄</span>' : '') + '</span>' +
@@ -13879,10 +13885,34 @@ function pmScreenLines(t, cols){
   return out;
 }
 function pmOver(t, cols){ return prOverSpans(t, cols).length > 0 || pmScreenLines(t, cols).length > PM_LINES; }
+/* v760 이미지 전환 칩 (2026-11-14 목사님 「반전칩으로 하자」) — 줄 맨 앞 「▶N」·「▶본N」(여럿이면 「▶3 ▶4」).
+   저장 글은 그대로 두고 그리는 모양만 바꾼다. pmMkLine = 안경 모양(▶ 를 떼고 번호만 칩 — 사역 안경 플러그인과 같게):
+   문맥 줄·카드 띠·연습 화면. 입력칸 뒤 글자층(pmBkHtml)은 글자를 그대로 두고 바탕만 칠한다(pmMkSpans → .pmMkE). */
+var PM_MK_LEAD = /^([ \t]*)((?:▶본?\d+[ \t]*)+)/;
+function pmMkLine(t){
+  t = String(t == null ? '' : t);
+  var m = PM_MK_LEAD.exec(t); if (!m) return esc(t);
+  return m[2].match(/▶본?\d+/g).map(function(k){ return '<span class="pmMk">' + esc(k.slice(1)) + '</span>'; }).join('') + esc(t.slice(m[0].length));
+}
+function pmMkSpans(text){
+  var out = [], pos = 0;
+  String(text || '').split('\n').forEach(function(l){
+    var m = PM_MK_LEAD.exec(l);
+    if (m) { var re = /▶본?\d+/g, k, base = pos + m[1].length; while ((k = re.exec(m[2]))) out.push([base + k.index, base + k.index + k[0].length]); }
+    pos += l.length + 1;
+  });
+  return out;
+}
 function pmBkHtml(text, spans){
-  var out = '', p = 0;
-  spans.forEach(function(sp){ if (sp[0] > p) out += esc(text.slice(p, sp[0])); out += '<span class="ov">' + esc(text.slice(sp[0], sp[1])) + '</span>'; p = sp[1]; });
-  return out + esc(text.slice(p)) + (/\n$/.test(text) ? '​' : '');   /* 끝 줄바꿈 뒤 빈 줄도 입력칸과 같은 높이로 */
+  var mk = pmMkSpans(text), cut = [0, text.length], out = '', i;
+  spans.concat(mk).forEach(function(s){ cut.push(s[0], s[1]); });
+  cut = cut.filter(function(x, j, a){ return a.indexOf(x) === j; }).sort(function(a, b){ return a - b; });
+  function inS(L, p){ for (var j = 0; j < L.length; j++) if (p >= L[j][0] && p < L[j][1]) return true; return false; }
+  for (i = 0; i + 1 < cut.length; i++) {
+    var a = cut[i], b = cut[i + 1], ov = inS(spans, a), k = inS(mk, a), s = esc(text.slice(a, b));
+    out += ov || k ? '<span class="' + (ov ? 'ov' : '') + (ov && k ? ' ' : '') + (k ? 'pmMkE' : '') + '">' + s + '</span>' : s;
+  }
+  return out + (/\n$/.test(text) ? '​' : '');   /* 끝 줄바꿈 뒤 빈 줄도 입력칸과 같은 높이로 */
 }
 /* 뒤 글자층에서 글 위치 off 의 화면 좌표 — ↑↓ 로 묶음을 넘어갈 때 커서가 첫·끝 화면 줄인지 본다 */
 function pmBkRect(bk, off){
@@ -13904,7 +13934,7 @@ function pmCaretRow(ta, a){
   return { first: v.lastIndexOf('\n', a - 1) < 0, last: v.indexOf('\n', a) < 0 };
 }
 function pmCtxHtml(lines, top, cnt){
-  var L = lines.map(function(t){ return '<div class="ln">' + esc(t) + '</div>'; });
+  var L = lines.map(function(t){ return '<div class="ln">' + pmMkLine(t) + '</div>'; });
   if (L.length < cnt) { var e = '<div class="ln end">' + (top ? '— 처음 —' : '— 끝 —') + '</div>'; if (top) L.unshift(e); else L.push(e); }
   while (L.length < cnt) { if (top) L.unshift('<div class="ln">&nbsp;</div>'); else L.push('<div class="ln">&nbsp;</div>'); }
   return (top ? L.slice(-cnt) : L.slice(0, cnt)).join('');
@@ -14250,7 +14280,7 @@ function pmPrPaint(){
   for (j = i + 1; j < n && next.length < PM_CTX_NEXT; j++) next = next.concat(B[j]);
   ov.querySelector('.pmPrev').innerHTML = pmCtxHtml(prev.slice(-PM_CTX_PREV), true, PM_CTX_PREV);
   ov.querySelector('.pmNext').innerHTML = pmCtxHtml(next.slice(0, PM_CTX_NEXT), false, PM_CTX_NEXT);
-  ov.querySelector('.pmBk').textContent = (B[i] || []).join('\n');
+  ov.querySelector('.pmBk').innerHTML = (B[i] || []).map(pmMkLine).join('\n');   /* v760 전환 칩 — 안경 모양 */
   ov.querySelector('.pmPrPos').textContent = (i + 1) + ' / ' + n;
 }
 function pmPrGo(i){
@@ -38147,7 +38177,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v759';
+var APP_VER = 'v760';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
