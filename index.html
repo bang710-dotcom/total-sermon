@@ -13906,7 +13906,7 @@ function pmMkSpans(text){
 function pmBkHtml(text, spans){
   var mk = pmMkSpans(text), cut = [0, text.length], out = '', i;
   spans.concat(mk).forEach(function(s){ cut.push(s[0], s[1]); });
-  cut = cut.filter(function(x, j, a){ return a.indexOf(x) === j; }).sort(function(a, b){ return a - b; });
+  cut = cut.filter(function(x, j, a){ return x >= 0 && x <= text.length && a.indexOf(x) === j; }).sort(function(a, b){ return a - b; });
   function inS(L, p){ for (var j = 0; j < L.length; j++) if (p >= L[j][0] && p < L[j][1]) return true; return false; }
   for (i = 0; i + 1 < cut.length; i++) {
     var a = cut[i], b = cut[i + 1], ov = inS(spans, a), k = inS(mk, a), s = esc(text.slice(a, b));
