@@ -12526,8 +12526,17 @@ function auditComposeRefs(){
    ① 반복어(5장 16번: "자리" 전체 3회·대지당 1회, 상투어 4회 이상 재검토 — 성경 인용문은 셈에서 뺀다)
    ② 성경 인용 전문(9장: 절 단위 전문 — bible/bNN.json 개역개정과 대조해 부분 발췌·중략·글자 차이)
    ③ 대지 마무리(3-1·4장: 명제→근거→예화→적용→실천→대지정리, 정리는 권면으로, 갈무리 표현은 대지마다 다르게)
-   ④ 분량(분당 300자 — 리허설 타이머와 같은 기준)·결론 단문 ⑤ 긴 문장(60자 초과, 만연체).
+   ④ 분량(예상 설교 시간 sermonMinutes — 리허설 타이머와 같은 기준)·결론 단문 ⑤ 긴 문장(60자 초과, 만연체).
    작성 버퍼는 건드리지 않는다 — 자유원고는 composeFreePoints 와 같은 방식의 임시 파싱본으로 대지를 읽는다. */
+/* 예상 설교 시간(v762, 2026-11-17 목사님 요청) — 원고를 그대로 읽으면 분당 300자(공백 제외)지만, 강단에서는
+   원고를 그대로 읽지 않는다. 상황에 따라 설명을 더하고 원고에 없던 예를 든다. 그래서 낭독 10분 분량(3,000자)이
+   실제 설교에서는 20~25분 걸린다(목사님 경험). 예상 설교 시간 = 낭독 시간 × 2~2.5. n = 공백 제외 글자 수. */
+var SERMON_READ_CPM = 300, SERMON_TALK_X = [2, 2.5];
+function sermonMinutes(n){
+  if (!n) return null;
+  var r = n / SERMON_READ_CPM;
+  return { read: Math.max(1, Math.round(r)), lo: Math.max(1, Math.round(r * SERMON_TALK_X[0])), hi: Math.max(1, Math.round(r * SERMON_TALK_X[1])) };
+}
 var SA_WORDS_DEF = '자리:3/1, 머물:3, 붙들:3, 그 순간:3, 무너:3';
 var SA_LONG = 60;
 var SA_LAST = { needles: [] };
@@ -12744,7 +12753,7 @@ async function selfAuditCompose(){
   h += '<div class="saSec"><h5>대지 마무리</h5>' + pr.join('') + '</div>';
 
   /* ④ 분량 */
-  var tot = saLen(full), mins = Math.max(1, Math.round(tot / 300)), parts = [];
+  var tot = saLen(full), mins = sermonMinutes(tot), parts = [];
   if (sv) {
     var pl = [], pn = [];
     (sv.points || []).forEach(function(p, i){ if (pHasContent(p)) { pl.push(saLen(saPointText(p))); pn.push(i + 1); } });
@@ -12760,8 +12769,8 @@ async function selfAuditCompose(){
     var cs = saSentences(String(sv.concBody || ''));
     if (cs.length > 6) { bad++; ln.push('<div class="saRow"><span class="saBad"><svg class=ico data-c=w aria-hidden=true><use href=#i-alert></use></svg></span> 결론 본문이 ' + cs.length + '문장입니다 — 단문 3~4개 + 축복 선언으로 짧게</div>'); }
   }
-  h += '<div class="saSec"><h5>분량 <span class="saDim">— 공백 제외 · 분당 300자 기준</span></h5>'
-    + '<div class="saRow">전체 <b>' + tot.toLocaleString() + '자</b> · 약 <b>' + mins + '분</b>' + (parts.length ? '<br><span class="saDim">' + esc(parts.join(' · ')) + '</span>' : '') + '</div>'
+  h += '<div class="saSec"><h5>분량 <span class="saDim">— 공백 제외 · 원고 낭독(분당 ' + SERMON_READ_CPM + '자)의 ' + SERMON_TALK_X.join('~') + '배 = 설명·예를 더해 말하는 시간</span></h5>'
+    + '<div class="saRow">전체 <b>' + tot.toLocaleString() + '자</b>' + (mins ? ' · 실제 설교 약 <b>' + mins.lo + '~' + mins.hi + '분</b> <span class="saDim">(그대로 읽으면 약 ' + mins.read + '분)</span>' : '') + (parts.length ? '<br><span class="saDim">' + esc(parts.join(' · ')) + '</span>' : '') + '</div>'
     + (ln ? ln.join('') : '') + '</div>';
 
   /* ⑤ 긴 문장 */
@@ -16868,22 +16877,22 @@ function fmInjectChips(){
     }).join('');
   }
 }
-/* ── 리허설 타이머 (E5, v444) — 집중 모드에서 경과시간 + 예상 낭독시간(분당 300자) ──
-   ⏱ 버튼: 시작/일시정지 토글(경과 유지), ↺: 재설정. 예상보다 길어지면 주황으로 경고. */
+/* ── 리허설 타이머 (E5, v444) — 집중 모드에서 경과시간 + 예상 설교 시간(v762: sermonMinutes — 낭독의 2~2.5배) ──
+   ⏱ 버튼: 시작/일시정지 토글(경과 유지), ↺: 재설정. 예상 범위의 끝을 넘기면 주황으로 경고. */
 var _fmTm = { run: false, acc: 0, t0: 0, iv: null };
 function fmRehearseEstimate(){
   var ta = (typeof fmActiveTa === 'function') ? fmActiveTa() : null;
   var n = ta ? String(ta.value || '').replace(/\s+/g, '').length : 0;
-  return n ? Math.max(1, Math.round(n / 300)) : 0;
+  return sermonMinutes(n);
 }
 function fmTmLabel(){
   var b = document.getElementById('fmTimerBtn'); if (!b) return;
   var ms = _fmTm.acc + (_fmTm.run ? Date.now() - _fmTm.t0 : 0);
   var s = Math.floor(ms / 1000), mm = Math.floor(s / 60), ss = ('0' + (s % 60)).slice(-2);
-  var est = fmRehearseEstimate();
-  if (!_fmTm.run && !_fmTm.acc) b.innerHTML = uiIco('clock') + ' 리허설' + (est ? ' · 예상 ' + est + '분' : '');
-  else b.textContent = (_fmTm.run ? '⏸ ' : '▶ ') + mm + ':' + ss + (est ? ' / ' + est + '분' : '');
-  b.style.color = (est && _fmTm.run && mm >= est) ? 'var(--accent2)' : '';
+  var est = fmRehearseEstimate(), estTx = est ? est.lo + '~' + est.hi + '분' : '';
+  if (!_fmTm.run && !_fmTm.acc) b.innerHTML = uiIco('clock') + ' 리허설' + (est ? ' · 예상 ' + estTx : '');
+  else b.textContent = (_fmTm.run ? '⏸ ' : '▶ ') + mm + ':' + ss + (est ? ' / ' + estTx : '');
+  b.style.color = (est && _fmTm.run && mm >= est.hi) ? 'var(--accent2)' : '';
 }
 function fmTmToggle(){
   if (_fmTm.run){ _fmTm.acc += Date.now() - _fmTm.t0; _fmTm.run = false; clearInterval(_fmTm.iv); _fmTm.iv = null; }
@@ -38186,7 +38195,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v761';
+var APP_VER = 'v762';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -39670,7 +39679,7 @@ function occKnobPaint(){
   <span class="fbSep"></span>
   <button id="fmFontBtn" data-act="font" type="button" title="글꼴 바꾸기 (눌러서 순환 · 화면 표시용)">글꼴</button>
   <span class="fbSep"></span>
-  <button id="fmTimerBtn" data-act="timer" type="button" title="리허설 타이머 — 시작/일시정지 (예상 시간은 낭독 분당 300자 기준)"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> 리허설</button>
+  <button id="fmTimerBtn" data-act="timer" type="button" title="리허설 타이머 — 시작/일시정지 (예상 시간 = 원고 낭독 시간의 2~2.5배 — 설명·예를 더해 말하는 몫)"><svg class=ico aria-hidden=true><use href=#i-clock></use></svg> 리허설</button>
   <button data-act="timer0" type="button" title="리허설 시간 재설정">↺</button>
   <span class="fbSep fbPosSep"></span>
   <button class="fbPos" data-act="shiftL" type="button" title="본문을 왼쪽으로 (⌃⌥←) — 빈 여백을 마우스로 끌어도 옮겨집니다">◀</button>
