@@ -12537,6 +12537,20 @@ function sermonMinutes(n){
   var r = n / SERMON_READ_CPM;
   return { read: Math.max(1, Math.round(r)), lo: Math.max(1, Math.round(r * SERMON_TALK_X[0])), hi: Math.max(1, Math.round(r * SERMON_TALK_X[1])) };
 }
+/* 설교 시간 → 원고 분량(v763, 2026-11-17 목사님 요청 「10분 분량 원고 초안을 써 달라고 하면 써 주는 분량이 문제」) — sermonMinutes 의 거꾸로.
+   AI 는 「N분 설교」를 낭독 속도로 어림해 두 배 넘게 길게 썼다. N분 설교 원고 = 공백 제외 N × 300 ÷ 2.5~2 = N × 120~150자.
+   붙는 곳: 설교 대화·맥 앱 Ask(sysFor) · AI 완성 원고(P_MS·P_MS_B — 초고·비고에 시간이 적혀 있을 때) · 스킬사용 원고요청 요청 파일(분량기준).
+   숫자는 위 두 상수에서 계산한다 — 배수를 바꾸면 예상 시간과 AI 분량 기준이 함께 바뀐다. */
+var SERMON_SPACE_X = 1.3;   /* 공백 포함 ÷ 공백 제외 — illustrations.json 예화 3,000편 실측 1.30 */
+var SERMON_LEN_RULE = (function(){
+  var lo = SERMON_READ_CPM / SERMON_TALK_X[1], hi = SERMON_READ_CPM / SERMON_TALK_X[0];
+  var sp = function(n){ return Math.round(n * SERMON_SPACE_X / 10) * 10; }, f = function(n){ return Math.round(n).toLocaleString('en-US'); };
+  var ex = [10, 20, 30].map(function(m){ return m + '분 = ' + f(m * lo) + '~' + f(m * hi) + '자'; }).join(', ');
+  return '\n★설교 시간 → 원고 분량(필수): 목사님은 강단에서 원고를 그대로 읽지 않는다 — 상황에 따라 설명을 더하고 원고에 없던 예를 든다. 그래서 실제 설교 시간은 원고를 그대로 읽는 시간(공백 제외 분당 ' + SERMON_READ_CPM + '자)의 ' + SERMON_TALK_X.join('~') + '배다. '
+    + '요청·초고·비고에 설교 시간(「10분 설교」「20분 분량」 등)이 있으면 원고는 공백 제외 N×' + f(lo) + '~' + f(hi) + '자(공백 포함 약 N×' + sp(lo) + '~' + sp(hi) + '자)로 쓴다 — ' + ex + '(공백 제외). '
+    + '분당 ' + SERMON_READ_CPM + '자 낭독 기준으로 쓰면 원고가 두 배 넘게 길어진다. 시간이 주어졌을 때는 이 기준이 다른 분량 규칙(정해 둔 글자 수, [기존 설교 학습] 지침의 분량)보다 앞선다. '
+    + '짧게 맞출 때는 문장을 잘게 깎기보다 예화·부연의 수를 줄인다(목사님이 정한 대지는 그대로 둔다). 원고의 설교 시간을 어림해 말할 때도 같은 기준(공백 제외 글자 수 ÷ ' + f(lo) + '~' + f(hi) + ')을 쓴다.';
+})();
 var SA_WORDS_DEF = '자리:3/1, 머물:3, 붙들:3, 그 순간:3, 무너:3';
 var SA_LONG = 60;
 var SA_LAST = { needles: [] };
@@ -22508,7 +22522,7 @@ var P_MS = [
 '★ 인용(quote) 형식(필수): 반드시 「약어 장:절, "절 단위 전문(개역개정)"」 한 줄로 쓴다. 책 이름은 약어(요·창·고전·살전 등), 맨 앞에 약어 장:절을 적고 쉼표+공백 뒤 큰따옴표로 본문 전문. ★★절 "전문"을 한 글자도 빼지 말고 통째로 싣는다 — 문맥상 일부만 필요해도, 설교 때 성경을 그 절 전체로 읽으므로 앞·뒤를 자르거나 중략(…)하지 마라(부분 인용·발췌 절대 금지). 같은 절 재인용도 매번 전문. 범위면 "요 7:14-24". 예) 요 7:18, "스스로 말하는 자는 자기 영광만 구하되 그를 보내신 이의 영광을 구하는 자는 참되니 그 속에 불의가 없느니라". (앱이 자동으로 빨간 볼드로 표시하므로 별도 장식 금지. 초고에 「본문…(책 장:절)」 같은 후행 괄호 형식이 있어도 반드시 이 선두 약어 형식으로 바꿔 쓴다)',
 '집필 원칙: ①초고의 구조(대지 순서·예화 배치)와 핵심메시지를 존중하고 살을 붙인다 ②호칭은 "여러분" ③짧고 강력한 호흡 — 한 문장에 생각 하나, 만연체·문어체 금지 ④빠른 논리 도약과 속도감 ⑤단락마다 상징 어휘 또는 생각이 머무는 명제 문장 하나 ⑥그러나 적용은 오늘 실행 가능한 구체적 행동으로 착지시키고, 그 위에 권면(t=su)을 얹어 대지를 닫는다 ⑦"~지요?", "~잖아요"를 "~입니다"와 섞은 구어체 ⑧대조("~가 아닙니다. ~입니다")와 재정의 활용 ⑨결론은 단문 3~4개 + 축복 선언으로 짧게 ⑩"/" 끊어 읽기 표시 절대 금지.',
 '대지 선언(head): 입력 대지가 있으면 목사님이 정한 그 문장을 그대로 쓴다. 입력에 대지가 없어 새로 세워야 할 때만 아래 「대지 = 변화의 지침」 원칙으로 세운다.',
-'분량: 4,500~6,000자.'].join('\n') + REPEAT_WORD_RULE + METAPHOR_AXIS_RULE + POINT_CHANGE_RULE + AI_TELL_RULE;
+'분량: 4,500~6,000자.'].join('\n') + REPEAT_WORD_RULE + METAPHOR_AXIS_RULE + POINT_CHANGE_RULE + AI_TELL_RULE + SERMON_LEN_RULE;   /* v763 설교 시간이 적혀 있으면 그 분량 */
 
 /* ═══ B형 설교양식 지침 — v743(2026-11-05 목사님 요청: 「B형의 규칙은 비워 두고 사용자가 자기 설교를 학습시켜 새로 넣도록」) ═════════
    B형은 앱에 정해 둔 문체·구성 규칙이 없다. 여기 남은 것은 앱이 원고를 읽으려면 꼭 필요한 출력 계약(JSON [{t,x}], t = p·head·quote,
@@ -22531,7 +22545,7 @@ var P_MS_B = [
 '★ 인용(quote) 형식(필수 — 앱이 이 꼴을 읽어 B형 지면에 빨간 글씨로 찍는다): 「약어 장:절, "절 단위 전문(개역개정)"」 한 줄. 여러 절이면 따옴표 안 각 절 앞에 절 번호와 빈칸을 붙인다 — 예) 창 12:1-2, "1 여호와께서 아브람에게 이르시되 너는 너의 고향과 친척과 아버지의 집을 떠나 내가 네게 보여 줄 땅으로 가라 2 내가 너로 큰 민족을 이루고 네게 복을 주어 네 이름을 창대하게 하리니 너는 복이 될지라". 한 절이면 절 번호를 붙이지 않는다. ★★절 전문을 한 글자도 빼지 말고 싣는다(앞뒤 자르기·중략·발췌 금지). 문단 안에서 짧게 따올 때는 큰따옴표 + 괄호 출처(「"…"(고전 9:22)」)로 쓰되 그때도 절 전문. (따로 꾸미지 않는다. 초고에 후행 괄호 형식이 있어도 quote 는 이 선두 약어 형식으로 바꾼다)',
 '예화와 사실: 입력에 없는 사실·통계·인물·대사를 지어내지 않는다 — 입력 예화가 없으면 성경 속 평행 사건이나 누구나 겪는 일상 장면으로 대신한다. 실화·영화·책이면 제목·연도·인물을 밝힌다. 설교자 자신의 경험은 초고에 있을 때만 쓴다. 교회 이름은 입력(초고·비고)에 있을 때만 쓰고 지어내지 않는다.',
 '집필 원칙: 초고의 구조(대지 순서·예화 배치)와 핵심메시지를 존중하고 살을 붙인다. 입력 대지가 있으면 그 순서와 뜻을 따르되 줄은 지침의 대지 모양으로 쓴다. 메시지는 본문이 실제로 말하는 바에서 세운다. 말줄임(「..」「...」)·불릿·이모지·굵게 표시·「/」 끊어 읽기 표시를 쓰지 않는다.',
-'분량: [기존 설교 학습] 지침에 적힌 이 예배(예배구분)의 분량을 따른다. 지침에 분량이 없으면 초고를 살려 5,000~7,000자(공백 포함).'].join('\n') + REPEAT_WORD_RULE + AI_TELL_RULE_B;
+'분량: [기존 설교 학습] 지침에 적힌 이 예배(예배구분)의 분량을 따른다. 지침에 분량이 없으면 초고를 살려 5,000~7,000자(공백 포함).'].join('\n') + REPEAT_WORD_RULE + AI_TELL_RULE_B + SERMON_LEN_RULE;   /* v763 설교 시간이 적혀 있으면 그 분량 */
 /* 완성 원고 지침 — 설교양식에 따라(aiManuscript·docGenMs 공용) */
 function msPrompt(){ return (isFormB() ? P_MS_B : P_MS) + styleLearnRule('ms'); }   /* v741 + 기존 설교 학습 지침 */
 /* 개요 선택지(시리즈 P_SERMON·상황 P_OCC·주제 P_TOPIC)의 대지 — B형이면 「대지 = 변화의 지침」을 빼고 B형 대지 규칙을 덧붙인다.
@@ -28856,6 +28870,7 @@ function writeRequestFile(type, meta){
   var fname = '요청_' + (meta['ID'] || '신규') + '_' + type + '_' + stamp + '.json';
   var payload = { '요청유형': type, '상태': '대기', '요청일시': nowLocalStr_(), '설교': meta };
   if (type === '원고작성') {   /* v741 기존 설교 학습 지침 — 데스크탑 클로드도 같은 결로 쓰게 */
+    payload['분량기준'] = SERMON_LEN_RULE.replace(/^\s*★/, '');   /* v763 설교 시간 → 원고 분량 — 데스크탑 클로드도 같은 기준으로 */
     var _sl = styleLearnCur(), _fb = isFormB();
     var _bNote = ' 앱 밖의 다른 B형 양식 자료(sermon-form-b 스킬 등)는 쓰지 않는다. 성경 인용은 절 전문으로, 사실은 지어내지 않는다.';
     if (_sl && !_sl.off) payload['학습문체'] = { '설교양식': sermonForm() + '형', '원고편수': _sl.n || 0, '지침': String(_sl.t).trim(),
@@ -38195,7 +38210,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v762';
+var APP_VER = 'v763';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -39917,6 +39932,7 @@ function occKnobPaint(){
       + (typeof POINT_CHANGE_RULE === 'string' ? POINT_CHANGE_RULE : '')
       + (typeof AI_TELL_EDIT_RULE === 'string' ? AI_TELL_EDIT_RULE : '');   /* v705: 작성창 원고를 쓰거나 고칠 때 AI 말투 줄이기 */
     var ag = forceAg || agOn();   /* v645: API 키가 있으면 앱 도구를 쓰는 에이전트 — 작성창 반영도 코드블록 대신 compose_edit 도구로 바로 (v669: 브라우저 Ask 패널은 forceAg) */
+    base += (typeof SERMON_LEN_RULE === 'string') ? SERMON_LEN_RULE : '';   /* v763 「N분 분량」 요청 = 공백 제외 N×120~150자 (학습 지침보다 앞에 — 지침의 분량보다 앞선다) */
     base += (typeof styleLearnRule === 'function') ? styleLearnRule('agent') : '';   /* v741 기존 설교 학습 */
     return base + pageGuide(pg, ag) + (ag ? AG_SYS + (forceAg ? '' : AG_SYS_WEB) + agMapText() : '');   /* v679: 앱 지도(지침 끝 — 1시간 캐시에 함께 들어감) */
   }
