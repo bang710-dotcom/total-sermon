@@ -1334,8 +1334,11 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
      네이티브 #main 스크롤 사용(고정 오버플로 컨테이너의 스크롤 멈춤·헤더 가림 문제 해결) */
   #detailPane.open{display:block;background:var(--bg);padding:0 0 calc(24px + env(safe-area-inset-bottom))}
   body.detailOpen #searchLeft{display:none !important}
-  /* [← 목록으로] 버튼: #main 스크롤 상단(헤더 바로 아래)에 고정 */
-  .detailClose{display:block;position:sticky;top:0;z-index:5;margin:0 0 12px;padding:8px 0;background:var(--bg)}
+  /* [← 목록으로] 버튼: #main 스크롤 상단(헤더 바로 아래)에 고정
+     v765: 선택자를 .btn.sub.detailClose 로 — 뒤에 오는 v624 「.btn.sub{background:transparent}」가 바탕을 지워,
+     다크 테마에서 원고를 내리면 빈 상자 속으로 원고 글자가 비쳤다(밝은 테마는 흰 판 규칙이 따로 있어 멀쩡했다).
+     둘레 그림자(바탕색)는 둥근 모서리 틈으로 원고가 비치지 않게 */
+  .btn.sub.detailClose{display:block;position:sticky;top:0;z-index:5;margin:0 0 12px;padding:8px 0;background:var(--bg);box-shadow:0 0 0 6px var(--bg)}
 }
 /* ===================== 모바일 UI 개선 (아이폰 세로 · 아이패드 가로/세로) =====================
    조건: 좁은 화면(<900px) 또는 터치 기기(hover 없음). 데스크탑(맥)에는 적용되지 않는다. */
