@@ -1338,7 +1338,7 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
      v765: 선택자를 .btn.sub.detailClose 로 — 뒤에 오는 v624 「.btn.sub{background:transparent}」가 바탕을 지워,
      다크 테마에서 원고를 내리면 빈 상자 속으로 원고 글자가 비쳤다(밝은 테마는 흰 판 규칙이 따로 있어 멀쩡했다).
      둘레 그림자(바탕색)는 둥근 모서리 틈으로 원고가 비치지 않게 */
-  .btn.sub.detailClose{display:block;position:sticky;top:0;z-index:5;margin:0 0 12px;padding:8px 0;background:var(--bg);box-shadow:0 0 0 6px var(--bg)}
+  .btn.sub.detailClose{display:block;position:sticky;top:0;z-index:5;margin:0 0 12px;padding:8px 0;background:var(--dcBg,var(--bg));box-shadow:var(--dcRing,0 0 0 6px var(--bg))}
 }
 /* ===================== 모바일 UI 개선 (아이폰 세로 · 아이패드 가로/세로) =====================
    조건: 좁은 화면(<900px) 또는 터치 기기(hover 없음). 데스크탑(맥)에는 적용되지 않는다. */
@@ -1449,7 +1449,7 @@ body.cwArm #c_title,body.cwArm #c_ref,body.cwArm #c_msg,body.cwArm .edTa,body.cw
   #page-search.on.hasQuery #searchHome{display:flex}
   body.detailOpen #page-search.on #searchHome{display:none}
   #page-search.on:not(.homeEmpty) #detailPane:not(.open){display:none}
-  #page-search.on .detailClose{display:inline-flex;align-items:center;position:static;width:auto;min-height:44px;padding:8px 14px;margin:0 0 10px;font-size:var(--fs-md)}
+  #page-search.on .detailClose{display:inline-flex;align-items:center;position:static;width:auto;min-height:44px;padding:8px 14px;margin:0 0 10px;font-size:var(--fs-md);--dcBg:transparent;--dcRing:none}   /* v765: 카드 안 보통 단추 — 위 고정용 바탕·둘레를 끈다 */
   #page-search.on .detailClose .dcM{display:none}
   #page-search.on .detailClose .dcD{display:inline}
   #page-search.on #detailPane{grid-area:right;display:block;position:static !important;inset:auto !important;height:100%;min-height:0;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
@@ -38221,7 +38221,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v764';
+var APP_VER = 'v765';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
