@@ -3476,6 +3476,14 @@ body.focusMode #refInsBar{bottom:72px}
             <option value="flux-3-image">FLUX.3 Image (새 세대 · 최상위)</option>
           </select>
         </div>
+        <div id="imgNbWrap" hidden>
+          <div class="setHl"><label for="imgNbSel">Nano Banana 모델</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+          <div class="hlpTx" hidden>위에서 Gemini(Nano Banana)를 골랐을 때 쓰는 모델입니다. Nano Banana Pro(Gemini 3 Pro Image)는 지금까지 쓰던 최상위 모델로, 장면 이해와 디테일이 가장 좋고 시간과 비용이 더 듭니다. Nano Banana 2(Gemini 3.1 Flash Image)는 새 세대의 빠른 모델로, Pro 보다 빨리 만들고 비용이 낮습니다. 배경 이미지 생성 · 이미지 낱장 재생성 · 설교 대화의 이미지 후보가 모두 이 모델을 씁니다(연결 테스트의 「제목 텍스트」는 한글 정확도 때문에 늘 Pro). 고르는 즉시 저장되고 다른 기기와 공유됩니다.</div>
+          <select id="imgNbSel">
+            <option value="">Nano Banana Pro (기본 · 지금까지와 같음)</option>
+            <option value="nano-banana-2">Nano Banana 2 (새 세대 · 빠름 · 저가)</option>
+          </select>
+        </div>
         <div class="setHl"><label for="imgScreensSel">강단 스크린 출력</label><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
         <div class="hlpTx" hidden>강단 스크린은 가운데 4160×1620 한 대와 양옆 16:9 두 대입니다. 「두 벌 모두」면 한 번 만든 배경으로 가운데용 초광각(JPEG, zip 맨 위)과 사이드용 16:9(PNG, side-1920x1080 폴더)를 함께 만들어 어느 화면에서도 늘어난 그림이 나오지 않습니다.</div>
         <select id="imgScreensSel">
@@ -34028,6 +34036,7 @@ function settingsPaint(){
   });
   if ($('#imgEngineSel')) $('#imgEngineSel').value = s.imgEngine || 'flux';
   if ($('#imgFluxSel')) $('#imgFluxSel').value = fluxModel();   /* v756 */
+  if ($('#imgNbSel')) $('#imgNbSel').value = nbModel();   /* v768 */
   fluxWrapSync();
   if ($('#imgScreensSel')) $('#imgScreensSel').value = s.imgScreens || 'both';
   if ($('#imgVignetteSel')) $('#imgVignetteSel').value = s.imgVignette ? 'on' : 'off';
@@ -34043,6 +34052,7 @@ function settingsSaveFromInputs(opts){
   Object.keys(SET_INPUTS).forEach(function(k){ var el = document.getElementById(SET_INPUTS[k]); if (el) next[k] = el.value.trim(); });
   if ($('#imgEngineSel')) next.imgEngine = $('#imgEngineSel').value;
   if ($('#imgFluxSel')){ if (FLUX_MODELS[$('#imgFluxSel').value]) next.fluxModel = $('#imgFluxSel').value; else delete next.fluxModel; }   /* v756 */
+  if ($('#imgNbSel')){ if (NB_MODELS[$('#imgNbSel').value]) next.nbModel = $('#imgNbSel').value; else delete next.nbModel; }   /* v768 */
   if ($('#imgScreensSel')) next.imgScreens = $('#imgScreensSel').value;
   if ($('#imgVignetteSel')) next.imgVignette = $('#imgVignetteSel').value === 'on';
   next.fileFmt = (prev.fileFmt === 'docx') ? 'docx' : 'hwpx';
@@ -34106,6 +34116,7 @@ var VAULT_FIELDS = [
   { k: 'gateKey', n: '저작권 자료 키코드', sec: 1 },
   { k: 'imgEngine', n: '설교 이미지 AI' },
   { k: 'fluxModel', n: 'Flux 모델' },   /* v756 FLUX.3 Image / klein */
+  { k: 'nbModel', n: 'Nano Banana 모델' },   /* v768 Pro / 2 */
   { k: 'imgScreens', n: '강단 스크린 출력' },
   { k: 'imgVignette', n: '가장자리 비네팅' },
   { k: 'aiModels', n: 'AI 기능별 모델' },
@@ -34128,6 +34139,7 @@ function cfgGet(k){
   if (k === 'aiModels') return cfgModelsStr(s.aiModels);
   if (k === 'imgEngine') return (s.imgEngine === 'gemini' || s.imgEngine === 'krea') ? s.imgEngine : '';
   if (k === 'fluxModel') return fluxModel();   /* v756 기본(FLUX.2 klein) = '' */
+  if (k === 'nbModel') return nbModel();   /* v768 기본(Nano Banana Pro) = '' */
   if (k === 'imgScreens') return (s.imgScreens === 'wide' || s.imgScreens === 'side') ? s.imgScreens : '';
   if (k === 'sermonForm') return s.sermonForm === 'B' ? 'B' : '';   /* v739 기본(A형) = '' */
   if (k === 'styleLearn') return styleLearnStr(s.styleLearn);   /* v741 */
@@ -34152,6 +34164,7 @@ function cfgSet(k, v){
   }
   if (k === 'imgEngine'){ state.settings.imgEngine = v || 'flux'; return; }
   if (k === 'fluxModel'){ if (FLUX_MODELS[v]) state.settings.fluxModel = v; else delete state.settings.fluxModel; return; }   /* v756 */
+  if (k === 'nbModel'){ if (NB_MODELS[v]) state.settings.nbModel = v; else delete state.settings.nbModel; return; }   /* v768 */
   if (k === 'imgScreens'){ state.settings.imgScreens = v || 'both'; return; }
   if (k === 'sermonForm'){ if (v === 'B') state.settings.sermonForm = 'B'; else delete state.settings.sermonForm; return; }   /* v739 */
   if (k === 'styleLearn'){   /* v741 */
@@ -34467,7 +34480,7 @@ function cfgStatusRows(){
   rows.push({ n: 'AI 생성', v: ai || '없음 — 요청함 방식', c: ai ? 'ok' : '', go: 'sgAi' });
   rows.push({ n: '유튜브 전사', v: has(s.geminiKey) ? 'Gemini 키' : '없음', c: has(s.geminiKey) ? 'ok' : '', go: 'sgProxy' });
   var px = has(s.proxyUrl) && has(s.proxyToken);
-  var eng = { gemini: 'Gemini', krea: 'Krea 2 Turbo' }[s.imgEngine] || ('Flux · ' + fluxModelName(fluxModel()));
+  var eng = { gemini: 'Gemini · ' + nbModelName(nbModel()), krea: 'Krea 2 Turbo' }[s.imgEngine] || ('Flux · ' + fluxModelName(fluxModel()));   /* v768 */
   rows.push({ n: '설교 이미지', v: px ? '연결됨 · ' + eng : '없음 — 요청함 방식', c: px ? 'ok' : '', go: 'sgProxy' });
   var memo = has(s.memoUrl) && has(s.memoKey);
   rows.push({ n: '성경앱 연동', v: memo ? '연결됨' : '없음', c: memo ? 'ok' : '', go: 'sgMemo' });
@@ -34731,8 +34744,20 @@ async function bibPrefetch(from, to, btn){
     state.settings.imgEngine = sel.value;
     save(LS.settings, state.settings);
     vaultTouch();
-    toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini (Nano Banana)' : sel.value === 'krea' ? 'Krea 2 Turbo' : 'Flux · ' + fluxModelName(fluxModel())));
+    toast('설교 이미지 AI: ' + (sel.value === 'gemini' ? 'Gemini · ' + nbModelName(nbModel()) : sel.value === 'krea' ? 'Krea 2 Turbo' : 'Flux · ' + fluxModelName(fluxModel())));
     fluxWrapSync();
+  });
+})();
+/* v768 Nano Banana 모델 선택: 변경 즉시 저장 · 다른 기기와 공유 */
+(function(){
+  var sel = document.getElementById('imgNbSel');
+  if (!sel) return;
+  sel.addEventListener('change', function(){
+    state.settings = state.settings || {};
+    if (NB_MODELS[sel.value]) state.settings.nbModel = sel.value; else delete state.settings.nbModel;
+    save(LS.settings, state.settings);
+    vaultTouch();
+    toast('Nano Banana 모델: ' + nbModelName(nbModel()));
   });
 })();
 /* v756 Flux 모델 선택: 변경 즉시 저장 · 다른 기기와 공유 */
