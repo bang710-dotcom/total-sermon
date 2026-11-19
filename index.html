@@ -25462,6 +25462,14 @@ function parseLtcSections(lines, tmplSecs){
     var paras, boxes = [], summary = t.summary || '';
     if (firstBox < 0 || !tBoxes.length) {
       paras = body.slice();
+      /* v767 박스가 없는 대지 — 요약 줄은 본문 문단 바로 뒤(나눔 앞)에 한 줄로 쓰여 있다. 예전엔 그 줄을 문단으로 읽고 요약 칸은 처음 만든 것을 그대로 두어,
+         「수정 반영」으로 올리면 요약이 본문 끝과 요약 칸에 두 번 들어갔다(2026-11-19 목사님 「고쳐 줘」).
+         끝 줄이 요약이면(처음 요약과 같거나, 문단 수가 처음보다 많으면) 떼어 요약 칸으로 — 아니면 요약 줄을 지우신 것이라 요약을 비운다. */
+      if (t.summary) {
+        var nT = Array.isArray(t.paras) ? t.paras.length : 0, flatS = function(x){ return String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); };
+        if (paras.length && (flatS(paras[paras.length - 1]) === flatS(t.summary) || paras.length > nT)) summary = paras.pop();
+        else summary = '';
+      }
     } else {
       paras = body.slice(0, firstBox);
       var idx = firstBox;
@@ -25470,7 +25478,12 @@ function parseLtcSections(lines, tmplSecs){
         var bt = body[idx].trim().replace(/^\[\s*/, '').replace(/\s*\]$/, '');
         idx++;
         var nL = (Array.isArray(tBoxes[bi].lines) ? tBoxes[bi].lines.length : 0) || 0;
-        boxes.push({ title: bt, lines: body.slice(idx, idx + nL) });
+        /* v767 한글(hwpx) 교재는 박스 줄 앞에 「• 」를 붙여 쓴다(hwpxLtc) — 되읽을 때 그 점은 뗀다. 예전엔 점이 붙은 채 리더스 앱에 올라갔다(워드 교재·손보지 않고 올린 판에는 없음).
+           처음 글 자체가 「•」로 시작하던 줄은 그 점을 남긴다(겹친 점 하나만 뗀다). */
+        var tLs = Array.isArray(tBoxes[bi].lines) ? tBoxes[bi].lines : [];
+        boxes.push({ title: bt, lines: body.slice(idx, idx + nL).map(function(l, li){
+          return /^\s*•/.test(String(tLs[li] == null ? '' : tLs[li])) ? l.replace(/^\s*•\s*(?=•)/, '') : l.replace(/^\s*•\s*/, '');
+        }) });
         idx += nL;
       }
       var rem = body.slice(idx);
@@ -25530,18 +25543,17 @@ function ltcContentSig(d){
   return [secs, gbs, nts].join('###').replace(/\s+/g, ' ').trim();
 }
 /* v766 저장된 교재 파일(read = 되읽은 것)이 처음 만든 판(base)에서 달라진 곳 수 — 대지마다 본문·박스·요약·나눔, GBS 질문마다, 공지사항(한 묶음).
-   되읽기에서 저절로 생기는 차이는 세지 않는다: ① 한글(hwpx) 교재는 박스 줄 앞에 「• 」가 붙어 읽힌다 ② 박스가 없는 대지는 요약 줄이 본문 문단으로 읽힌다(요약 칸은 base 그대로). */
+   v767 부터 되읽기(parseLtcSections)가 박스 줄의 「• 」를 떼고 박스 없는 대지의 요약 줄을 요약 칸으로 읽으므로, 칸마다 그대로 견준다. */
 function ltcDiffCount(read, base){
   var n = 0;
   function nz(x){ return String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); }
   function d(x, y){ if (nz(x) !== nz(y)) n++; }
-  function bx(o){ o = o || {}; return (o.title || '') + '|' + (o.lines || []).map(function(l){ return String(l == null ? '' : l).replace(/^\s*•\s*/, ''); }).join('¶'); }
+  function bx(o){ o = o || {}; return (o.title || '') + '|' + (o.lines || []).join('¶'); }
   function gq(o){ o = o || {}; return (o.category || '') + '|' + (o.text || ''); }
   var a = read, b = base, A = (a && a.sections) || [], B = (b && b.sections) || [];
   for (var i = 0; i < Math.max(A.length, B.length); i++){
     var s = A[i] || {}, t = B[i] || {}, sb = s.boxes || [], tb = t.boxes || [];
-    if (!tb.length && t.summary) { d((s.paras || []).join('¶'), (t.paras || []).concat([t.summary]).join('¶')); }
-    else { d((s.paras || []).join('¶'), (t.paras || []).join('¶')); d(s.summary, t.summary); }
+    d((s.paras || []).join('¶'), (t.paras || []).join('¶')); d(s.summary, t.summary);
     for (var k = 0; k < Math.max(sb.length, tb.length); k++) d(bx(sb[k]), bx(tb[k]));
     d(s.sharing, t.sharing);
   }
@@ -38282,7 +38294,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v766';
+var APP_VER = 'v767';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
