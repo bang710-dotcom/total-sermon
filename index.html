@@ -14784,9 +14784,9 @@ async function cardDocBlob(meta, text){
   var D = await ensureDocxLib();
   return D.Packer.toBlob(buildDocxParas(D, built.paras, built.st));
 }
-async function cardDocExport(id, meta, text){
+async function cardDocExport(id, meta, text, T){   /* v766 T = 무인 작업(TSA_TASKS) */
   var blob = await cardDocBlob(meta, text);
-  await saveBlobToResults(blob, sermonFileBase(meta, '카드원고') + outExt());
+  await saveBlobToResults(blob, sermonFileBase(meta, '카드원고') + outExt(), T);
   if (id) {
     try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '카드원고', '상태': '완료', '링크': '', '비고': '작성창 카드원고' } }); } catch (e) {}
     try { aiMarkDone(id, '카드원고', '작성창 카드원고'); } catch (e) {}
@@ -19510,7 +19510,7 @@ function ltcFileName(meta){
     (meta['제목'] || '무제') + (meta['본문'] ? ' ' + meta['본문'].replace(/:/g, '_') : '');
   return name.replace(/[\\/:*?"<>|]/g, '_') + outExt();
 }
-async function saveDocxBlob(blob, fname, dateStr){
+async function saveDocxBlob(blob, fname, dateStr, T){   /* v766 T = 무인 작업(TSA_TASKS) */
   if (dirHandle) {
     try {
       var year = (dateStr || '').slice(0, 4) || String(new Date().getFullYear());
@@ -19522,11 +19522,13 @@ async function saveDocxBlob(blob, fname, dateStr){
         var w = await fh.createWritable();
         await w.write(blob); await w.close();
         toast('저장 완료: ' + dirHandle.name + '/' + year + '년/' + fname);
+        if (T) T.saved('dir', year + '년/' + fname);
         return;
       }
       var why = '폴더 권한 없음';
     } catch (e) { why = (e && e.message) || String(e); try { console.warn('[원고 저장] 폴더 저장 실패 → 다운로드로:', e); } catch (x) {} }   /* 권한 만료·쓰기 실패 → 아래 다운로드로 폴백 */
   }
+  if (T) throw T.fail('no_folder', dirHandle ? '설교 폴더에 저장하지 못했습니다(' + String(why || '').slice(0, 60) + ')' : '저장할 폴더가 연결돼 있지 않습니다');   /* v766 무인 작업은 조용히 다운로드로 빠지지 않는다 */
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = fname;
@@ -21623,6 +21625,7 @@ function aiJson(text){
 function aiTick(label){
   var fn = function(n){
     setSyncState(label + ' 생성 중… ' + (n > 1000 ? (n / 1000).toFixed(1) + 'k' : n) + '자', true);
+    if (_taskQuiet) _taskStage = label + ' 쓰는 중 · ' + n + '자';   /* v766 */
     updateGenOverlay(n);
   };
   fn.genLabel = label;
@@ -22310,8 +22313,8 @@ function hostAgentCall(system, user, onTick, hopt){
     if (/^claude-/.test(String(f || ''))) model = String(f);
     else { var ft = aiFeature(f || 'main'); fk = ft.k; model = aiModelFor(ft.k); if (ft.effort != null) effort = ft.effort; }
   } catch (e) {}
-  var key = 'h' + (++_hostSeq), ov = !hopt.noOverlay;
-  var run = _hostRuns[key] = { label: label, t0: Date.now(), n: 0, phase: 'queued', id: null, ov: ov };
+  var key = 'h' + (++_hostSeq), ov = !hopt.noOverlay && !_taskQuiet;   /* v766 무인 작업은 화면을 덮지 않는다 */
+  var run = _hostRuns[key] = { label: label, t0: Date.now(), n: 0, phase: 'queued', id: null, ov: ov, task: !!_taskQuiet };
   if (ov) { _hostOv++; showGenOverlay(label); hostOverlayPhase('queued'); hostCancelArm(); }
   arRender();
   var req = { system: system, user: user, model: model, effort: effort, feature: fk, maxTokens: hopt.maxTokens || 0, label: label };
@@ -22320,6 +22323,7 @@ function hostAgentCall(system, user, onTick, hopt){
     run.phase = phase || run.phase; run.n = n || 0;
     if (run.n) { if (onTick) onTick(run.n); }
     else if (ov) hostOverlayPhase(run.phase);
+    else if (run.task) _taskStage = label + ' — ' + (HOST_PHASE[run.phase] || '처리 중');   /* v766 */
   })).then(function(text){
     _arDone = { label: label, t: Date.now() };
     return String(text || '');
@@ -22414,8 +22418,13 @@ var GEN_MSG = {
   '자막 정리': '붙여넣은 자막을 전사문으로 다듬고 있어요'
 };
 var GEN_SUB_AI = '잠시만 기다려 주세요. 생성에는 시간이<br>다소 걸릴 수 있습니다.';
+/* v766 무인 작업(TSA_TASKS — 로고스 브레인이 맡긴 일) 중에는 화면을 덮는 「생성 중」을 띄우지 않는다.
+   목사님이 다른 일을 하고 계실 수 있다 — 진행은 상태 줄(setSyncState·arRender)과 TSA_TASKS.status 로만 알린다. */
+var _taskQuiet = 0, _taskStage = '';
+function taskStage(text){ _taskStage = String(text || ''); try { setSyncState('맡은 일 — ' + _taskStage, true); } catch (e) {} }
 function showGenOverlay(label){
   if (window._cascOn) return;   /* 캐스케이드 중엔 전용 오버레이가 위에서 유지 — 깜빡임 방지 */
+  if (_taskQuiet) return;   /* v766 */
   var el = $('#genOverlay'); if (!el) return;
   var t = $('#genTitleTxt'); if (t) t.textContent = GEN_MSG[label] || (label + ' 생성 중');
   var sb = $('#genSub'); if (sb) sb.innerHTML = GEN_SUB_AI;
@@ -22736,11 +22745,11 @@ function syncKwInput(id, kw){
   } catch (e) {}
 }
 /* ── 직결 작업 4종 ── */
-async function aiSummarize(id, s, force){
+async function aiSummarize(id, s, force, T){   /* v766 T = 무인 작업(TSA_TASKS) — 실패는 던지고, 끝나면 무엇을 했는지 돌려준다 */
   try {
     if (!id) { toast('먼저 [시트에 저장]으로 설교를 저장해 주세요.'); return; }
     var txt = String(s['원고텍스트'] || '').trim();
-    if (!txt) { toast('원고 텍스트가 없어 요약할 수 없습니다.'); return; }
+    if (!txt) { if (T) throw T.fail('no_text', '원고 텍스트가 없어 요약할 수 없습니다'); toast('원고 텍스트가 없어 요약할 수 없습니다.'); return; }
     if (!force && String(s['요약본'] || '').trim() && !await uiConfirm('이미 요약본이 있습니다. 다시 생성할까요?')) return;
     toast('Opus가 요약본을 생성합니다…');
     var out = await callClaude(P_SUM,
@@ -22757,7 +22766,8 @@ async function aiSummarize(id, s, force){
     renderSyncState();
     toast('요약본·주제어 완료 — 시트에 기록했습니다.');
     bmPushSermonQuiet(id);            /* 성경앱 [설교] 노트에도 자동 반영(v472) */
-  } catch (e) { renderSyncState(); toast('요약 실패: ' + e.message); }
+    return { chars: String(j['요약본']).length, keywords: String(j['키워드'] || '') };
+  } catch (e) { renderSyncState(); toast('요약 실패: ' + e.message); if (T) throw e; }
 }
 
 /* ══ 유튜브 전사 — 앱(브라우저)에서 Gemini 직접 호출 (v517) ═══════════════════
@@ -24001,13 +24011,14 @@ async function ensureCardArr(id, meta){
    → 나중에 이미지를 쓰기로 하고 다시 뽑으면 같은 카드에 바가 그대로 살아난다(캐시 오염 없음). */
 function cardNoTrans(){ return !!window._cascNoTrans; }
 function stripCardTrans(arr){ return (arr || []).filter(function(b){ return b && b.t !== 'trans'; }); }
-async function aiCardScript(id, meta){
+async function aiCardScript(id, meta, T){   /* v766 T = 무인 작업(TSA_TASKS) */
   /* v635: 카드원고는 작성창에서 쓰는 별도 문서(시트 「카드원고」 칸). 있으면 그대로(카드 한 장 = 한 쪽) 내보내고,
      없을 때만 원고를 추린 AI 초안을 만들어 저장한 뒤 내보낸다. 이미 쓴 카드원고는 [Total]이어도 다시 만들지 않는다. */
   try {
-    var doc = cardDocOf(id, meta);
+    var doc = cardDocOf(id, meta), drafted = false;
     if (!doc) {
-      if (!String(meta['원고텍스트'] || '').trim()) { toast('원고를 먼저 작성해 주세요.'); return; }
+      if (!String(meta['원고텍스트'] || '').trim()) { if (T) throw T.fail('no_text', '원고가 없어 카드원고를 만들 수 없습니다'); toast('원고를 먼저 작성해 주세요.'); return; }
+      drafted = true;
       toast('카드원고가 아직 없어 원고를 추린 초안을 만듭니다 — 1~3분 걸릴 수 있습니다');
       var mine = id ? String(state.editing || '') === String(id) : !state.editing;
       var cards = await cardDraftAI(meta, cardStructOf(mine ? state.compose : null, meta['원고텍스트']), meta['원고텍스트'], 'all', true);
@@ -24017,16 +24028,18 @@ async function aiCardScript(id, meta){
     }
     meta['카드원고'] = doc;
     meta['_카드원고'] = cardsPlain(doc);   /* 같은 실행의 디자인 PDF·PPTX 가 이 글을 그대로 쓴다 */
-    await cardDocExport(id, meta, doc);
+    await cardDocExport(id, meta, doc, T);
     renderSyncState();
     toast('카드원고 저장 완료(결과함) — 작성창의 카드 한 장이 한 쪽입니다.');
-  } catch (e) { renderSyncState(); toast('카드원고 실패: ' + e.message); }
+    return { drafted: drafted, cards: cardsSplit(doc).length };
+  } catch (e) { renderSyncState(); toast('카드원고 실패: ' + e.message); if (T) throw e; }
 }
 
 /* ===================== 카드 디자인 PDF (1단계) ===================== */
 /* 작업중 오버레이 단계 메시지 직접 설정(현재 어느 과정인지 표시) */
 function setGenStage(text){
   if (window._cascOn) { var cn = $('#cascNow'); if (cn) cn.innerHTML = esc(String(text).replace(/[.…]+$/, '')) + ' <span class="dots"><i>.</i><i>.</i><i>.</i></span>'; return; }  /* 캐스케이드 중엔 진행 텍스트로 라우팅(움직이는 점) */
+  if (_taskQuiet) { taskStage(text); return; }   /* v766 무인 작업 — 화면을 덮지 않고 상태 줄에만 */
   var el = $('#genOverlay'); if (el) el.classList.add('on');
   var t = $('#genTitleTxt'); if (t) t.textContent = text;
   var sb = $('#genSub'); if (sb) sb.innerHTML = '';
@@ -24430,9 +24443,10 @@ function _nfcIncl(hay, needle){
   try { return String(hay).normalize('NFC').indexOf(String(needle).normalize('NFC')) >= 0; }
   catch (e) { return String(hay).indexOf(String(needle)) >= 0; }
 }
-async function saveBlobToResults(blob, fname){
+async function saveBlobToResults(blob, fname, T){   /* v766 T = 무인 작업(TSA_TASKS) */
   /* 폴더가 연결되지 않은 브라우저(에이전트 브라우저·아이패드)에서는 다운로드로 내려 준다 (v498) */
   if (!canFolderSave()){
+    if (T) throw T.fail('no_folder', '결과함 폴더(claude-exchange)가 연결돼 있지 않습니다');   /* v766 무인 작업은 조용히 다운로드로 빠지지 않는다 */
     try {
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = fname; a.click();
@@ -24445,6 +24459,7 @@ async function saveBlobToResults(blob, fname){
   var dir = await resultsTodayDir();
   var fh = await dir.getFileHandle(fname, { create: true });
   var w = await fh.createWritable(); await w.write(blob); await w.close();
+  if (T) T.saved('x', '_claude_결과함/' + dir.name + '/' + fname);
 }
 /* 파일명에 들어갈 시리즈 태그 = 시리즈명 + 회차번호 (예: "요한복음3").
    ★ 회차번호의 정본은 별도 필드 '시리즈순번'이다(입력칸 #c_seriesNo). 예전 이 함수는
@@ -25322,9 +25337,9 @@ function sermonLtcData(id){
   var d = m.ltcData;
   return (d && Array.isArray(d.sections) && d.sections.length && Array.isArray(d.gbs) && d.gbs.length) ? d : null;
 }
-async function aiLtc(id, meta){
+async function aiLtc(id, meta, T){   /* v766 T = 무인 작업(TSA_TASKS) */
   try {
-    if (!String(meta['원고텍스트'] || '').trim()) { toast('원고 텍스트가 필요합니다.'); return; }
+    if (!String(meta['원고텍스트'] || '').trim()) { if (T) throw T.fail('no_text', '원고 텍스트가 없어 교재를 만들 수 없습니다'); toast('원고 텍스트가 필요합니다.'); return; }
     toast('Opus가 LTC 교재를 만듭니다…');
     var data = await aiLtcData(meta);
     var sc = await scriptureArr(meta['본문']);
@@ -25374,18 +25389,20 @@ async function aiLtc(id, meta){
     var blob = (outFmt() === 'hwpx')
       ? await hwpxBuild(hwpxLtc(meta, data, dateB, sc.bk.ko + ' ' + (seqLtc || sc.range.c1)))
       : await D.Packer.toBlob(doc);
-    var ltcRel = await saveToLtc(blob, ltcFileName(meta), meta['본문']);
+    var ltcRel = await saveToLtc(blob, ltcFileName(meta), meta['본문'], T);
     if (!ltcRel) {
-      await saveDocxBlob(blob, ltcFileName(meta), meta['날짜']);
+      await saveDocxBlob(blob, ltcFileName(meta), meta['날짜'], T);
     }
     if (id) {
-      await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': 'LTC교재', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
+      try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': 'LTC교재', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } }); }
+      catch (eP) { if (!T) throw eP; T.warn('교재는 저장했지만 산출물 기록을 시트에 남기지 못했습니다(' + eP.message + ')'); }   /* v766 파일은 이미 있다 — 기록 실패를 「교재 실패」로 알리지 않는다 */
       aiMarkDone(id, 'LTC교재', 'Opus API 직결');
       if (ltcRel) setSermonFileMap(id, 'ltc', '[LTC]' + ltcRel);   /* 라이브러리 LTC 칩 자동 반영 */
     }
     renderSyncState();
     toast('LTC 교재 저장 완료 — 2페이지가 넘으면 열어서 압축해 주세요.');
-  } catch (e) { renderSyncState(); toast('LTC 교재 실패: ' + e.message); }
+    return { sections: data.sections.length, gbs: data.gbs.length };
+  } catch (e) { renderSyncState(); toast('LTC 교재 실패: ' + e.message); if (T) throw e; }
 }
 
 /* ── 생성·저장된 LTC 교재 DOCX 되읽기 (사용자 수정·공지사항 반영) ──
@@ -25512,15 +25529,51 @@ function ltcContentSig(d){
   var nts = (d.notices || []).join('§');
   return [secs, gbs, nts].join('###').replace(/\s+/g, ' ').trim();
 }
+/* v766 저장된 교재 파일(read = 되읽은 것)이 처음 만든 판(base)에서 달라진 곳 수 — 대지마다 본문·박스·요약·나눔, GBS 질문마다, 공지사항(한 묶음).
+   되읽기에서 저절로 생기는 차이는 세지 않는다: ① 한글(hwpx) 교재는 박스 줄 앞에 「• 」가 붙어 읽힌다 ② 박스가 없는 대지는 요약 줄이 본문 문단으로 읽힌다(요약 칸은 base 그대로). */
+function ltcDiffCount(read, base){
+  var n = 0;
+  function nz(x){ return String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); }
+  function d(x, y){ if (nz(x) !== nz(y)) n++; }
+  function bx(o){ o = o || {}; return (o.title || '') + '|' + (o.lines || []).map(function(l){ return String(l == null ? '' : l).replace(/^\s*•\s*/, ''); }).join('¶'); }
+  function gq(o){ o = o || {}; return (o.category || '') + '|' + (o.text || ''); }
+  var a = read, b = base, A = (a && a.sections) || [], B = (b && b.sections) || [];
+  for (var i = 0; i < Math.max(A.length, B.length); i++){
+    var s = A[i] || {}, t = B[i] || {}, sb = s.boxes || [], tb = t.boxes || [];
+    if (!tb.length && t.summary) { d((s.paras || []).join('¶'), (t.paras || []).concat([t.summary]).join('¶')); }
+    else { d((s.paras || []).join('¶'), (t.paras || []).join('¶')); d(s.summary, t.summary); }
+    for (var k = 0; k < Math.max(sb.length, tb.length); k++) d(bx(sb[k]), bx(tb[k]));
+    d(s.sharing, t.sharing);
+  }
+  var ag = (a && a.gbs) || [], bg = (b && b.gbs) || [];
+  for (var g = 0; g < Math.max(ag.length, bg.length); g++) d(gq(ag[g]), gq(bg[g]));
+  d(((a && a.notices) || []).join('§'), ((b && b.notices) || []).join('§'));
+  return n;
+}
 /* 리더스앱 TSV (탭 6개 한 줄, G열 TRUE) */
-async function aiLeadersTsv(id, meta){
+async function aiLeadersTsv(id, meta, T){   /* v766 T = 무인 작업(TSA_TASKS) */
   try {
     var key = id || meta['제목'] || '';
     var tmpl = _ltcJson[key] || sermonLtcData(id);   /* 구조 가이드: 메모리 → 저장된 LTC 데이터 */
     var data = null, fromDocx = false;
+    if (T) {
+      /* v766 무인 작업(브레인이 맡긴 올리기, 2026-11-19 목사님 규칙) — 목사님이 검토·수정해 저장해 둔 교재 파일만 올린다.
+         교재가 없으면 여기서 새로 만들지 않고, 파일을 못 찾으면 생성본으로 대신 올리지 않는다 — 검토 안 된 글이 리더들에게 나가지 않게.
+         손본 내용은 묻지 않고 그대로 반영한다. */
+      if (!tmpl) throw T.fail('no_material', 'LTC 교재가 아직 없습니다 — 교재를 먼저 만들어야 올릴 수 있습니다');
+      var fhT = await ltcDocxFileHandle(meta);
+      if (!fhT) throw T.fail('no_file', '저장된 교재 파일을 찾지 못했습니다 — 파일 이름이나 폴더가 바뀌었는지 확인해 주세요(찾는 파일: ' + ltcFileName(meta) + ')');
+      var fT = await fhT.getFile(), ddT = null;
+      try { var prT = await zipDocParas(await fT.arrayBuffer()); if (prT) ddT = parseLtcParas(prT, tmpl); } catch (eT) {}
+      if (!ddT) throw T.fail('unreadable', '교재 파일을 읽지 못했습니다(' + fhT.name + ') — 교재 양식(대지 번호·GBS·공지사항 제목)이 바뀌었을 수 있습니다');
+      var base0 = sermonLtcData(id) || tmpl;   /* 처음 만든 판(파일맵.ltcData) — 손본 곳을 세는 기준 */
+      var chgT = ltcDiffCount(ddT, base0);
+      data = ddT; fromDocx = chgT > 0;   /* 올리는 내용은 앱 단추의 「수정 반영」과 같다(되읽은 그대로) */
+      T.detail({ file: fhT.name, fileAt: fT.lastModified, changed: chgT });
+    }
     /* 저장된 교재 DOCX에서 사용자 수정·공지사항이 발견되면, 반영할지 확인 후 우선 적용 */
     try {
-      if (tmpl) {
+      if (tmpl && !T) {
         var dd = await readLtcDocxData(meta, tmpl);
         if (dd) {
           if (ltcContentSig(dd) !== ltcContentSig(tmpl)) {
@@ -25559,8 +25612,10 @@ async function aiLeadersTsv(id, meta){
           body: JSON.stringify({ token: laToken, action: 'append', cols: cols }) }).then(function(r){ return r.json(); });
         if (!rj || !rj.ok) throw new Error((rj && rj.error) || '업로드 응답 오류');
         uploaded = true; unpub = (rj.data && rj.data.unpublished) || 0;
-      } catch (ue) { toast('리더스앱 직접 업로드 실패 — 파일로 받습니다: ' + ue.message); }
+      } catch (ue) { if (T) throw T.fail('upload_failed', '리더스 앱에 올리지 못했습니다: ' + ue.message); toast('리더스앱 직접 업로드 실패 — 파일로 받습니다: ' + ue.message); }
     }
+    /* v766 무인 작업은 올리지 못했으면 실패로 끝낸다(파일로 받고 「완료」로 적지 않는다) */
+    if (T && !uploaded) throw T.fail('no_upload', navigator.onLine ? '리더스 앱 업로드 주소·토큰이 설정에 없습니다' : '인터넷에 연결돼 있지 않아 올리지 못했습니다');
     if (!uploaded) {
       var a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([row], { type: 'text/plain;charset=utf-8' }));
@@ -25580,12 +25635,14 @@ async function aiLeadersTsv(id, meta){
       }
     } catch (e2) {}
     if (id) {
-      await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '리더스앱업로드', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } });
+      try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '리더스앱업로드', '상태': '완료', '링크': '', '비고': 'Opus API 직결' } }); }
+      catch (eP) { if (!T) throw eP; T.warn('올리기는 됐지만 산출물 기록을 시트에 남기지 못했습니다(' + eP.message + ')'); }   /* v766 */
       aiMarkDone(id, '리더스앱업로드', 'Opus API 직결');
     }
     renderSyncState();
     toast((fromDocx ? '저장된 교재 파일의 수정·공지 반영 · ' : '') + (uploaded ? ('리더스앱 통합시트에 업로드 완료 — 앱에 바로 반영됩니다.' + (unpub ? ' (이전 버전 ' + unpub + '건 게시 해제)' : '')) : ((!laUrl || !laToken) ? '리더스앱 업로드 URL/토큰이 설정에 없어 파일로 받았습니다 — 설정에 입력하면 바로 업로드됩니다.' : '리더스앱 파일 다운로드 — 통합시트 A열 첫 칸에 붙여넣으세요.')));
-  } catch (e) { renderSyncState(); toast('리더스앱 파일 실패: ' + e.message); }
+    return { uploaded: uploaded, unpublished: unpub, edited: fromDocx, round: cols[0], date: cols[1], title: cols[3] };
+  } catch (e) { renderSyncState(); toast('리더스앱 파일 실패: ' + e.message); if (T) throw e; }
 }
 
 var AI_DIRECT = { '설교요약': aiSummarize, '원고작성': aiManuscript, '카드원고': aiCardScript, 'LTC교재': aiLtc, '리더스앱업로드': aiLeadersTsv };
@@ -28974,7 +29031,7 @@ async function findBookDir(handle, bookKo, create){
   }
   return create ? await handle.getDirectoryHandle(bookKo, { create: true }) : null;
 }
-async function saveToLtc(blob, fname, ref){
+async function saveToLtc(blob, fname, ref, T){   /* v766 T = 무인 작업(TSA_TASKS) */
   /* LTC 폴더 미지정이면 설교 폴더 연도 방식으로 폴백 */
   var tok = await refToken(ref);
   if (!ltcHandle || !tok) return null;
@@ -28988,6 +29045,7 @@ async function saveToLtc(blob, fname, ref){
   await w.write(blob);
   await w.close();
   toast('저장 완료: ' + ltcHandle.name + '/' + bd.name + '/' + fname);
+  if (T) T.saved('ltc', bd.name + '/' + fname);
   return bd.name + '/' + fname;   /* 파일맵 ltc 경로용 (truthy) */
 }
 /* 설교 행의 파일맵에 키 하나 병합 후 시트·로컬 갱신 (예: ltc 경로 자동 기록) */
@@ -35809,7 +35867,7 @@ async function genCoverWithRetry(c, engine){
   return null;
 }
 /* 컷 배열로 실제 이미지 세트 생성: 표지=중앙 여백 배경 생성+제목·본문 합성, 일반=선택 엔진(Flux/Gemini/Krea) 배경(+밝기보정, 비네트는 설정 시에만), 본문=직전 일반 이미지 파생+성구 합성 */
-async function generateImageSetFromCuts(id, meta, cuts){
+async function generateImageSetFromCuts(id, meta, cuts, TK){   /* v766 TK = 무인 작업(TSA_TASKS) — 이 함수 안의 T 는 화면 규격 */
   if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
   renumberCuts(cuts);   /* ★ 번호 #1=표지, #2부터 연속·고유(옛 사이드카 컷도 교정) */
@@ -35865,12 +35923,13 @@ async function generateImageSetFromCuts(id, meta, cuts){
   setGenStage('압축·저장 중… (' + made + '장)');
   var nm = imgDataNames(meta);
   var blobZ = await out.generateAsync({ type: 'blob', compression: 'STORE' });
-  await saveBlobToResults(blobZ, nm.backstagePrefix + '_' + made + '장.zip');
+  await saveBlobToResults(blobZ, nm.backstagePrefix + '_' + made + '장.zip', TK);
   hideGenOverlay(); renderSyncState();
   if (id) { aiMarkDone(id, '이미지생성', '앱 직접 생성(' + made + '장)'); try { await apiPost({ action: 'add', sheet: 'outputs', data: { '설교ID': id, '유형': '이미지생성', '상태': '완료', '링크': '', '비고': '앱 직접 생성(' + made + '장)' } }); } catch (e) {} }
   toast('이미지 세트 저장 완료 — ' + made + '장 × ' + targets.length + '벌(' + targets.map(function(T){ return T.s.label; }).join(' + ') + ')' + (warn.length ? (' · 폴백 ' + warn.length) : '') + (fail.length ? (' · 누락 ' + fail.length) : '') + ' · [아웃풋]에서 확인');
   if (warn.length) console.warn('이미지 폴백 컷:', warn);
   if (fail.length) console.warn('이미지 생성 누락 컷:', fail);
+  return { made: made, total: cuts.length, sets: targets.length, warn: warn, fail: fail };   /* v766 */
 }
 /* ══ 이미지 낱장 재생성 (v527) ═══════════════════════════════════════════════
    전체를 다시 돌리지 않고 마음에 안 드는 번호만 새로 만든다.
@@ -36554,9 +36613,10 @@ window.imgCutDelete = imgCutDelete;
 async function generateSermonImageSet(id, meta, opts){
   opts = opts || {};
   if (!window._cascOn) window._cascAbort = false;   /* 이전 캐스케이드 [중단] 잔존 플래그 초기화 — 단독·자동 생성 즉사 방지 */
+  var T = opts.task || null;   /* v766 무인 작업(TSA_TASKS) — 실패는 던지고, 끝나면 몇 장을 만들었는지 돌려준다 */
   try {
-    if (!(await ensureXFolder(opts))) return;
-    if (!String(meta['원고텍스트'] || '').trim()) { if (!opts.auto) toast('원고를 먼저 작성해 주세요.'); return; }
+    if (!(await ensureXFolder(opts))) { if (T) throw T.fail('no_folder', '결과함 폴더(claude-exchange)가 연결돼 있지 않습니다'); return; }
+    if (!String(meta['원고텍스트'] || '').trim()) { if (T) throw T.fail('no_text', '원고가 없어 이미지를 만들 수 없습니다'); if (!opts.auto) toast('원고를 먼저 작성해 주세요.'); return; }
     var cuts = await loadCutsSidecar(meta);   /* 이미 만든 컷이 있으면 재사용(손실 없는 JSON) */
     if (!cuts) {
       setGenStage('이미지 컷(전환표) 생성 중…');
@@ -36567,9 +36627,10 @@ async function generateSermonImageSet(id, meta, opts){
     }
     if (!cuts || !cuts.length) throw new Error('컷 생성 실패');
     if (!opts.auto && !await uiConfirm('「' + (meta['제목'] || '설교') + '」 이미지 세트를 지금 생성할까요?\n전 컷을 한 장씩 만들어 수 분 걸립니다.')) { hideGenOverlay(); return; }   /* 취소 시 전체화면 오버레이 닫기(앱 잠김 방지) */
-    await generateImageSetFromCuts(id, meta, cuts);
+    var setR = await generateImageSetFromCuts(id, meta, cuts, T);
     if (id) { try { await transMarksSync(id, meta); } catch (e) {} }   /* v730 카드원고·고친 프롬프터 원고에도 전환 표시 */
-  } catch (e) { hideGenOverlay(); toast('이미지 세트 생성 실패: ' + (e.message || e)); }
+    return setR;
+  } catch (e) { hideGenOverlay(); toast('이미지 세트 생성 실패: ' + (e.message || e)); if (T) throw e; }
 }
 
 $('#syncBtn').addEventListener('click', function(){ sync(); });
@@ -38221,7 +38282,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v765';
+var APP_VER = 'v766';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -39691,6 +39752,268 @@ function occKnobPaint(){
   });
   try { aiUsagePaint(); } catch (e){}
   try { aiLogPaint(); } catch (e){}   /* v734 */
+})();
+
+/* ===================== v766 작업 창구 TSA_TASKS — 브레인 ⇄ 설교앱 신호 체계 1단계 (2026-11-19 목사님 제안) =====================
+   로고스 브레인(안경앱의 뇌, 사무실 맥의 에이전트)이 요청 파일을 두면 맥 앱(Total Sermons 1.9.0 의 일감 창구 tasks.js)이 이 창구를 부른다.
+     hello()        지금 무엇을 할 수 있나(버전·폴더 연결·AI·프록시·리더스 설정)
+     find(q)        설교 찾기 — 제목·본문·날짜·시리즈·예배·내용(낱말). 화면(검색창)과 무관
+     start(req)     일 시작 { id, type, sermon, again } — 유형: 설교요약·카드원고·LTC교재·리더스앱업로드·이미지생성. 한 번에 하나
+     status(id)     진행 중이면 { state:'running', stage }, 끝났으면 결과
+     cancel(id)     진행 중인 일 멈춤
+   결과 = { state: done|exists|failed|cancelled, summary, sermon, files:[{ name, root(x=결과함·ltc·dir=설교 폴더), rel, rootName }], details, warnings, error:{ code, message } }
+   원칙: 화면을 덮지 않는다(_taskQuiet) · 확인 창을 띄우지 않는다 · 작성 중인 다른 설교를 건드리지 않는다 · 폴더가 없으면 다운로드로 빠지지 않고 까닭을 알린다 ·
+         이미 만든 산출물이 있으면 다시 만들지 않고 알린다(again 이면 새로) · 리더스 앱 올리기는 목사님이 손본 교재 파일만(aiLeadersTsv 의 T 갈래). */
+(function(){
+  var LABEL = { '설교요약': '요약본·주제어', '카드원고': '카드원고', 'LTC교재': 'LTC 교재', '리더스앱업로드': '리더스 앱 올리기', '이미지생성': '이미지 한 벌' };
+  var ROOTS = function(){ return [['x', xHandle], ['ltc', ltcHandle], ['dir', dirHandle]]; };
+  var cur = null, done = {}, order = [], _handlesP = null;
+
+  function fail(code, msg){ var e = new Error(msg); e.code = code; return e; }
+  function N(s){ try { return String(s == null ? '' : s).normalize('NFC'); } catch (e) { return String(s == null ? '' : s); } }
+  function flat(s){ return N(s).toLowerCase().replace(/\s+/g, ''); }
+  /* 폴더 연결(IndexedDB 의 핸들)은 앱이 켜질 때 따로 불러온다 — 같은 열쇠를 한 번 더 읽어, 그 읽기가 끝난 뒤에 일을 시작한다 */
+  function handlesReady(){
+    if (!_handlesP) _handlesP = Promise.all([idbGet('dir'), idbGet('dirltc'), idbGet('dirx')]).catch(function(){});
+    return _handlesP;
+  }
+  function sermonInfo(s){
+    return { id: s['ID'], date: String(s['날짜'] || ''), worship: String(s['예배구분'] || ''), title: String(s['제목'] || ''), passage: String(s['본문'] || ''),
+      series: seriesShown(s['시리즈']), seriesNo: String(s['시리즈순번'] || ''), status: String(s['상태'] || '') };
+  }
+  /* 핸들(파일·폴더) → 연결된 폴더 기준 길 */
+  async function relOf(h, name){
+    var rs = ROOTS();
+    for (var i = 0; i < rs.length; i++){
+      if (!rs[i][1]) continue;
+      try {
+        var p = await rs[i][1].resolve(h);
+        if (p) { if (name) p = p.concat([name]); return { name: p[p.length - 1] || name || '', root: rs[i][0], rel: p.join('/'), rootName: rs[i][1].name }; }
+      } catch (e) {}
+    }
+    return { name: name || (h && h.name) || '', root: '', rel: name || (h && h.name) || '', rootName: '' };
+  }
+
+  /* ── 찾기 ── */
+  var _bookRe = null;
+  function refParts(ref){   /* 「요한복음 7장」·「요 7:14」·「요7」 → { book(약어), c, v } — 책 이름으로 시작하지 않으면 null */
+    if (!_bookRe) _bookRe = new RegExp('^(' + BOOKS.split('|').sort(function(a, b){ return b.length - a.length; }).join('|') + ')(?=\\s|\\d|$)\\s*(\\d+)?\\s*(?:[:장]\\s*(\\d+))?');
+    var m = N(ref).trim().match(_bookRe);
+    return m ? { book: bookAbbrOf(m[1]), c: m[2] ? +m[2] : 0, v: m[3] ? +m[3] : 0 } : null;
+  }
+  function passageHit(sermonRef, q){
+    return String(sermonRef || '').split(/[;,]/).some(function(part, i, all){
+      var r = parseRange(part.trim());
+      if (!r) { var p = refParts(part.trim()); return !!p && p.book === q.book && (!q.c || p.c === q.c); }
+      if (bookAbbrOf(r.book) !== q.book) return false;
+      if (!q.c) return true;
+      if (q.c < r.c1 || q.c > r.c2) return false;
+      if (!q.v || r.wholeChapter) return true;
+      if (q.c === r.c1 && q.v < r.v1) return false;
+      if (q.c === r.c2 && q.v > r.v2) return false;
+      return true;
+    });
+  }
+  function hasOf(s){
+    var set = doneTypes(s['ID']);
+    if (sumText(s)) set['설교요약'] = true;
+    if (sermonLtcData(s['ID'])) set['LTC교재'] = true;
+    if (String(s['카드원고'] || '').trim()) set['카드원고(작성창)'] = true;
+    return Object.keys(set);
+  }
+  function localFind(q){
+    var qp = q.passage ? refParts(q.passage) : null;
+    var terms = N(q.text).toLowerCase().split(/\s+/).filter(Boolean);
+    var title = flat(q.title), series = flat(q.series), worship = flat(q.worship), pflat = flat(q.passage);
+    return (state.data.sermons || []).filter(function(s){
+      if (!isLiveSermon(s)) return false;   /* 미래설교 보관함(보관)·임시 초안은 뺀다 */
+      var d = String(s['날짜'] || '');
+      if (q.date && d.indexOf(String(q.date)) !== 0) return false;
+      if (q.from && d < String(q.from)) return false;
+      if (q.to && d > String(q.to)) return false;
+      if (title && flat(s['제목']).indexOf(title) < 0) return false;
+      if (series && flat(s['시리즈']).indexOf(series) < 0) return false;
+      if (worship && flat(s['예배구분']).indexOf(worship) < 0) return false;
+      if (q.passage && !(qp ? passageHit(s['본문'], qp) : flat(s['본문']).indexOf(pflat) >= 0)) return false;
+      if (terms.length) {
+        var hay = nfcLow(SERMON_FIELDS.map(function(f){ return String(s[f] || ''); }).join(' '));
+        if (!terms.every(function(t){ return termHit(hay, t); })) return false;
+      }
+      return true;
+    });
+  }
+  async function find(q){
+    q = q || {};
+    try {
+      if (!_dataLoaded) return { ok: false, code: 'not_ready', message: '설교앱이 아직 자료를 불러오는 중입니다' };
+      var rows = localFind(q), full = false;
+      /* 원고 전문(시트 서버) — 낱말로 찾았는데 이 기기 자료에 없거나, 전문까지 찾아 달라고 했을 때. 다른 조건은 그대로 적용 */
+      if (q.text && (q.fulltext || !rows.length) && navigator.onLine && state.settings.url) {
+        try {
+          var qn = N(q.text), ids = (await api({ action: 'search', q: qn })) || [], have = {};
+          rows.forEach(function(s){ have[s['ID']] = 1; });
+          var rest = Object.assign({}, q, { text: '' }), okId = {};
+          localFind(rest).forEach(function(s){ okId[s['ID']] = 1; });
+          ids.forEach(function(id){ var s = findSermon(id); if (s && okId[id] && !have[id]) { rows.push(s); have[id] = 1; } });
+          full = true;
+        } catch (e) {}
+      }
+      /* 하나도 없으면 시트에서 최신을 한 번 받아 다시(방금 다른 기기에서 저장한 설교) */
+      if (!rows.length && !q._again && navigator.onLine && state.settings.url) {
+        try { await pullData(); } catch (e) {}
+        return find(Object.assign({}, q, { _again: 1 }));
+      }
+      rows.sort(function(a, b){ var x = String(a['날짜'] || ''), y = String(b['날짜'] || ''); return x < y ? 1 : x > y ? -1 : 0; });
+      var lim = Math.max(1, Math.min(20, +q.limit || 8));
+      return { ok: true, total: rows.length, fulltext: full, items: rows.slice(0, lim).map(function(s){ var o = sermonInfo(s); o.has = hasOf(s); return o; }) };
+    } catch (e) { return { ok: false, code: 'error', message: String((e && e.message) || e) }; }
+  }
+
+  /* ── 이미 만든 것이 있나 — 있으면 다시 만들지 않는다(리더스 올리기는 해당 없음) ── */
+  async function existing(type, meta){
+    var id = meta['ID'];
+    if (type === '설교요약') return sumText(meta) ? { files: [], note: '요약본이 이미 있습니다' } : null;
+    if (type === 'LTC교재') { var fh = await ltcDocxFileHandle(meta); return fh ? { files: [await relOf(fh)] } : null; }
+    if (type === '이미지생성') {
+      if (!canFolderSave() || !(await dirIf(xHandle))) return null;
+      var pre = imgDataNames(meta).backstagePrefixes.map(N);   /* 이 설교의 「…백스테이지_N장.zip」 */
+      var hit = await findResultFile(function(n){ var nn = N(n); return /\.zip$/.test(nn) && pre.some(function(p){ return nn.indexOf(p + '_') === 0; }); });
+      return hit ? { files: [await relOf(hit.dir, hit.name)] } : null;
+    }
+    await checkAssets(id);
+    var a = (state.assets[id] || {})[type];
+    return (a && a.ok && a.hit) ? { files: [await relOf(a.hit.dir, a.hit.name)] } : null;
+  }
+
+  /* 만들기 전에 저장할 곳부터 — 다 만들고 나서 저장할 폴더가 없다고 알리지 않게 */
+  async function needX(){ if (!canFolderSave() || !(await dirIf(xHandle))) throw fail('no_folder', '결과함 폴더(claude-exchange)가 연결돼 있지 않습니다'); }
+  async function needLtc(){ if (!(await dirIf(ltcHandle)) && !(await dirIf(dirHandle))) throw fail('no_folder', 'LTC 폴더도 설교 폴더도 연결돼 있지 않습니다'); }
+
+  /* ── 유형별 실행 — 앱의 단추와 같은 함수, T(무인 작업)만 넘긴다 ── */
+  var RUN = {
+    '설교요약': async function(meta, T){
+      var d = await aiSummarize(meta['ID'], meta, true, T);
+      if (!d) throw fail('error', '요약본을 만들지 못했습니다');
+      return { summary: '요약본과 주제어를 만들어 시트에 기록했습니다(요약 ' + d.chars + '자).', details: d };
+    },
+    '카드원고': async function(meta, T){
+      await needX();
+      var d = await aiCardScript(meta['ID'], meta, T);
+      if (!d) throw fail('error', '카드원고를 만들지 못했습니다');
+      return { summary: (d.drafted ? '원고를 추려 카드원고 초안을 쓰고 ' : '작성창의 카드원고를 ') + '결과함에 문서로 저장했습니다(' + d.cards + '장).', details: d };
+    },
+    'LTC교재': async function(meta, T){
+      await needLtc();
+      var d = await aiLtc(meta['ID'], meta, T);
+      if (!d) throw fail('error', 'LTC 교재를 만들지 못했습니다');
+      return { summary: 'LTC 교재를 만들어 저장했습니다(대지 ' + d.sections + '개 · GBS 질문 ' + d.gbs + '개). 검토하신 뒤에 리더스 앱에 올릴 수 있습니다.', details: d };
+    },
+    '리더스앱업로드': async function(meta, T, t){
+      var d = await aiLeadersTsv(meta['ID'], meta, T);
+      if (!d || !d.uploaded) throw fail('upload_failed', '리더스 앱에 올리지 못했습니다');
+      var x = t.detail, when = x.fileAt ? new Date(x.fileAt) : null;
+      function z(n){ return ('0' + n).slice(-2); }
+      var at = when ? (when.getMonth() + 1) + '/' + when.getDate() + ' ' + z(when.getHours()) + ':' + z(when.getMinutes()) + ' 저장본' : '';
+      return { summary: '리더스 앱에 올렸습니다 — ' + d.round + ' 「' + d.title + '」. ' + (at ? at + '을 읽었고, ' : '') +
+          (x.changed ? '처음 만든 교재에서 ' + x.changed + '곳이 달라져 있었습니다' : '손보신 흔적은 없었습니다(처음 만든 교재 그대로)') +
+          (d.unpublished ? '. 이전 판 ' + d.unpublished + '건은 게시를 내렸습니다' : '') + '.',
+        details: Object.assign({}, d, x) };
+    },
+    '이미지생성': async function(meta, T){
+      var pc = imgProxyCfg();
+      if (!pc.url || !pc.token) throw fail('no_proxy', '이미지 프록시 주소·토큰이 설정에 없습니다');
+      await needX();
+      var d = await generateSermonImageSet(meta['ID'], meta, { auto: true, task: T });
+      if (!d) throw fail('error', '이미지 세트를 만들지 못했습니다');
+      return { summary: '이미지 ' + d.made + '장을 만들어 결과함에 zip 으로 저장했습니다(' + d.sets + '벌)' + (d.warn.length ? ' · 대체한 컷 ' + d.warn.length + '개' : '') + (d.fail.length ? ' · 빠진 컷 ' + d.fail.length + '개' : '') + '.', details: d };
+    }
+  };
+
+  function finish(t, r){
+    r.id = t.id; r.type = t.type; r.label = LABEL[t.type] || t.type;
+    r.sermon = t.info || { id: t.sermon };
+    if (!r.files) r.files = t.files;
+    r.warnings = t.warnings; r.ms = Date.now() - t.at; r.app = APP_VER;
+    done[t.id] = r; order.push(t.id);
+    while (order.length > 30) delete done[order.shift()];
+    if (cur === t) cur = null;
+    _taskStage = '';
+    try { renderSyncState(); } catch (e) {}
+  }
+  async function run(t){
+    var T = {
+      saved: function(root, rel){ var h = root === 'x' ? xHandle : root === 'ltc' ? ltcHandle : dirHandle; t.files.push({ name: String(rel).split('/').pop(), root: root, rel: rel, rootName: h ? h.name : '' }); },
+      warn: function(m){ t.warnings.push(String(m)); },
+      detail: function(o){ Object.assign(t.detail, o || {}); },
+      fail: fail
+    };
+    var r = null;
+    _taskQuiet++;
+    try {
+      await handlesReady();
+      await ensureReqPerms(t.type);   /* 맥 앱이 시작을 「누른 것」으로 불러 준다 — 그 틈에 폴더 권한을 먼저 받아 둔다(앱 단추와 같은 순서) */
+      if (!_dataLoaded) throw fail('not_ready', '설교앱이 아직 자료를 불러오는 중입니다');
+      var s = findSermon(t.sermon);
+      if (!s) { try { await pullData(); } catch (e) {} s = findSermon(t.sermon); }
+      if (!s) throw fail('no_sermon', '그 설교를 찾지 못했습니다(' + t.sermon + ')');
+      t.info = sermonInfo(s);
+      if (t.type !== '리더스앱업로드' && !aiKey()) throw fail('no_ai', 'Claude 를 쓸 수 없습니다 — 맥 앱의 Claude 로그인을 확인해 주세요');
+      taskStage(LABEL[t.type] + ' — 원고 불러오는 중');
+      var row = (await ensureText(s['ID'])) || s;
+      var meta = Object.assign({}, findSermon(s['ID']) || row);   /* 사본 — 실행 중에 붙는 임시 칸이 설교 행에 남지 않게 */
+      if (t.type !== '리더스앱업로드' && !t.again) {
+        var ex = await existing(t.type, meta);
+        if (ex) { r = { state: 'exists', files: ex.files, summary: (ex.note || ('이미 만든 ' + LABEL[t.type] + '이(가) 있습니다' + (ex.files[0] ? ' — ' + ex.files[0].name : ''))) + '. 새로 만들려면 「다시 만들어 줘」라고 하시면 됩니다.' }; return; }
+      }
+      taskStage(LABEL[t.type] + ' — 시작');
+      var d = await RUN[t.type](meta, T, t);
+      r = { state: t.cancelled ? 'cancelled' : 'done', summary: (t.cancelled ? '도중에 멈췄습니다 — 그때까지: ' : '') + d.summary, details: d.details };
+    } catch (e) {
+      var msg = String((e && e.message) || e);
+      r = t.cancelled ? { state: 'cancelled', summary: '멈췄습니다.' }
+        : { state: 'failed', summary: LABEL[t.type] + ' — 하지 못했습니다: ' + msg, error: { code: (e && e.code) || 'error', message: msg } };
+      if (Object.keys(t.detail).length) r.details = t.detail;
+    } finally {
+      _taskQuiet = Math.max(0, _taskQuiet - 1);
+      if (t.cancelled) window._cascAbort = false;
+      finish(t, r || { state: 'failed', error: { code: 'error', message: '알 수 없는 오류' } });
+    }
+  }
+
+  window.TSA_TASKS = {
+    ver: 1,
+    hello: function(){
+      var pc = imgProxyCfg(), st = state.settings || {};
+      return { v: 1, app: APP_VER, ready: !!_dataLoaded, sermons: (state.data.sermons || []).length, types: Object.keys(RUN),
+        ai: !!aiKey(), host: hostAgentOn(), proxy: !!(pc.url && pc.token), leaders: !!(st.laUrl && st.laToken), online: navigator.onLine,
+        folders: { x: xHandle ? xHandle.name : '', ltc: ltcHandle ? ltcHandle.name : '', dir: dirHandle ? dirHandle.name : '' },
+        busy: cur ? cur.id : '' };
+    },
+    find: find,
+    start: function(req){
+      req = req || {};
+      var id = String(req.id || ''), type = String(req.type || '');
+      if (!id) return { ok: false, code: 'bad_request', message: '요청 번호가 없습니다' };
+      if (done[id] || (cur && cur.id === id)) return { ok: true, dup: true };   /* 같은 번호는 두 번 돌리지 않는다 */
+      if (cur) return { ok: false, code: 'busy', message: '다른 일(' + (LABEL[cur.type] || cur.type) + ')을 하는 중입니다' };
+      if (!RUN[type]) return { ok: false, code: 'bad_type', message: '할 수 없는 일입니다: ' + type };
+      if (!req.sermon) return { ok: false, code: 'bad_request', message: '어느 설교인지 없습니다' };
+      cur = { id: id, type: type, sermon: String(req.sermon), again: !!req.again, at: Date.now(), files: [], warnings: [], detail: {}, cancelled: false, info: null };
+      run(cur);
+      return { ok: true };
+    },
+    status: function(id){
+      id = String(id || '');
+      if (cur && cur.id === id) return { state: 'running', stage: _taskStage, ms: Date.now() - cur.at, sermon: cur.info };
+      return done[id] || { state: 'unknown' };
+    },
+    cancel: function(id){
+      if (!cur || cur.id !== String(id || '')) return false;
+      cur.cancelled = true; window._cascAbort = true;   /* 이미지 생성 반복은 이 표시를 보고 멈춘다 */
+      try { Object.keys(_hostRuns).forEach(function(k){ var r = _hostRuns[k]; if (r.task && r.id) window.TSA_HOST.agent.cancel(r.id); }); } catch (e) {}
+      return true;
+    }
+  };
 })();
 </script>
 
