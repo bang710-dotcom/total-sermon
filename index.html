@@ -34820,19 +34820,32 @@ function imgEngine(){ var e = state.settings && state.settings.imgEngine; return
 var FLUX_MODELS = { 'flux-3-image-klein': 'FLUX.3 Image klein', 'flux-3-image': 'FLUX.3 Image' };
 function fluxModel(){ var m = state.settings && state.settings.fluxModel; return FLUX_MODELS[m] ? m : ''; }
 function fluxModelName(m){ return FLUX_MODELS[m] || 'FLUX.2 klein'; }
-function fluxWrapSync(){ var w = document.getElementById('imgFluxWrap'), e = document.getElementById('imgEngineSel'); if (w && e) w.hidden = (e.value !== 'flux'); }
+/* v768 Nano Banana 모델(설정에 저장) — ''(기본 = Nano Banana Pro, fal-ai/nano-banana-pro) / 'nano-banana-2'(fal-ai/nano-banana-2 = Gemini 3.1 Flash Image).
+   프록시 워커 MODEL_IDS.fal 에 두 이름이 다 있고(2026-07 부터), 요청 모양(aspect_ratio·resolution 2K·png)도 두 모델이 같다 — 워커 수정 없음. */
+var NB_MODELS = { 'nano-banana-2': 'Nano Banana 2' };
+function nbModel(){ var m = state.settings && state.settings.nbModel; return NB_MODELS[m] ? m : ''; }
+function nbModelName(m){ return NB_MODELS[m] || 'Nano Banana Pro'; }
+/* 엔진 칸 아래 모델 칸 — Flux 면 Flux 모델, Gemini 면 Nano Banana 모델(v768)만 보인다 */
+function fluxWrapSync(){
+  var e = document.getElementById('imgEngineSel'); if (!e) return;
+  var w = document.getElementById('imgFluxWrap'), nb = document.getElementById('imgNbWrap');
+  if (w) w.hidden = (e.value !== 'flux');
+  if (nb) nb.hidden = (e.value !== 'gemini');
+}
 /* 작업유형 + 엔진 → {provider, model}.
    ※ 성구(본문) 컷은 어느 엔진을 써도 AI로 생성하지 않는다 — 직전 일반 이미지를
      톤다운·어둡게·흐리게 처리한 파생본을 배경으로 쓴다(아래 deriveScriptureBg).
      따라서 이 라우팅은 '배경' 생성에만 쓰이며, 'text'(제목 텍스트)는 연결테스트 전용이다.
    - 제목 텍스트는 한글 정확도 때문에 엔진과 무관하게 Nano Banana(fal.ai).
-   - Gemini 선택 시: 지역 차단 회피를 위해 fal.ai 경유 nano-banana-pro로 라우팅.
+   - Gemini 선택 시: 지역 차단 회피를 위해 fal.ai 경유 — 설정의 Nano Banana 모델(기본 nano-banana-pro, v768).
    - Krea 선택 시: fal.ai 경유 krea-2-turbo (배경·핵심 컷 동일 모델, 미감·질감 강점·저가).
-   - Flux 선택 시: background→설정의 Flux 모델(기본 klein), background-hero→max(연결 테스트 전용). */
+   - Flux 선택 시: background→설정의 Flux 모델(기본 klein), background-hero→max(연결 테스트 전용).
+   ※ 배경 전체 생성·이미지 낱장 재생성·설교 대화 image_generate·인스타 카드가 모두 이 함수를 거친다 —
+     엔진은 창에서 이번만 바꿀 수 있어도, 모델은 늘 설정에서 고른 것이다. */
 function engineRoute(jobType, engine){
   engine = engine || imgEngine();
   if (jobType === 'text') return { provider: 'fal', model: 'nano-banana-pro' };
-  if (engine === 'gemini') return { provider: 'fal', model: 'nano-banana-pro' };
+  if (engine === 'gemini') return { provider: 'fal', model: nbModel() || 'nano-banana-pro' };
   if (engine === 'krea') return { provider: 'fal', model: 'krea-2-turbo' };
   return { provider: 'flux', model: (jobType === 'background-hero' ? 'max' : (fluxModel() || 'klein')) };
 }
@@ -35970,11 +35983,15 @@ async function generateImageSetFromCuts(id, meta, cuts, TK){   /* v766 TK = 무�
 }
 /* ══ 이미지 낱장 재생성 (v527) ═══════════════════════════════════════════════
    전체를 다시 돌리지 않고 마음에 안 드는 번호만 새로 만든다.
-   ① 엔진을 이번만 바꿔 생성할 수 있고(Flux / Nano Banana Pro / Krea),
+   ① 엔진을 이번만 바꿔 생성할 수 있고(Flux / Nano Banana / Krea — 모델은 설정에서 고른 것, v768),
    ② 그 컷 바로 뒤에 붙은 "본문 컷"은 직전 일반 이미지의 파생본이므로 함께 다시 만든다,
    ③ 결과는 이미 저장된 백스테이지 zip 안의 해당 번호만 갈아끼워 덮어쓴다
       (zip이 없으면 낱장 PNG로 저장). */
-var IMG_ENGINES = [{ v: 'flux', t: 'Flux' }, { v: 'gemini', t: 'Nano Banana Pro' }, { v: 'krea', t: 'Krea 2' }];
+/* v768: 이름에 설정의 모델을 붙여 보인다(예전엔 「Flux」·「Nano Banana Pro」 고정 글자라 실제 쓰는 모델이 안 보였다) */
+function imgEngineList(){
+  return [{ v: 'flux', t: 'Flux · ' + fluxModelName(fluxModel()) }, { v: 'gemini', t: nbModelName(nbModel()) }, { v: 'krea', t: 'Krea 2' }];
+}
+function imgEngineLabel(v){ return (imgEngineList().filter(function(x){ return x.v === v; })[0] || {}).t || v; }
 
 function pngToCanvas(blob){
   var url = URL.createObjectURL(blob);
@@ -36053,9 +36070,9 @@ async function imgRegenOpen(){
       '<button class="btn sub mini" style="width:auto;flex:0 0 auto" onclick="imgRegenClose()">× 닫기</button></div>' +
     '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:10px 14px 0;flex-wrap:wrap">' +
       '<span style="font-size:var(--fs-md);color:var(--dim)">생성 엔진</span>' +
-      '<select id="irEngine" class="libsel">' + IMG_ENGINES.map(function(e){
-        return '<option value="' + e.v + '"' + (e.v === imgEngine() ? ' selected' : '') + '>' + e.t + '</option>'; }).join('') + '</select>' +
-      '<span class="cnt" style="margin:0">이번 재생성에만 적용됩니다(설정의 기본 엔진은 그대로). 컷마다 [✎ 프롬프트]로 그림 설명을 고친 뒤 [↻ 재생성]하세요.</span></div>' +
+      '<select id="irEngine" class="libsel">' + imgEngineList().map(function(e){
+        return '<option value="' + e.v + '"' + (e.v === imgEngine() ? ' selected' : '') + '>' + esc(e.t) + '</option>'; }).join('') + '</select>' +
+      '<span class="cnt" style="margin:0">엔진은 이번 재생성에만 바뀝니다(설정의 기본 엔진은 그대로). Flux·Nano Banana 모델은 설정 → 산출물에서 고른 모델을 씁니다. 컷마다 [✎ 프롬프트]로 그림 설명을 고친 뒤 [↻ 재생성]하세요.</span></div>' +
     '<div id="irStatus" style="flex:0 0 auto;display:none;margin:10px 14px 0;padding:10px 12px;border-radius:10px;' +
       'background:var(--card);border:1px solid var(--line);font-size:var(--fs-md)"></div>' +
     '<div id="irBody" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(20px + env(safe-area-inset-bottom))"></div>';
@@ -36265,7 +36282,7 @@ async function imgRegenOne(n){
   var c = cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
   var made = [];
   irBusy(true, n);
-  irStage('#' + n + ' 이미지를 다시 만들고 있습니다 — <b>' + esc((IMG_ENGINES.filter(function(x){ return x.v === eng; })[0] || {}).t || eng) +
+  irStage('#' + n + ' 이미지를 다시 만들고 있습니다 — <b>' + esc(imgEngineLabel(eng)) +
     '</b> · 보통 20~60초 걸립니다. 창을 닫지 마세요.', 'busy');
   var pack = await loadImgSetZip(S.meta);
   try {
@@ -38319,7 +38336,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v767';
+var APP_VER = 'v768';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -41870,7 +41887,7 @@ function occKnobPaint(){
           var pf = zipCutFile(pack0.zip, S.cuts[p].n); if (!pf) throw new Error('zip 에서 #' + S.cuts[p].n + ' 이미지를 찾지 못했습니다.');
           src = await pngToCanvas(await pf.async('blob'));
         }
-        T.label('#' + n + ' 후보 ' + vars.length + '장 만들기' + (isScr ? '' : ' · ' + ((IMG_ENGINES.filter(function(x){ return x.v === eng; })[0] || {}).t || eng)));
+        T.label('#' + n + ' 후보 ' + vars.length + '장 만들기' + (isScr ? '' : ' · ' + imgEngineLabel(eng)));
         var t0 = Date.now(), tick = setInterval(function(){ T.status(Math.round((Date.now() - t0) / 1000) + '초'); }, 1000);
         var ov = document.getElementById('genOverlay'), ovWas = !!(ov && ov.classList.contains('on'));
         window._cascAbort = false;
