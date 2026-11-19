@@ -36001,15 +36001,28 @@ async function generateImageSetFromCuts(id, meta, cuts, TK){   /* v766 TK = 무�
 }
 /* ══ 이미지 낱장 재생성 (v527) ═══════════════════════════════════════════════
    전체를 다시 돌리지 않고 마음에 안 드는 번호만 새로 만든다.
-   ① 엔진을 이번만 바꿔 생성할 수 있고(Flux / Nano Banana / Krea — 모델은 설정에서 고른 것, v768),
+   ① 엔진과 모델을 이번만 바꿔 생성할 수 있고(Flux / Nano Banana / Krea, v769 모델 칸 #irModel — 처음엔 설정의 모델),
+      창이 열려 있는 동안은 설교 대화·Ask 패널의 image_generate 도 그 엔진·모델을 쓴다(imgRegenPick),
    ② 그 컷 바로 뒤에 붙은 "본문 컷"은 직전 일반 이미지의 파생본이므로 함께 다시 만든다,
    ③ 결과는 이미 저장된 백스테이지 zip 안의 해당 번호만 갈아끼워 덮어쓴다
       (zip이 없으면 낱장 PNG로 저장). */
-/* v768: 이름에 설정의 모델을 붙여 보인다(예전엔 「Flux」·「Nano Banana Pro」 고정 글자라 실제 쓰는 모델이 안 보였다) */
 function imgEngineList(){
-  return [{ v: 'flux', t: 'Flux · ' + fluxModelName(fluxModel()) }, { v: 'gemini', t: nbModelName(nbModel()) }, { v: 'krea', t: 'Krea 2' }];
+  return [{ v: 'flux', t: 'Flux' }, { v: 'gemini', t: 'Nano Banana' }, { v: 'krea', t: 'Krea 2 Turbo' }];
 }
-function imgEngineLabel(v){ return (imgEngineList().filter(function(x){ return x.v === v; })[0] || {}).t || v; }
+/* 엔진 + 모델 → 보이는 이름(「Flux · FLUX.3 Image」·「Nano Banana 2」·「Krea 2 Turbo」). 모델이 없거나 엉뚱하면 설정의 모델(v768·v769) */
+function imgEngineLabel(v, model){
+  var m = imgModelOk(v, model) ? model : engineRoute('background', v).model;
+  var o = imgModelOpts(v).filter(function(x){ return x.v === m; })[0];
+  var name = o ? o.t : m;
+  return v === 'flux' ? 'Flux · ' + name : name;
+}
+/* 낱장 재생성 창의 모델 칸을 지금 엔진의 목록으로 채운다 — 처음 값은 설정의 모델. 모델이 하나뿐(Krea)이면 숨긴다 */
+function irModelFill(){
+  var e = document.getElementById('irEngine'), m = document.getElementById('irModel'); if (!e || !m) return;
+  var opts = imgModelOpts(e.value), cur = engineRoute('background', e.value).model;
+  m.innerHTML = opts.map(function(o){ return '<option value="' + o.v + '"' + (o.v === cur ? ' selected' : '') + '>' + esc(o.t) + (o.v === cur ? ' (설정)' : '') + '</option>'; }).join('');
+  var w = document.getElementById('irModelWrap'); if (w) w.style.display = (opts.length < 2) ? 'none' : 'inline-flex';
+}
 
 function pngToCanvas(blob){
   var url = URL.createObjectURL(blob);
@@ -36090,13 +36103,16 @@ async function imgRegenOpen(){
       '<span style="font-size:var(--fs-md);color:var(--dim)">생성 엔진</span>' +
       '<select id="irEngine" class="libsel">' + imgEngineList().map(function(e){
         return '<option value="' + e.v + '"' + (e.v === imgEngine() ? ' selected' : '') + '>' + esc(e.t) + '</option>'; }).join('') + '</select>' +
-      '<span class="cnt" style="margin:0">엔진은 이번 재생성에만 바뀝니다(설정의 기본 엔진은 그대로). Flux·Nano Banana 모델은 설정 → 산출물에서 고른 모델을 씁니다. 컷마다 [✎ 프롬프트]로 그림 설명을 고친 뒤 [↻ 재생성]하세요.</span></div>' +
+      '<span id="irModelWrap" style="display:inline-flex;gap:8px;align-items:center"><span style="font-size:var(--fs-md);color:var(--dim)">모델</span>' +
+        '<select id="irModel" class="libsel"></select></span>' +
+      '<span class="cnt" style="margin:0">엔진·모델은 이번 재생성에만 바뀝니다(설정은 그대로). 이 창이 열려 있는 동안은 Ask 패널·설교 대화에 말씀하셔서 다시 만들 때도 여기서 고른 엔진·모델을 씁니다. 컷마다 [✎ 프롬프트]로 그림 설명을 고친 뒤 [↻ 재생성]하세요.</span></div>' +
     '<div id="irStatus" style="flex:0 0 auto;display:none;margin:10px 14px 0;padding:10px 12px;border-radius:10px;' +
       'background:var(--card);border:1px solid var(--line);font-size:var(--fs-md)"></div>' +
     '<div id="irBody" style="flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 14px calc(20px + env(safe-area-inset-bottom))"></div>';
   document.body.appendChild(ov);
   document.body.style.overflow = 'hidden';
-  var se = document.getElementById('irEngine'); if (se) se.addEventListener('change', irPreviewAll);
+  var se = document.getElementById('irEngine'); if (se) se.addEventListener('change', function(){ irModelFill(); irPreviewAll(); });
+  irModelFill();
   imgRegenList();
 }
 window.imgRegenOpen = imgRegenOpen;
@@ -36296,11 +36312,11 @@ async function imgRegenOne(n){
   for (var k = 0; k < cuts.length; k++) if (cuts[k].n === n) { i = k; break; }
   if (i < 0) return;
   if (irDirty(n) && !await irSave(n, true)) return;   /* v625: 고친 프롬프트를 먼저 저장하고 그 값으로 생성 */
-  var eng = (document.getElementById('irEngine') || {}).value || imgEngine();
+  var pick = imgRegenPick() || { engine: imgEngine(), model: '' }, eng = pick.engine, mdl = pick.model;   /* v769 창에서 고른 엔진·모델 */
   var c = cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
   var made = [];
   irBusy(true, n);
-  irStage('#' + n + ' 이미지를 다시 만들고 있습니다 — <b>' + esc(imgEngineLabel(eng)) +
+  irStage('#' + n + ' 이미지를 다시 만들고 있습니다 — <b>' + esc(imgEngineLabel(eng, mdl)) +
     '</b> · 보통 20~60초 걸립니다. 창을 닫지 마세요.', 'busy');
   var pack = await loadImgSetZip(S.meta);
   try {
@@ -36315,7 +36331,7 @@ async function imgRegenOne(n){
       srcCanvas = await pngToCanvas(await pf.async('blob'));
       made.push({ n: c.n, bg: srcCanvas, kind: 'scr', cut: c });
     } else {
-      var got = isCover ? await genCoverWithRetry(c, eng) : await genBgWithRetry(c, eng);
+      var got = isCover ? await genCoverWithRetry(c, eng, mdl) : await genBgWithRetry(c, eng, mdl);
       if (!got || !got.canvas) throw new Error('이미지 생성 실패(엔진 응답 없음) — 다른 엔진으로 시도해 보세요.');
       srcCanvas = got.canvas;
       made.push({ n: c.n, bg: srcCanvas, kind: isCover ? 'cover' : 'bg' });
@@ -36341,7 +36357,7 @@ async function imgRegenOne(n){
     });
     var nums = '#' + made.map(function(x){ return x.n; }).join(', #');
     irStage('<b style="color:var(--ok)">' + nums + ' 재생성 완료</b> — ' + (pack ? 'zip 안에서 교체했습니다.' : '낱장 PNG로 저장했습니다.') +
-      ' 마음에 들지 않으면 엔진을 바꿔 다시 눌러 보세요.', 'ok');
+      ' 마음에 들지 않으면 엔진·모델을 바꿔 다시 눌러 보세요.', 'ok');
     toast(nums + ' 재생성 완료');
   } catch (e) {
     irStage('<b style="color:var(--warn)">재생성 실패</b> — ' + esc(e.message || String(e)), 'err');
@@ -38354,7 +38370,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v768';
+var APP_VER = 'v769';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
@@ -41867,8 +41883,11 @@ function occKnobPaint(){
         });
         var rules = P_IMGDATA.split('\n').filter(function(l){ return /^(★표현 방식|en\(일반|★★인물 고증|★en 안전 규칙)/.test(l); }).join('\n');
         T.ok(S.cuts.length + '컷');
+        var pk = imgRegenPick();   /* v769 낱장 재생성 창이 열려 있으면 그 창에서 고른 엔진·모델 */
+        var engLine = pk ? pk.engine + ' · ' + imgEngineLabel(pk.engine, pk.model) + ' — 목사님이 낱장 재생성 창에서 고르신 것(창이 열려 있는 동안 image_generate 가 engine 을 비우면 이것으로 만든다)'
+          : imgEngine() + ' · ' + imgEngineLabel(imgEngine()) + ' — 설정값';
         return '설교: ' + (S.meta['제목'] || '') + ' (' + (S.meta['날짜'] || '') + ')\n이미지 zip: ' + (pack ? pack.name : '없음 — 아직 전체 생성 전(교체 대신 낱장 파일로 저장됨)') +
-          '\n화면 규격: ' + imgScreenTargets().map(function(t){ return t.s.label; }).join(' + ') + '\n생성 엔진: ' + imgEngine() + ' (image_generate 의 engine 으로 바꿀 수 있음: flux|gemini|krea)\n\n' +
+          '\n화면 규격: ' + imgScreenTargets().map(function(t){ return t.s.label; }).join(' + ') + '\n생성 엔진: ' + engLine + ' (image_generate 의 engine 으로 바꿀 수 있음: flux|gemini|krea)\n\n' +
           lines.join('\n') + '\n\n[en 작성 규칙 — 전체 컷 생성과 같은 규칙. 장면(주어)을 맨 앞에, 긍정형으로, 글자·문자는 넣지 않는다]\n' + rules;
       } },
     image_view: { label: '설교 이미지 보기',
@@ -41886,7 +41905,7 @@ function occKnobPaint(){
         return { text: '#' + n + ' 지금 이미지 (' + pack.name + ')', images: b64 ? [b64] : [] };
       } },
     image_generate: { label: '이미지 후보 만들기',
-      def: { description: '#n 컷의 이미지 후보를 1~4장 새로 만든다(zip 은 아직 그대로). 일반·표지 컷: variants 마다 영문 장면 en(필수 — 목사님 요청을 반영해 image_cuts 의 「en 작성 규칙」대로 새로 씀)과, 바뀐다면 ko(한국어 설명)·style(사실적|추상적). 「본문」 컷은 그림을 새로 그리지 않고 직전 일반 이미지에서 파생하므로 ref·verse(화면에 얹을 성구)만 바꿀 수 있다. engine: flux|gemini|krea(생략하면 설정값). 한 장에 20~60초. 결과로 후보 번호(예: 7-2)와 작은 그림이 온다 — 목사님께 보여 드리고 고르시면 image_apply.',
+      def: { description: '#n 컷의 이미지 후보를 1~4장 새로 만든다(zip 은 아직 그대로). 일반·표지 컷: variants 마다 영문 장면 en(필수 — 목사님 요청을 반영해 image_cuts 의 「en 작성 규칙」대로 새로 씀)과, 바뀐다면 ko(한국어 설명)·style(사실적|추상적). 「본문」 컷은 그림을 새로 그리지 않고 직전 일반 이미지에서 파생하므로 ref·verse(화면에 얹을 성구)만 바꿀 수 있다. engine: flux|gemini|krea — 생략하면 낱장 재생성 창이 열려 있을 땐 그 창에서 고른 엔진·모델, 아니면 설정값(목사님이 엔진을 말씀하지 않으셨으면 비워 둔다). 한 장에 20~60초. 결과로 후보 번호(예: 7-2)와 작은 그림이 온다 — 목사님께 보여 드리고 고르시면 image_apply.',
         input_schema: { type: 'object', properties: { n: { type: 'integer' }, variants: { type: 'array', items: { type: 'object', properties: {
           en: { type: 'string' }, ko: { type: 'string' }, style: { type: 'string', enum: ['사실적', '추상적'] }, ref: { type: 'string' }, verse: { type: 'string' } } } },
           engine: { type: 'string', enum: ['flux', 'gemini', 'krea'] } }, required: ['n', 'variants'] } },
@@ -41896,7 +41915,10 @@ function occKnobPaint(){
         if (i < 0) throw new Error('#' + n + ' 컷이 없습니다(컷 ' + S.cuts.length + '개).');
         var c = S.cuts[i], isScr = (c.type === '본문'), isCover = (c.n === 1 || c.type === '표지');
         var vars = (Array.isArray(inp.variants) ? inp.variants : []).slice(0, 4); if (!vars.length) vars = [{}];
-        var eng = ['flux', 'gemini', 'krea'].indexOf(inp.engine) >= 0 ? inp.engine : imgEngine();
+        /* v769 낱장 재생성 창이 열려 있으면 그 창의 엔진·모델 — engine 을 따로 받았으면 그 엔진(창과 같은 엔진이면 창의 모델, 다르면 설정의 모델) */
+        var pk = imgRegenPick();
+        var eng = ['flux', 'gemini', 'krea'].indexOf(inp.engine) >= 0 ? inp.engine : (pk ? pk.engine : imgEngine());
+        var mdl = (pk && pk.engine === eng) ? pk.model : '';
         var src = null;
         if (isScr){
           var p = i - 1; while (p >= 0 && S.cuts[p].type === '본문') p--;
@@ -41905,7 +41927,8 @@ function occKnobPaint(){
           var pf = zipCutFile(pack0.zip, S.cuts[p].n); if (!pf) throw new Error('zip 에서 #' + S.cuts[p].n + ' 이미지를 찾지 못했습니다.');
           src = await pngToCanvas(await pf.async('blob'));
         }
-        T.label('#' + n + ' 후보 ' + vars.length + '장 만들기' + (isScr ? '' : ' · ' + imgEngineLabel(eng)));
+        var engName = imgEngineLabel(eng, mdl);
+        T.label('#' + n + ' 후보 ' + vars.length + '장 만들기' + (isScr ? '' : ' · ' + engName));
         var t0 = Date.now(), tick = setInterval(function(){ T.status(Math.round((Date.now() - t0) / 1000) + '초'); }, 1000);
         var ov = document.getElementById('genOverlay'), ovWas = !!(ov && ov.classList.contains('on'));
         window._cascAbort = false;
@@ -41917,7 +41940,7 @@ function occKnobPaint(){
           var bg, kind;
           if (isScr){ bg = src; kind = 'scr'; }
           else {
-            var got = isCover ? await genCoverWithRetry(x, eng) : await genBgWithRetry(x, eng);
+            var got = isCover ? await genCoverWithRetry(x, eng, mdl) : await genBgWithRetry(x, eng, mdl);
             if (!got || !got.canvas) throw new Error('후보 ' + (k + 1) + ' 생성 실패' + (_imgLastErr ? ' — ' + _imgLastErr : ''));
             bg = got.canvas; kind = isCover ? 'cover' : 'bg';
           }
@@ -41938,7 +41961,7 @@ function occKnobPaint(){
         for (var q = 0; q < ids.length; q++){ var b64 = await agB64(AG.cands[ids[q]].preview, 640); if (b64) imgs.push(b64); }
         V.log.push('#' + n + ' 후보 ' + ids.join(', '));
         T.ok(ids.length + '장' + (errs.length ? ' · 실패 ' + errs.length : ''));
-        return { text: '#' + n + ' 후보 ' + ids.length + '장: ' + ids.map(function(id){ var cc = AG.cands[id].cut; return id + (isScr ? ' (' + (cc.ref || '') + ')' : ' — ' + String(cc.en || '').slice(0, 90)); }).join(' / ') +
+        return { text: '#' + n + ' 후보 ' + ids.length + '장' + (isScr ? '' : '(' + engName + (pk && pk.engine === eng ? ' — 낱장 재생성 창에서 고른 것' : '') + ')') + ': ' + ids.map(function(id){ var cc = AG.cands[id].cut; return id + (isScr ? ' (' + (cc.ref || '') + ')' : ' — ' + String(cc.en || '').slice(0, 90)); }).join(' / ') +
           (errs.length ? '\n실패 ' + errs.length + '장: ' + errs.join(' / ') : '') + '\n그림은 위 순서대로 붙어 있다(가운데 화면 기준). 목사님이 고르시면 image_apply(candidate).', images: imgs };
       } },
     image_apply: { label: '이미지 교체',
