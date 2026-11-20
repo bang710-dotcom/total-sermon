@@ -15368,23 +15368,24 @@ async function pmMarksBtn(btn){
     + (r.over ? ' · 한 줄 폭을 넘은 줄 ' + r.over + '개는 [넘친 줄 정리]' : '') + '. [저장]하면 시트·사역 안경 앱에도 반영됩니다.');
 }
 /* 이미지 #N 을 지우면 — 프롬프터 원고의 ▶N 표시를 빼고 뒤 번호를 당긴다(카드원고 imgCardShift 와 같은 방식 — 작성창·시트 칸을 따로) */
-function prBarShift(text, N){
+function prBarShift(text, N, ins){   /* ins(v770 이미지 추가) = 빼지 않고 ▶N 부터를 하나씩 뒤로 민다 */
   var P = prMarksParse(text), changed = false;
   P.lines.forEach(function(L){
     if (L.blank || !L.marks.length) return;
+    if (ins) { L.marks.forEach(function(m){ if (m.n >= N) { m.n++; changed = true; } }); return; }
     L.marks = L.marks.filter(function(m){ if (m.n === N) { changed = true; return false; } return true; });
     L.marks.forEach(function(m){ if (m.n > N) { m.n--; changed = true; } });
   });
   return { text: changed ? prMarksBuild(P) : String(text == null ? '' : text), changed: changed };
 }
-function imgPrShift(id, N){
+function imgPrShift(id, N, ins){
   var changed = false, c = state.compose;
   var mine = !!c && (id ? String(state.editing || '') === String(id) : !state.editing);
   if (mine && c.prompter && String(c.prompter).trim()) {
-    var r = prBarShift(c.prompter, N);
+    var r = prBarShift(c.prompter, N, ins);
     if (r.changed) {
       var wasClean = !composeDirty();
-      try { histSnap('이미지 #' + N + ' 삭제 전'); } catch (e) {}
+      try { histSnap('이미지 #' + N + (ins ? ' 추가 전' : ' 삭제 전')); } catch (e) {}
       c.prompter = r.text;
       if (wasClean && id) state.savedSig = composeSig();   /* 시트 칸도 아래에서 같은 글로 고친다 — 미저장으로 보이지 않게 */
       try { if (pmView()) { pmLoad(); pmPaint(); } } catch (e) {}
@@ -15393,7 +15394,7 @@ function imgPrShift(id, N){
   }
   var s = id ? findSermon(id) : null, pj = s ? prCellParse(s['프롬프터원고']) : null;
   if (pj && String(pj.text || '').trim()) {
-    var r2 = prBarShift(pj.text, N);
+    var r2 = prBarShift(pj.text, N, ins);
     if (r2.changed) {
       var cell = JSON.stringify({ v: 1, text: r2.text, base: pj.base || '', width: pj.width || prOpt().width });
       if (cell.length <= PR_CELL_MAX) {
@@ -36217,8 +36218,8 @@ document.addEventListener('change', function(e){
   var el = e.target; if (!el || !el.dataset || el.dataset.irf !== 'style' || !el.closest('#irOv')) return;
   var n = +el.dataset.n, d = irDraft(n); if (!d) return; d.style = el.value; irRefresh(n);
 });
-async function irWriteSidecar(){
-  var S = window._irState; if (!S) return;
+async function irWriteSidecar(S){   /* S(v770) = 창 밖(설교 대화의 image_insert)에서 읽은 컷 상태 — 없으면 낱장 재생성 창의 것 */
+  S = S || window._irState; if (!S) return;
   var blob = new Blob([JSON.stringify({ cuts: S.cuts, origSig: S.origSig || manuscriptSig(S.meta) }, null, 1)], { type: 'application/json' });
   /* 원고 서명(origSig)은 처음 만들 때 값을 그대로 둔다 — 지금 서명으로 바꾸면 원고 수정 감지(askCutsStale)가 꺼진다 */
   if (S.sideH) { var w = await S.sideH.createWritable(); await w.write(blob); await w.close(); }
@@ -36376,10 +36377,11 @@ window.imgRegenOne = imgRegenOne;
    카드 디자인 PDF·PPTX 는 AI 조판이라 저절로 고칠 수 없다 — 있으면 다시 만들라고 안내만 한다.
    ⚠ 이미 있는 문서만 다시 만든다(없던 산출물을 새로 만들지 않는다). */
 /* 글 안의 전환 줄(「▶ 이미지 #n 전환 ◀」·「▶ 본문 이미지 #n 전환 ◀」)에서 #N 줄을 빼고 뒤 번호를 하나씩 당긴다 */
-function imgBarShift(text, N){
+function imgBarShift(text, N, ins){   /* ins(v770 이미지 추가) = 빼지 않고 #N 부터를 하나씩 뒤로 민다 */
   var changed = false, out = [];
   String(text == null ? '' : text).split('\n').forEach(function(l){
     var k = cardIsBar(l) ? cardMarkInfo(l).n : 0;
+    if (ins) { if (k >= N) { changed = true; out.push(l.replace(/#\s*\d+/, '#' + (k + 1))); } else out.push(l); return; }
     if (k && k === N) { changed = true; return; }
     if (k > N) { changed = true; out.push(l.replace(/#\s*\d+/, '#' + (k - 1))); return; }
     out.push(l);
@@ -36393,10 +36395,11 @@ function transTableDropCut(table, N){
   return kept.length === table.length ? null : normalizeTransTable(kept);
 }
 /* 옛 AI 카드(파일맵 cardArr — {t:'trans', x:'▶ 이미지 #n 전환 ◀'} 블록) — 바뀐 게 없으면 null */
-function cardArrDropCut(arr, N){
+function cardArrDropCut(arr, N, ins){   /* ins(v770) = #N 부터를 하나씩 뒤로 */
   var ch = false, out = [];
   (arr || []).forEach(function(b){
     var k = (b && b.t === 'trans') ? cardMarkInfo(b.x).n : 0;
+    if (ins) { if (k >= N) { ch = true; out.push(Object.assign({}, b, { x: String(b.x).replace(/#\s*\d+/, '#' + (k + 1)) })); } else out.push(b); return; }
     if (k && k === N) { ch = true; return; }
     if (k > N) { ch = true; out.push(Object.assign({}, b, { x: String(b.x).replace(/#\s*\d+/, '#' + (k - 1)) })); return; }
     out.push(b);
@@ -36473,14 +36476,14 @@ async function imgLooseShift(meta, N){
 }
 /* 카드원고의 전환 표시 — 작성창(이 설교가 열려 있으면)과 시트 칸을 따로 고친다.
    작성창에 저장 안 한 글이 있어도 그 글은 시트로 보내지 않는다(시트 칸은 시트 값을 고친 것만). 내보낼 글을 돌려준다. */
-function imgCardShift(id, N){
+function imgCardShift(id, N, ins){   /* ins(v770) = 이미지 추가 — #N 부터를 하나씩 뒤로 */
   var changed = false, text = '', c = state.compose;
   var mine = !!c && (id ? String(state.editing || '') === String(id) : !state.editing);
   if (mine && Array.isArray(c.cards) && c.cards.length){
-    var r = c.cards.map(function(t){ return imgBarShift(t, N); });
+    var r = c.cards.map(function(t){ return imgBarShift(t, N, ins); });
     if (r.some(function(x){ return x.changed; })){
       var wasClean = !composeDirty();
-      try { histSnap('이미지 #' + N + ' 삭제 전'); } catch (e) {}   /* histCapture 는 지금(바꾸기 전) 작성창을 바로 떠 둔다 */
+      try { histSnap('이미지 #' + N + (ins ? ' 추가 전' : ' 삭제 전')); } catch (e) {}   /* histCapture 는 지금(바꾸기 전) 작성창을 바로 떠 둔다 */
       c.cards = r.map(function(x){ return x.text; });
       if (wasClean && id) state.savedSig = composeSig();   /* 시트 칸도 아래에서 같은 글로 고친다 — 미저장으로 보이지 않게 */
       try { if (c.style === '카드원고') renderEditor(); else cardNavRender(); } catch (e) {}
@@ -36490,7 +36493,7 @@ function imgCardShift(id, N){
   }
   var s = id ? findSermon(id) : null;
   if (s && String(s['카드원고'] || '').trim()){
-    var r2 = imgBarShift(s['카드원고'], N);
+    var r2 = imgBarShift(s['카드원고'], N, ins);
     if (r2.changed){
       s['카드원고'] = r2.text; saveData();
       apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '카드원고': r2.text } }).catch(function(){});
@@ -36527,7 +36530,7 @@ function imgDelDocPreds(meta){
 /* 이미 만든 전환표시본·전환 표시 PDF 를 새 번호로 다시 만든다. 지금 문서의 전환 바 자리(바 바로 다음 줄)를 그대로 쓰고
    #N 바만 빼서, 원고 수정 반영(applyRetrans)과 같은 방식(retransMatch → retransBody)으로 본문을 다시 짠다 —
    되읽은 문서 글은 빈 줄이 빠져 있어 그대로 쓰면 문단 간격이 달라진다. 문서가 없고 PDF 만 있으면 전환표로 자리를 잡는다. */
-async function imgTransDocShift(id, meta, N, table, hits){
+async function imgTransDocShift(id, meta, N, table, hits, ins){   /* ins(v770 이미지 추가) = 새 행 {n:N, t, a, role} — #N 부터를 하나씩 뒤로 밀고 그 자리에 넣는다 */
   var res = { done: [], weak: [] };
   var txt = String(meta['원고텍스트'] || '').trim();
   if (!txt || !(hits.trans || hits.transPdf)) return res;
@@ -36538,11 +36541,15 @@ async function imgTransDocShift(id, meta, N, table, hits){
       rows = [];
       for (var i = 0; i < lines.length; i++){
         if (!cardIsBar(lines[i])) continue;
-        var inf = cardMarkInfo(lines[i]); if (!inf.n || inf.n === N) continue;
+        var inf = cardMarkInfo(lines[i]); if (!inf.n || (!ins && inf.n === N)) continue;
         var nx = ''; for (var j = i + 1; j < lines.length; j++) if (!cardIsBar(lines[j])) { nx = lines[j]; break; }
-        rows.push({ n: inf.n > N ? inf.n - 1 : inf.n, t: inf.scr ? '본문' : '일반', a: String(nx).trim().slice(0, 30), role: '' });
+        rows.push({ n: ins ? (inf.n >= N ? inf.n + 1 : inf.n) : (inf.n > N ? inf.n - 1 : inf.n), t: inf.scr ? '본문' : '일반', a: String(nx).trim().slice(0, 30), role: '' });
       }
       if (!rows.length) rows = null;
+      else if (ins){
+        var at = 0; while (at < rows.length && rows[at].n < N) at++;
+        rows.splice(at, 0, { n: N, t: ins.t, a: ins.a, role: ins.role || '' });
+      }
     } catch (e) { rows = null; }
   }
   if (!rows) rows = (table || []).slice();
