@@ -36948,7 +36948,7 @@ function imgInsOpen(n){
   S._ins = { n: n, quotes: transQuotes(paras, S.meta['본문']) };
   box.innerHTML =
     '<div style="font-weight:700">' + uiIco('plus') + ' #' + n + ' 뒤에 새 이미지 → 새 번호 #' + M + '</div>' +
-    '<div class="irHint">' + (M <= maxN ? '지금 ' + rng(M, maxN) + ' 은(는) ' + rng(M + 1, maxN + 1) + ' (으)로 하나씩 밀립니다.' : '마지막에 붙습니다 — 다른 번호는 그대로입니다.') +
+    '<div class="irHint">' + (M <= maxN ? '뒤 번호가 하나씩 밀립니다: ' + rng(M, maxN) + ' → ' + rng(M + 1, maxN + 1) + '.' : '마지막에 붙습니다 — 다른 번호는 그대로입니다.') +
       ' 이미지 전환표 · 이미지 zip · 이미 만든 전환표시본·전환 표시 PDF·이미지자료 문서 · 카드원고·프롬프터 원고의 전환 표시도 함께 고칩니다.</div>' +
     '<div class="irGrid" style="margin-top:10px"><label class="irLab" style="margin:0">종류</label>' +
       '<select id="ir-ins-type-' + n + '" onchange="imgInsPaint(' + n + ')"><option value="일반">일반 이미지 — 새 그림을 만듭니다</option>' +
@@ -42567,7 +42567,7 @@ function occKnobPaint(){
           G.cand.slice(0, 15).map(function(q){ return '「' + String(G.lines[q]).trim().slice(0, 40) + '」'; }).join(' / ') + (G.cand.length > 15 ? ' … 외 ' + (G.cand.length - 15) + '줄' : ''));
         var M = after + 1, maxN = S.cuts[S.cuts.length - 1].n, kind = isScr ? '본문' : '일반';
         T.label('#' + after + ' 뒤에 ' + kind + ' 이미지 추가');
-        var ok = await agAsk(T, { title: '#' + after + ' 뒤에 새 ' + kind + ' 이미지를 넣습니다 → 새 번호 #' + M + (M <= maxN ? ' · 지금 #' + M + (M < maxN ? '~#' + maxN : '') + ' 은(는) 하나씩 밀립니다' : '') +
+        var ok = await agAsk(T, { title: '#' + after + ' 뒤에 새 ' + kind + ' 이미지를 넣습니다 → 새 번호 #' + M + (M <= maxN ? ' · 뒤 번호가 하나씩 밀립니다(#' + M + (M < maxN ? '~#' + maxN : '') + ' → #' + (M + 1) + (M < maxN ? '~#' + (maxN + 1) : '') + ')' : '') +
           ' · 넘어가는 줄: 「' + String(G.lines[line]).trim().slice(0, 50) + '」 · 전환표·이미지 zip·이미 만든 문서·카드원고·프롬프터 원고의 번호도 함께 고칩니다.', ok: '추가', no: '취소' });
         if (!ok) return '목사님이 추가를 취소하셨다 — 아무것도 바꾸지 않았다.';
         var R;
