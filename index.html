@@ -30735,6 +30735,48 @@ $('#sl_topic').addEventListener('click', function(){
   state.seriesReqs = {}; spLastScan = null;
   renderSeriesPage();
 });
+$('#sl_wed').addEventListener('click', function(){
+  var S = newSeriesEntry(); S.kind = 'wed';
+  state.series = S; state.seriesMode = 'wizard';
+  state.seriesReqs = {}; spLastScan = null;
+  renderSeriesPage();
+});
+/* 수요예배 — 기간·성경을 바꾸면 수요일·범위 다시 계산, 범위 칸은 직접 고치기, 체크를 풀면 남은 수요일로 다시 나누기 */
+$('#wed_start').addEventListener('change', wedPreview);
+$('#wed_end').addEventListener('change', wedPreview);
+$('#wedMeta').addEventListener('input', function(e){
+  var t = e.target, S = state.series;
+  if (t.classList.contains('wedRange')) { var x = S && S.sched && S.sched[+t.dataset.i]; if (x) { x['범위'] = t.value; spSaveSoon(); } }
+  else if (t.id === 'wed_src') wedPreview();
+});
+$('#wedMeta').addEventListener('change', function(e){
+  var t = e.target, S = state.series;
+  if (!t.classList.contains('wedUse') || !S || !S.sched) return;
+  var x = S.sched[+t.dataset.i]; if (!x) return;
+  x['제외'] = !t.checked;
+  wedSplitInto(S.sched, wedParseBible($('#wed_src').value));
+  saveSeries(); wedPreview();
+});
+$('#wedMeta').addEventListener('click', async function(e){
+  if (!(e.target.closest && e.target.closest('#wedRangeReset'))) return;
+  if (!await uiConfirm('범위를 수요일 수에 맞춰 다시 고르게 나눌까요?\n직접 고친 범위는 지워집니다.')) return;
+  wedSyncSched(true); wedPreview(); toast('범위를 다시 나눴습니다.');
+});
+$('#wed_gen').addEventListener('click', async function(){
+  var S = state.series; if (!S) return;
+  var m = wedReadMeta();
+  if (!m) { toast('성경 또는 주제, 그리고 수요일이 하나 이상 들어가는 기간을 입력해 주세요.'); return; }
+  if (!aiKey()) { toast('수요예배 시리즈는 Claude API 직결로 동작합니다. 설정에서 Claude API 키를 입력해 주세요.'); return; }
+  if ((state.seriesReqs || {})['수요설교'] === '진행중') { toast('생성 중입니다 — 잠시만 기다려 주세요.'); return; }
+  var old = S.meta || {};
+  var changed = !!(S.sermon && (old['입력'] !== m['입력'] || JSON.stringify(old['일정'] || []) !== JSON.stringify(m['일정'])));
+  if (changed && !await uiConfirm('성경(주제)이나 수요일·범위가 바뀌었습니다.\n이전 선택지를 지우고 새로 생성할까요?')) return;
+  if (!changed && S.sermon && !await uiConfirm('이미 생성된 선택지가 있습니다. 다시 생성할까요?\n(아래 [재작업]·[↻ 이 회차 재생성]으로도 다시 만들 수 있습니다)')) return;
+  var oldIds = wedDraftIds(S);
+  if (changed) { S.sermon = null; S.sermonDone = false; }
+  S.meta = m; saveSeries(); renderSeriesPane();
+  aiSeriesWed(null, oldIds);
+});
 /* 회차 수 변경 → 회차 명칭 입력칸 재생성(기존 입력은 유지) */
 $('#topicMeta').addEventListener('input', function(e){
   if (e.target.id === 'tp_count') { twRenderSessions(); twPreview(); }
@@ -32475,6 +32517,284 @@ async function aiSeriesTopic(noteOverride){
   }
 }
 
+/* ============ 수요예배 시리즈 마법사 (v772, 2026-11-24 목사님 요청) ============
+   성경(책·범위) 또는 주제 하나와 기간을 받아, 기간 안의 수요일마다 설교 주제 선택지 3개를 만든다.
+   성경이면 앱이 그 범위를 (빼지 않은) 수요일 수로 나눠 수요일마다 비슷한 분량을 정하고 — 자를 자리 가까이에 장 첫 절이 있으면 장 경계로 —
+   AI 는 그 날 범위 안에서만 본문을 고른다(범위 밖 선택지는 뺀다). 주제면 AI 가 주제의 흐름에 맞춰 성경 전체에서 고른다.
+   주(weeks)의 '주일' 칸에 수요일 날짜, '주간범위' 칸에 그 날 범위를 담아 선택·확정·보관·시트 복원 경로를 주일·새벽 시리즈와 함께 쓴다.
+   S.sched = [{날짜, 범위, 제외}] 편집 가능한 일정, S.schedDate = 일정 기준 키(wedKey). */
+function isWed(S){ S = S || state.series; return !!(S && S.kind === 'wed'); }
+function wedDays(s, e){
+  if (!s || !e || s > e) return [];
+  var d = new Date(s + 'T12:00:00'), end = new Date(e + 'T12:00:00'), out = [];
+  if (isNaN(d) || isNaN(end)) return [];
+  d.setDate(d.getDate() + (3 - d.getDay() + 7) % 7);
+  while (d <= end && out.length < 60) { out.push(d.toISOString().slice(0, 10)); d.setDate(d.getDate() + 7); }
+  return out;
+}
+/* 성경 입력 → {idx, c1, v1, c2, v2} — 「로마서」「롬」「요한복음 13-21장」「롬 1:1-8:39」「요 3장 1절-21절」. 성경으로 못 읽으면 null(= 주제) */
+function wedParseBible(src){
+  var t = String(src || '').trim().replace(/(\d+)\s*장\s*(\d+)\s*절/g, '$1:$2').replace(/(\d)\s*[장절]/g, '$1')
+    .replace(/([가-힣])(\d)/g, '$1 $2').replace(/\s+/g, ' ');
+  if (!t) return null;
+  var map = devoBookIdxMap(), idx = map[t], vc;
+  if (idx != null) { vc = verseCounts()[idx]; return vc ? { idx: idx, c1: 1, v1: 1, c2: vc.length, v2: vc[vc.length - 1] } : null; }
+  var r = parseRange(t); if (!r) return null;
+  idx = map[r.book]; vc = idx != null ? verseCounts()[idx] : null; if (!vc) return null;
+  var v2 = r.wholeChapter ? (vc[r.c2 - 1] || 0) : r.v2;
+  if (refWhyBad(idx, r.c1, r.v1, r.c2, v2)) return null;
+  return { idx: idx, c1: r.c1, v1: r.v1, c2: r.c2, v2: v2 };
+}
+function wedRefOf(B){ return BOOK_FULL[B.idx] + ' ' + B.c1 + ':' + B.v1 + (B.c1 === B.c2 && B.v1 === B.v2 ? '' : '-' + (B.c2 !== B.c1 ? B.c2 + ':' : '') + B.v2); }
+function wedVerseTotal(B){
+  var vc = verseCounts()[B.idx], n = 0;
+  for (var c = B.c1; c <= B.c2; c++) n += (c === B.c2 ? B.v2 : vc[c - 1]) - (c === B.c1 ? B.v1 : 1) + 1;
+  return n;
+}
+/* 범위를 n 몫으로 — 절 수가 비슷하게. 자를 자리(i·전체/n)에서 한 몫의 1/8 안에 장 첫 절이 있으면 거기서 자른다(한 몫은 평균의 ±25% 안).
+   자를 자리를 앞 몫이 아니라 전체 기준으로 잡아 오차가 뒤로 쌓이지 않는다. 절이 n 보다 적으면 절 수만큼만 */
+function wedSplit(B, n){
+  var vc = verseCounts()[B.idx], flat = [];
+  for (var c = B.c1; c <= B.c2; c++){
+    var from = c === B.c1 ? B.v1 : 1, to = c === B.c2 ? B.v2 : vc[c - 1];
+    for (var v = from; v <= to; v++) flat.push([c, v]);
+  }
+  var T = flat.length, k = Math.min(n, T);
+  if (!k) return [];
+  var size = T / k, tol = Math.round(size / 8), cuts = [0];
+  for (var i = 1; i < k; i++){
+    var ideal = Math.round(i * size), lo = Math.max(cuts[i - 1] + 1, ideal - tol), hi = Math.min(T - (k - i), ideal + tol), best = -1;
+    for (var j = lo; j <= hi; j++) if (flat[j][1] === 1 && (best < 0 || Math.abs(j - ideal) < Math.abs(best - ideal))) best = j;
+    cuts.push(best >= 0 ? best : Math.max(cuts[i - 1] + 1, Math.min(ideal, T - (k - i))));
+  }
+  cuts.push(T);
+  var name = BOOK_FULL[B.idx], out = [];
+  for (var p = 0; p < k; p++){
+    var a = flat[cuts[p]], b = flat[cuts[p + 1] - 1];
+    out.push(name + ' ' + a[0] + ':' + a[1] + (a[0] === b[0] && a[1] === b[1] ? '' : '-' + (a[0] === b[0] ? '' : b[0] + ':') + b[1]));
+  }
+  return out;
+}
+function wedSplitInto(sched, B){
+  var use = sched.filter(function(x){ return !x['제외']; }), parts = B ? wedSplit(B, use.length) : [];
+  sched.forEach(function(x){ x['범위'] = ''; });
+  use.forEach(function(x, i){ x['범위'] = parts[i] || ''; });
+}
+function wedKey(s, e, src){ var B = wedParseBible(src); return s + '|' + e + '|' + (B ? wedRefOf(B) : ''); }
+/* 편집 가능한 일정(S.sched) — 기간·성경이 바뀌었거나 force 면 다시 계산(뺀 수요일은 날짜로 기억해 둔다) */
+function wedSyncSched(force){
+  var S = state.series; if (!S) return null;
+  var s = $('#wed_start').value, e = $('#wed_end').value, src = ($('#wed_src').value || '').trim();
+  var dates = wedDays(s, e); if (!dates.length) return null;
+  var key = wedKey(s, e, src);
+  if (!force && S.sched && S.schedDate === key) return S.sched;
+  var off = {}; (S.sched || []).forEach(function(x){ if (x['제외']) off[x['날짜']] = 1; });
+  S.sched = dates.map(function(d){ return { '날짜': d, '범위': '', '제외': !!off[d] }; });
+  wedSplitInto(S.sched, wedParseBible(src));
+  S.schedDate = key; saveSeries();
+  return S.sched;
+}
+function wedReadMeta(){
+  var src = ($('#wed_src').value || '').trim(), sched = wedSyncSched(false);
+  if (!src || !sched) return null;
+  var use = sched.filter(function(x){ return !x['제외']; });
+  if (!use.length) return null;
+  var B = wedParseBible(src);
+  return {
+    kind: 'wed', '종류': 'wed',
+    '시리즈명': ($('#wed_series').value || '').trim() || ('수요예배 ' + src),
+    '입력': src, '방식': B ? 'bible' : 'topic', '성경범위': B ? wedRefOf(B) : '', '주제': B ? '' : src,
+    '시작일': $('#wed_start').value, '종료일': $('#wed_end').value,
+    '예배구분': ($('#wed_service').value || '').trim() || '수요예배',
+    '요청사항': ($('#wed_note').value || '').trim(),
+    '일정': sched.map(function(x){ return { '날짜': x['날짜'], '범위': x['범위'] || '', '제외': !!x['제외'] }; }),
+    '주일': use.map(function(x){ return x['날짜']; })
+  };
+}
+function wedFillInputs(m){
+  m = m || {};
+  $('#wed_src').value = m['입력'] || '';
+  $('#wed_series').value = (m['시리즈명'] && m['시리즈명'] !== '수요예배 ' + (m['입력'] || '')) ? m['시리즈명'] : '';
+  $('#wed_start').value = m['시작일'] || '';
+  $('#wed_end').value = m['종료일'] || '';
+  $('#wed_service').value = m['예배구분'] || '수요예배';
+  $('#wed_note').value = m['요청사항'] || '';
+}
+function wedPreview(){
+  var box = $('#wed_preview'); if (!box) return;
+  var sched = wedSyncSched(false), src = ($('#wed_src').value || '').trim();
+  if (!sched) {
+    box.innerHTML = ($('#wed_start').value && $('#wed_end').value) ? '<div class="cnt" style="color:var(--warn)">이 기간에는 수요일이 없습니다 — 시작일·종료일을 확인해 주세요.</div>' : '';
+    return;
+  }
+  var B = wedParseBible(src), use = sched.filter(function(x){ return !x['제외']; }).length, head;
+  if (B) { var tv = wedVerseTotal(B); head = esc(wedRefOf(B)) + ' · ' + tv + '절 → 수요일 ' + use + '번' + (use ? ', 한 번에 약 ' + Math.round(tv / use) + '절' : ''); }
+  else head = (src ? '주제 「' + esc(src) + '」 · ' : '') + '수요일 ' + use + '번' + (src ? ' <span style="color:var(--dim);font-weight:400">— 본문은 주제의 흐름에 맞춰 성경 전체에서 고릅니다</span>' : '');
+  box.innerHTML = '<div style="font-weight:600;margin-bottom:4px">' + head + '</div>' +
+    '<div class="cnt" style="margin-bottom:5px">' + (B ? '범위는 비슷한 분량으로 나누고, 장이 시작되는 절이 가까우면 거기서 끊었습니다. 칸을 직접 고칠 수 있습니다. ' : '') +
+      '설교하지 않는 수요일은 체크를 풀어 주세요' + (B ? ' — 남은 수요일로 다시 나눕니다.' : '.') + '</div>' +
+    sched.map(function(x, i){
+      var off = !!x['제외'];
+      return '<div style="display:flex;gap:8px;align-items:center;padding:2px 0">' +
+        '<label style="flex:0 0 92px;margin:0;display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" class="wedUse" data-i="' + i + '" style="width:auto"' + (off ? '' : ' checked') + '>' + esc(mdOf(x['날짜'])) + ' (수)</label>' +
+        (B ? '<input type="text" class="wedRange" data-i="' + i + '" value="' + esc(x['범위'] || '') + '" placeholder="' + (off ? '설교 안 함' : '범위') + '"' + (off ? ' disabled' : '') + ' style="flex:1;font-size:var(--fs-sm)">'
+           : '<span style="flex:1;font-size:var(--fs-sm);color:var(--dim)">' + (off ? '설교 안 함' : '') + '</span>') + '</div>';
+    }).join('') +
+    (B ? '<div style="margin-top:5px"><button class="linkbtn" id="wedRangeReset" type="button" style="font-size:var(--fs-sm);color:var(--accent2)">↻ 범위를 다시 고르게 나누기</button></div>' : '');
+}
+
+/* ── 수요예배 설교 선택지 프롬프트 ── */
+var P_WED = [
+'당신은 영락교회 수요예배 설교 기획 비서다. 입력(JSON)의 "수요일" 목록 각 항목마다 설교 주제 선택지 3개를 만든다. 이 설교들은 한 권(또는 한 주제)을 여러 수요일에 걸쳐 차례로 풀어 가는 시리즈다 — 각 항목의 "회차"(몇 번째/전체)로 시리즈 안의 자리를 본다.',
+'"방식"이 "성경"이면: 각 항목의 "범위"는 앱이 "성경범위"를 수요일 수에 맞춰 비슷한 분량으로 나눈 그 날의 몫이고, 그 범위의 개역개정 전문("본문전문", 장:절 본문)이 붙어 있다. ★선택지의 "본문"은 반드시 그 날 "범위" 안에서 고른다 — 범위 전체를 한 편으로 다뤄도 되고 범위 안의 중심 단락을 골라도 되지만, 범위 밖으로 걸치거나 다른 수요일의 범위를 쓰지 않는다. 메시지·근거는 본문전문이 실제로 말하는 바에서 끌어낸다. 이 범위가 책 전체 흐름에서 맡는 자리(앞 수요일에서 이어받는 것, 다음 수요일로 넘기는 것)를 의식한다.',
+'"방식"이 "주제"면: "주제"를 수요일 수만큼의 흐름(여는 물음 → 전개 → 심화 → 결단)으로 나눠 각 수요일이 그 흐름의 한 단계를 맡게 하고, 그 단계에 가장 잘 맞는 본문을 성경 전체에서 직접 고른다.',
+'"다른수요일"은 이 시리즈에서 이미 만든 다른 수요일의 본문·제목이다 — 본문과 메시지가 겹치지 않게 하고, 흐름이 이어지게 한다.',
+'출력은 반드시 JSON 배열만(입력 "수요일"과 같은 길이·같은 순서): [{"날짜":"YYYY-MM-DD","범위":"입력 값 그대로","선택지":[{"제목":"...","본문":"책 1:6-9","핵심메시지":"...","주제근거":"...","대지":[{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."},{"문":"...","근거":"...","적용":"..."}]}]}]',
+'한 수요일의 선택지 3개는 접근 갈래(인물/사건/신학 주제/적용 강조)가 서로 달라야 한다.',
+'핵심메시지=설교 주제 한 문장(명제). ★주제근거(필수·절대 비우지 말 것)=이 본문에서 이 주제를 끌어낸 이유 2~3문장. 저자의 기록 의도와 1차 독자의 상황·정서를 짚어, 설교 작성으로 넘어가면 그대로 "서론"의 바탕이 되도록 쓴다. 모든 선택지마다 반드시 채운다.',
+'★1차 독자 관점(필수): 대지·적용이 선언적 교리 진술("~하시리라 / ~이다")에 머물면 청중에게 닿지 않는다. 먼저 저자가 이 본문을 기록한 의도와 1차 독자가 처한 상황·정서를 포착하고, 그 1차 독자가 경험한 메시지의 무게를 오늘의 청중("나")의 자리로 가져오는 대지를 세운다.',
+'★강해(Exposition)→보편 메시지(필수): 강해는 주해로 밝혀진 "본문 자체의 맥락에서 드러난 저자의 의도"를, 그 본문을 넘어 모든 시대·모든 사람에게 동일하게 적용되는 하나의 보편적 메시지(Universal Message)로 길어 올리는 작업이다. 절차: ①주해로 저자가 1차 독자에게 의도한 본래 의미를 확정한다 → ②그 의미에서 시대·문화에 매인 외피를 벗기고 그 아래 흐르는 변하지 않는 신학적 진리(하나님의 성품·구원 경륜·언약·복음)를 분별한다 → ③그 진리를 오늘 청중("나")의 실존에 동일하게 말 거는 한 문장으로 재진술한다. ★경계: 보편 메시지는 본문이 명시적으로 지지하는 범위 안에서만 길어 올린다 — 본문에 없는 교훈을 알레고리·도덕화로 지어내지 않고, 1차 독자만의 특수 정황과 모든 시대의 보편 진리를 혼동하지 않는다.',
+'대지 원리(필수): 함축적·상징적·도전적 "뼈만 남은" 명제 3개, 같은 방향으로 성큼성큼. 대지마다 문=명제 한 문장 / 근거=본문 절을 짚되 그 절이 1차 독자에게 무엇을 의미했는지(저자 의도·독자 정황)를 함께 드러내는 한 문장(절 표시 포함) / 적용=그때 1차 독자가 받은 그 메시지가 오늘 나의 실존에 동일하게 말 걸어 마음의 변화와 결단을 끌어내는 설교적 한 문장. 외적 과제·행사 나열 금지.',
+'★적용 주의(필수): 적용은 상황·대상에 맞춘 프로그램·캠페인·실천과제 목록이 아니다. 본문이 1차 독자에게 일으킨 내면의 전환이 오늘 나에게 동일하게 일어나도록 부르는 한 문장이어야 한다.',
+'제목 원칙: 본문 인용형을 피하고 메시지의 결론을 청중의 자리에서 즉시 느끼게 압축(명제·선언형/정서적 후크형/질문형/역설·반전형).',
+'예배구분과 요청사항에 적힌 회중·정황을 반영한다. 따로 적힌 것이 없으면 수요예배는 주중에 말씀을 사모해 모인 전 연령 성도의 예배로 보고, 적용을 특정 세대·직분의 상황에 가두지 않는다. 요청사항이 있으면 반드시 반영한다.'].join('\n') + METAPHOR_AXIS_RULE + MSG_DIVERSITY_RULE + POINT_CHANGE_RULE + TEXT_FIDELITY_RULE;
+
+/* 성경 방식: 그 날 범위 밖 본문인 선택지를 뺀다(모두 밖이면 남기고 비고에 경고) → 뺀 개수 */
+function wedFinish(rec){
+  var rng = rec['범위'], opts = rec['선택지'] || [];
+  if (!rng || !opts.length) return 0;
+  var rows = [{ '본문범위': rng }];
+  var bad = opts.filter(function(o){ return refInDevoRows(o && o['본문'], rows) === false; });
+  if (!bad.length) return 0;
+  if (bad.length < opts.length) { rec['선택지'] = opts.filter(function(o){ return bad.indexOf(o) < 0; }); return bad.length; }
+  rec['비고'] = '⚠ 선택지 본문이 모두 이 수요일 범위(' + rng + ') 밖입니다 — [↻ 이 회차 재생성]으로 다시 만들어 주세요.';
+  return 0;
+}
+/* 다른 수요일의 본문·제목 — 고른 개요가 있으면 그것, 없으면 선택지 전부 */
+function wedOthers(weeks, skipWi){
+  return (weeks || []).map(function(w, i){
+    if (i === skipWi || w.skip) return null;
+    var ed = w.edit || {}, opts = (ed['본문'] ? [ed] : (w.opts || w['선택지'] || []));
+    var b = opts.map(function(o){ return o && o['본문']; }).filter(Boolean);
+    return b.length ? { '날짜': w['주일'] || w['날짜'] || '', '본문': b.join(', '), '제목': opts.map(function(o){ return o && o['제목']; }).filter(Boolean).join(' / ') } : null;
+  }).filter(Boolean);
+}
+/* list = [{날짜, 범위, 회차}] → [{날짜, 범위, 선택지, 비고, cut}] */
+async function wedCall(m, list, others, note, maxTok){
+  var bible = m['방식'] === 'bible', items = [];
+  for (var i = 0; i < list.length; i++){
+    var x = { '날짜': list[i]['날짜'], '회차': list[i]['회차'] };
+    if (bible) { x['범위'] = list[i]['범위'] || ''; x['본문전문'] = x['범위'] ? await biblePassage(x['범위'], 200) : ''; }
+    items.push(x);
+  }
+  var arr = aiJson(await callClaude(formOutlineP(P_WED), JSON.stringify({
+    '시리즈명': m['시리즈명'], '예배구분': m['예배구분'], '방식': bible ? '성경' : '주제',
+    '성경범위': m['성경범위'] || '', '주제': m['주제'] || '', '요청사항': note || '',
+    '다른수요일': others || [], '수요일': items
+  }), maxTok, aiTick('수요예배 설교 선택지')));
+  if (!Array.isArray(arr) || !arr.length) throw new Error('응답 형식 오류');
+  var out = [];
+  for (var j = 0; j < list.length; j++){
+    var dt = list[j]['날짜'];
+    var d = arr.filter(function(y){ return y && y['날짜'] === dt; })[0] || arr[j] || {};
+    var rec = { '날짜': dt, '범위': bible ? (list[j]['범위'] || '') : '', '선택지': Array.isArray(d['선택지']) ? d['선택지'] : [], '비고': '', cut: 0 };
+    if (bible) rec.cut = wedFinish(rec);
+    else if (rec['선택지'].length) rec['선택지'] = await outlineGround(rec['선택지'], '수요예배 ' + mdOf(dt));   /* v650 본문 대조 */
+    out.push(rec);
+  }
+  return out;
+}
+/* 한 수요일만 다시(aiRegenWeek) */
+async function wedAskDay(S, w, wi, note){
+  var r = await wedCall(S.meta || {}, [{ '날짜': w['주일'] || '', '범위': w['주간범위'] || '', '회차': wSeq(w, wi) + '/' + S.sermon.weeks.length }],
+    wedOthers(S.sermon.weeks, wi), note, 16000);
+  return r[0];
+}
+/* 시트의 임시(초안) 선택지 행 ID — 전체를 다시 만들면 지운다(보관함에 저장한 '보관' 행·확정 행은 두고) */
+function wedDraftIds(S){
+  var ids = [];
+  ((S && S.sermon && S.sermon.weeks) || []).forEach(function(w){
+    (w.opts || []).forEach(function(o){
+      if (!o || !o._id) return;
+      var row = (state.data.sermons || []).filter(function(x){ return String(x['ID']) === String(o._id); })[0];
+      if (row && row['상태'] === '초안') ids.push(o._id);
+    });
+  });
+  return ids;
+}
+async function aiSeriesWed(noteOverride, oldIds){
+  var S = state.series, m = S.meta;
+  try {
+    (state.seriesReqs = state.seriesReqs || {})['수요설교'] = '진행중';
+    var days = (m['일정'] || []).filter(function(x){ return !x['제외']; });
+    var note = noteOverride != null ? noteOverride : m['요청사항'];
+    /* 분할 생성: 수요일을 4개씩(긴 단일 출력에서 후반 선택지 품질 저하 방지). 앞 묶음의 본문·제목을 다음 묶음에 넘겨 겹치지 않게 */
+    var WB = 4, nb = Math.ceil(days.length / WB), got = [], cut = 0;
+    for (var bi = 0; bi < days.length; bi += WB){
+      var no = Math.floor(bi / WB) + 1, base = bi;
+      toast('수요예배 설교 선택지 생성 중 — ' + no + '/' + nb + ' 묶음');
+      var part = days.slice(bi, bi + WB).map(function(x, k){ return { '날짜': x['날짜'], '범위': x['범위'] || '', '회차': (base + k + 1) + '/' + days.length }; });
+      var recs;
+      try { recs = await wedCall(m, part, wedOthers(got), note, 20000); }
+      catch (pe) { throw new Error(pe.message + '(' + no + '번째 묶음)'); }
+      recs.forEach(function(r){ cut += r.cut || 0; });
+      got = got.concat(recs);
+    }
+    if (!got.length) throw new Error('응답 형식 오류');
+    S.sermon = { m: Date.now(), weeks: got.map(function(d, di){
+      var opts = d['선택지'] || [];
+      return { '주일': d['날짜'], '주간범위': d['범위'] || '', '비고': d['비고'] || '',
+        opts: opts, sel: opts.length ? 0 : -1, skip: !opts.length,
+        '시리즈순번': di + 1, edit: optEdit(opts[0]) };
+    }) };
+    /* 빈 주제근거 자동 보완 */
+    try { var nf = await fillMissingJeokgeo(S.sermon.weeks); if (nf) refreshWeekEdits(S.sermon.weeks); } catch (fe) {}
+    S.sermonDone = false; S.view = 'sermon';
+    state.seriesReqs['수요설교'] = '';
+    saveSeries(); renderSeriesPane(); renderSyncState();
+    toast('수요예배 설교 선택지 ' + got.length + '주 생성 완료' + (cut ? '(범위 밖 선택지 ' + cut + '개 뺌)' : '') + ' — 수요일마다 선택·수정 후 확정하세요. 보관할 선택지는 [미래설교로 저장]을 누르세요.');
+    try { await archiveSeriesOptions(S, '초안'); } catch (ae) { /* 임시(초안) 동기화 실패는 조용히 */ }
+    if (oldIds && oldIds.length) {
+      /* 새 선택지가 옛 행과 같은 멱등키로 같은 행에 들어갔을 수 있으니 지금 쓰는 ID 는 빼고 지운다 */
+      var live = {}; S.sermon.weeks.forEach(function(w){ (w.opts || []).forEach(function(o){ if (o && o._id) live[o._id] = 1; }); });
+      try { await deleteArchivedOpts(oldIds.filter(function(id){ return !live[id]; })); } catch (de) { /* 옛 초안 정리 실패 — 다른 기기에서 겹쳐 보일 수 있음 */ }
+    }
+  } catch (e) {
+    (state.seriesReqs = state.seriesReqs || {})['수요설교'] = ''; renderSyncState();
+    toast('생성 실패: ' + e.message);
+  }
+}
+async function spWedRedo(){
+  var S = state.series; if (!S || !S.meta) return;
+  if (!aiKey()) { toast('설정에서 Claude API 키를 입력하면 즉시 다시 생성됩니다.'); return; }
+  if ((state.seriesReqs || {})['수요설교'] === '진행중') { toast('생성 중입니다 — 잠시만 기다려 주세요.'); return; }
+  var note = await uiPrompt('재작업 시 보완할 내용을 적어 주세요 (비워도 됩니다)', '', { multiline: true });
+  if (note === null) return;
+  var add = (S.meta['요청사항'] ? S.meta['요청사항'] + '\n' : '') + '[재작업] 이전 선택지가 마음에 들지 않아 다시 요청합니다. 이전과 다른 본문·주제·접근 갈래로 보완해 주세요.' + (note.trim() ? ' — ' + note.trim() : '');
+  aiSeriesWed(add, wedDraftIds(S));
+}
+/* 시트 기록으로 다시 짠 수요예배 시리즈(buildTopicFromSheet) — 이 기기에 있던 입력·요청사항은 살리고, 없으면 주차 범위로 채운다 */
+function wedFromSheet(S, old){
+  old = old || {};
+  var ws = (S.sermon && S.sermon.weeks) || [], m = S.meta || {};
+  var rng = ws.map(function(w){ return String(w['주간범위'] || '').trim(); }).filter(Boolean);
+  var bible = old['방식'] ? old['방식'] === 'bible' : rng.length > 0;
+  var src = old['입력'] || (bible ? combineRefs(rng) : m['시리즈명']);
+  S.kind = 'wed';
+  S.meta = Object.assign({}, old, {
+    kind: 'wed', '종류': 'wed', '시리즈명': m['시리즈명'], '예배구분': m['예배구분'] || old['예배구분'] || '수요예배',
+    '입력': src, '방식': bible ? 'bible' : 'topic',
+    '성경범위': old['성경범위'] || (bible ? src : ''), '주제': bible ? '' : (old['주제'] || src),
+    '시작일': old['시작일'] || m['시작일'], '종료일': old['종료일'] || m['종료일'],
+    '주일': ws.map(function(w){ return w['주일']; }).filter(Boolean)
+  });
+  if (!Array.isArray(S.meta['일정'])) S.meta['일정'] = ws.map(function(w){ return { '날짜': w['주일'], '범위': w['주간범위'] || '', '제외': false }; });
+  if (!S.sched) {
+    S.sched = S.meta['일정'].map(function(x){ return { '날짜': x['날짜'], '범위': x['범위'] || '', '제외': !!x['제외'] }; });
+    S.schedDate = wedKey(S.meta['시작일'], S.meta['종료일'], src);
+  }
+}
+
 /* 한 회차(주일/새벽 하루)만 주제 선택지 재생성 — API 직결.
    주일 시리즈(P_SERMON)와 새벽 시리즈(P_DAWN)를 분기해, 해당 회차 입력만 전달하고
    결과 배열의 첫 항목 선택지로 그 회차 opts를 교체한다(기존과 다른 갈래로). */
@@ -32554,6 +32874,13 @@ function spTopicTimeline(){
   var n2 = S.sermon ? 'done' : ((state.seriesReqs || {})['주제설교'] === '진행중' ? 'req' : '');
   return '<div class="tl">' +
     spTlNode('주제·회차', S.meta ? 'done' : '', "toast('왼쪽에서 주제·횟수·회차·배경을 입력하세요.')") + '<span class="tlarrow" aria-hidden="true">→</span>' +
+    spTlNode('설교 주제', n2, "renderSeriesPane()") + '</div>';
+}
+function spWedTimeline(){
+  var S = state.series;
+  var n2 = S.sermon ? 'done' : ((state.seriesReqs || {})['수요설교'] === '진행중' ? 'req' : '');
+  return '<div class="tl">' +
+    spTlNode('수요일·범위', (S.meta || S.sched) ? 'done' : '', "toast('왼쪽에서 성경(또는 주제)과 기간을 바꾸면 수요일과 범위가 다시 계산됩니다.')") + '<span class="tlarrow" aria-hidden="true">→</span>' +
     spTlNode('설교 주제', n2, "renderSeriesPane()") + '</div>';
 }
 function spDawnHtml(){
@@ -38952,7 +39279,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v771';
+var APP_VER = 'v772';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
