@@ -154,7 +154,7 @@ label{display:block;font-size:var(--fs-sm);color:var(--dim);margin:12px 0 4px}
 .spSumL{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px}
 .spSumL span{font-size:var(--fs-sm);color:var(--dim)}
 #seriesMeta .spSum .btn{width:auto;flex:0 0 auto}
-#page-series.spCompact :is(#regMeta,#dawnMeta,#topicMeta) > :is(label,input,textarea,select,.row2,#sp_preview,#dw_preview,#tp_preview,#tp_sessions,.cnt:first-child,.cmSec.pgHelp,.hlpTx){display:none}
+#page-series.spCompact :is(#regMeta,#dawnMeta,#topicMeta,#wedMeta) > :is(label,input,textarea,select,.row2,#sp_preview,#dw_preview,#tp_preview,#tp_sessions,#wed_preview,.cnt:first-child,.cmSec.pgHelp,.hlpTx){display:none}
 .btn .inbtn{flex:0 0 auto;margin-left:auto;background:rgba(0,0,0,.28);border:1px solid currentColor;border-radius:var(--r-md);padding:4px 10px;font-size:var(--fs-sm);font-weight:600;cursor:pointer}
 .btn .inbtn:hover{background:rgba(0,0,0,.45)}
 /* 아웃풋 날짜 그룹 */
@@ -3204,6 +3204,21 @@ body.focusMode #refInsBar{bottom:72px}
           <div class="toolrow"><button class="btn" id="tp_gen">주제별 설교 주제 생성</button></div>
           <div class="cmSec pgHelp"><span>진행 순서</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
           <div class="hlpTx" hidden>묵상 일정 없이 회차마다 설교 주제 선택지를 바로 만듭니다. 예: 수련회 4회(여는예배·집회1·집회2·닫는예배) / 국내선교 3회 / 주일 4주간 한 주제.<br>흐름: 주제·횟수·회차·배경 입력 → [주제별 설교 주제 생성] → 회차마다 3~4개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로. 묵상 일정·묵상집은 만들지 않습니다.</div>
+        </div>
+        <div id="wedMeta" style="display:none">
+          <div class="cnt" style="margin-bottom:8px">수요예배 시리즈 마법사 — 기간 안의 수요일마다 설교 주제 선택지를 만듭니다. 성경을 적으면 그 범위를 수요일 수에 맞춰 비슷한 분량으로 나누고, 주제를 적으면 그 주제를 수요일마다 이어 갑니다.</div>
+          <label style="margin-top:0">성경 또는 주제 *</label><input type="text" id="wed_src" placeholder="예: 로마서 / 요한복음 13-21장 / 기도 / 주기도문">
+          <label>시리즈명 (선택 — 비우면 「수요예배 + 위 입력」)</label><input type="text" id="wed_series" placeholder="예: 로마서 강해">
+          <div class="row2">
+            <div><label>시작일 *</label><input type="date" id="wed_start"></div>
+            <div><label>종료일 *</label><input type="date" id="wed_end"></div>
+          </div>
+          <label>예배구분</label><input type="text" id="wed_service" value="수요예배">
+          <label>요청사항 (선택)</label><textarea id="wed_note" rows="2" placeholder="예: 성탄 주간 수요일은 성탄 메시지로 / 특정 인물·주제 우선"></textarea>
+          <div class="cnt" id="wed_preview" style="margin-top:8px"></div>
+          <div class="toolrow"><button class="btn" id="wed_gen">수요예배 설교 주제 생성</button></div>
+          <div class="cmSec pgHelp"><span>진행 순서</span><button class="hlpBtn" type="button" aria-expanded="false" title="도움말"><svg class=ico aria-hidden=true><use href=#i-info></use></svg></button></div>
+          <div class="hlpTx" hidden>흐름: 성경(또는 주제)·기간 입력 → 기간 안의 수요일과 수요일마다 나눌 범위가 바로 계산됩니다(범위 칸은 직접 고칠 수 있고, 설교하지 않는 수요일은 체크를 풀면 남은 수요일로 다시 나눕니다) → [수요예배 설교 주제 생성] → 수요일마다 3개 선택지 중 하나 선택·수정 → [선택 항목 전체 확정](설교마스터 [구상/연구]) → 미선택은 [미래설교 보관함]으로. 묵상 일정·묵상집은 만들지 않습니다.</div>
         </div>
       </div>
       <div id="seriesPane"><div class="empty">왼쪽에서 계획을 입력해 ① 묵상 일정을 요청하세요.</div></div>
@@ -30455,13 +30470,16 @@ function renderSeriesPage(){
   $('#seriesPane').style.display = list ? 'none' : 'block';
   if (list) { renderSeriesList(); spCompactSync(); }
   else if (isDawn(state.series)) {
-    $('#regMeta').style.display = 'none'; $('#dawnMeta').style.display = 'block'; $('#topicMeta').style.display = 'none';
+    $('#regMeta').style.display = 'none'; $('#dawnMeta').style.display = 'block'; $('#topicMeta').style.display = 'none'; $('#wedMeta').style.display = 'none';
     dwFillInputs(state.series.meta); dwPreview(); renderSeriesPane();
   } else if (isTopic(state.series)) {
-    $('#regMeta').style.display = 'none'; $('#dawnMeta').style.display = 'none'; $('#topicMeta').style.display = 'block';
+    $('#regMeta').style.display = 'none'; $('#dawnMeta').style.display = 'none'; $('#topicMeta').style.display = 'block'; $('#wedMeta').style.display = 'none';
     twFillInputs(state.series.meta); twPreview(); renderSeriesPane();
+  } else if (isWed(state.series)) {
+    $('#regMeta').style.display = 'none'; $('#dawnMeta').style.display = 'none'; $('#topicMeta').style.display = 'none'; $('#wedMeta').style.display = 'block';
+    wedFillInputs(state.series.meta); wedPreview(); renderSeriesPane();
   } else {
-    $('#regMeta').style.display = 'block'; $('#dawnMeta').style.display = 'none'; $('#topicMeta').style.display = 'none';
+    $('#regMeta').style.display = 'block'; $('#dawnMeta').style.display = 'none'; $('#topicMeta').style.display = 'none'; $('#wedMeta').style.display = 'none';
     spFillInputs(state.series.meta);
     spPreview(); spStatus(); renderSeriesPane();
   }
@@ -30473,7 +30491,7 @@ var SP_PLAN_OPEN = '';
 function spCompactSync(){
   var pg = document.getElementById('page-series'), sum = document.getElementById('spSum'); if (!pg || !sum) return;
   var S = state.series, wiz = !!(S && state.seriesMode !== 'list');
-  var has = !!(wiz && ((isDawn(S) || isTopic(S)) ? S.sermon : S.devo));
+  var has = !!(wiz && ((isDawn(S) || isTopic(S) || isWed(S)) ? S.sermon : S.devo));
   var m = (S && S.meta) || {}, name = String(m['시리즈명'] || '');
   var open = has && SP_PLAN_OPEN === name;
   pg.classList.toggle('spCompact', has && !open);
@@ -30570,11 +30588,11 @@ function renderSeriesList(){
     if (m['시리즈명']) localNames[m['시리즈명']] = true;
     var bits = [];
     if (S.devo) bits.push('묵상 ' + S.devo.rows.length + '일' + (S.devoDone ? ' (등록됨)' : ' 검토 중'));
-    if (S.sermon) bits.push((isDawn(S) ? '새벽 ' + S.sermon.weeks.length + '일' : isTopic(S) ? '주제별 설교 ' + S.sermon.weeks.length + '회' : '주일 설교 ' + S.sermon.weeks.length + '주') + (S.sermonDone ? ' (등록됨)' : ' 검토 중'));
+    if (S.sermon) bits.push((isDawn(S) ? '새벽 ' + S.sermon.weeks.length + '일' : isTopic(S) ? '주제별 설교 ' + S.sermon.weeks.length + '회' : isWed(S) ? '수요예배 설교 ' + S.sermon.weeks.length + '주' : '주일 설교 ' + S.sermon.weeks.length + '주') + (S.sermonDone ? ' (등록됨)' : ' 검토 중'));
     html += '<div class="swipeRow">' +
       '<button class="swipeDel" type="button" onclick="slDel(' + i + ')">삭제</button>' +
       '<div class="item swipeFront" data-sw="' + i + '" onclick="slOpen(' + i + ')"><div class="meta">' +
-      '<span class="badge ' + (isDawn(S) ? 'b-idea">' + DAWN_ICON + ' 새벽' : isTopic(S) ? 'b-sermon">주제별' : 'b-sermon">시리즈') + '</span>' +
+      '<span class="badge ' + (isDawn(S) ? 'b-idea">' + DAWN_ICON + ' 새벽' : isTopic(S) ? 'b-sermon">주제별' : isWed(S) ? 'b-sermon">수요예배' : 'b-sermon">시리즈') + '</span>' +
       (m['시작일'] ? '<span>' + esc(m['시작일']) + ' ~ ' + esc(m['종료일'] || '') + '</span>' : '') +
       '<span class="badge b-state">' + spStageLabel(S) + '</span>' +
       (S.updatedAt ? '<span>수정 ' + esc(S.updatedAt) + '</span>' : '') +
@@ -30624,12 +30642,13 @@ function renderSeriesList(){
     /* 회차 1개에 선택지(후보) 행이 여럿이므로, 행 수가 아니라 회차 수로 센다(날짜 또는 시리즈순번 기준 중복 제거). */
     t.keys[s['날짜'] || ('#' + (s['시리즈순번'] || ''))] = 1;
     if (/회차:\s*[^/]/.test(String(s['비고'] || '')) || !s['날짜']) t.tp = true;
+    if (/^수요/.test(String(s['예배구분'] || ''))) t.wd = true;
   });
   Object.keys(topicSheet).forEach(function(n){
     var t = topicSheet[n], ds = t.dates.filter(Boolean).sort(), cnt = Object.keys(t.keys).length;
     if (!t.tp && cnt <= 1) return;   /* 시리즈가 아니라 단발 설교(상황설교 등) — 목록에서 제외 */
     html += '<div class="item" tabindex="0" role="button" onclick="slOpenSheet(\'' + esc(n).replace(/'/g, "\\'") + '\')"><div class="meta">' +
-      '<span class="badge b-sermon">' + (t.tp ? '주제별' : '시리즈') + ' · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span>' : '') + '<span>설교 ' + cnt + '회</span></div>' +
+      '<span class="badge b-sermon">' + (t.tp ? '주제별' : t.wd ? '수요예배' : '시리즈') + ' · 시트 기록</span>' + (ds.length ? '<span>' + esc(ds[0]) + ' ~ ' + esc(ds[ds.length - 1]) + '</span>' : '') + '<span>설교 ' + cnt + '회</span></div>' +
       '<div class="title">' + esc(n) + '</div>' +
       '<div class="snippet">시트에 등록된 시리즈 — 선택하면 불러와 확인·수정·재사용할 수 있습니다.</div></div>';
   });
@@ -30959,6 +30978,8 @@ function buildTopicFromSheet(name){
     } else if (opts.length) { w.sel = 0; }
     return w;
   });
+  var _oldMeta = S.meta || {};   /* 수요예배 시리즈는 입력(성경·주제)·요청사항을 살려 다시 쓴다(wedFromSheet) */
+  var isWd = !isTp && (S.kind === 'wed' || all.some(function(s){ return /^수요/.test(String(s['예배구분'] || '')); }));
   if (isTp) { S.kind = 'topic'; }
   var dates = keys.map(function(k){ return (byKey[k][0] || {})['날짜'] || ''; }).filter(Boolean).sort();
   S.meta = { '시리즈명': name, '종류': (isTp ? 'topic' : ''), '성경범위': '',
@@ -30968,6 +30989,7 @@ function buildTopicFromSheet(name){
     '주일': [], '묵상일': [] };
   S.devo = null; S.devoDone = false;
   S.sermon = { m: Date.now(), weeks: weeks };   /* 시트 복원 시점 스탬프(옛 요청함 결과의 역덮어쓰기 방지) */
+  if (isWd) wedFromSheet(S, _oldMeta);
   S.sermonDone = serms.length > 0;
   S.view = 'sermon';
   S._sheetSig = sheetSigForSeries(name);
@@ -31098,7 +31120,7 @@ function spStageHtml(type, drafted, doneFlag, detail){
 function spStatus(){
   var S = state.series;
   if (!S) return;
-  if (isDawn(S) || isTopic(S)) return;
+  if (isDawn(S) || isTopic(S) || isWed(S)) return;
   /* [보관] 복원 배너 — sermon 없거나 opts 전부 비어있을 때 (slOpenSheet 오류 데이터 포함) */
   var archiveBanner = '';
   var _sermonMissingOpts = S.sermon && S.sermon.weeks.length > 0 &&
@@ -31502,7 +31524,7 @@ function renderSeriesPane(){
     illustLoad().then(function(){ state._spIllPend = 0; renderSeriesPane(); }).catch(function(){ state._spIllPend = 0; });
   }
   /* v713: 새벽·주제별 — 선택지가 나오면(S.sermon) 왼쪽 생성 단추는 선 단추, 오른쪽 [선택 항목 전체 확정]이 채움 */
-  ['#dw_gen', '#tp_gen'].forEach(function(sel){ var b = $(sel); if (b) b.classList.toggle('sub', !!(S && S.sermon)); });
+  ['#dw_gen', '#tp_gen', '#wed_gen'].forEach(function(sel){ var b = $(sel); if (b) b.classList.toggle('sub', !!(S && S.sermon)); });
   spCompactSync();
   if (!S) { pane.innerHTML = ''; return; }
   if (isDawn(S)) {
@@ -31513,6 +31535,11 @@ function renderSeriesPane(){
   if (isTopic(S)) {
     pane.innerHTML = spTopicTimeline() + (S.sermon ? spSermonHtml()
       : '<div class="empty">왼쪽에서 주제·횟수·회차·배경을 입력하고<br>[주제별 설교 주제 생성]을 눌러 주세요.</div>');
+    return;
+  }
+  if (isWed(S)) {
+    pane.innerHTML = spWedTimeline() + (S.sermon ? spSermonHtml()
+      : '<div class="empty">왼쪽에서 성경(또는 주제)과 기간을 입력하고<br>[수요예배 설교 주제 생성]을 눌러 주세요.</div>');
     return;
   }
   var html = spTimelineHtml();
@@ -31589,10 +31616,10 @@ function spSermonHtml(){
     });
     if (_needSave) saveSeries();
   }
-  var _tp = isTopic(S);
+  var _tp = isTopic(S), _wd = isWed(S);
   /* v649: 주간범위를 확정 묵상일정 기준으로 바로잡는다 — v648 이전 AI 가 제외 주일 앞 주를 빼고 범위를 밀어 적은 값이
      머리 표시·보관 비고(주간묵상:)·이달의 말씀에 그대로 쓰이지 않게 */
-  if (!_tp && !isDawn(S)) {
+  if (!_tp && !isDawn(S) && !_wd) {
     var _rngFix = false;
     S.sermon.weeks.forEach(function(w){
       var r = sunDevoRange(S, w['주일']);
@@ -31600,10 +31627,13 @@ function spSermonHtml(){
     });
     if (_rngFix) saveSeries();
   }
-  var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> — ' + (_tp ? '주제별 설교 계획' + (m['주제'] ? ' <span style="color:var(--dim);font-weight:400;font-size:var(--fs-md)">「' + esc(m['주제']) + '」</span>' : '') : '주일 설교 계획') +
-    '<div class="cnt" style="margin-top:4px">' + (_tp ? '회차' : '주일') + '마다 선택지 하나를 고르고 아래 칸에서 다듬은 뒤 확정하세요. 제외할 ' + (_tp ? '회차' : '주일') + '은 "등록" 체크를 해제합니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
+  var _unit = _tp ? '회차' : _wd ? '수요일' : '주일';
+  var _wdSub = _wd ? (m['방식'] === 'bible' ? m['성경범위'] : (m['주제'] ? '「' + m['주제'] + '」' : '')) : '';
+  var h = '<div class="card"><b>' + esc(m['시리즈명'] || '') + '</b> — ' + (_tp ? '주제별 설교 계획' + (m['주제'] ? ' <span style="color:var(--dim);font-weight:400;font-size:var(--fs-md)">「' + esc(m['주제']) + '」</span>' : '')
+      : _wd ? '수요예배 설교 계획' + (_wdSub ? ' <span style="color:var(--dim);font-weight:400;font-size:var(--fs-md)">' + esc(_wdSub) + '</span>' : '') : '주일 설교 계획') +
+    '<div class="cnt" style="margin-top:4px">' + _unit + '마다 선택지 하나를 고르고 아래 칸에서 다듬은 뒤 확정하세요. 제외할 ' + _unit + '은 "등록" 체크를 해제합니다.' + (S.sermonDone ? ' <span class="badge b-state">등록됨</span>' : '') + '</div></div>';
   /* 이달의 말씀 — 주일(대학부) 시리즈: 달별 선포·신앙고백 구절(예배 마무리 화면용) */
-  if (!_tp && !isDawn(S)) {
+  if (!_tp && !isDawn(S) && !_wd) {
     var _mv = (S.sermon && S.sermon.monthly) || [];
     h += '<div class="card"><b><svg class=ico aria-hidden=true><use href=#i-calendar></use></svg> 이달의 말씀</b> <span style="color:var(--dim);font-size:var(--fs-sm)">— 예배 마지막에 다 함께 읽는 선포·신앙고백 구절</span>';
     if (_mv.length) {
@@ -31641,7 +31671,7 @@ function spSermonHtml(){
     var summary = '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 0">' +
       (confirmed ? '<span style="font-size:var(--fs-body);color:var(--accent);flex-shrink:0">✓</span>' : '') +
       (_tp ? '<b style="font-size:var(--fs-body)">' + esc(w['회차명'] || (wSeq(w, wi) + '회')) + '</b>'
-           : '<b style="font-size:var(--fs-body)">' + wSeq(w, wi) + '주차</b><span class="cnt">' + esc(w['주일']) + ' (주일)</span>') +
+           : '<b style="font-size:var(--fs-body)">' + wSeq(w, wi) + '주차</b><span class="cnt">' + esc(w['주일']) + (_wd ? ' (수)' : ' (주일)') + '</span>') +
       '<span style="color:' + (confirmed ? 'var(--accent)' : 'var(--accent2)') + ';font-size:var(--fs-md);font-weight:600">' + sumTitle + '</span>' + (sumRef ? '<span style="color:var(--dim);font-size:var(--fs-sm);font-weight:500;flex-shrink:0">' + sumRef + '</span>' : '') + badge +
       (!confirmed && !w.skip ? '<span class="spWkActs">' +
         '<button class="btn sub spWkBtn" type="button" data-act="weekRegen" data-w="' + wi + '" onclick="event.stopPropagation();weekRegenBtn(' + wi + ',this)" title="이 회차 주제만 다시 생성">↻ 이 회차 재생성</button>' +
@@ -31650,7 +31680,7 @@ function spSermonHtml(){
       '</summary>';
     var head = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">' +
       '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--dim)"><input type="checkbox" class="spUse" data-w="' + wi + '" style="width:auto" ' + (w.skip ? '' : 'checked') + '> 이 ' + (_tp ? '회차' : '주') + ' 등록</label></div>' +
-      (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">주간 묵상: ' + linkifyRefs(w['주간범위']) + '</div>' : '') +
+      (w['주간범위'] ? '<div class="cnt" style="margin:3px 0 8px">' + (_wd ? '이 수요일 범위: ' : '주간 묵상: ') + linkifyRefs(w['주간범위']) + '</div>' : '') +
       (w['비고'] ? '<div class="cnt" style="margin:3px 0 8px;color:var(--warn)">' + esc(w['비고']) + '</div>' : '');
 
     if (confirmed) {
@@ -31681,9 +31711,9 @@ function spSermonHtml(){
   h += '<div class="toolrow" style="flex-wrap:wrap">' +
     '<button class="btn" id="spSermonConfirm" style="flex:1 1 100%;font-size:var(--fs-md)">선택 항목 전체 확정</button>' +
     '<button class="btn sub" id="spSermonRedo" style="flex:1 1 auto;min-width:120px;font-size:var(--fs-md)">재작업</button>' +
-    '<button class="btn sub" onclick="openSeriesSermonPreview()" style="flex:1 1 auto;min-width:120px;font-size:var(--fs-md)">미리보기</button>' +
-    (_tp ? '' : '<button class="btn sub" id="spSermonExport" style="flex:1 1 auto;min-width:120px;font-size:var(--fs-md)">설교계획 내보내기</button>') +
-    (_tp ? '' : '<button class="btn sub" id="spSermonIcs" style="flex:1 1 auto;min-width:120px;font-size:var(--fs-md)">캘린더(.ics)</button>') +
+    (_wd ? '' : '<button class="btn sub" onclick="openSeriesSermonPreview()" style="flex:1 1 auto;min-width:120px;font-size:var(--fs-md)">미리보기</button>') +   /* 미리보기·내보내기 표는 대학부 주일 양식(LTC·GBS 칸) */
+    (_tp || _wd ? '' : '<button class="btn sub" id="spSermonExport" style="flex:1 1 auto;min-width:120px;font-size:var(--fs-md)">설교계획 내보내기</button>') +
+    (_tp || _wd ? '' : '<button class="btn sub" id="spSermonIcs" style="flex:1 1 auto;min-width:120px;font-size:var(--fs-md)">캘린더(.ics)</button>') +
     '</div>';
   return h;
 }
@@ -31746,6 +31776,7 @@ $('#seriesPane').addEventListener('click', async function(e){
   var rd = e.target.closest('#spDevoRedo, #spSermonRedo');
   if (rd) {
     if (rd.id === 'spSermonRedo' && isTopic(state.series)) { spTopicRedo(); return; }
+    if (rd.id === 'spSermonRedo' && isWed(state.series)) { spWedRedo(); return; }
     spRedo(rd.id === 'spDevoRedo' ? '시리즈묵상' : '시리즈설교'); return;
   }
   var ex = e.target.closest('#spSermonExport');
@@ -32451,7 +32482,7 @@ async function aiRegenWeek(wi, btn){
   var S = state.series;
   if (!S || !S.sermon || !S.sermon.weeks[wi]) return;
   if (!aiKey()) { toast('이 회차만 재생성하려면 설정 탭에 Claude API 키가 필요합니다.'); return; }
-  var w = S.sermon.weeks[wi], m = S.meta || {}, dawn = isDawn(S), topic = isTopic(S);
+  var w = S.sermon.weeks[wi], m = S.meta || {}, dawn = isDawn(S), topic = isTopic(S), wed = isWed(S);
   var ob;
   if (btn) { if (btn.dataset.busy) return; btn.dataset.busy = '1'; ob = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>'; }
   try {
@@ -32467,6 +32498,9 @@ async function aiRegenWeek(wi, btn){
       var arrT = aiJson(outT);
       if (!Array.isArray(arrT) || !arrT.length) throw new Error('응답 형식 오류');
       opts = await outlineGround(arrT[0]['선택지'] || [], '주제별 설교');   /* v650 본문 대조 */
+    } else if (wed) {
+      var recW = await wedAskDay(S, w, wi, String(m['요청사항'] || '') + '\n(아래 수요일 하나의 선택지 3개만 새로 만든다. 기존 선택지와 다른 새로운 갈래로.)');
+      opts = recW['선택지']; newNote = recW['비고'];
     } else if (dawn) {
       var sched = [{ '날짜': w['주일'] || '', '요일': w['요일'] || '', '통독범위': w['통독범위'] || w['주간범위'] || '' }];
       var out = await callClaude(P_DAWN, JSON.stringify({
