@@ -4230,6 +4230,7 @@ function heldApply(force){
       state.data.sermons = arr.filter(function(r){ return String(r['ID']) !== id; });
     } else if (h.row && (!loc || String(h.row['수정일'] || '') > String(loc['수정일'] || ''))) {
       var r = Object.assign({}, h.row);
+      fmPendKeep_(r);   /* v775 */
       /* 목록 행엔 원고 본문이 없다 — 받아 둔 본문은 옛 스탬프(_txtAt)째 보존해 열람 때 ensureText 가 새로 받게 한다 */
       if (loc && !String(r['원고텍스트'] || '').trim() && String(loc['원고텍스트'] || '').trim()) {
         r['원고텍스트'] = loc['원고텍스트']; if (loc._txt) r._txt = loc._txt; if (loc._txtAt) r._txtAt = loc._txtAt;
@@ -4243,8 +4244,54 @@ function heldApply(force){
   if (changed) heldSave();
   return changed;
 }
+/* ── v775 파일맵 쓰기 보호 (2026-11-25 목사님 제보 「LTC 교재를 만들었는데 주보 공유에서 GBS 질문이 없다고 한다」) ──
+   파일맵은 칸 하나에 JSON 통째로 오간다. 이 기기가 키를 넣고(예: 교재 데이터 ltcData) 시트로 보내는 사이, 그 쓰기보다 먼저 시트를 읽은
+   동기화 응답이 도착하면 옛 파일맵이 로컬 행을 통째로 바꿔 방금 넣은 키가 사라졌다. 그 뒤 다른 키를 하나 더 쓰면(교재 경로 ltc·결단찬양 hymn)
+   키가 빠진 판이 시트에 올라가 시트에서도 지워졌다. 이제 보낸 키를 시트에서 확인될 때까지(들어온 행에 같은 값이 보일 때까지, 길어야 10분)
+   기억해 두고, 들어온 행에 그 키가 없거나 옛 값이면 이 기기 값을 다시 얹는다. */
+var _fmPend = {};                 /* 설교ID → { 키: { v: 값(지운 키는 undefined), at: ms } } */
+var FM_PEND_MS = 10 * 60 * 1000;
+function fmPendNote_(id, obj){
+  var P = _fmPend[String(id)] = _fmPend[String(id)] || {}, now = Date.now();
+  Object.keys(obj || {}).forEach(function(k){ P[k] = { v: obj[k], at: now }; });
+}
+/* 시트에서 온 설교 행(r)에 아직 확인 안 된 이 기기 파일맵 키를 다시 얹는다 — 로컬 행을 바꾸기 전에 부른다 */
+function fmPendKeep_(r){
+  try {
+    if (!r || r['ID'] == null) return;
+    var id = String(r['ID']), P = _fmPend[id]; if (!P) return;
+    var fm = {}; try { fm = JSON.parse(r['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
+    var now = Date.now(), put = false;
+    Object.keys(P).forEach(function(k){
+      var p = P[k];
+      if (now - p.at > FM_PEND_MS) { delete P[k]; return; }
+      if (JSON.stringify(fm[k]) === JSON.stringify(p.v)) { delete P[k]; return; }   /* 시트에 반영됐다 */
+      if (p.v === undefined) delete fm[k]; else fm[k] = p.v;
+      put = true;
+    });
+    if (!Object.keys(P).length) delete _fmPend[id];
+    if (put) r['파일맵'] = JSON.stringify(fm);
+  } catch (e) {}
+}
+/* 파일맵 칸 전송 — 키(keys)를 확인될 때까지 기억하고, 대기열에 남은 같은 설교의 옛 파일맵 전송은 이번 판이 대신한다
+   (늦게 보내진 옛 판이 새 키를 지우지 않게). 일시 오류는 대기열로, 그 밖의 실패는 알린다(예전엔 조용히 버렸다). */
+function fmSend_(id, s, keys){
+  fmPendNote_(id, keys);
+  var st = state.settings || {};
+  if (!st.url || !st.token) return;
+  var q = state.queue || [], cut = false;
+  for (var i = q.length - 1; i >= 0; i--) {
+    var b = q[i];
+    if (b && b.action === 'update' && b.sheet === 'sermons' && b.data && String(b.data.ID) === String(id) &&
+        Object.keys(b.data).every(function(k){ return k === 'ID' || k === '파일맵'; })) { q.splice(i, 1); cut = true; }
+  }
+  if (cut) save(LS.queue, q);
+  apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } })
+    .catch(function(e){ toast('설교 기록(파일맵)을 시트에 저장하지 못했습니다 — ' + ((e && e.message) || e)); });
+}
 function mergeDelta(d){
   heldApply();   /* v576: 보호가 풀린 보류분 먼저(같은 델타에 더 새 행이 있으면 아래 upsert 가 이긴다) */
+  if (d.sermons) d.sermons.forEach(fmPendKeep_);   /* v775: 이 기기가 막 쓴 파일맵 키를 옛 행이 지우지 않게(보류분에도 같이 걸린다) */
   var keepId = _editingGuardId();
   DELTA_KEYS.forEach(function(k){
     if (!d[k]) return;
@@ -4362,6 +4409,7 @@ function _pullData(opts){
       d.devo = d.devo || [];
       d.devonotes = d.devonotes || [];
       d.seriesdraft = d.seriesdraft || [];
+      (d.sermons || []).forEach(fmPendKeep_);   /* v775 파일맵 쓰기 보호(델타와 같다) */
       /* 편집 중인 설교 행은 로컬 저장본을 유지(원격이 통째로 덮어쓰지 않도록) */
       var keepId = _editingGuardId();
       if (keepId) {
@@ -4583,6 +4631,7 @@ function qOwnEchoAdopt_(data){
     return api({ action: 'open', id: id }).then(function(row){
       if (!row || String(row['ID'] || '') !== id || !row['수정일']) return;
       if (rtNorm(String(row['원고텍스트'] || '')) !== rtNorm(String(data['원고텍스트'] || ''))) return;   /* 남의 저장이 끼었다 — 받지 않는다 */
+      fmPendKeep_(row);   /* v775 */
       var prev = findSermon(id), mod = String(row['수정일']);
       var rec = Object.assign({}, prev || {}, row); rec._txt = true; rec._txtAt = mod;
       upsertById(state.data.sermons, [rec]); saveData();
@@ -15582,7 +15631,7 @@ function introTitlePersist(id, title){
     var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
     if (title) fm.introTitle = title; else delete fm.introTitle;
     s['파일맵'] = JSON.stringify(fm); saveData();
-    apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }).catch(function(){});
+    fmSend_(id, s, { introTitle: title || undefined });   /* v775 */
   } catch (e) {}
 }
 /* 결론의 대지 요약: 기본은 대지 명제에서 자동 생성. 사용자가 결론칸에서 직접 고치면(concPtsEdited) 그 텍스트를 사용. */
@@ -29336,7 +29385,7 @@ function setSermonFileMap(id, key, val){
   var s = findSermon(id); if (!s) return;
   var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
   fm[key] = val; s['파일맵'] = JSON.stringify(fm); saveData();
-  apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }).catch(function(){});
+  var kv = {}; kv[key] = val; fmSend_(id, s, kv);   /* v775 확인될 때까지 보호 · 일시 오류는 대기열로 */
   if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
 }
 /* ── 이미지 전환표(카드원고 ↔ 이미지전환표시 원고 페어) — 파일맵.trans 에 보관 ──
@@ -29678,7 +29727,7 @@ function setSermonFileMapMulti(id, obj){
   var fm = {}; try { fm = JSON.parse(s['파일맵'] || '{}') || {}; } catch (e) { fm = {}; }
   Object.keys(obj).forEach(function(k){ fm[k] = obj[k]; });
   s['파일맵'] = JSON.stringify(fm); saveData();
-  apiPost({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }).catch(function(){});
+  fmSend_(id, s, obj);   /* v775 */
   if (state.detailId === id && $('#detailPane').classList.contains('open')) openDetail('sermon', id);
 }
 /* 전환표시본 본문을 만든 시점의 원고 서명 — 원고가 바뀌면 옛 본문을 재사용하지 않게 한다 */
@@ -30237,8 +30286,14 @@ async function bulletinKakao(){
   hymn = (await hymnResolve(hymn)).trim();      /* 성경앱 찬송가 목록으로 번호·제목 정규화(v475) */
   if (hymn !== String(fm.hymn || '')) setSermonFileMap(id, 'hymn', hymn);
   var d = sermonLtcData(id);
+  /* v775 파일맵에서 교재 데이터가 빠졌으면 — 이 창이 기억하는 판을 다시 넣고, 그것도 없으면 저장된 교재 파일에서 GBS 질문만 읽는다 */
+  var mem = _ltcJson[id];
+  if (!d && mem && Array.isArray(mem.sections) && mem.sections.length && Array.isArray(mem.gbs) && mem.gbs.length) { d = mem; setSermonFileMap(id, 'ltcData', mem); }
   var gbs = (d && d.gbs) || [];
-  if (!gbs.length && !await uiConfirm('GBS 질문이 없습니다(LTC 교재 미생성).\nGBS 질문 없이 보낼까요?')) return;
+  if (!gbs.length && fm.ltc) { try { var dd = await readLtcDocxData(s, { sections: [], gbs: [] }); gbs = (dd && dd.gbs) || []; } catch (e) {} }
+  if (!gbs.length && !await uiConfirm(fm.ltc
+      ? 'LTC 교재 파일은 있는데 GBS 질문을 읽지 못했습니다.\n(교재: ' + String(fm.ltc).split('/').pop() + ' — 교재 폴더가 연결돼 있는지 확인해 주세요)\nGBS 질문 없이 보낼까요?'
+      : 'GBS 질문이 없습니다(LTC 교재 미생성).\nGBS 질문 없이 보낼까요?')) return;
   /* 본문을 약어 표기로 (요한복음 1:43-51 → 요 1:43-51) — 변환 실패 시 원문 그대로 */
   var ref = String(s['본문'] || '').trim();
   try {
