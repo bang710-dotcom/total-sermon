@@ -33459,7 +33459,17 @@ function saveComposeFinal(data){
   else composeAdoptAddLid_(data);   /* 대기열의 같은 제목 미전송 add와 합쳐 이중 등록 방지 + 세션 멱등키 재사용 */
   var body = editing ? { action: 'update', sheet: 'sermons', data: data } : { action: 'add', sheet: 'sermons', data: data };
   if (!editing) { stampLocalId_(body); state.pendingAddLid = body.data['로컬ID']; }
-  submit(body, (editing ? '최종본 시트 반영' : '설교 등록') + ' (' + data['상태'] + ')').then(function(id){
+  /* v776 이 저장도 [저장]처럼 「이 기기 저장」으로 기록한다. 예전엔 위에서 상태 칸을 바꿔 놓고 저장됨 표시(savedSig)·기준 시각(_bufMod)을
+     그대로 두어, 작성창이 미저장으로 보이는 채 이 저장의 시트 에코(더 새 수정일·바뀐 상태)가 들어와 「다른 기기 수정」으로 판정됐다.
+     _base 없는 _cas = 비교는 하지 않고 서버 수정일만 돌려받는다(기준 시각을 기기 시계가 아니라 서버 값으로). */
+  var c0 = state.compose, sig0 = composeSig();
+  if (editing && srvCap('cas')) { body._cas = 1; body._base = ''; }
+  submit(body, (editing ? '최종본 시트 반영' : '설교 등록') + ' (' + data['상태'] + ')', function(okv){
+    if (!okv || state.compose !== c0 || String(state.editing || '') !== String(editing || '')) return;   /* 실패했거나 그사이 다른 설교로 넘어갔다 */
+    state.savedSig = sig0;
+    if (composeSig() === sig0) clearComposeDraft(true); else { state._draftBaseMod = null; state._draftAt = 0; }
+    state._bufMod = nowLocalStr_();   /* 서버가 수정일을 알려 주면 submit 이 그 값으로 바꾼다 */
+  }, { fastLocal: true }).then(function(id){
     if (id && typeof id === 'string' && !editing) { state.editing = id; state.versionOf = null; state.pendingAddLid = null; updateComposeBadge(); refreshReqBtns(); }
   });
 }
@@ -39347,7 +39357,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v775';
+var APP_VER = 'v776';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
