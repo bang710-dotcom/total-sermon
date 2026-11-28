@@ -4286,8 +4286,34 @@ function fmSend_(id, s, keys){
         Object.keys(b.data).every(function(k){ return k === 'ID' || k === '파일맵'; })) { q.splice(i, 1); cut = true; }
   }
   if (cut) save(LS.queue, q);
-  apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } })
-    .catch(function(e){ toast('설교 기록(파일맵)을 시트에 저장하지 못했습니다 — ' + ((e && e.message) || e)); });
+  var body = { action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }, sid = String(id);
+  function fail(e){ toast('설교 기록(파일맵)을 시트에 저장하지 못했습니다 — ' + ((e && e.message) || e)); }
+  _fmChain[sid] = (_fmChain[sid] || Promise.resolve()).then(function(){ return fmPost_(sid, body); }).then(null, fail);
+}
+/* ── v777 이 기기의 파일맵 쓰기를 「다른 기기 수정」으로 보지 않게 (2026-11-28 목사님 제보 「프롬프터 원고를 만들고 나니 다른 기기 경고」) ──
+   파일맵만 써도 시트 행의 수정일이 오른다. 작성창이 아직 저장 전일 때(방금 AI 가 만든 프롬프터·카드원고) 그 쓰기의 에코가 들어오면
+   _maybeFlagConflict 가 기준 시각(_bufMod)보다 새 행이라며 「다른 기기 수정」으로 표시했다(프롬프터·카드원고 생성 끝의 marksGenSet 등).
+   이제 작성창의 설교에 쓸 때는 기준 시각을 실어 서버가 비교하게 한다(cas). 그사이 다른 저장이 없었다고 서버가 답하면 그 쓰기의
+   서버 수정일로 기준을 옮긴다. 다른 저장이 끼었으면 기준은 그대로 두고 그냥 다시 보낸다(충돌 판정은 예전대로). 같은 설교의 쓰기는
+   한 줄로 보내 뒤 쓰기가 앞 쓰기로 옮긴 기준을 쓰게 한다. */
+var _fmChain = {};
+function fmPost_(id, body){
+  var dm = !!state._draftBaseMod, base = String(state.editing || '') === id ? String(state._draftBaseMod || state._bufMod || '') : '';
+  if (!base || !srvCap('cas')) return apiPostOrQueue(body);
+  body._cas = 1; body._base = base;
+  return apiPost(body).then(function(r){
+    if (r && r.conflict) { delete body._cas; delete body._base; return apiPostOrQueue(body); }
+    var mod = r && r['수정일'] ? String(r['수정일']) : '';
+    if (mod && String(state.editing || '') === id) {   /* 그사이 저장·다른 설교 열기로 기준이 바뀌었으면 건드리지 않는다 */
+      if (dm && String(state._draftBaseMod || '') === base) state._draftBaseMod = mod;
+      else if (!dm && !state._draftBaseMod && String(state._bufMod || '') === base) state._bufMod = mod;
+    }
+    return r;
+  }, function(e){
+    delete body._cas; delete body._base;
+    if (_isTransientNetErr(e)) { state.queue.push(body); save(LS.queue, state.queue); renderStats(); toast('통신 오류 — 결과를 대기열에 보관했습니다. 다음 동기화 때 자동 전송됩니다.'); return null; }
+    throw e;
+  });
 }
 function mergeDelta(d){
   heldApply();   /* v576: 보호가 풀린 보류분 먼저(같은 델타에 더 새 행이 있으면 아래 upsert 가 이긴다) */
