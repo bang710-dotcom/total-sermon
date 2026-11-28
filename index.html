@@ -4286,18 +4286,24 @@ function fmSend_(id, s, keys){
         Object.keys(b.data).every(function(k){ return k === 'ID' || k === '파일맵'; })) { q.splice(i, 1); cut = true; }
   }
   if (cut) save(LS.queue, q);
-  var body = { action: 'update', sheet: 'sermons', data: { ID: id, '파일맵': s['파일맵'] } }, sid = String(id);
   function fail(e){ toast('설교 기록(파일맵)을 시트에 저장하지 못했습니다 — ' + ((e && e.message) || e)); }
-  _fmChain[sid] = (_fmChain[sid] || Promise.resolve()).then(function(){ return fmPost_(sid, body); }).then(null, fail);
+  rowPostOwn_(id, { ID: id, '파일맵': s['파일맵'] }).then(null, fail);   /* v777 */
 }
-/* ── v777 이 기기의 파일맵 쓰기를 「다른 기기 수정」으로 보지 않게 (2026-11-28 목사님 제보 「프롬프터 원고를 만들고 나니 다른 기기 경고」) ──
-   파일맵만 써도 시트 행의 수정일이 오른다. 작성창이 아직 저장 전일 때(방금 AI 가 만든 프롬프터·카드원고) 그 쓰기의 에코가 들어오면
-   _maybeFlagConflict 가 기준 시각(_bufMod)보다 새 행이라며 「다른 기기 수정」으로 표시했다(프롬프터·카드원고 생성 끝의 marksGenSet 등).
-   이제 작성창의 설교에 쓸 때는 기준 시각을 실어 서버가 비교하게 한다(cas). 그사이 다른 저장이 없었다고 서버가 답하면 그 쓰기의
-   서버 수정일로 기준을 옮긴다. 다른 저장이 끼었으면 기준은 그대로 두고 그냥 다시 보낸다(충돌 판정은 예전대로). 같은 설교의 쓰기는
-   한 줄로 보내 뒤 쓰기가 앞 쓰기로 옮긴 기준을 쓰게 한다. */
-var _fmChain = {};
-function fmPost_(id, body){
+/* ── v777 이 기기가 설교 행 칸 몇 개만 쓴 것을 「다른 기기 수정」으로 보지 않게 (2026-11-28 목사님 제보 「프롬프터 원고를 만들고 나니 다른 기기 경고」) ──
+   칸 하나만 써도(파일맵·카드원고 …) 시트 행의 수정일이 오른다. 작성창이 아직 저장 전일 때(방금 AI 가 만든 프롬프터·카드원고) 그 쓰기의 에코가
+   들어오면 _maybeFlagConflict 가 기준 시각(_bufMod)보다 새 행이라며 「다른 기기 수정」으로 표시했다 — 프롬프터·카드원고 생성 끝의
+   전환 표시 기록(marksGenSet → 파일맵), 카드 가지의 카드원고 초안 저장(cardDocPersist).
+   이제 작성창의 설교에 쓸 때는 기준 시각을 실어 서버가 비교하게 한다(cas). 그사이 다른 저장이 없었다고 서버가 답하면 이 쓰기의 서버 수정일로
+   기준을 옮긴다. 다른 저장이 끼었으면 기준은 그대로 두고 비교 없이 다시 보낸다(충돌 판정은 예전대로). 같은 설교의 쓰기는 한 줄로 보내
+   뒤 쓰기가 앞 쓰기로 옮긴 기준을 쓰게 한다. 일시 오류는 대기열로(apiPostOrQueue 와 같이), 그 밖의 실패는 호출부로 던진다. */
+var _rowOwnChain = {};
+function rowPostOwn_(id, data){
+  var sid = String(id), body = { action: 'update', sheet: 'sermons', data: data };
+  var run = (_rowOwnChain[sid] || Promise.resolve()).then(function(){ return rowPostOwnRun_(sid, body); });
+  _rowOwnChain[sid] = run.then(null, function(){});
+  return run;
+}
+function rowPostOwnRun_(id, body){
   var dm = !!state._draftBaseMod, base = String(state.editing || '') === id ? String(state._draftBaseMod || state._bufMod || '') : '';
   if (!base || !srvCap('cas')) return apiPostOrQueue(body);
   body._cas = 1; body._base = base;
@@ -14929,7 +14935,7 @@ function cardDocPersist(id, doc){
   }
   if (id) {
     var s = findSermon(id); if (s) { s['카드원고'] = doc; saveData(); }
-    apiPostOrQueue({ action: 'update', sheet: 'sermons', data: { ID: id, '카드원고': doc } }).catch(function(){});
+    rowPostOwn_(id, { ID: id, '카드원고': doc }).catch(function(){});   /* v777 이 기기 쓰기 — 작성창 기준 시각을 함께 옮긴다 */
   }
 }
 function cardPreview(data){
@@ -39383,7 +39389,7 @@ window.openSeriesSermonPreview = function(){
 
 /* iOS standalone에서 100dvh가 짧게 잡혀 하단에 여백이 생기는 버그 해결:
    실제 보이는 높이(window.innerHeight)를 측정해 --app-h로 주입 (성경앱 검증 패턴) */
-var APP_VER = 'v776';
+var APP_VER = 'v777';
 var _appH = 0;
 /* 입력창 포커스(=소프트 키보드/피커가 떠 있는 동안)에는 높이를 고정한다.
    키보드가 뜰 때 visualViewport가 줄어드는 것을 따라 --app-h를 줄이면
